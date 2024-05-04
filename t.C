@@ -6,6 +6,8 @@
 #include <fstream>
 #include <string>
 #include <iomanip>
+#include <sstream>
+#include <map>
 
 #include <TFile.h>
 #include <TTree.h>
@@ -182,11 +184,13 @@ TFile *tuple_file;
 TTree *event_tree;
 
 
-void create_histos() {
+void create_histos(std::string outputFile) {
   // Open a ROOT file for writing
-  tuple_file = new TFile("event_data.root", "RECREATE");
+  tuple_file = new TFile(outputFile.c_str(), "RECREATE");
   event_tree = new TTree("event_tree", "Event data");
 
+  event_tree->Branch("run_number", &event.run_number);
+  event_tree->Branch("event_id", &event.event_id);
   event_tree->Branch("isCC", &event.isCC);
   event_tree->Branch("istau", &event.istau);
   event_tree->Branch("tau_decaymode",&event.tau_decaymode);
@@ -217,14 +221,45 @@ void close_histos() {
   tuple_file->Close();
 }
 
+
+void readDataCards(const std::string& filename, std::map<std::string, std::string>& config) {
+  std::cout << "Reading datacards " << filename << std::endl;
+  std::ifstream file(filename);
+  if (!file.is_open()) {
+    std::cerr << "Error: Could not open file " << filename << std::endl;
+    return;
+  }
+  
+  std::string line;
+  while (std::getline(file, line)) {
+    std::istringstream iss(line);
+    std::cout << line << std::endl;
+    std::string key, value;
+    if (!(iss >> key >> value)) {
+      std::cerr << "Error: Invalid line format: " << line << std::endl;
+      continue;
+    }
+    config[key] = value;
+  }
+  file.close();
+}
+
+
+
 void t() {
 
-// Open the ROOT file
+  std::map<std::string, std::string> config;
+  readDataCards("datacards.txt", config);
+
+  std::string inputFile = config["input"];
+  std::string outputFile = config["output"];
+
+  // Open the ROOT file
 
  TChain *tree = new TChain("m_NuMCTruth_tree");  
 
  // tree->Add("./sim/FaserMC-MC22_Genie_all_6invab-200006-00000-s0010-NTUP.root");
- tree->Add("./sim/*.root");
+ tree->Add(inputFile.c_str());
  
 // Set up variables to hold the data and link them to the tree branches
 Int_t m_runnumber, m_event_id_MC, m_track_id, m_pdg_id, m_num_in_particle, m_num_out_particle;
@@ -266,7 +301,7 @@ tree->SetBranchAddress("m_status", &m_status);
  Int_t event_count = 0;
  Int_t event_max = 10000000;
  
- create_histos();
+ create_histos(outputFile);
  
  std::cout << "Number of entries " << tree->GetEntries() << std::endl;
 
@@ -364,6 +399,9 @@ for (Long64_t ientry = 0; ientry < tree->GetEntries() && event_count < event_max
 
  // Close the file
  outFile.close();
+
+ std::cout << "We're done." << std::endl;
+ 
 }
 
 int main() {
