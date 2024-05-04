@@ -1,0 +1,2 @@
+input ./sim/*.root
+output event_data.root
