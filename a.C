@@ -25,8 +25,17 @@ void dump_cuts(struct cuts *cuts) {
   std::cout << "--------------------------------------------------------------------------------------------------------" << std::endl;
 }
 
+struct stats {
+  int nueCC;
+  int numuCC;
+  int nutauCC;
+  int NC;
+} stats;
+
 void a() {
 
+  stats.nueCC = stats.numuCC = stats.nutauCC = stats.NC = 0;
+  
   struct cuts tauecuts;
   struct cuts taumucuts;
 
@@ -116,12 +125,27 @@ void a() {
    for (Long64_t i=0; i<nentries;i++) {
      event_tree->GetEntry(i);
 
+     // stats
+     if(isCC) {
+       if(abs(in_lepton_pdgid) == 12) {
+	 stats.nueCC++;
+       }
+       if(abs(in_lepton_pdgid) == 14) {
+	 stats.numuCC++;
+       }
+       if(abs(in_lepton_pdgid) == 16) {
+	 stats.nutauCC++;
+       }
+     } else {
+       stats.NC++;
+     };
+     
      double cost, cosf;
      // extra kinematics
-     if(abs(in_lepton_pdgid) == 1) {
+     if(abs(in_lepton_pdgid) == 16) {
        cost = (tauvis_px*jetpx + tauvis_py*jetpy)/(sqrt(tauvis_px*tauvis_px+tauvis_py*tauvis_py)*sqrt(jetpx*jetpx+jetpy*jetpy));
-       double ptmissx = tauvis_px+jetpx;
-       double ptmissy = tauvis_py+jetpy;
+       double ptmissx = -(tauvis_px+jetpx);
+       double ptmissy = -(tauvis_py+jetpy);
        cosf = (tauvis_px*ptmissx + tauvis_py*ptmissy)/(sqrt(tauvis_px*tauvis_px+tauvis_py*tauvis_py)*sqrt(ptmissx*ptmissx+ptmissy*ptmissy));
      } else {
        double lep_px = vis_spx-jetpx;
@@ -136,7 +160,7 @@ void a() {
      // tau->e channel
      //
      // BACKGROUND
-     if(abs(in_lepton_pdgid) == 12) {
+     if(abs(in_lepton_pdgid) == 12 && isCC) {
        nueCC_Evis->Fill(Evis);
        nueCC_ptmiss->Fill(ptmiss);
        nueCC_costcosf->Fill(cost,cosf);
@@ -149,7 +173,7 @@ void a() {
        }
      }
      // signal
-     if(abs(in_lepton_pdgid) == 16 && tau_decaymode == 1) {
+     if(istau && isCC && tau_decaymode == 1) {
        nutaueCC_Evis->Fill(Evis);
        nutaueCC_ptmiss->Fill(ptmiss);
        nutaueCC_costcosf->Fill(cost,cosf);
@@ -166,7 +190,7 @@ void a() {
      // tau->mu channel
      //
      // BACKGROUND
-     if(abs(in_lepton_pdgid) == 14) {
+     if(abs(in_lepton_pdgid) == 14 && isCC) {
        numuCC_Evis->Fill(Evis);
        numuCC_ptmiss->Fill(ptmiss);
        numuCC_costcosf->Fill(cost,cosf);
@@ -182,7 +206,7 @@ void a() {
        }
      }
      // signal
-     if(abs(in_lepton_pdgid) == 16 && tau_decaymode == 2) {
+     if(istau && isCC && tau_decaymode == 2) {
        nutaumuCC_Evis->Fill(Evis);
        nutaumuCC_ptmiss->Fill(ptmiss);
        nutaumuCC_costcosf->Fill(cost,cosf);
@@ -252,5 +276,10 @@ void a() {
    
    dump_cuts(&tauecuts);
    dump_cuts(&taumucuts);
+
+   std::cout << "nueCC = " << stats.nueCC;
+   std::cout << " numuCC = " << stats.numuCC;
+   std::cout << " nutauCC = " << stats.nutauCC;
+   std::cout << " NC = " << stats.NC << std::endl;
 
  }
