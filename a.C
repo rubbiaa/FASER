@@ -70,6 +70,9 @@ void a() {
   //Declaration of leaves types
    Bool_t          isCC;
    Bool_t          istau;
+   Double_t        prim_vx;
+   Double_t        prim_vy;
+   Double_t        prim_vz;
    Int_t           tau_decaymode; // =1 e, =2 mu, =3 1-prong, =4 rho =5 3-prong, =6 other
    ULong_t         n_particles;
    Int_t           in_lepton_pdgid;
@@ -82,6 +85,7 @@ void a() {
    Double_t        tauvis_px;
    Double_t        tauvis_py;
    Double_t        tauvis_pz;
+   Double_t        tautracklength;
    Double_t        Evis;
    Double_t        ptmiss;
 
@@ -90,6 +94,9 @@ void a() {
    event_tree->SetBranchAddress("istau",&istau);
    event_tree->SetBranchAddress("tau_decaymode",&tau_decaymode);
    event_tree->SetBranchAddress("n_particles",&n_particles);
+   event_tree->SetBranchAddress("prim_vx", &prim_vx);
+   event_tree->SetBranchAddress("prim_vy", &prim_vy);
+   event_tree->SetBranchAddress("prim_vz", &prim_vz);
    event_tree->SetBranchAddress("in_lepton_pdgid",&in_lepton_pdgid);
    event_tree->SetBranchAddress("vis_spx",&vis_spx);
    event_tree->SetBranchAddress("vis_spy",&vis_spy);
@@ -100,6 +107,7 @@ void a() {
    event_tree->SetBranchAddress("tauvis_px",&tauvis_px);
    event_tree->SetBranchAddress("tauvis_py",&tauvis_py);
    event_tree->SetBranchAddress("tauvis_pz",&tauvis_pz);
+   event_tree->SetBranchAddress("tautracklength",&tautracklength);
    event_tree->SetBranchAddress("Evis",&Evis);
    event_tree->SetBranchAddress("ptmiss",&ptmiss);
 
@@ -119,7 +127,8 @@ void a() {
    TH1D* nutaumuCC_Evis = new TH1D("nutaumuCC_Evis","Evis tau->mu CC",100,0,4000);
    TH1D* nutaumuCC_ptmiss = new TH1D("nutaumuCC_ptmiss","ptmiss tau->mu CC",100,0,20);
    TH2D* nutaumuCC_costcosf = new TH2D("nutaumuCC_costcosf", "angles tau-> numu CC", 100, -1., 1., 100, -1, 1.);
-   
+
+   TH2D* primxy = new TH2D("primxy", "primary", 100, -400.,400., 100, -400., 400.);
    Long64_t nentries = event_tree->GetEntries();
 
    for (Long64_t i=0; i<nentries;i++) {
@@ -139,6 +148,8 @@ void a() {
      } else {
        stats.NC++;
      };
+
+     primxy->Fill(prim_vx, prim_vy);
      
      double cost, cosf;
      // extra kinematics
@@ -274,6 +285,10 @@ void a() {
    nutaumuCC_costcosf->Draw();
    c3m->SaveAs("c3m.png");
    
+   TCanvas *c4xy = new TCanvas("primxy", "vtx", 800, 600);
+   primxy->Draw();
+   c4xy->SaveAs("cxy.png");
+
    dump_cuts(&tauecuts);
    dump_cuts(&taumucuts);
 

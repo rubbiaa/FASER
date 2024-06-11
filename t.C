@@ -26,6 +26,7 @@ struct PO {
   double m_px;
   double m_py;
   double m_pz;
+  double m_vx_decay, m_vy_decay, m_vz_decay;
   int nparent;
   int m_trackid_in_particle[MAXPARENT];
   int m_status;
@@ -35,6 +36,7 @@ struct PO {
 struct EVENT {
   int run_number;
   int event_id;
+  double prim_vx[3];
   bool isCC;
   bool istau;
   int tau_decaymode; // =1 e, =2 mu, =3 1-prong, =4 rho =5 3-prong, =6 other
@@ -44,6 +46,7 @@ struct EVENT {
   struct PO POs[MAXPARTICLES];
   size_t n_taudecay;
   struct PO taudecay[MAXPARTICLES];
+  double tautracklength;
   double spx, spy, spz;
   double vis_spx, vis_spy, vis_spz;
   double jetpx, jetpy, jetpz;
@@ -53,6 +56,7 @@ struct EVENT {
 
 void clear_event() {
   event.run_number = event.event_id = -1;
+  event.prim_vx[0] = event.prim_vx[1] = event.prim_vx[2] = 0;
   event.n_particles = 0;
   event.n_taudecay = 0;
   event.tau_decaymode = -1;
@@ -143,6 +147,9 @@ void dump_PO(struct PO aPO,  TDatabasePDG *pdgDB) {
   } else {
     std::cout << std::setw(10) << " ?? ";
   }
+  double decaylength = sqrt(aPO.m_vx_decay*aPO.m_vx_decay+aPO.m_vy_decay*aPO.m_vy_decay+aPO.m_vz_decay*aPO.m_vz_decay);
+  std::cout << std::setw(10) << "gct=" << decaylength << " ";
+  std::cout << "vx=" << aPO.m_vx_decay << " vy = " << aPO.m_vy_decay << " vz = " << aPO.m_vz_decay << " ";
   std::cout << std::setw(10) << aPO.m_px << " " << " " << aPO.m_py << " " << aPO.m_pz << " " << aPO.m_status << " ";
   for (size_t j=0; j<aPO.nparent; j++) {
     std::cout << std::setw(10) << aPO.m_trackid_in_particle[j] << " ";
@@ -158,6 +165,7 @@ void dump_event() {
   } else {
     std::cout << "--- Run " << event.run_number << " Event " << event.event_id << " ------------------------------------------- NC ------------------------------------------" << std::endl;
   }
+  std::cout << " Primary vtx = " << event.prim_vx[0] << " " << event.prim_vx[1] << " " << event.prim_vx[2] << std::endl;
   for (size_t i=0; i<event.n_particles; i++) {
     struct PO aPO = event.POs[i];
     dump_PO(aPO, pdgDB);
@@ -195,6 +203,9 @@ void create_histos(std::string outputFile) {
   event_tree->Branch("istau", &event.istau);
   event_tree->Branch("tau_decaymode",&event.tau_decaymode);
   event_tree->Branch("n_particles", &event.n_particles);
+  event_tree->Branch("prim_vx", &event.prim_vx[0]);
+  event_tree->Branch("prim_vy", &event.prim_vx[1]);
+  event_tree->Branch("prim_vz", &event.prim_vx[2]);
 
   event_tree->Branch("in_lepton_pdgid", &event.in_neutrino.m_pdg_id);
   event_tree->Branch("vis_spx", &event.vis_spx);
@@ -206,6 +217,7 @@ void create_histos(std::string outputFile) {
   event_tree->Branch("tauvis_px", &event.tauvis_px);
   event_tree->Branch("tauvis_py", &event.tauvis_py);
   event_tree->Branch("tauvis_pz", &event.tauvis_pz);
+  event_tree->Branch("tautracklength", &event.tautracklength);
   event_tree->Branch("Evis", &event.Evis);
   event_tree->Branch("ptmiss", &event.ptmiss);
   
@@ -296,6 +308,7 @@ tree->SetBranchAddress("m_status", &m_status);
  Int_t last_event_id_MC = -1;
  Int_t current_event_first_entry = -1;
  bool found_tau_lepton = false;
+ bool got_primvtx = false;
  int tau_lepton_track_id = 0;
  
  Int_t event_count = 0;
@@ -353,7 +366,15 @@ for (Long64_t ientry = 0; ientry < tree->GetEntries() && event_count < event_max
        clear_event();
        event.run_number = m_runnumber;
        event.event_id = m_event_id_MC;
-       found_tau_lepton = false;	
+       found_tau_lepton = false;
+       got_primvtx = false;
+     }
+
+     if(!got_primvtx && m_status == 1) {
+       event.prim_vx[0] = m_vx_prod;
+       event.prim_vx[1] = m_vy_prod;
+       event.prim_vx[2] = m_vz_prod;
+       got_primvtx = true;
      }
 
      struct PO aPO;
@@ -362,6 +383,9 @@ for (Long64_t ientry = 0; ientry < tree->GetEntries() && event_count < event_max
      aPO.m_px = m_px/1e3;
      aPO.m_py = m_py/1e3;
      aPO.m_pz = m_pz/1e3;
+     aPO.m_vx_decay = m_vx_prod-event.prim_vx[0];
+     aPO.m_vy_decay = m_vy_prod-event.prim_vx[1];
+     aPO.m_vz_decay = m_vz_prod-event.prim_vx[2];
      aPO.nparent = m_trackid_in_particle->size();
      for (int i=0; i<aPO.nparent;i++){
        aPO.m_trackid_in_particle[i] = m_trackid_in_particle->at(i);
@@ -370,12 +394,6 @@ for (Long64_t ientry = 0; ientry < tree->GetEntries() && event_count < event_max
 
      if(m_track_id < 20000 && m_status != 3) {
        event.POs[event.n_particles++] = aPO;
-     }
-
-     if(event.event_id == 724) {
-       std::cout << " shit " << std::endl;
-       TDatabasePDG *pdgDB = TDatabasePDG::Instance();
-       dump_PO(aPO,pdgDB);
      }
 
      // found charged tau lepton - store decay products
@@ -388,6 +406,8 @@ for (Long64_t ientry = 0; ientry < tree->GetEntries() && event_count < event_max
        for(int i=0;i<aPO.nparent;i++) {
 	 if(aPO.m_trackid_in_particle[i] == tau_lepton_track_id) {
 	   event.taudecay[event.n_taudecay++] = aPO;
+	   double decaylength = sqrt(aPO.m_vx_decay*aPO.m_vx_decay+aPO.m_vy_decay*aPO.m_vy_decay+aPO.m_vz_decay*aPO.m_vz_decay);
+	   event.tautracklength = decaylength;
 	 }
        }
      }
