@@ -9,6 +9,9 @@
 #include <sstream>
 #include <map>
 
+#include <cmath>
+#include <random>
+
 #include <TFile.h>
 #include <TTree.h>
 #include <iostream>
@@ -17,180 +20,32 @@
 #include <TCanvas.h>
 
 // #include "Pythia8/Pythia.h"
-#include <TDatabasePDG.h>
 
-#define MAXPARENT 10
-struct PO {
-  int m_pdg_id;
-  int m_track_id;
-  double m_px;
-  double m_py;
-  double m_pz;
-  double m_vx_decay, m_vy_decay, m_vz_decay;
-  int nparent;
-  int m_trackid_in_particle[MAXPARENT];
-  int m_status;
-};
+#include "faserntuplib.hh"
 
-#define MAXPARTICLES 1000
-struct EVENT {
-  int run_number;
-  int event_id;
-  double prim_vx[3];
-  bool isCC;
-  bool istau;
-  int tau_decaymode; // =1 e, =2 mu, =3 1-prong, =4 rho =5 3-prong, =6 other
-  size_t n_particles;
-  struct PO in_neutrino;
-  struct PO out_lepton;
-  struct PO POs[MAXPARTICLES];
-  size_t n_taudecay;
-  struct PO taudecay[MAXPARTICLES];
-  double tautracklength;
-  double spx, spy, spz;
-  double vis_spx, vis_spy, vis_spz;
-  double jetpx, jetpy, jetpz;
-  double tauvis_px, tauvis_py, tauvis_pz;
-  double Evis, ptmiss;
-} event;
-
-void clear_event() {
-  event.run_number = event.event_id = -1;
-  event.prim_vx[0] = event.prim_vx[1] = event.prim_vx[2] = 0;
-  event.n_particles = 0;
-  event.n_taudecay = 0;
-  event.tau_decaymode = -1;
-  event.isCC = false;
-  event.istau = false;
-  event.spx=event.spy=event.spz=0;
-  event.tauvis_px=event.tauvis_py=event.tauvis_pz=0;
-};
-
-bool is_lepton(int pdgid) {
-  int pdgidabs = abs(pdgid);
-  return (pdgidabs >= 11 && pdgidabs <= 16);
-}
-
-bool is_neutrino(int pdgid) {
-  int pdgidabs = abs(pdgid);
-  return (pdgidabs == 12 || pdgidabs == 14 || pdgidabs == 16);
-}
-
-void kinematics_event() {
-  bool got_out_lepton = false;
-  for (size_t i=0; i<event.n_particles; i++) {
-    struct PO aPO = event.POs[i];
-    if(aPO.m_status == 4 && i==0) {
-      event.in_neutrino = aPO;
-      event.istau = (abs(aPO.m_pdg_id) == 16);
-    }
-    if(!got_out_lepton && aPO.m_status == 1 && is_lepton(aPO.m_pdg_id) ) {
-      event.out_lepton = aPO;
-      got_out_lepton = true;
-    }
-    if(aPO.m_status == 1) {
-      event.spx += aPO.m_px;
-      event.spy += aPO.m_py;
-      event.spz += aPO.m_pz;
-    }
-  }
-  event.jetpx = event.spx-event.out_lepton.m_px;
-  event.jetpy = event.spy-event.out_lepton.m_py;
-  event.jetpz = event.spz-event.out_lepton.m_pz;
-  event.vis_spx = event.spx;
-  event.vis_spy = event.spy;
-  event.vis_spz = event.spz;
-  event.isCC = !(event.in_neutrino.m_pdg_id == event.out_lepton.m_pdg_id);
-  if(event.istau && event.isCC){
-    TDatabasePDG *pdgDB = TDatabasePDG::Instance();
-    int nc = 0, nn = 0;
-    for(int i=0; i<event.n_taudecay; i++) {
-      struct PO aPO = event.taudecay[i];
-      TParticlePDG *particle = pdgDB->GetParticle(aPO.m_pdg_id);
-      if(aPO.m_status == 1 && !is_neutrino(aPO.m_pdg_id)){
-	if(abs(aPO.m_pdg_id) == 11) {
-	  event.tau_decaymode = 1;
-	}
-	if(abs(aPO.m_pdg_id) == 13) {
-	  event.tau_decaymode = 2;
-	}
-	if(particle->Charge() == 0){
-	  nn++;
-	} else {
-	  nc++;
-	}
-	event.tauvis_px += aPO.m_px;
-	event.tauvis_py += aPO.m_py;
-	event.tauvis_pz += aPO.m_pz;
-      }
-    }
-    if(event.tau_decaymode < 0){
-      event.tau_decaymode = 6;
-      if(nc==1 && nn == 0) event.tau_decaymode = 3;
-      if(nc==1 && nn == 1) event.tau_decaymode = 4;
-      if(nc==3) event.tau_decaymode = 5;
-    }
-    event.vis_spx = event.tauvis_px + event.jetpx;
-    event.vis_spy = event.tauvis_py + event.jetpy;
-    event.vis_spz = event.tauvis_pz + event.jetpz;
-  }
-  event.Evis = sqrt(event.vis_spx*event.vis_spx + event.vis_spy*event.vis_spy + event.vis_spz*event.vis_spz);
-  event.ptmiss = sqrt(event.vis_spx*event.vis_spx + event.vis_spy*event.vis_spy);
-}
-
-
-void dump_PO(struct PO aPO,  TDatabasePDG *pdgDB) {
-  TParticlePDG *particle = pdgDB->GetParticle(aPO.m_pdg_id);
-  std::cout << std::setw(10) << aPO.m_track_id << " " << aPO.m_pdg_id << " ";
-  if(particle) {
-    std::cout << std::setw(10) << particle->GetName() << " ";
-  } else {
-    std::cout << std::setw(10) << " ?? ";
-  }
-  double decaylength = sqrt(aPO.m_vx_decay*aPO.m_vx_decay+aPO.m_vy_decay*aPO.m_vy_decay+aPO.m_vz_decay*aPO.m_vz_decay);
-  std::cout << std::setw(10) << "gct=" << decaylength << " ";
-  std::cout << "vx=" << aPO.m_vx_decay << " vy = " << aPO.m_vy_decay << " vz = " << aPO.m_vz_decay << " ";
-  std::cout << std::setw(10) << aPO.m_px << " " << " " << aPO.m_py << " " << aPO.m_pz << " " << aPO.m_status << " ";
-  for (size_t j=0; j<aPO.nparent; j++) {
-    std::cout << std::setw(10) << aPO.m_trackid_in_particle[j] << " ";
-  }
-  std::cout << std::endl;
-}
-
-void dump_event() {
-  double spx=0, spy=0, spz=0;
-  TDatabasePDG *pdgDB = TDatabasePDG::Instance();
-  if(event.isCC) {
-    std::cout << "--- Run " << event.run_number << " Event " << event.event_id << " ---------------------------------------- CC --------------------------------------------" << std::endl;
-  } else {
-    std::cout << "--- Run " << event.run_number << " Event " << event.event_id << " ------------------------------------------- NC ------------------------------------------" << std::endl;
-  }
-  std::cout << " Primary vtx = " << event.prim_vx[0] << " " << event.prim_vx[1] << " " << event.prim_vx[2] << std::endl;
-  for (size_t i=0; i<event.n_particles; i++) {
-    struct PO aPO = event.POs[i];
-    dump_PO(aPO, pdgDB);
-  }
-  std::cout << "--------------------------------------------------------------------------------------------" << std::endl;
-  std::cout << std::setw(10) << "Outgoing lepton:           ";
-  dump_PO(event.out_lepton, pdgDB);
-  std::cout << std::setw(10) << "Jet :                      " << event.jetpx << " " << event.jetpy << " " << event.jetpz << std::endl;
-  std::cout << std::setw(10) << "Sum final state particles: " << event.spx << " " << event.spy << " " << event.spz << std::endl;
-  std::cout << std::setw(10) << "Sum final state particles (VIS): " << event.vis_spx << " " << event.vis_spy << " " << event.vis_spz << std::endl;
-  std::cout << std::setw(10) << "Ptmiss = " << event.ptmiss << "  Evis = " << event.Evis << std::endl;
-  std::cout << "--------------------------------------------------------------------------------------------" << std::endl;
-  if(event.n_taudecay>0) {
-    std::cout << "Tau decay mode : " << event.tau_decaymode << std::endl;
-    for (size_t i=0; i<event.n_taudecay; i++) {
-      struct PO aPO = event.taudecay[i];
-      dump_PO(aPO, pdgDB);
-    }
-    std::cout << "--------------------------------------------------------------------------------------------" << std::endl;
-  }
-}
+struct EVENT event;
 
 TFile *tuple_file;
 TTree *event_tree;
 
+TFile *nueCC_signal_file;
+TTree *nueCC_signal_tree;
+TFile *nueCC_bkg_file;
+TTree *nueCC_bkg_tree;
+
+TFile *numuCC_signal_file;
+TTree *numuCC_signal_tree;
+TFile *numuCC_bkg_file;
+TTree *numuCC_bkg_tree;
+
+std::ofstream outFile("error.txt");
+
+void create_sel_tree(TTree *t) {
+  t->Branch("evis",&event.Evis);
+  t->Branch("ptmiss",&event.ptmiss);
+  t->Branch("cost",&event.cost);
+  t->Branch("cosf",&event.cosf);
+};
 
 void create_histos(std::string outputFile) {
   // Open a ROOT file for writing
@@ -220,17 +75,81 @@ void create_histos(std::string outputFile) {
   event_tree->Branch("tautracklength", &event.tautracklength);
   event_tree->Branch("Evis", &event.Evis);
   event_tree->Branch("ptmiss", &event.ptmiss);
-  
+  event_tree->Branch("cost", &event.cost);
+  event_tree->Branch("cosf", &event.cosf);
+
+  nueCC_signal_file = new TFile("nuecc_signal.root","RECREATE");
+  nueCC_signal_tree = new TTree("nuecc_signal","Event data");
+  create_sel_tree(nueCC_signal_tree);
+
+  nueCC_bkg_file = new TFile("nuecc_bkg.root","RECREATE");
+  nueCC_bkg_tree = new TTree("nuecc_bkg","Event data");
+  create_sel_tree(nueCC_bkg_tree);
+
+  numuCC_signal_file = new TFile("numucc_signal.root","RECREATE");
+  numuCC_signal_tree = new TTree("numucc_signal","Event data");
+  create_sel_tree(numuCC_signal_tree);
+
+  numuCC_bkg_file = new TFile("numucc_bkg.root","RECREATE");
+  numuCC_bkg_tree = new TTree("nunucc_bkg","Event data");
+  create_sel_tree(numuCC_bkg_tree);
+
 };
 
 void fill_histos() {
   // Fill the tree
   event_tree->Fill();
+
+  //
+  // tau->e channel
+  //
+  // BACKGROUND
+  if(abs(event.in_neutrino.m_pdg_id) == 12 && event.isCC) {
+    nueCC_bkg_tree->Fill();
+    outFile << "tau->e bkg" << event.run_number << " " << event.event_id << std::endl;
+  }
+  // signal
+  if(event.istau && event.isCC && event.tau_decaymode == 1) {
+    nueCC_signal_tree->Fill();
+    outFile << "tau->e signal" << event.run_number << " " << event.event_id << std::endl;
+  }
+
+  //
+  // tau->mu channel
+  //
+  // BACKGROUND
+  if(abs(event.in_neutrino.m_pdg_id) == 14 && event.isCC) {
+    numuCC_bkg_tree->Fill();
+    outFile << "tau->mu bkg" << event.run_number << " " << event.event_id << std::endl;
+  }
+  // signal
+  if(event.istau && event.isCC && event.tau_decaymode == 2) {
+    numuCC_signal_tree->Fill();
+    outFile << "tau->mu signal" << event.run_number << " " << event.event_id << std::endl;
+  }
+  
 }
 
 void close_histos() {
+  tuple_file->cd();
   event_tree->Write();
   tuple_file->Close();
+
+  nueCC_signal_file->cd();
+  nueCC_signal_tree->Write();
+  nueCC_signal_file->Close();
+
+  nueCC_bkg_file->cd();
+  nueCC_bkg_tree->Write();
+  nueCC_bkg_file->Close();
+
+  numuCC_signal_file->cd();
+  numuCC_signal_tree->Write();
+  numuCC_signal_file->Close();
+
+  numuCC_bkg_file->cd();
+  numuCC_bkg_tree->Write();
+  numuCC_bkg_file->Close();
 }
 
 
@@ -244,6 +163,10 @@ void readDataCards(const std::string& filename, std::map<std::string, std::strin
   
   std::string line;
   while (std::getline(file, line)) {
+    // Skip comment lines
+    if (line.empty() || line[0] == '#') {
+      continue;
+    }
     std::istringstream iss(line);
     std::cout << line << std::endl;
     std::string key, value;
@@ -268,11 +191,19 @@ void t() {
 
   // Open the ROOT file
 
- TChain *tree = new TChain("m_NuMCTruth_tree");  
-
+ TChain *tree = new TChain("m_NuMCTruth_tree");
  // tree->Add("./sim/FaserMC-MC22_Genie_all_6invab-200006-00000-s0010-NTUP.root");
  tree->Add(inputFile.c_str());
  
+ auto it = config.find("input2");
+ if (it != config.end()) {
+   tree->Add(it->second.c_str());
+ }
+ auto it3 = config.find("input3");
+ if (it3 != config.end()) {
+   tree->Add(it3->second.c_str());
+ }
+
 // Set up variables to hold the data and link them to the tree branches
 Int_t m_runnumber, m_event_id_MC, m_track_id, m_pdg_id, m_num_in_particle, m_num_out_particle;
 Double_t m_px, m_py, m_pz, m_energy, m_kinetic_energy, m_mass;
@@ -310,9 +241,8 @@ tree->SetBranchAddress("m_status", &m_status);
  bool found_tau_lepton = false;
  bool got_primvtx = false;
  int tau_lepton_track_id = 0;
- 
  Int_t event_count = 0;
- Int_t event_max = 10000000;
+ Int_t event_max = 0;
  
  create_histos(outputFile);
  
@@ -321,10 +251,8 @@ tree->SetBranchAddress("m_status", &m_status);
  // dump event
  bool dump = true;
 
- std::ofstream outFile("error.txt");
-
 // Now you can loop over the entries in the tree to read them
-for (Long64_t ientry = 0; ientry < tree->GetEntries() && event_count < event_max; ientry++) {
+ for (Long64_t ientry = 0; ientry < tree->GetEntries() && (event_count < event_max || event_max == 0); ientry++) {
     tree->GetEntry(ientry);
 
      if (m_event_id_MC != last_event_id_MC) {
@@ -337,7 +265,7 @@ for (Long64_t ientry = 0; ientry < tree->GetEntries() && event_count < event_max
 	 std::cout << "Event counter has gone back to low value... duplicate events??" << std::endl;
 	 TFile *currentFile = tree->GetFile();
 	 std::cout << "Entry  is from file: " << currentFile->GetName() << std::endl;
-	 break;
+	 //	 break;
        }
 
        current_event_first_entry = ientry;
@@ -347,10 +275,11 @@ for (Long64_t ientry = 0; ientry < tree->GetEntries() && event_count < event_max
 
        // process previous event
        if(event_count>1) {
+	 smear_event();
 	 kinematics_event();
 	 fill_histos();
 
-	 dump = event.istau;
+	 dump = event.istau || event_count < 10;
 	 
 	 if(dump) {
 	   dump_event();
@@ -359,7 +288,7 @@ for (Long64_t ientry = 0; ientry < tree->GetEntries() && event_count < event_max
 	 if(event.istau && event.n_taudecay==0) {
 	   std::cout << "Could not find tau decay product??" << std::endl;
 	   //	 exit(1);
-	   outFile << event.run_number << " " << event.event_id << std::endl;
+	   outFile << "Tau error " << event.run_number << " " << event.event_id << std::endl;
 	 }
        }
 	 
@@ -425,6 +354,11 @@ for (Long64_t ientry = 0; ientry < tree->GetEntries() && event_count < event_max
 }
 
 int main() {
+
+  // Set up random number generator
+  std::random_device rd;  // Seed generator
+  std::mt19937 gen(rd()); // Mersenne Twister engine
+  
   t();
 }
 

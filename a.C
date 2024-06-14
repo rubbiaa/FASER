@@ -90,6 +90,7 @@ void a() {
    Double_t        ptmiss;
 
    // Set branch addresses.
+
    event_tree->SetBranchAddress("isCC",&isCC);
    event_tree->SetBranchAddress("istau",&istau);
    event_tree->SetBranchAddress("tau_decaymode",&tau_decaymode);
@@ -246,7 +247,7 @@ void a() {
    TCanvas *c2 = new TCanvas("c2", "electron ptmiss", 800, 600);
    c2->Divide(1, 2);
    c2->cd(1);
-   gPad->SetLogy();
+   //   gPad->SetLogy();
    nueCC_ptmiss->Draw();
    c2->cd(2);
    nutaueCC_ptmiss->Draw();
@@ -271,7 +272,7 @@ void a() {
    TCanvas *c2m = new TCanvas("c2m", "tau ptmiss", 800, 600);
    c2m->Divide(1, 2);
    c2m->cd(1);
-   gPad->SetLogy();
+   //   gPad->SetLogy();
    numuCC_ptmiss->Draw();
    c2m->cd(2);
    nutaumuCC_ptmiss->Draw();

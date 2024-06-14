@@ -1,2 +1,9 @@
-input ./sim/*.root
+#charm, tau
+input FASERDATA/sim200035/*.root
+#kaon
+input2 FASERDATA/sim200026/*.root
+#pion
+input3 FASERDATA/sim200025/*.root
+#
+# input FASERDATA//sim200025/*0000*.root
 output event_data.root
