@@ -17,7 +17,7 @@
 void clear_event() {
   event.run_number = event.event_id = -1;
   event.prim_vx[0] = event.prim_vx[1] = event.prim_vx[2] = 0;
-  event.n_particles = 0;
+  event.n_particles = event.n_charged = 0;
   event.n_taudecay = 0;
   event.tau_decaymode = -1;
   event.isCC = false;
@@ -127,7 +127,6 @@ void smear_PO(struct PO *aPO, TDatabasePDG *pdgDB) {
 }
 
 void smear_event() {
-  return;
   TDatabasePDG *pdgDB = TDatabasePDG::Instance();
   for (size_t i=0; i<event.n_particles; i++) {
     struct PO *aPO = &event.POs[i];
@@ -138,6 +137,7 @@ void smear_event() {
 }
 
 void kinematics_event() {
+  TDatabasePDG *pdgDB = TDatabasePDG::Instance();
   bool got_out_lepton = false;
   for (size_t i=0; i<event.n_particles; i++) {
     struct PO aPO = event.POs[i];
@@ -149,7 +149,12 @@ void kinematics_event() {
       event.out_lepton = aPO;
       got_out_lepton = true;
     }
-    if(aPO.m_status == 1 && !is_neutrino(aPO.m_pdg_id)) {
+    // should add all the final state particles, except neutrinos and taus
+    if(aPO.m_status == 1 && !is_neutrino(aPO.m_pdg_id) && abs(aPO.m_pdg_id) != 15) {
+      TParticlePDG *particle = pdgDB->GetParticle(aPO.m_pdg_id);
+      if(particle != nullptr && particle->Charge()!=0) {
+	event.n_charged++;
+      }
       event.spx += aPO.m_px;
       event.spy += aPO.m_py;
       event.spz += aPO.m_pz;
@@ -158,12 +163,15 @@ void kinematics_event() {
   event.jetpx = event.spx-event.out_lepton.m_px;
   event.jetpy = event.spy-event.out_lepton.m_py;
   event.jetpz = event.spz-event.out_lepton.m_pz;
+  if(event.jetpx == 0 && event.jetpy == 0 && event.jetpz == 0){
+    std::cout << "jet momentum = 0" << std::endl;
+    dump_event();
+  }
   event.vis_spx = event.spx;
   event.vis_spy = event.spy;
   event.vis_spz = event.spz;
   event.isCC = !(event.in_neutrino.m_pdg_id == event.out_lepton.m_pdg_id);
   if(event.istau && event.isCC){
-    TDatabasePDG *pdgDB = TDatabasePDG::Instance();
     int nc = 0, nn = 0;
     for(int i=0; i<event.n_taudecay; i++) {
       struct PO aPO = event.taudecay[i];

@@ -25,6 +25,7 @@ struct EVENT {
   bool istau;
   int tau_decaymode; // =1 e, =2 mu, =3 1-prong, =4 rho =5 3-prong, =6 other
   size_t n_particles;
+  size_t n_charged;
   struct PO in_neutrino;
   struct PO out_lepton;
   struct PO POs[MAXPARTICLES];

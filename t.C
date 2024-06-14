@@ -28,24 +28,7 @@ struct EVENT event;
 TFile *tuple_file;
 TTree *event_tree;
 
-TFile *nueCC_signal_file;
-TTree *nueCC_signal_tree;
-TFile *nueCC_bkg_file;
-TTree *nueCC_bkg_tree;
-
-TFile *numuCC_signal_file;
-TTree *numuCC_signal_tree;
-TFile *numuCC_bkg_file;
-TTree *numuCC_bkg_tree;
-
 std::ofstream outFile("error.txt");
-
-void create_sel_tree(TTree *t) {
-  t->Branch("evis",&event.Evis);
-  t->Branch("ptmiss",&event.ptmiss);
-  t->Branch("cost",&event.cost);
-  t->Branch("cosf",&event.cosf);
-};
 
 void create_histos(std::string outputFile) {
   // Open a ROOT file for writing
@@ -58,6 +41,7 @@ void create_histos(std::string outputFile) {
   event_tree->Branch("istau", &event.istau);
   event_tree->Branch("tau_decaymode",&event.tau_decaymode);
   event_tree->Branch("n_particles", &event.n_particles);
+  event_tree->Branch("n_charged", &event.n_charged);
   event_tree->Branch("prim_vx", &event.prim_vx[0]);
   event_tree->Branch("prim_vy", &event.prim_vx[1]);
   event_tree->Branch("prim_vz", &event.prim_vx[2]);
@@ -78,78 +62,17 @@ void create_histos(std::string outputFile) {
   event_tree->Branch("cost", &event.cost);
   event_tree->Branch("cosf", &event.cosf);
 
-  nueCC_signal_file = new TFile("nuecc_signal.root","RECREATE");
-  nueCC_signal_tree = new TTree("nuecc_signal","Event data");
-  create_sel_tree(nueCC_signal_tree);
-
-  nueCC_bkg_file = new TFile("nuecc_bkg.root","RECREATE");
-  nueCC_bkg_tree = new TTree("nuecc_bkg","Event data");
-  create_sel_tree(nueCC_bkg_tree);
-
-  numuCC_signal_file = new TFile("numucc_signal.root","RECREATE");
-  numuCC_signal_tree = new TTree("numucc_signal","Event data");
-  create_sel_tree(numuCC_signal_tree);
-
-  numuCC_bkg_file = new TFile("numucc_bkg.root","RECREATE");
-  numuCC_bkg_tree = new TTree("nunucc_bkg","Event data");
-  create_sel_tree(numuCC_bkg_tree);
-
 };
 
 void fill_histos() {
   // Fill the tree
   event_tree->Fill();
-
-  //
-  // tau->e channel
-  //
-  // BACKGROUND
-  if(abs(event.in_neutrino.m_pdg_id) == 12 && event.isCC) {
-    nueCC_bkg_tree->Fill();
-    outFile << "tau->e bkg" << event.run_number << " " << event.event_id << std::endl;
-  }
-  // signal
-  if(event.istau && event.isCC && event.tau_decaymode == 1) {
-    nueCC_signal_tree->Fill();
-    outFile << "tau->e signal" << event.run_number << " " << event.event_id << std::endl;
-  }
-
-  //
-  // tau->mu channel
-  //
-  // BACKGROUND
-  if(abs(event.in_neutrino.m_pdg_id) == 14 && event.isCC) {
-    numuCC_bkg_tree->Fill();
-    outFile << "tau->mu bkg" << event.run_number << " " << event.event_id << std::endl;
-  }
-  // signal
-  if(event.istau && event.isCC && event.tau_decaymode == 2) {
-    numuCC_signal_tree->Fill();
-    outFile << "tau->mu signal" << event.run_number << " " << event.event_id << std::endl;
-  }
-  
 }
 
 void close_histos() {
   tuple_file->cd();
   event_tree->Write();
   tuple_file->Close();
-
-  nueCC_signal_file->cd();
-  nueCC_signal_tree->Write();
-  nueCC_signal_file->Close();
-
-  nueCC_bkg_file->cd();
-  nueCC_bkg_tree->Write();
-  nueCC_bkg_file->Close();
-
-  numuCC_signal_file->cd();
-  numuCC_signal_tree->Write();
-  numuCC_signal_file->Close();
-
-  numuCC_bkg_file->cd();
-  numuCC_bkg_tree->Write();
-  numuCC_bkg_file->Close();
 }
 
 
@@ -241,8 +164,8 @@ tree->SetBranchAddress("m_status", &m_status);
  bool found_tau_lepton = false;
  bool got_primvtx = false;
  int tau_lepton_track_id = 0;
- Int_t event_count = 0;
- Int_t event_max = 0;
+ Long64_t event_count = 0;
+ Long64_t event_max = 0;
  
  create_histos(outputFile);
  
@@ -275,21 +198,24 @@ tree->SetBranchAddress("m_status", &m_status);
 
        // process previous event
        if(event_count>1) {
-	 smear_event();
+	 //	 smear_event();
 	 kinematics_event();
-	 fill_histos();
+	 if(event.istau && event.isCC & event.n_taudecay==0) {
+	   std::cout << "Could not find tau decay product??" << std::endl;
+	   //	 exit(1);
+	   dump_event();
+	   outFile << "Tau error " << event.run_number << " " << event.event_id << std::endl;
+	 } else {
+	   fill_histos();
+	 }
 
-	 dump = event.istau || event_count < 10;
+	 //	 dump = event.istau || event_count < 10;
+	 dump = false;
 	 
 	 if(dump) {
 	   dump_event();
 	 };
 	 
-	 if(event.istau && event.n_taudecay==0) {
-	   std::cout << "Could not find tau decay product??" << std::endl;
-	   //	 exit(1);
-	   outFile << "Tau error " << event.run_number << " " << event.event_id << std::endl;
-	 }
        }
 	 
        clear_event();
