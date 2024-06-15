@@ -1,4 +1,5 @@
 // FASER kinematical analysis
+// - t.C : code to convert FASER ntuple into event summary tuples
 // A. Rubbia May 2024
 //
 
@@ -208,14 +209,13 @@ tree->SetBranchAddress("m_status", &m_status);
 	 if(event.istau && event.isCC & event.n_taudecay==0) {
 	   std::cout << "Could not find tau decay product??" << std::endl;
 	   //	 exit(1);
-	   //	   dump_event();
+	   dump_event();
 	   outFile << "Tau error " << event.run_number << " " << event.event_id << std::endl;
 	 } else {
 	   fill_histos();
 	 }
 
-	 //	 dump = event.istau || event_count < 10;
-	 dump = false;
+	 dump = event.istau || event_count < 10;
 	 
 	 if(dump) {
 	   dump_event();

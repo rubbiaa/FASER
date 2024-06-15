@@ -1,3 +1,7 @@
+// - a.C : read sig/bkg tuples for each decay channel and perform BDT analysis
+// A. Rubbia, June 2024
+//
+
 #include <TMVA/Factory.h>
 #include <TMVA/DataLoader.h>
 #include <TMVA/Tools.h>
@@ -130,8 +134,8 @@ TH1D* nutaumuCC_bdt = new TH1D("nutaumuCC_bdt","bdt nutaumuCC", 100,-0.3,0.5);
 TH1D* nutaupi_sig_bdt = new TH1D("nutaupi_sig_bdt","bdt tau->pi", 100,-0.3,0.5);
 TH1D* nutaupi_bkg_bdt = new TH1D("nutaupi_bkg_bdt","bdt tau->pi", 100,-0.3,0.5);
 
-TH1D* nutaurho_sig_bdt = new TH1D("nutaurho_sig_bdt","bdt tau->pi", 100,-0.3,0.5);
-TH1D* nutaurho_bkg_bdt = new TH1D("nutaurho_bkg_bdt","bdt tau->pi", 100,-0.3,0.5);
+TH1D* nutaurho_sig_bdt = new TH1D("nutaurho_sig_bdt","bdt tau->rho", 100,-0.3,0.5);
+TH1D* nutaurho_bkg_bdt = new TH1D("nutaurho_bkg_bdt","bdt tau->rho", 100,-0.3,0.5);
 
 void dump_cuts(struct cuts *cuts) {
   std::cout << "------ " << cuts->name << " -------------------------------------------------------------------" << std::endl;
@@ -238,10 +242,10 @@ void process_file(int sig, const char *dataset, const char *fname, const char *c
 
 void a() {
 
-  //  trainBDT("taueset", "nueCC_TMVAOutput.root", "nuecc_signal.root", "nuecc_signal", "nuecc_bkg.root", "nuecc_bkg");
+  // trainBDT("taueset", "nueCC_TMVAOutput.root", "nuecc_signal.root", "nuecc_signal", "nuecc_bkg.root", "nuecc_bkg");
   //  PlotBDTPerformance("nueCC_TMVAOutput.root");
   
-  //    trainBDT("taumuset", "numuCC_TMVAOutput.root", "numucc_signal.root", "numucc_signal", "numucc_bkg.root", "numucc_bkg");
+  //   trainBDT("taumuset", "numuCC_TMVAOutput.root", "numucc_signal.root", "numucc_signal", "numucc_bkg.root", "numucc_bkg");
   //  PlotBDTPerformance("numuCC_TMVAOutput.root");
 
   //  trainBDT("taupiset", "nutaupi_TMVAOutput.root", "nutaupi_signal.root", "nutaupi_signal", "nutaupi_bkg.root", "nutaupi_bkg");
@@ -250,6 +254,8 @@ void a() {
   //  trainBDT("taurhoset", "nutaurho_TMVAOutput.root", "nutaurho_signal.root", "nutaurho_signal", "nutaurho_bkg.root", "nutaurho_bkg");
   //  PlotBDTPerformance("nutaurho_TMVAOutput.root");
 
+  //    return;
+  
   struct cuts tauecuts;
   struct cuts taumucuts;
   struct cuts taupicuts;
@@ -378,11 +384,22 @@ void a() {
    c3m->SaveAs("c3m.png");
 #endif
 
+   TCanvas *c4m = new TCanvas("c4m", "bdt", 800, 600);
+   gPad->SetLogy();
+   numuCC_bdt->SetFillColor(kYellow);  
+   numuCC_bdt->Draw("HIST");
+   TH1F* sum_mu_bdt = (TH1F*)numuCC_bdt->Clone("sum_bdt");
+   sum_mu_bdt->Add(nutaumuCC_bdt);
+   sum_mu_bdt->SetLineColor(kRed);  // Set color for the sum histogram
+   sum_mu_bdt->SetLineWidth(2);     // Set line width for better visibility
+   sum_mu_bdt->SetTitle("Sum of numuCC and nutaumuCC BDT");
+   sum_mu_bdt->Draw("e SAME");
+   c4m->SaveAs("c4m.png");
+
    TCanvas *c4pi = new TCanvas("c4pi", "bdt", 800, 600);
    gPad->SetLogy();
    nutaupi_bkg_bdt->SetFillColor(kYellow);  
    nutaupi_bkg_bdt->Draw("HIST");
-   //   nutaueCC_bdt->Draw("same");
    TH1F* sum_pi_bdt = (TH1F*)nutaupi_bkg_bdt->Clone("sum_bdt");
    sum_pi_bdt->Add(nutaumuCC_bdt);
    sum_pi_bdt->SetLineColor(kRed);  // Set color for the sum histogram

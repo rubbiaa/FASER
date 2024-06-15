@@ -89,7 +89,16 @@ double compute_qtlep(float p[3], float jet[3]) {
   // projection of momentum on hadronic jet
   double pproj = (p[0]*jet[0] + p[1]*jet[1] + p[2]*jet[2])/sqrt(jet[0]*jet[0]+jet[1]*jet[1]+jet[2]*jet[2]);
   double p2 = p[0]*p[0]+p[1]*p[1]+p[2]*p[2];
-  return sqrt(p2-pproj*pproj);
+  double qtlep2 = p2-pproj*pproj;
+  if(qtlep2>0)
+    return sqrt(qtlep2);
+  if(qtlep2>-1e3)
+    return 0;
+  std::cout << "compute qtlep " << qtlep2 << std::endl;
+  std::cout << "p " << p[0] << " " << p[1] << " " << p[2] << std::endl;
+  std::cout << "jet " << jet[0] << " " << jet[1] << " " << jet[2] << std::endl;
+  std::cout << "-------------------------------------------------------" << std::endl;
+  return 0;
 }
 
 double compute_cost(float plep[3], float jet[3]) {
@@ -109,7 +118,7 @@ void create_sel_tree(TTree *t) {
 
 void open_tuples() {
   event_tree = new TChain("event_tree");  
-  event_tree->Add("event_data_test.root");
+  event_tree->Add("event_data_v4.root");
   
   std::cout << "Number of entries " << event_tree->GetEntries() << std::endl;
 
@@ -177,11 +186,13 @@ void open_tuples() {
 
 void fill_histos() {
 
-  if (std::isnan(sumevent.Evis) || std::isnan(sumevent.ptmiss) || std::isnan(sumevent.cost) || std::isnan(sumevent.cosf)) {
-    std::cout << " Nan found evis:" << sumevent.Evis << " ptmiss:"<<sumevent.ptmiss<<" cost:"<<sumevent.cost << " cosf:"<<sumevent.cosf<<std::endl;																		  
+  if (sumevent.isCC && (std::isnan(sumevent.Evis) || std::isnan(sumevent.ptmiss) || std::isnan(sumevent.cost) || std::isnan(sumevent.cosf))) {
+    std::cout << " Nan found " << sumevent.isCC << std::endl;
+    std::cout << " Evis:" << sumevent.Evis << " ptmiss:"<<sumevent.ptmiss<<" cost:"<<sumevent.cost << " cosf:"<<sumevent.cosf<<std::endl;																		  
     std::cout << "jet " << sumevent.jetpx << " " << sumevent.jetpy << std::endl;
     std::cout << "tauvis " << sumevent.tauvis_px << " " << sumevent.tauvis_py << std::endl;
     std::cout << "istau " << sumevent.in_lepton_pdgid << std::endl;
+    std::cout << "--------------------------------------------------" << std::endl;
     return;
   }
   
@@ -220,15 +231,27 @@ void fill_histos() {
       jet[0] = sumevent.jetpx - sumevent.taupi_cand[0];
       jet[1] = sumevent.jetpy - sumevent.taupi_cand[1];
       jet[2] = sumevent.jetpz - sumevent.taupi_cand[2];
-      sumevent.plep = taupi_cand_p;
-      sumevent.ptlep = compute_pt(sumevent.taupi_cand);
-      sumevent.qtlep = compute_qtlep(sumevent.taupi_cand, jet);
-      sumevent.cost = compute_cost(sumevent.taupi_cand, jet);
-      float ptmiss[3];
-      ptmiss[0] = -sumevent.jetpx;
-      ptmiss[1] = -sumevent.jetpy;
-      sumevent.cosf = compute_cost(sumevent.taupi_cand, ptmiss);
-      nutaupi_bkg_tree->Fill();
+      double pjet = compute_momentum(jet);
+      if(pjet > 1e-4) {
+	sumevent.plep = taupi_cand_p;
+	sumevent.ptlep = compute_pt(sumevent.taupi_cand);
+	sumevent.qtlep = compute_qtlep(sumevent.taupi_cand, jet);
+	sumevent.cost = compute_cost(sumevent.taupi_cand, jet);
+	float ptmiss[3];
+	ptmiss[0] = -sumevent.jetpx;
+	ptmiss[1] = -sumevent.jetpy;
+	sumevent.cosf = compute_cost(sumevent.taupi_cand, ptmiss);
+	
+	if ((std::isnan(sumevent.Evis) || std::isnan(sumevent.ptmiss) || std::isnan(sumevent.cost) || std::isnan(sumevent.cosf) || std::isnan(sumevent.qtlep))) {
+	  std::cout << " Nan found tau pi background" << sumevent.isCC << std::endl;
+	  std::cout << " Evis:" << sumevent.Evis << " ptmiss:"<<sumevent.ptmiss<<" cost:"<<sumevent.cost << " cosf:"<<sumevent.cosf<<std::endl;
+	  std::cout << "taupi cand " << sumevent.taupi_cand[0] << " " << sumevent.taupi_cand[1] << " " << sumevent.taupi_cand[2] << std::endl;
+	  std::cout << "jet " << jet[0] << " " << jet[1] << " " << jet[2] << std::endl;
+	  std::cout << "leptonpdgid " << sumevent.in_lepton_pdgid << std::endl;
+	  std::cout << "--------------------------------------------------" << std::endl;
+	}      
+	nutaupi_bkg_tree->Fill();
+      }
     }
   }
   // signal
@@ -247,15 +270,18 @@ void fill_histos() {
       jet[0] = sumevent.jetpx - sumevent.taurho_cand[0];
       jet[1] = sumevent.jetpy - sumevent.taurho_cand[1];
       jet[2] = sumevent.jetpz - sumevent.taurho_cand[2];
-      sumevent.plep = taurho_cand_p;
-      sumevent.ptlep = compute_pt(sumevent.taurho_cand);
-      sumevent.qtlep = compute_qtlep(sumevent.taurho_cand, jet);
-      sumevent.cost = compute_cost(sumevent.taurho_cand, jet);
-      float ptmiss[3];
-      ptmiss[0] = -sumevent.jetpx;
-      ptmiss[1] = -sumevent.jetpy;
-      sumevent.cosf = compute_cost(sumevent.taurho_cand, ptmiss);
-      nutaurho_bkg_tree->Fill();
+      double pjet = compute_momentum(jet);
+      if(pjet > 1e-4) {
+	sumevent.plep = taurho_cand_p;
+	sumevent.ptlep = compute_pt(sumevent.taurho_cand);
+	sumevent.qtlep = compute_qtlep(sumevent.taurho_cand, jet);
+	sumevent.cost = compute_cost(sumevent.taurho_cand, jet);
+	float ptmiss[3];
+	ptmiss[0] = -sumevent.jetpx;
+	ptmiss[1] = -sumevent.jetpy;
+	sumevent.cosf = compute_cost(sumevent.taurho_cand, ptmiss);
+	nutaurho_bkg_tree->Fill();
+      }
     }
   }
   // signal
@@ -365,7 +391,7 @@ void smear_p(int pdgid, double px, double py, double pz, double *spx, double *sp
 void smear_event() {
   double lep_px = sumevent.vis_spx-sumevent.jetpx;
   double lep_py = sumevent.vis_spy-sumevent.jetpy;
-  double lep_pz = sumevent.vis_spy-sumevent.jetpy;
+  double lep_pz = sumevent.vis_spz-sumevent.jetpz;
 
   // smear lepton e, or mu
   double slep_px = lep_px, slep_py = lep_py, slep_pz = lep_pz;
@@ -423,18 +449,24 @@ void extra_kinematics() {
   // projection of lepton momentum on hadronic jet
   double lepproj = (lep_px*sumevent.jetpx + lep_py*sumevent.jetpy + lep_pz*sumevent.jetpz)/sqrt(sumevent.jetpx*sumevent.jetpx+sumevent.jetpy*sumevent.jetpy+sumevent.jetpz*sumevent.jetpz);
   double lep2 = lep_px*lep_px+lep_py*lep_py+lep_pz*lep_pz;
-  sumevent.qtlep = sqrt(lep2-lepproj*lepproj);
+  if(lep2-lepproj*lepproj>0) {    // treat rounding error, not present if tuple is in double
+    sumevent.qtlep = sqrt(lep2-lepproj*lepproj);
+  } else {
+    sumevent.qtlep = 0;
+  };
 
   if (std::isnan(sumevent.cost) || std::isnan(sumevent.cosf) || std::isnan(sumevent.ptlep) || std::isnan(sumevent.qtlep)) {
-    std::cout << "kinematics nan" << std::endl;
+    std::cout << "kinematics nan isCC=" << sumevent.isCC << std::endl;
+    std::cout << "istau " << sumevent.in_lepton_pdgid << std::endl;
     std::cout << "ptlep " << sumevent.ptlep << std::endl;
     std::cout << "qtlep " << sumevent.qtlep << std::endl;
     std::cout << "lepproj " << lepproj << std::endl;
     std::cout << "lep2 " << lep2 << std::endl;
-    std::cout << "lep " << lep_px << " " << lep_py << std::endl;
-    std::cout << "jet " << sumevent.jetpx << " " << sumevent.jetpy << std::endl;
+    std::cout << "lep2-lepproj*lepproj " << lep2-lepproj*lepproj << std::endl;
+    std::cout << "lep " << lep_px << " " << lep_py << " " << lep_pz << std::endl;
+    std::cout << "jet " << sumevent.jetpx << " " << sumevent.jetpy << " " << sumevent.jetpz << std::endl;
     std::cout << "ptmiss " << ptmissx << " " << ptmissy << std::endl;
-    std::cout << "istau " << sumevent.in_lepton_pdgid << std::endl;
+    std::cout << "------------------------------------------------------" << std::endl;
   }
 }
 
@@ -460,6 +492,9 @@ void s(){
      double jetp = sqrt(sumevent.jetpx*sumevent.jetpx+sumevent.jetpy*sumevent.jetpy+sumevent.jetpz*sumevent.jetpz);
      double tauvis = sqrt(sumevent.tauvis_px*sumevent.tauvis_px+sumevent.tauvis_py*sumevent.tauvis_py+sumevent.tauvis_pz*sumevent.tauvis_pz);
 
+     // rounding bug fix !??
+     if(jetp < 1e-3)sumevent.isES = true;
+
      // check for ELASTIC scattering on electrons
      if(sumevent.isES) {
        stats.ES++;
@@ -473,7 +508,7 @@ void s(){
 	   stats.numuCC++;
 	 }
 	 if(abs(sumevent.in_lepton_pdgid) == 16) {
-	   if(tauvis > 0) {
+	   if(tauvis > 1e-6) {
 	     stats.nutauCC++;
 	   } else {
 	     stats.nutauCClost++;
@@ -482,7 +517,6 @@ void s(){
 	 }
        } else {
 	 stats.NC++;
-	 //	 continue;
        };
      };
      if(sumevent.isCC) {
