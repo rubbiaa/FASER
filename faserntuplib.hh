@@ -20,24 +20,34 @@ struct PO {
 struct EVENT {
   int run_number;
   int event_id;
-  double prim_vx[3];
+  Float_t prim_vx[3];
   bool isCC;
+  bool isES; // true if elastic scattering off electrons
   bool istau;
   int tau_decaymode; // =1 e, =2 mu, =3 1-prong, =4 rho =5 3-prong, =6 other
-  size_t n_particles;
-  size_t n_charged;
+  Int_t n_particles;
+  Int_t n_charged;
   struct PO in_neutrino;
   struct PO out_lepton;
   struct PO POs[MAXPARTICLES];
-  size_t n_taudecay;
+
+  // tau decay 
+  Int_t n_taudecay;
   struct PO taudecay[MAXPARTICLES];
-  double tautracklength;
-  double spx, spy, spz;
-  double vis_spx, vis_spy, vis_spz;
-  double jetpx, jetpy, jetpz;
-  double tauvis_px, tauvis_py, tauvis_pz;
-  double Evis, ptmiss;
-  double cost, cosf;
+  Float_t tautracklength;
+
+  // selection
+  Float_t taupi_cand[3];
+  Float_t taurho_cand[3];
+
+  // kinematical variables
+  Float_t spx, spy, spz;
+  Float_t vis_spx, vis_spy, vis_spz;
+  Float_t jetpx, jetpy, jetpz;
+  Float_t tauvis_px, tauvis_py, tauvis_pz;
+  Float_t Evis, ptmiss;
+  Float_t cost, cosf;
+
 };
 
 extern struct EVENT event;

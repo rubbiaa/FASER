@@ -38,6 +38,7 @@ void create_histos(std::string outputFile) {
   event_tree->Branch("run_number", &event.run_number);
   event_tree->Branch("event_id", &event.event_id);
   event_tree->Branch("isCC", &event.isCC);
+  event_tree->Branch("isES", &event.isES);
   event_tree->Branch("istau", &event.istau);
   event_tree->Branch("tau_decaymode",&event.tau_decaymode);
   event_tree->Branch("n_particles", &event.n_particles);
@@ -62,6 +63,10 @@ void create_histos(std::string outputFile) {
   event_tree->Branch("cost", &event.cost);
   event_tree->Branch("cosf", &event.cosf);
 
+  // tau->1pi candidate
+  event_tree->Branch("taupi_cand[3]", event.taupi_cand);
+  // tau->rho candidate
+  event_tree->Branch("taurho_cand[3]", event.taurho_cand);
 };
 
 void fill_histos() {
@@ -203,7 +208,7 @@ tree->SetBranchAddress("m_status", &m_status);
 	 if(event.istau && event.isCC & event.n_taudecay==0) {
 	   std::cout << "Could not find tau decay product??" << std::endl;
 	   //	 exit(1);
-	   dump_event();
+	   //	   dump_event();
 	   outFile << "Tau error " << event.run_number << " " << event.event_id << std::endl;
 	 } else {
 	   fill_histos();

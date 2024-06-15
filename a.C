@@ -141,6 +141,15 @@ void dump_cuts(struct cuts *cuts) {
   std::cout << "--------------------------------------------------------------------------------------------------------" << std::endl;
 }
 
+void rescale_cuts(struct cuts *cuts){
+  std::cout << "Recaling " << cuts->name << std::endl;
+  double factor = 0.68/10.0;
+  for (int ic = 0; ic<cuts->ncuts;ic++) {
+    cuts->cut[ic].sig_passing *= factor;
+    cuts->cut[ic].back_passing *= factor;
+  }
+};
+    
 struct SELTREE {
   Bool_t   infid;
   Double_t Evis;
@@ -205,66 +214,60 @@ void process_file(int sig, const char *fname, const char *chain, const char *tmv
     double bdtResponse = reader.EvaluateMVA("BDT");
     bdt->Fill(bdtResponse);
 
-    if(sig) {
-      cuts->cut[0].sig_passing++;
-      if(bdtResponse>0){
-	cuts->cut[1].sig_passing++;
-	if(bdtResponse>0.2){
-	  cuts->cut[2].sig_passing++;
-	  if(bdtResponse>0.3){
-	    cuts->cut[3].sig_passing++;
-	  }
-	}
-      }
-    } else {
-      cuts->cut[0].back_passing++;
-      if(bdtResponse>0){
-	cuts->cut[1].back_passing++;
-	if(bdtResponse>0.2){
-	  cuts->cut[2].back_passing++;
-	  if(bdtResponse>0.3){
-	    cuts->cut[3].back_passing++;
-	  }
+    double cutval[] = {-999, 0, 0.15, 0.2, 0.25, 0.3};
+    for (int ic=0; ic<6; ic++) {
+      if(bdtResponse>cutval[ic]) {
+	if(sig) {
+	  cuts->cut[ic].sig_passing++;
+	} else {
+	  cuts->cut[ic].back_passing++;
 	}
       }
     }
-
   }
   weightsFile->Close();
 }
 
 void a() {
 
-  //  trainBDT("nueCC_TMVAOutput.root", "nuecc_signal.root", "nuecc_signal", "nuecc_bkg.root", "nuecc_bkg");
-  //  PlotBDTPerformance("nueCC_TMVAOutput.root");
-
-  //  trainBDT("numuCC_TMVAOutput.root", "numucc_signal.root", "numucc_signal", "numucc_bkg.root", "numucc_bkg");
-  //  PlotBDTPerformance("numuCC_TMVAOutput.root");
+  trainBDT("nueCC_TMVAOutput.root", "nuecc_signal.root", "nuecc_signal", "nuecc_bkg.root", "nuecc_bkg");
+   //   PlotBDTPerformance("nueCC_TMVAOutput.root");
+  
+  trainBDT("numuCC_TMVAOutput.root", "numucc_signal.root", "numucc_signal", "numucc_bkg.root", "numucc_bkg");
+    //    PlotBDTPerformance("numuCC_TMVAOutput.root");
   
   struct cuts tauecuts;
   struct cuts taumucuts;
 
-  tauecuts.ncuts = 4;
+  tauecuts.ncuts = 6;
   tauecuts.name = "taue analysis";
   struct cut tauecut_1 = {"All",0,0};
   struct cut tauecut_2 = {"bdt>0",0,0};
-  struct cut tauecut_3 = {"bdt>0.2",0,0};
-  struct cut tauecut_4 = {"bdt>0.3",0,0};
+  struct cut tauecut_3 = {"bdt>0.15",0,0};
+  struct cut tauecut_4 = {"bdt>0.2",0,0};
+  struct cut tauecut_5 = {"bdt>0.25",0,0};
+  struct cut tauecut_6 = {"bdt>0.3",0,0};
   tauecuts.cut[0] = tauecut_1;
   tauecuts.cut[1] = tauecut_2;
   tauecuts.cut[2] = tauecut_3;
   tauecuts.cut[3] = tauecut_4;
+  tauecuts.cut[4] = tauecut_5;
+  tauecuts.cut[5] = tauecut_6;
 
-  taumucuts.ncuts = 4;
+  taumucuts.ncuts = 6;
   taumucuts.name = "taumu analysis";
   struct cut taumucut_1 = {"All",0,0};
   struct cut taumucut_2 = {"bdt>0",0,0};
-  struct cut taumucut_3 = {"bdt>0.2",0,0};
-  struct cut taumucut_4 = {"bdt>0.3",0,0};
+  struct cut taumucut_3 = {"bdt>0.15",0,0};
+  struct cut taumucut_4 = {"bdt>0.2",0,0};
+  struct cut taumucut_5 = {"bdt>0.25",0,0};
+  struct cut taumucut_6 = {"bdt>0.3",0,0};
   taumucuts.cut[0] = taumucut_1;
   taumucuts.cut[1] = taumucut_2;
   taumucuts.cut[2] = taumucut_3;
   taumucuts.cut[3] = taumucut_4;
+  taumucuts.cut[4] = taumucut_5;
+  taumucuts.cut[5] = taumucut_6;
 
   process_file(0, "nuecc_bkg.root","nuecc_bkg", "nueCC_TMVAOutput.root", &tauecuts, nueCC_Evis, nueCC_ptmiss, nueCC_costcosf, nueCC_bdt);
   process_file(1, "nuecc_signal.root","nuecc_signal", "nueCC_TMVAOutput.root", &tauecuts, nutaueCC_Evis, nutaueCC_ptmiss, nutaueCC_costcosf, nutaueCC_bdt);
@@ -300,6 +303,7 @@ void a() {
    #endif
 
    TCanvas *c4 = new TCanvas("c4", "bdt", 800, 600);
+   gPad->SetLogy();
    nueCC_bdt->SetFillColor(kYellow);  
    nueCC_bdt->Draw("HIST");
    //   nutaueCC_bdt->Draw("same");
@@ -339,6 +343,7 @@ void a() {
 #endif
 
    TCanvas *c4m = new TCanvas("c4m", "bdt", 800, 600);
+   gPad->SetLogy();
    numuCC_bdt->SetFillColor(kYellow);  
    numuCC_bdt->Draw("HIST");
    //   nutaueCC_bdt->Draw("same");
@@ -348,8 +353,14 @@ void a() {
    sum_mu_bdt->SetLineWidth(2);     // Set line width for better visibility
    sum_mu_bdt->SetTitle("Sum of numuCC and nutaumuCC BDT");
    sum_mu_bdt->Draw("e SAME");
-   c4->SaveAs("c4m.png");
+   c4m->SaveAs("c4m.png");
 
+   dump_cuts(&tauecuts);
+   dump_cuts(&taumucuts);
+
+   rescale_cuts(&tauecuts);
+   rescale_cuts(&taumucuts);
+   
    dump_cuts(&tauecuts);
    dump_cuts(&taumucuts);
 

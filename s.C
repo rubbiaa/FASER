@@ -70,7 +70,7 @@ void create_sel_tree(TTree *t) {
 
 void open_tuples() {
   event_tree = new TChain("event_tree");  
-  event_tree->Add("event_data_v2.root");
+  event_tree->Add("event_data_v3.root");
   
   std::cout << "Number of entries " << event_tree->GetEntries() << std::endl;
 
@@ -180,7 +180,7 @@ void smear_p(int pdgid, double px, double py, double pz, double *spx, double *sp
   // default smearing factors
   double eres_stoch = 0.5;
   double eres_const = 0.2;
-  double angle_res = 1; // in degrees
+  double angle_res = 1.0; // in degrees
 
   // Define smearing factors based on particle ID
   switch (abs(pdgid)) {
