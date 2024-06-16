@@ -24,7 +24,7 @@ struct cuts {
 };
 
 
-void trainBDT(const char *dataset, const char *tmvaoutput, const char *sigtuple, const char *sigtree, const char *bkgtuple, const char *bkgtree) {
+void trainBDT(int lepchan, const char *dataset, const char *tmvaoutput, const char *sigtuple, const char *sigtree, const char *bkgtuple, const char *bkgtree) {
     // Initialize TMVA
     TMVA::Tools::Instance();
 
@@ -49,6 +49,9 @@ void trainBDT(const char *dataset, const char *tmvaoutput, const char *sigtuple,
     dataloader.AddVariable("plep", 'F');
     dataloader.AddVariable("ptlep", 'F');
     dataloader.AddVariable("qtlep", 'F');
+    if(lepchan) {
+      dataloader.AddVariable("ptfitchi2", 'F');
+    };
 
     // Add signal and background trees
     dataloader.AddSignalTree(signalTree, 1.0);
@@ -113,29 +116,29 @@ Double_t binEdges[] = {
 #endif
 
 // TH1D* nueCC_bdt = new TH1D("nueCC_bdt","bdt nueCC",nBins,binEdges);
-TH1D* nueCC_bdt = new TH1D("nueCC_bdt","bdt tau->e", 100,-0.3,0.5);
+TH1D* nueCC_bdt = new TH1D("nueCC_bdt","bdt tau->e", 40,-0.3,0.5);
 
 TH1D* nutaueCC_Evis = new TH1D("nutaueCC_Evis","Evis tau->e CC",100,0,4000);
 TH1D* nutaueCC_ptmiss = new TH1D("nutaueCC_ptmiss","ptmiss tau->e CC",100,0,20);
 TH2D* nutaueCC_costcosf = new TH2D("nutaueCC_costcosf", "angles tau->e CC", 100, -1., 1., 100, -1, 1.);
 // TH1D* nutaueCC_bdt = new TH1D("nutaueCC_bdt","bdt nutaueCC",nBins,binEdges);
-TH1D* nutaueCC_bdt = new TH1D("nutaueCC_bdt","bdt nutaueCC",100,-0.3,0.5);
+TH1D* nutaueCC_bdt = new TH1D("nutaueCC_bdt","bdt nutaueCC",40,-0.3,0.5);
 
 TH1D* numuCC_Evis = new TH1D("numuCC_Evis","Evis numuCC",100,0,4000);
 TH1D* numuCC_ptmiss = new TH1D("numuCC_ptmiss","ptmiss numuCC",100,0,20);
 TH2D* numuCC_costcosf = new TH2D("numuCC_costcosf", "angles numuCC", 100, -1., 1., 100, -1, 1.);
-TH1D* numuCC_bdt = new TH1D("numuCC_bdt","bdt tau->mu", 100,-0.3,0.5);
+TH1D* numuCC_bdt = new TH1D("numuCC_bdt","bdt tau->mu", 40,-0.3,0.5);
 
 TH1D* nutaumuCC_Evis = new TH1D("nutaumuCC_Evis","Evis tau->mu CC",100,0,4000);
 TH1D* nutaumuCC_ptmiss = new TH1D("nutaumuCC_ptmiss","ptmiss tau->mu CC",100,0,20);
 TH2D* nutaumuCC_costcosf = new TH2D("nutaumuCC_costcosf", "angles tau-> numu CC", 100, -1., 1., 100, -1, 1.);
-TH1D* nutaumuCC_bdt = new TH1D("nutaumuCC_bdt","bdt nutaumuCC", 100,-0.3,0.5);
+TH1D* nutaumuCC_bdt = new TH1D("nutaumuCC_bdt","bdt nutaumuCC", 40,-0.3,0.5);
 
-TH1D* nutaupi_sig_bdt = new TH1D("nutaupi_sig_bdt","bdt tau->pi", 100,-0.3,0.5);
-TH1D* nutaupi_bkg_bdt = new TH1D("nutaupi_bkg_bdt","bdt tau->pi", 100,-0.3,0.5);
+TH1D* nutaupi_sig_bdt = new TH1D("nutaupi_sig_bdt","bdt tau->pi", 40,-0.3,0.5);
+TH1D* nutaupi_bkg_bdt = new TH1D("nutaupi_bkg_bdt","bdt tau->pi", 40,-0.3,0.5);
 
-TH1D* nutaurho_sig_bdt = new TH1D("nutaurho_sig_bdt","bdt tau->rho", 100,-0.3,0.5);
-TH1D* nutaurho_bkg_bdt = new TH1D("nutaurho_bkg_bdt","bdt tau->rho", 100,-0.3,0.5);
+TH1D* nutaurho_sig_bdt = new TH1D("nutaurho_sig_bdt","bdt tau->rho", 40,-0.3,0.5);
+TH1D* nutaurho_bkg_bdt = new TH1D("nutaurho_bkg_bdt","bdt tau->rho", 40,-0.3,0.5);
 
 void dump_cuts(struct cuts *cuts) {
   std::cout << "------ " << cuts->name << " -------------------------------------------------------------------" << std::endl;
@@ -170,9 +173,10 @@ struct SELTREE {
   Float_t  plep;
   Float_t  ptlep;
   Float_t  qtlep;
+  Float_t  ptfitchi2;
 } seltree;
 
-void process_file(int sig, const char *dataset, const char *fname, const char *chain, const char *tmvaoutput, struct cuts *cuts, TH1D* evis, TH1D *ptmiss, TH2D *costcosf, TH1D *bdt) {
+void process_file(int lepchan, int sig, const char *dataset, const char *fname, const char *chain, const char *tmvaoutput, struct cuts *cuts, TH1D* evis, TH1D *ptmiss, TH2D *costcosf, TH1D *bdt) {
   TChain *event_tree = new TChain(chain);
   event_tree->Add(fname);
   std::cout << "Number of entries " << event_tree->GetEntries() << std::endl;
@@ -185,6 +189,7 @@ void process_file(int sig, const char *dataset, const char *fname, const char *c
   event_tree->SetBranchAddress("plep",&seltree.plep);
   event_tree->SetBranchAddress("ptlep",&seltree.ptlep);
   event_tree->SetBranchAddress("qtlep",&seltree.qtlep);
+  event_tree->SetBranchAddress("ptfitchi2",&seltree.ptfitchi2);
 
   // Initialize TMVA Reader
   TMVA::Reader reader("!Color:!Silent");
@@ -197,6 +202,9 @@ void process_file(int sig, const char *dataset, const char *fname, const char *c
   reader.AddVariable("plep", &seltree.plep);
   reader.AddVariable("ptlep", &seltree.ptlep);
   reader.AddVariable("qtlep", &seltree.qtlep);
+  if(lepchan) {
+    reader.AddVariable("ptfitchi2", &seltree.ptfitchi2);
+  };
 
   TFile* weightsFile = TFile::Open(tmvaoutput);
   // Get the path to the weights
@@ -240,18 +248,44 @@ void process_file(int sig, const char *dataset, const char *fname, const char *c
   weightsFile->Close();
 }
 
+void plot_bdt(TCanvas *c, TH1D *bkg, TH1D *sig) {
+   c->Divide(1, 2);
+   c->cd(1);
+   gPad->SetLogy();
+   bkg->SetFillColor(kYellow);  
+
+   TH1F* sum_bdt = (TH1F*)bkg->Clone("sum_bdt");
+   sum_bdt->Add(sig);   
+   sum_bdt->SetLineColor(kRed);  // Set color for the sum histogram
+   sum_bdt->SetLineWidth(2);     // Set line width for better visibility
+   sum_bdt->SetFillColor(kBlue);
+   sum_bdt->SetFillStyle(3001); // Semi-transparent fill
+   sum_bdt->SetMinimum(0.1);
+   sum_bdt->Draw("hist");
+   sum_bdt->Draw("ep same");
+   bkg->Draw("HIST same");   
+   c->cd(2); // Select the second pad
+   gPad->SetLogy(0);
+   sig->SetLineColor(kBlue);
+   sig->SetFillColor(kBlue);
+   sig->SetFillStyle(3001); // Semi-transparent fill
+   sig->SetLineWidth(2);
+   sig->SetTitle("Signal BDT");
+   sig->Draw("HIST");
+}
+
 void a() {
 
-  // trainBDT("taueset", "nueCC_TMVAOutput.root", "nuecc_signal.root", "nuecc_signal", "nuecc_bkg.root", "nuecc_bkg");
-  //  PlotBDTPerformance("nueCC_TMVAOutput.root");
+  //  trainBDT(1, "taueset", "nueCC_TMVAOutput.root", "nuecc_signal.root", "nuecc_signal", "nuecc_bkg.root", "nuecc_bkg");
+   PlotBDTPerformance("nueCC_TMVAOutput.root");
   
-  //   trainBDT("taumuset", "numuCC_TMVAOutput.root", "numucc_signal.root", "numucc_signal", "numucc_bkg.root", "numucc_bkg");
+  //  trainBDT(1, "taumuset", "numuCC_TMVAOutput.root", "numucc_signal.root", "numucc_signal", "numucc_bkg.root", "numucc_bkg");
   //  PlotBDTPerformance("numuCC_TMVAOutput.root");
 
-  //  trainBDT("taupiset", "nutaupi_TMVAOutput.root", "nutaupi_signal.root", "nutaupi_signal", "nutaupi_bkg.root", "nutaupi_bkg");
+  //  trainBDT(0, "taupiset", "nutaupi_TMVAOutput.root", "nutaupi_signal.root", "nutaupi_signal", "nutaupi_bkg.root", "nutaupi_bkg");
   // PlotBDTPerformance("nutaupi_TMVAOutput.root");
   
-  //  trainBDT("taurhoset", "nutaurho_TMVAOutput.root", "nutaurho_signal.root", "nutaurho_signal", "nutaurho_bkg.root", "nutaurho_bkg");
+  //  trainBDT(0, "taurhoset", "nutaurho_TMVAOutput.root", "nutaurho_signal.root", "nutaurho_signal", "nutaurho_bkg.root", "nutaurho_bkg");
   //  PlotBDTPerformance("nutaurho_TMVAOutput.root");
 
   //    return;
@@ -303,18 +337,18 @@ void a() {
   taurhocuts.cut[4] = tauecut_5;
   taurhocuts.cut[5] = tauecut_6;
 
-  process_file(0, "taueset", "nuecc_bkg.root","nuecc_bkg", "nueCC_TMVAOutput.root", &tauecuts, nueCC_Evis, nueCC_ptmiss, nueCC_costcosf, nueCC_bdt);
-  process_file(1, "taueset", "nuecc_signal.root","nuecc_signal", "nueCC_TMVAOutput.root", &tauecuts, nutaueCC_Evis, nutaueCC_ptmiss, nutaueCC_costcosf, nutaueCC_bdt);
+  process_file(1, 0, "taueset", "nuecc_bkg.root","nuecc_bkg", "nueCC_TMVAOutput.root", &tauecuts, nueCC_Evis, nueCC_ptmiss, nueCC_costcosf, nueCC_bdt);
+  process_file(1, 1, "taueset", "nuecc_signal.root","nuecc_signal", "nueCC_TMVAOutput.root", &tauecuts, nutaueCC_Evis, nutaueCC_ptmiss, nutaueCC_costcosf, nutaueCC_bdt);
 
-  process_file(0, "taumuset", "numucc_bkg.root","numucc_bkg", "numuCC_TMVAOutput.root", &taumucuts, numuCC_Evis, numuCC_ptmiss, numuCC_costcosf, numuCC_bdt);
-  process_file(1, "taumuset", "numucc_signal.root","numucc_signal", "numuCC_TMVAOutput.root", &taumucuts, nutaumuCC_Evis, nutaumuCC_ptmiss, nutaumuCC_costcosf, nutaumuCC_bdt);
+  process_file(1, 0, "taumuset", "numucc_bkg.root","numucc_bkg", "numuCC_TMVAOutput.root", &taumucuts, numuCC_Evis, numuCC_ptmiss, numuCC_costcosf, numuCC_bdt);
+  process_file(1, 1, "taumuset", "numucc_signal.root","numucc_signal", "numuCC_TMVAOutput.root", &taumucuts, nutaumuCC_Evis, nutaumuCC_ptmiss, nutaumuCC_costcosf, nutaumuCC_bdt);
 
-  process_file(0, "taupiset", "nutaupi_bkg.root","nutaupi_bkg", "nutaupi_TMVAOutput.root", &taupicuts, nullptr, nullptr, nullptr, nutaupi_bkg_bdt);
-  process_file(1, "taupiset", "nutaupi_signal.root","nutaupi_signal", "nutaupi_TMVAOutput.root", &taupicuts, 
+  process_file(0, 0, "taupiset", "nutaupi_bkg.root","nutaupi_bkg", "nutaupi_TMVAOutput.root", &taupicuts, nullptr, nullptr, nullptr, nutaupi_bkg_bdt);
+  process_file(0, 1, "taupiset", "nutaupi_signal.root","nutaupi_signal", "nutaupi_TMVAOutput.root", &taupicuts, 
 	       nullptr, nullptr, nullptr, nutaupi_sig_bdt);
 
-  process_file(0, "taurhoset", "nutaurho_bkg.root","nutaurho_bkg", "nutaurho_TMVAOutput.root", &taurhocuts, nullptr, nullptr, nullptr, nutaurho_bkg_bdt);
-  process_file(1, "taurhoset", "nutaurho_signal.root","nutaurho_signal", "nutaurho_TMVAOutput.root", &taurhocuts, 
+  process_file(0, 0, "taurhoset", "nutaurho_bkg.root","nutaurho_bkg", "nutaurho_TMVAOutput.root", &taurhocuts, nullptr, nullptr, nullptr, nutaurho_bkg_bdt);
+  process_file(0, 1, "taurhoset", "nutaurho_signal.root","nutaurho_signal", "nutaurho_TMVAOutput.root", &taurhocuts, 
 	       nullptr, nullptr, nullptr, nutaurho_sig_bdt);
   
   #if 0
@@ -344,19 +378,6 @@ void a() {
    c3->SaveAs("c3.png");
    #endif
 
-   TCanvas *c4 = new TCanvas("c4", "bdt", 800, 600);
-   gPad->SetLogy();
-   nueCC_bdt->SetFillColor(kYellow);  
-   nueCC_bdt->Draw("HIST");
-   //   nutaueCC_bdt->Draw("same");
-   TH1F* sum_bdt = (TH1F*)nueCC_bdt->Clone("sum_bdt");
-   sum_bdt->Add(nutaueCC_bdt);
-   sum_bdt->SetLineColor(kRed);  // Set color for the sum histogram
-   sum_bdt->SetLineWidth(2);     // Set line width for better visibility
-   sum_bdt->SetTitle("Sum of nueCC and nutaueCC BDT");
-   sum_bdt->Draw("e SAME");
-   c4->SaveAs("c4.png");
-
    #if 0
    TCanvas *c1m = new TCanvas("c1m", "muon Evis", 800, 600);
    c1m->Divide(1, 2);
@@ -384,41 +405,22 @@ void a() {
    c3m->SaveAs("c3m.png");
 #endif
 
+   TCanvas *c4 = new TCanvas("c4", "bdt", 800, 600);
+   plot_bdt(c4, nueCC_bdt, nutaueCC_bdt);
+   c4->SaveAs("c4.png");
+
    TCanvas *c4m = new TCanvas("c4m", "bdt", 800, 600);
-   gPad->SetLogy();
-   numuCC_bdt->SetFillColor(kYellow);  
-   numuCC_bdt->Draw("HIST");
-   TH1F* sum_mu_bdt = (TH1F*)numuCC_bdt->Clone("sum_bdt");
-   sum_mu_bdt->Add(nutaumuCC_bdt);
-   sum_mu_bdt->SetLineColor(kRed);  // Set color for the sum histogram
-   sum_mu_bdt->SetLineWidth(2);     // Set line width for better visibility
-   sum_mu_bdt->SetTitle("Sum of numuCC and nutaumuCC BDT");
-   sum_mu_bdt->Draw("e SAME");
+   plot_bdt(c4m, numuCC_bdt, nutaumuCC_bdt);
    c4m->SaveAs("c4m.png");
 
+   
+
    TCanvas *c4pi = new TCanvas("c4pi", "bdt", 800, 600);
-   gPad->SetLogy();
-   nutaupi_bkg_bdt->SetFillColor(kYellow);  
-   nutaupi_bkg_bdt->Draw("HIST");
-   TH1F* sum_pi_bdt = (TH1F*)nutaupi_bkg_bdt->Clone("sum_bdt");
-   sum_pi_bdt->Add(nutaumuCC_bdt);
-   sum_pi_bdt->SetLineColor(kRed);  // Set color for the sum histogram
-   sum_pi_bdt->SetLineWidth(2);     // Set line width for better visibility
-   sum_pi_bdt->SetTitle("Sum of NC and nutaupiCC BDT");
-   sum_pi_bdt->Draw("e SAME");
+   plot_bdt(c4pi, nutaupi_bkg_bdt, nutaupi_sig_bdt);
    c4pi->SaveAs("c4pi.png");
 
    TCanvas *c4rho = new TCanvas("c4rho", "bdt", 800, 600);
-   gPad->SetLogy();
-   nutaurho_bkg_bdt->SetFillColor(kYellow);  
-   nutaurho_bkg_bdt->Draw("HIST");
-   //   nutaueCC_bdt->Draw("same");
-   TH1F* sum_rho_bdt = (TH1F*)nutaurho_bkg_bdt->Clone("sum_bdt");
-   sum_rho_bdt->Add(nutaumuCC_bdt);
-   sum_rho_bdt->SetLineColor(kRed);  // Set color for the sum histogram
-   sum_rho_bdt->SetLineWidth(2);     // Set line width for better visibility
-   sum_rho_bdt->SetTitle("Sum of NC and nutaurhoCC BDT");
-   sum_rho_bdt->Draw("e SAME");
+   plot_bdt(c4rho, nutaurho_bkg_bdt, nutaurho_sig_bdt);
    c4rho->SaveAs("c4rho.png");
 
    dump_cuts(&tauecuts);

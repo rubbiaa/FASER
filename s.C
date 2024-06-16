@@ -2,7 +2,25 @@
 // A. Rubbia/June 2024
 //
 
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <iomanip>
+#include <sstream>
+#include <map>
+
+#include <TFile.h>
+#include <TTree.h>
+#include <TChain.h>
+#include <TChain.h>
 #include <TRandom3.h>
+
+#include "TKinFitter.h"
+#include "TFitParticleESpher.h"
+#include "TFitConstraintEp.h"
+#include <TMatrixD.h>
+#include <TLorentzVector.h>
+#include <TMath.h>
 
 TRandom3 randomGen(0); // 0 means seed with current time
 
@@ -36,6 +54,7 @@ struct SUMEVENT {
   Float_t        plep;
   Float_t        ptlep;
   Float_t        qtlep;
+  Float_t        ptFitChi2;
 
     // selection
   Float_t        taupi_cand[3];
@@ -114,6 +133,7 @@ void create_sel_tree(TTree *t) {
   t->Branch("ptmiss",&sumevent.ptmiss);
   t->Branch("cost",&sumevent.cost);
   t->Branch("cosf",&sumevent.cosf);
+  t->Branch("ptfitchi2",&sumevent.ptFitChi2);
 };
 
 void open_tuples() {
@@ -424,6 +444,109 @@ void smear_event() {
   sumevent.ptmiss = sqrt(sumevent.vis_spx*sumevent.vis_spx + sumevent.vis_spy*sumevent.vis_spy);
 }
 
+bool regularizeMatrix(TMatrixD& matrix, double factor) {
+    for (int i = 0; i < matrix.GetNrows(); ++i) {
+        matrix(i, i) += factor;
+    }
+    return true;
+}
+
+void refit_event() {
+  if(!sumevent.isCC || sumevent.isES)return;
+  float lep[3], jet[3];
+  if(sumevent.istau) {
+    lep[0] = sumevent.tauvis_px;
+    lep[1] = sumevent.tauvis_py;
+    lep[2] = sumevent.tauvis_pz;
+  } else {
+    lep[0] = sumevent.vis_spx-sumevent.jetpx;
+    lep[1] = sumevent.vis_spy-sumevent.jetpy;
+    lep[2] = sumevent.vis_spz-sumevent.jetpz;
+  }
+  jet[0] = sumevent.jetpx;
+  jet[1] = sumevent.jetpy;
+  jet[2] = sumevent.jetpz;
+  
+  double plep = compute_momentum(lep);
+  double elep = plep;
+  double ejet = compute_momentum(jet);
+    
+  // Initialize TLorentzVectors for particles
+  TLorentzVector lep4vec(lep[0], lep[1], lep[2], elep);
+  TLorentzVector jet4vec(jet[0], jet[1], jet[2], ejet);
+
+  double angle_res = 1.0; // in degrees
+  double degree_to_radian = M_PI / 180.0;
+  // Define the covariance matrices 
+  TMatrixD covMatrix1(4, 4);
+  covMatrix1(0,0) = 1e-6; // Variance for p
+  covMatrix1(1,1) = angle_res*degree_to_radian; // Variance for Theta
+  covMatrix1(2,2) = angle_res*degree_to_radian; // Variance for Phi
+  covMatrix1(3,3) = 0.2; // Variance for d
+  
+  TMatrixD covMatrix2(4, 4);
+  covMatrix2(0,0) = 1e-6; // Variance for p
+  covMatrix2(1,1) = angle_res*degree_to_radian; // Variance for Theta
+  covMatrix2(2,2) = angle_res*degree_to_radian; // Variance for Phi
+  covMatrix2(3,3) = 0.2; // Variance for d
+  
+  // Regularize the covariance matrices
+  double regularizationFactor = 1e-6; // Small value to add to diagonal
+  //  regularizeMatrix(covMatrix1, regularizationFactor);
+  //  regularizeMatrix(covMatrix2, regularizationFactor);
+
+  // Define the measured particles with covariance matrices
+  TFitParticleESpher* fitParticle1 = new TFitParticleESpher("lep", "lep", &lep4vec, &covMatrix1);
+  TFitParticleESpher* fitParticle2 = new TFitParticleESpher("jet", "jet", &jet4vec, &covMatrix2);
+  
+  // Initialize the kinematic fitter
+  TKinFitter* fitter = new TKinFitter("fitter", "Kinematic Fitter");
+  fitter->setVerbosity(0);
+  
+  // Add measured particles to the fitter
+  fitter->addMeasParticle(fitParticle1);
+  fitter->addMeasParticle(fitParticle2);
+
+  // Define and add the transverse momentum constraint (sum_px = 0 and sum_py = 0)
+  TFitConstraintEp* pxConstraint = new TFitConstraintEp("pxConstraint", "Px Constraint", 0, TFitConstraintEp::pX, 0);
+  pxConstraint->addParticles(fitParticle1, fitParticle2);
+  
+  TFitConstraintEp* pyConstraint = new TFitConstraintEp("pyConstraint", "Py Constraint", 0, TFitConstraintEp::pY, 0);
+  pyConstraint->addParticles(fitParticle1, fitParticle2);
+  
+  fitter->addConstraint(pxConstraint);
+  fitter->addConstraint(pyConstraint);
+
+  // Perform the fit
+  fitter->fit();
+  
+  // Retrieve and print the results
+  double chi2 = fitter->getS();
+  sumevent.ptFitChi2 = chi2;
+  int ndf = fitter->getNDF();
+  double probability = TMath::Prob(chi2, ndf);
+  
+  TLorentzVector fittedlep = *(fitter->get4Vec(0));
+  TLorentzVector fittedjet = *(fitter->get4Vec(1));
+
+  #if 0
+  std::cout << "Chi2: " << chi2 << std::endl;
+  std::cout << "NDF: " << ndf << std::endl;
+  std::cout << "Probability: " << probability << std::endl;
+  std::cout << "Fitted lep: (" << fittedlep.Px() << ", " << fittedlep.Py() << ", " << fittedlep.Pz() << ")" << std::endl;
+  std::cout << "Fitted jet: (" << fittedjet.Px() << ", " << fittedjet.Py() << ", " << fittedjet.Pz() << ")" << std::endl;
+  std::cout << "Prefit lep " << lep[0] << "," << lep[1] << "," << lep[2] << std::endl;
+  std::cout << "Prefit jet " << jet[0] << "," << jet[1] << "," << jet[2] << std::endl;
+  #endif
+  
+  // Clean up
+  delete fitParticle1;
+  delete fitParticle2;
+  delete pxConstraint;
+  delete pyConstraint;
+  delete fitter;
+}
+
 void extra_kinematics() {
   double lep_px, lep_py, lep_pz;
   double ptmissx, ptmissy;
@@ -472,6 +595,8 @@ void extra_kinematics() {
 
 void s(){
 
+  size_t event_count = 0;
+  
   stats.infid = stats.nueCC = stats.numuCC = stats.nutauCC = stats.NC = stats.ES = 0;
   
   open_tuples();
@@ -480,6 +605,11 @@ void s(){
 
    for (Long64_t i=0; i<nentries;i++) {
      event_tree->GetEntry(i);
+
+     event_count++;
+     if(event_count % 100000 == 0) {
+       std::cout << "Event #" << event_count << std::endl;
+     }
 
      // check vtx fiducial
 
@@ -519,8 +649,10 @@ void s(){
 	 stats.NC++;
        };
      };
+     sumevent.ptFitChi2 = 1e9;
      if(sumevent.isCC) {
        smear_event();
+       refit_event();
        extra_kinematics();
      };
      fill_histos();
@@ -536,4 +668,8 @@ void s(){
 
    close_tuples();
    std::cout << "Done!" << std::endl;
+}
+
+int main() {
+  s();
 }
