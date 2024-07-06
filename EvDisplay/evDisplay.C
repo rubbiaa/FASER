@@ -1,7 +1,7 @@
 #include <TApplication.h>
 #include <TCanvas.h>
 #include <TGeoManager.h>
-#include <TChain.h>
+
 #include <TSystem.h>
 #include "TGeoVolume.h"
 #include "TGeoMatrix.h"

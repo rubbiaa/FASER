@@ -90,13 +90,22 @@ void MyMainFrame::Load_event(int ievent) {
     t = new std::vector<DigitizedTrack*>;
     event_tree->SetBranchAddress("tracks", &t);
 
-    TPOEvent *POevent;
-    POevent = new TPOEvent();
+    const TPOEvent *POevent = new TPOEvent();
     event_tree -> SetBranchAddress("event", &POevent);
-    fTcalEvent->fTPOEvent = POevent;
+    fTcalEvent->fTPOEvent = const_cast<TPOEvent*>(POevent);
+
+    struct TcalEvent::GEOM_DETECTOR *g_d;
+    event_tree -> SetBranchAddress("geom", &g_d);
  
     // Read the first entry
     event_tree->GetEntry(0);
+
+    // detector configuration geometry
+    fTcalEvent->geom_detector = *g_d;
+    std::cout << "Transverse size " << fTcalEvent->geom_detector.fScintillatorSizeX << " mm " << std::endl;
+    std::cout << "Total size of one sandwich layer " << fTcalEvent->geom_detector.fTotalLength << " mm " << std::endl;
+	std::cout << "Number of layers " << fTcalEvent->geom_detector.NRep << std::endl;
+    std::cout << "Voxel size " << fTcalEvent->geom_detector.fScintillatorVoxelSize << " mm " << std::endl;
 
     // Use the loaded data (example)
     std::cout << "Loaded event data for event 0" << std::endl;
@@ -155,7 +164,7 @@ void MyMainFrame::Draw_event() {
             }
 
         // Create a translation matrix for the hit position
-            TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0-12.5, position.Y() / 10.0-12.5, position.Z() / 10.0);
+            TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, position.Y() / 10.0, position.Z() / 10.0);
 
         // Add the hit volume to the top volume with the translation
             if(track->fparentID == 0) {
@@ -188,7 +197,9 @@ void MyMainFrame::Draw_event() {
 }
 // Function to handle button click
 void MyMainFrame::HandleButton() {
-    ZoomToPosition(0,0,-30);
+    // get the first hit
+    XYZVector pos = fTcalEvent->getChannelXYZfromID(0);
+    ZoomToPosition(0,0,pos.Z()/10.0);
 }
 
 // Function to handle button click
@@ -265,7 +276,7 @@ void MyMainFrame::ZoomToPosition(Double_t x, Double_t y, Double_t z) {
     Double_t viewRange[6] = {-10, -10, -10, 10, 10, 10}; // xmin, ymin, zmin, xmax, ymax, zmax
     
     TView *view = (TView *)canvas->GetView();
-    view->SetRange(0,0,-70,0.1,0.1,-40);
+    view->SetRange(0,0,z-10,0.1,0.1,z+30);
     canvas->Modified();
     canvas->Update();
 }
