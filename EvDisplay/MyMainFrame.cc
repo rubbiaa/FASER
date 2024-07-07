@@ -7,6 +7,7 @@
 #include "TGeoMedium.h"
 #include <TView3D.h>
 #include <TChain.h>
+#include <TText.h>
 
 #include "MyMainFrame.h"
 #include "TPORecoEvent.hh"
@@ -71,10 +72,11 @@ void MyMainFrame::Load_event(int ievent) {
 
     std::string base_path = "input/tcalevent_";
 
-    // Create an instance of TcalEvent
+    // Create an instance of TcalEvent and TPOEvent
     fTcalEvent = new TcalEvent();
+    POevent = new TPOEvent();
 
-    fTcalEvent -> Load_event(base_path, ievent);
+    fTcalEvent -> Load_event(base_path, ievent, POevent);
     std::cout << "Transverse size " << fTcalEvent->geom_detector.fScintillatorSizeX << " mm " << std::endl;
     std::cout << "Total size of one sandwich layer " << fTcalEvent->geom_detector.fTotalLength << " mm " << std::endl;
 	std::cout << "Number of layers " << fTcalEvent->geom_detector.NRep << std::endl;
@@ -158,7 +160,52 @@ void MyMainFrame::Draw_event() {
     gGeoManager->GetTopVolume()->AddNode(primary_em,1);
     gGeoManager->GetTopVolume()->AddNode(primary_had,1);
 //    gGeoManager->GetTopVolume()->Print();
+
+    delete runText;
+    runText = new TText(0.05, 0.95, Form("Run: %d Event: %d", 
+        POevent->run_number, POevent->event_id));
+    runText->SetNDC();
+    runText->SetTextSize(0.03);
+    runText->Draw();
+
+    delete eventypeText;
+    std::ostringstream eventtype;
+    int pdgin = POevent->in_neutrino.m_pdg_id;
+    switch(pdgin) {
+        case -12:
+        case 12:
+            eventtype << "nu_e";
+            break;
+        case -14:
+        case  14:
+            eventtype << "nu_mu";
+            break;
+        case -16:
+        case  16:
+            eventtype << "nu_tau";
+            break;
+        default:
+            eventtype << " ?? ";
+    }
+    if(POevent->isCC) {
+        eventtype << " CC ";
+    } else {
+        eventtype << " NC ";
+    }
+    eventypeText = new TText(0.05, 0.9, eventtype.str().c_str());
+    eventypeText->SetNDC();
+    eventypeText->SetTextSize(0.03);
+    eventypeText->Draw();
+
+    delete energyText;
+    energyText = new TText(0.05, 0.85, Form("%f GeV", 
+        POevent->in_neutrino.m_energy));
+    energyText->SetNDC();
+    energyText->SetTextSize(0.03);
+    energyText->Draw();
 }
+
+
 // Function to handle button click
 void MyMainFrame::HandleButton() {
     // get the first hit
@@ -177,6 +224,11 @@ void MyMainFrame::next_event() {
     gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove3);
     TGeoNode *nodeToRemove4 = gGeoManager->GetTopVolume()->FindNode("secondary_had_1");
     gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove4);
+
+    delete POevent;
+    delete fTcalEvent;
+    delete fPORecoEvent;
+
     Load_event(++ievent);
     Draw_event();
     canvas->Modified();

@@ -30,6 +30,7 @@ int main(int argc, char** argv) {
     m_rootFile->cd();
 
     TH1D e_em_energy = TH1D("e_em_energy", "electrons: energy fraction", 200, -1., 1.);
+    TH2D e_em_energy2 = TH2D("e_em_energy2", "electrons: energy fraction", 100, 0., 1000., 200, -1., 1.);
     TH1D pi_em_energy = TH1D("pi_em_energy", "pions: energy fraction", 100, -1., 1.);
     TH2D pi_em_energy2 = TH2D("pi_em_energy2", "pions : energy fraction vs E", 100, 0.,200.,100,-1.,1.);
     TH1D p_em_energy = TH1D("p_em_energy", "protons: energy fraction", 100, -1., 1.);
@@ -38,12 +39,13 @@ int main(int argc, char** argv) {
     int ievent = 0;
     int error = 0;
 
-    while (error == 0) {
+    while (error == 0 && ievent<99999999) {
 
-    // Create an instance of TcalEvent
+        // Create an instance of TcalEvent and TPOEvent
         TcalEvent *fTcalEvent = new TcalEvent();
+        TPOEvent *POevent = new TPOEvent();
 
-        error = fTcalEvent -> Load_event(base_path, ievent++);
+        error = fTcalEvent -> Load_event(base_path, ievent++, POevent);
         if(error != 0) break;
     
         std::cout << "Transverse size " << fTcalEvent->geom_detector.fScintillatorSizeX << " mm " << std::endl;
@@ -66,7 +68,9 @@ int main(int argc, char** argv) {
             if(abs(PDG) == 11) {
                 double POEne = aPO->m_energy;
                 double RecoEne = it->fTotal.Ecompensated;
-                e_em_energy.Fill((RecoEne-POEne)/POEne);
+                double f = (RecoEne-POEne)/POEne;
+                e_em_energy.Fill(f);
+                e_em_energy2.Fill(POEne, f);
             } else if(abs(PDG) == 111 || abs(PDG) == 211) {
                 double POEne = aPO->m_energy;
                 double RecoEne = it->fTotal.Ecompensated;
@@ -83,6 +87,7 @@ int main(int argc, char** argv) {
         };
 
         delete fPORecoEvent;
+        delete POevent;
         delete fTcalEvent;       
     }
 

@@ -4,6 +4,7 @@
 #include <TRootEmbeddedCanvas.h>
 #include <TGeoVolume.h>
 #include <RQ_OBJECT.h>
+#include <TText.h>
 
 #include <TcalEvent.hh>
 #include "TPORecoEvent.hh"
@@ -33,9 +34,14 @@ private:
     TGTextButton *fButton;
     TRootEmbeddedCanvas *fCanvas;
 
+    TText *runText = nullptr;
+    TText *eventypeText = nullptr;
+    TText *energyText = nullptr;
+
     int ievent;
 
     TcalEvent* fTcalEvent;
+    TPOEvent *POevent;
     TPORecoEvent* fPORecoEvent;
 
     TGeoVolume *primary_em;
