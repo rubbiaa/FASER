@@ -6,6 +6,7 @@
 #include <RQ_OBJECT.h>
 
 #include <TcalEvent.hh>
+#include "TPORecoEvent.hh"
 
 class MyMainFrame : public TGMainFrame {
     RQ_OBJECT("MyMainFrame")
@@ -35,6 +36,7 @@ private:
     int ievent;
 
     TcalEvent* fTcalEvent;
+    TPORecoEvent* fPORecoEvent;
 
     TGeoVolume *primary_em;
     TGeoVolume *primary_had;

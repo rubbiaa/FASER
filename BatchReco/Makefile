@@ -1,12 +1,10 @@
-EXE = evDisplay.exe
+EXE = batchreco.exe
 
 FASERPSINCLUDEDIR := /home/rubbiaa/faserps/FASERPS/include/
 FASERPSSRCDIR := /home/rubbiaa/faserps/FASERPS/src/
 # FASERPSLIB := -L/home/rubbiaa/faserps/FASERPS/ -lFaserPS
 
-FASERBATCHRECO := ../BatchReco
-
-SRC = evDisplay.C MyMainFrame.cc $(FASERBATCHRECO)/TPORecoEvent.cc dict.cxx $(FASERPSSRCDIR)/TcalEvent.cc $(FASERPSSRCDIR)/TPOEvent.cc $(FASERPSSRCDIR)/../G__PS.cxx
+SRC = BatchReco.cc TPORecoEvent.cc dict.cxx $(FASERPSSRCDIR)/TcalEvent.cc $(FASERPSSRCDIR)/TPOEvent.cc $(FASERPSSRCDIR)/../G__PS.cxx
 OBJ = $(SRC:.C=.o)
 OBJ := $(OBJ:.cxx=.o)
 OBJ := $(OBJ:.cc=.o)
@@ -16,12 +14,12 @@ INCS += $(wildcard *.hh)
 
 ROOTCFLAGS = -g $(shell root-config --cflags)
 
-ROOTCFLAGS += -I$(FASERBATCHRECO) -I$(FASERPSINCLUDEDIR)
+ROOTCFLAGS += -I$(FASERPSINCLUDEDIR)
 
-all : $(EXE) $(EXE2)
+all : $(EXE)
 
-dict.cxx : $(INCS) evDisplay.C
-	rootcling -f dict.cxx -c LinkDef.h -I $(FASERPSINCLUDEDIR) -I $(FASERBATCHRECO)
+dict.cxx : $(INCS) BatchReco.cc
+	rootcling -f dict.cxx -c LinkDef.h -I $(FASERPSINCLUDEDIR)
 
 $(EXE) : $(OBJ)
 	g++ $(ROOTCFLAGS) $(OBJ) `root-config --glibs` -lEG -lGeom $(FASERPSLIB) -o $(EXE)

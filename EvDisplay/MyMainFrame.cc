@@ -9,6 +9,7 @@
 #include <TChain.h>
 
 #include "MyMainFrame.h"
+#include "TPORecoEvent.hh"
 
 MyMainFrame::MyMainFrame(int ieve, const TGWindow *p, UInt_t w, UInt_t h) {
 
@@ -69,54 +70,23 @@ MyMainFrame::~MyMainFrame() {
 void MyMainFrame::Load_event(int ievent) {
 
     std::string base_path = "input/tcalevent_";
-    std::string extension = ".root";
-
-    // Create the filename based on ievent
-    std::ostringstream filename;
-    filename << base_path << ievent << extension;
-
-    // Print the filename to verify
-    std::cout << "Loading file: " << filename.str() << std::endl;
-
-    TChain *event_tree = new TChain("calEvent");
-    event_tree->Add(filename.str().c_str());
-    std::cout << "Number of entries " << event_tree->GetEntries() << std::endl;
 
     // Create an instance of TcalEvent
     fTcalEvent = new TcalEvent();
 
-    // Set the branch address
-    std::vector<DigitizedTrack*> *t;
-    t = new std::vector<DigitizedTrack*>;
-    event_tree->SetBranchAddress("tracks", &t);
-
-    const TPOEvent *POevent = new TPOEvent();
-    event_tree -> SetBranchAddress("event", &POevent);
-    fTcalEvent->fTPOEvent = const_cast<TPOEvent*>(POevent);
-
-    struct TcalEvent::GEOM_DETECTOR *g_d;
-    event_tree -> SetBranchAddress("geom", &g_d);
- 
-    // Read the first entry
-    event_tree->GetEntry(0);
-
-    // detector configuration geometry
-    fTcalEvent->geom_detector = *g_d;
+    fTcalEvent -> Load_event(base_path, ievent);
     std::cout << "Transverse size " << fTcalEvent->geom_detector.fScintillatorSizeX << " mm " << std::endl;
     std::cout << "Total size of one sandwich layer " << fTcalEvent->geom_detector.fTotalLength << " mm " << std::endl;
 	std::cout << "Number of layers " << fTcalEvent->geom_detector.NRep << std::endl;
     std::cout << "Voxel size " << fTcalEvent->geom_detector.fScintillatorVoxelSize << " mm " << std::endl;
 
-    // Use the loaded data (example)
-    std::cout << "Loaded event data for event 0" << std::endl;
-    std::cout << " digitized tracks " << t->size() << std::endl;
-
-    for (const auto& track : *t) {
-        fTcalEvent->fTracks.push_back(track);
-    }
     std::cout << " copied digitized tracks " << fTcalEvent->fTracks.size() << std::endl;
 
     fTcalEvent -> fTPOEvent -> dump_event();
+
+    fPORecoEvent = new TPORecoEvent(fTcalEvent, fTcalEvent->fTPOEvent);
+    fPORecoEvent -> Reconstruct();
+    fPORecoEvent -> Dump();
 }
 
 void MyMainFrame::Draw_event() {
@@ -145,7 +115,6 @@ void MyMainFrame::Draw_event() {
     TGeoShape *box = new TGeoBBox("box", 0.5/2.0,0.5/2.0,0.5/2.0);
 
     for (const auto& track : fTcalEvent->fTracks) {
-        TPolyMarker3D* marker = new TPolyMarker3D();
 //        std::cout << track->ftrackID << std::endl;
         size_t nhits = track->fhitIDs.size();
 //        std::cout << nhits << std::endl;
@@ -182,11 +151,6 @@ void MyMainFrame::Draw_event() {
             }
 
         }
-        marker->SetMarkerColor(kRed);
-        if(fabs(track->fPDG) == 11) marker->SetMarkerColor(kBlue);
-        marker->SetMarkerSize(0.5);
-        marker->SetMarkerStyle(4);  // Full circle
-//        marker->Draw("same");
     }
 
     gGeoManager->GetTopVolume()->AddNode(secondary_em,1);
