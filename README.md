@@ -23,15 +23,22 @@ A generator level tau search analysis code
 
 # Installation
 
-Get the source code:
+- Get the source code:
 
 $ git clone https://github.com/rubbiaa/FASER.git
 
-Set up ROOT and GEANT4 environment in the setup.sh file:
+- Set up ROOT and GEANT4 environment in the setup.sh file:
 
 setup.sh:
     source <ROOTINSTAL>/bin/thisroot.sh
     source <GEANT4INSTALL>/bin/geant4.sh
 
 $ source setup.sh
+
+- On lxplus use the following command instead:
+
+$ source lxplus_setup.csh
+
+
+
 

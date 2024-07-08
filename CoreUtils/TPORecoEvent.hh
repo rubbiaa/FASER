@@ -16,7 +16,7 @@ public:
         double em;             // in GeV
         double had;            // in GeV
         double Ecompensated;   // in GeV
-        XYZVector cog;
+        ROOT::Math::XYZVector cog;
     };
 
     int POID;                          // the primary track in POEvent

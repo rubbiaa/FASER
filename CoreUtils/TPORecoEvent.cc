@@ -99,7 +99,7 @@ struct TPORec::CALENERGIES TPORecoEvent::computeEnergiesAndCOG(DigitizedTrack *d
 
     size_t nhits = dt->fhitIDs.size();
     for ( size_t i = 0; i < nhits; i++) {
-        XYZVector position = fTcalEvent -> getChannelXYZfromID(dt->fhitIDs[i]);
+        ROOT::Math::XYZVector position = fTcalEvent -> getChannelXYZfromID(dt->fhitIDs[i]);
         double ehit = dt->fEnergyDeposits[i]/1e3;
         if(isEM) {
             result.em += ehit;

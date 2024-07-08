@@ -128,7 +128,7 @@ void MyMainFrame::Draw_event() {
             // apply energy cut on scintillator voxel
             if(hittype == 0 && track->fEnergyDeposits[i] < 0.5)continue;
 
-            XYZVector position = fTcalEvent->getChannelXYZfromID(track->fhitIDs[i]);
+            ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(track->fhitIDs[i]);
             // Create a translation matrix for the hit position
             TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, position.Y() / 10.0, position.Z() / 10.0);
 
@@ -219,7 +219,7 @@ void MyMainFrame::Draw_event() {
 // Function to handle button click
 void MyMainFrame::HandleButton() {
     // get the first hit
-    XYZVector pos = fTcalEvent->getChannelXYZfromID(0);
+    ROOT::Math::XYZVector pos = fTcalEvent->getChannelXYZfromID(0);
     ZoomToPosition(0,0,pos.Z()/10.0);
 }
 
