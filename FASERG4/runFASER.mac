@@ -1,0 +1,18 @@
+# Macro example
+/FASER/scint/material PVT
+/FASER/scint/lightYield 12000.
+/FASER/scint/sizeX 50 cm
+/FASER/scint/sizeY 50 cm
+/FASER/scint/sizeZ 5 cm
+/FASER/scint/voxel 5 mm
+/FASER/targetW/sizeX 50 cm
+/FASER/targetW/sizeY 50 cm
+/FASER/targetW/sizeZ 2 mm
+/FASER/layers 50
+#
+/tracking/verbose 0
+#/process/optical/processActivation Cerenkov false
+/run/numberOfThreads 1
+/run/initialize
+/generator/rootinputfilename /home/rubbiaa/FASER/FASERDATA/sim200026/FaserMC-MC24_Genie_light_eposlhc_k_10invab-200026-0000*-s0012-NTUP.root
+/run/beamOn 5000

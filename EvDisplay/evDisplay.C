@@ -1,3 +1,8 @@
+// Interactive event display of FASERCAL events
+//
+// A. Rubbia, July 2024
+//
+
 #include <TApplication.h>
 #include <TCanvas.h>
 #include <TGeoManager.h>

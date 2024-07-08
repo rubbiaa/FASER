@@ -1,8 +1,8 @@
-EXE = evDisplay.exe
+EXE = Convert.exe
 
 COREUTILSDIR := ../CoreUtils
 
-SRC = evDisplay.C MyMainFrame.cc $(COREUTILSDIR)/TPORecoEvent.cc dict.cxx $(COREUTILSDIR)/TcalEvent.cc $(COREUTILSDIR)/TPOEvent.cc
+SRC = Convert.cc dict.cxx $(COREUTILSDIR)/TPOEvent.cc
 OBJ = $(SRC:.C=.o)
 OBJ := $(OBJ:.cxx=.o)
 OBJ := $(OBJ:.cc=.o)
@@ -16,7 +16,7 @@ ROOTCFLAGS += -I$(COREUTILSDIR)
 
 all : $(EXE)
 
-dict.cxx : $(INCS) evDisplay.C
+dict.cxx : $(INCS) $(SRC)
 	rootcling -f dict.cxx -c LinkDef.h -I$(COREUTILSDIR)
 
 $(EXE) : $(OBJ)

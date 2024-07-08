@@ -45,6 +45,8 @@ public:
   double tauvis_px, tauvis_py, tauvis_pz;
   double Evis, ptmiss;
 
+  TPOEvent() : n_particles(0) {};
+
   void clear_event();
   bool is_lepton(int pdgid);
   bool is_neutrino(int pdgid);

@@ -1,3 +1,8 @@
+// Batch reconstruction of FASERCAL events
+//
+// A. Rubbia, July 2024
+//
+
 #include <string>
 
 #include "TFile.h"
