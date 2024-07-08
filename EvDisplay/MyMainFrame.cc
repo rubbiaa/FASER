@@ -109,6 +109,7 @@ void MyMainFrame::Draw_event() {
     primary_had = new TGeoVolume("primary_had", bigbox, air);
     secondary_em = new TGeoVolume("secondary_em", bigbox, air);
     secondary_had = new TGeoVolume("secondary_had", bigbox, air);
+    si_tracker = new TGeoVolume("si_tracker", bigbox, air);
 
     TGeoMaterial *matAluminum = new TGeoMaterial("Aluminum", 26.98, 13, 2.7);
     TGeoMedium *aluminum = new TGeoMedium("Aluminum", 2, matAluminum);
@@ -158,7 +159,7 @@ void MyMainFrame::Draw_event() {
             } else if (hittype == 1) {
                 TGeoVolume *hitVolume = new TGeoVolume("TrackerHitVolume", trackerhitbox, air);
                 hitVolume->SetLineColor(kBlack); 
-                primary_em->AddNode(hitVolume, i, trans);
+                si_tracker->AddNode(hitVolume, i, trans);
             } else {
                 std::cout << " Unknown type of hit " << std::endl;
             }
@@ -169,6 +170,7 @@ void MyMainFrame::Draw_event() {
     gGeoManager->GetTopVolume()->AddNode(secondary_had,1);
     gGeoManager->GetTopVolume()->AddNode(primary_em,1);
     gGeoManager->GetTopVolume()->AddNode(primary_had,1);
+    gGeoManager->GetTopVolume()->AddNode(si_tracker,1);
 //    gGeoManager->GetTopVolume()->Print();
 
     delete runText;
@@ -225,7 +227,10 @@ void MyMainFrame::HandleButton() {
 
 // Function to handle button click
 void MyMainFrame::next_event() {
+
     TCanvas *canvas = fCanvas->GetCanvas();
+
+    // remove the previous event
     TGeoNode *nodeToRemove1 = gGeoManager->GetTopVolume()->FindNode("primary_em_1");
     gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove1);
     TGeoNode *nodeToRemove2 = gGeoManager->GetTopVolume()->FindNode("primary_had_1");
@@ -234,6 +239,8 @@ void MyMainFrame::next_event() {
     gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove3);
     TGeoNode *nodeToRemove4 = gGeoManager->GetTopVolume()->FindNode("secondary_had_1");
     gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove4);
+    TGeoNode *nodeToRemove5 = gGeoManager->GetTopVolume()->FindNode("si_tracker_1");
+    gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove5);
 
     delete POevent;
     delete fTcalEvent;

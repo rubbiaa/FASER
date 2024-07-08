@@ -21,7 +21,7 @@ A generator level tau search analysis code
 - s.C : analyse event summary tuples for each tau decay channel and create sig/background tuples
 - a.C : read sig/bkg tuples for each decay channel and perform BDT analysis
 
-# Installation
+# Installation preliminaries
 
 - Get the source code:
 
@@ -39,6 +39,16 @@ $ source setup.sh
 
 $ source lxplus_setup.csh
 
+# Install event display
 
+ - move to the evDisplay directory and compile with "make"
 
+$ cd evDiplay
+$ make
 
+ - if compilation and linking was successful, the executable is "evDisplay.eve"
+
+ - make sure G4 FASERCAL simulated files are in "input" subdirectory
+ - make sure the "geometry.gdml" file is accessible
+
+ 

@@ -48,6 +48,7 @@ private:
     TGeoVolume *primary_had;
     TGeoVolume *secondary_em;
     TGeoVolume *secondary_had;
+    TGeoVolume *si_tracker;
 
     bool toggle_primary_em;
     bool toggle_primary_had;
