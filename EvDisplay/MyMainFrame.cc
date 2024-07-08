@@ -78,7 +78,7 @@ void MyMainFrame::Load_event(int ievent) {
 
     fTcalEvent -> Load_event(base_path, ievent, POevent);
     std::cout << "Transverse size " << fTcalEvent->geom_detector.fScintillatorSizeX << " mm " << std::endl;
-    std::cout << "Total size of one sandwich layer " << fTcalEvent->geom_detector.fTotalLength << " mm " << std::endl;
+    std::cout << "Total size of one sandwich layer " << fTcalEvent->geom_detector.fSandwichLength << " mm " << std::endl;
 	std::cout << "Number of layers " << fTcalEvent->geom_detector.NRep << std::endl;
     std::cout << "Voxel size " << fTcalEvent->geom_detector.fScintillatorVoxelSize << " mm " << std::endl;
 
@@ -110,11 +110,11 @@ void MyMainFrame::Draw_event() {
     secondary_em = new TGeoVolume("secondary_em", bigbox, air);
     secondary_had = new TGeoVolume("secondary_had", bigbox, air);
 
-    TGeoShape *hitShape = new TGeoSphere("HitShape", 0, 0.5);
- 
     TGeoMaterial *matAluminum = new TGeoMaterial("Aluminum", 26.98, 13, 2.7);
     TGeoMedium *aluminum = new TGeoMedium("Aluminum", 2, matAluminum);
     TGeoShape *box = new TGeoBBox("box", 0.5/2.0,0.5/2.0,0.5/2.0);
+
+    TGeoShape *trackerhitbox = new TGeoBBox("box", 0.1/2.0,0.1/2.0,0.1/2.0);
 
     for (const auto& track : fTcalEvent->fTracks) {
 //        std::cout << track->ftrackID << std::endl;
@@ -122,36 +122,46 @@ void MyMainFrame::Draw_event() {
 //        std::cout << nhits << std::endl;
 //        if(track->fparentID > 0) continue;
         for ( size_t i = 0; i < nhits; i++) {
-            if(track->fEnergyDeposits[i] < 0.5)continue;
+
+            long hittype = fTcalEvent->getChannelTypefromID(track->fhitIDs[i]);
+
+            // apply energy cut on scintillator voxel
+            if(hittype == 0 && track->fEnergyDeposits[i] < 0.5)continue;
+
             XYZVector position = fTcalEvent->getChannelXYZfromID(track->fhitIDs[i]);
-//            marker->SetNextPoint(position.X()/10.0-12.5, position.Y()/10.0-12.5, position.Z()/10.0-60.0);
-
-            TGeoVolume *hitVolume = new TGeoVolume("HitVolume", box, air);
-            hitVolume->SetLineColor(kRed); 
-            if(fabs(track->fPDG) == 11){
-                hitVolume->SetLineColor(kBlue); // electromagnetic is blue
-            } else if(fabs(track->fPDG) == 13){
-                hitVolume->SetLineColor(kGreen); // muons
-            }
-
-        // Create a translation matrix for the hit position
+            // Create a translation matrix for the hit position
             TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, position.Y() / 10.0, position.Z() / 10.0);
 
-        // Add the hit volume to the top volume with the translation
-            if(track->fparentID == 0) {
-                if(fabs(track->fPDG) == 11) {
-                    primary_em->AddNode(hitVolume, i, trans);
-                } else {
-                    primary_had->AddNode(hitVolume, i, trans);
+            if(hittype == 0) {
+                TGeoVolume *hitVolume = new TGeoVolume("HitVolume", box, air);
+                hitVolume->SetLineColor(kRed); 
+                if(fabs(track->fPDG) == 11){
+                    hitVolume->SetLineColor(kBlue); // electromagnetic is blue
+                } else if(fabs(track->fPDG) == 13){
+                    hitVolume->SetLineColor(kGreen); // muons
                 }
-            } else {
-                if(fabs(track->fPDG) == 11) {
-                    secondary_em->AddNode(hitVolume, i, trans);
-                } else {
-                    secondary_had->AddNode(hitVolume, i, trans);
-                }
-            }
 
+                // Add the hit volume to the top volume with the translation
+                if(track->fparentID == 0) {
+                    if(fabs(track->fPDG) == 11) {
+                        primary_em->AddNode(hitVolume, i, trans);
+                    } else {
+                        primary_had->AddNode(hitVolume, i, trans);
+                    }
+                } else {
+                    if(fabs(track->fPDG) == 11) {
+                        secondary_em->AddNode(hitVolume, i, trans);
+                    } else {
+                        secondary_had->AddNode(hitVolume, i, trans);
+                    }
+                }
+            } else if (hittype == 1) {
+                TGeoVolume *hitVolume = new TGeoVolume("TrackerHitVolume", trackerhitbox, air);
+                hitVolume->SetLineColor(kBlack); 
+                primary_em->AddNode(hitVolume, i, trans);
+            } else {
+                std::cout << " Unknown type of hit " << std::endl;
+            }
         }
     }
 
