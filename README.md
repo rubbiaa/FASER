@@ -44,6 +44,7 @@ $ source lxplus_setup.csh
  - move to the evDisplay directory and compile with "make"
 
 $ cd evDiplay
+
 $ make
 
  - if compilation and linking was successful, the executable is "evDisplay.eve"
@@ -55,4 +56,9 @@ $ ln -fs </path_to_g4_simulated_data> input
  - on lxplus.cern.ch, there is data available
 
  $ ln -fs /eos/home-r/rubbiaa/FASER/G4DATA input
+
+ - run the event display
+
+ $ evDisplay.exe
+
  
