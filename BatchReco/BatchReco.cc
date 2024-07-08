@@ -10,7 +10,7 @@
 
 void load_geometry() {
     // Load the GDML geometry
-    TGeoManager::Import("/home/rubbiaa/faserps/FASERPS/geometry.gdml");
+    TGeoManager::Import("../GeomGDML/geometry.gdml");
 
     // Draw the geometry
 //    gGeoManager->GetTopVolume()->Draw("ogl");

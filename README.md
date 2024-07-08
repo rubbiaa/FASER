@@ -48,7 +48,11 @@ $ make
 
  - if compilation and linking was successful, the executable is "evDisplay.eve"
 
- - make sure G4 FASERCAL simulated files are in "input" subdirectory
- - make sure the "geometry.gdml" file is accessible
+ - make sure G4 FASERCAL simulated files are linked at the "input" subdirectory
+ 
+$ ln -fs </path_to_g4_simulated_data> input
 
+ - on lxplus.cern.ch, there is data available
+
+ $ ln -fs /eos/home-r/rubbiaa/FASER/G4DATA input
  
