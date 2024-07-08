@@ -18,8 +18,8 @@ ClassImp(PO)
 void TPOEvent::clear_event() {
   run_number = event_id = -1;
   prim_vx[0] = prim_vx[1] = prim_vx[2] = 0;
-  n_particles = 0;
-  n_taudecay = 0;
+  POs.clear();
+  taudecay.clear();
   tau_decaymode = -1;
   isCC = false;
   istau = false;
@@ -39,7 +39,7 @@ bool TPOEvent::is_neutrino(int pdgid) {
 
 void TPOEvent::kinematics_event() {
   bool got_out_lepton = false;
-  for (size_t i=0; i<n_particles; i++) {
+  for (size_t i=0; i<n_particles(); i++) {
     struct PO aPO = POs[i];
     if(aPO.m_status == 4 && i==0) {
       in_neutrino = aPO;
@@ -65,7 +65,7 @@ void TPOEvent::kinematics_event() {
   if(istau && isCC){
     TDatabasePDG *pdgDB = TDatabasePDG::Instance();
     int nc = 0, nn = 0;
-    for(int i=0; i<n_taudecay; i++) {
+    for(int i=0; i<n_taudecay(); i++) {
       struct PO aPO = taudecay[i];
       TParticlePDG *particle = pdgDB->GetParticle(aPO.m_pdg_id);
       if(aPO.m_status == 1 && !is_neutrino(aPO.m_pdg_id)){
@@ -131,10 +131,10 @@ void TPOEvent::dump_event() const {
   double spx=0, spy=0, spz=0;
   TDatabasePDG *pdgDB = TDatabasePDG::Instance();
   dump_header();
-  std::cout << " Primary vtx = " << prim_vx[0] << " " << prim_vx[1] << " " << prim_vx[2] << std::endl;
+  std::cout << " Primary vtx = " << prim_vx[0] << " " << prim_vx[1] << " " << prim_vx[2] << " mm " << std::endl;
   std::cout << "--------------------------------------------------------------------------------------------" << std::endl;
   std::cout << "¨    trackID, pdg_ID, name, px, py, pz, E, status, geant4ID, parents" << std::endl;
-  for (size_t i=0; i<n_particles; i++) {
+  for (size_t i=0; i<n_particles(); i++) {
     struct PO aPO = POs[i];
     dump_PO(aPO, pdgDB);
   }
@@ -147,9 +147,9 @@ void TPOEvent::dump_event() const {
   std::cout << std::setw(10) << "Sum final state particles (VIS): " << vis_spx << " " << vis_spy << " " << vis_spz << std::endl;
   std::cout << std::setw(10) << "Ptmiss = " << ptmiss << "  Evis = " << Evis << std::endl;
   std::cout << "--------------------------------------------------------------------------------------------" << std::endl;
-  if(n_taudecay>0) {
+  if(n_taudecay()>0) {
     std::cout << "Tau decay mode : " << tau_decaymode << std::endl;
-    for (size_t i=0; i<n_taudecay; i++) {
+    for (size_t i=0; i<n_taudecay(); i++) {
       struct PO aPO = taudecay[i];
       dump_PO(aPO, pdgDB);
     }
@@ -158,7 +158,7 @@ void TPOEvent::dump_event() const {
 }
 
 int TPOEvent::findFromGEANT4TrackID(int trackID) {
-  for (size_t i=0; i<n_particles; i++) {
+  for (size_t i=0; i<n_particles(); i++) {
     if(POs[i].geanttrackID == trackID){
       return i;
     }

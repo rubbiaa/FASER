@@ -22,22 +22,19 @@ struct PO {
 
 };
 
-#define MAXPARTICLES 1000
 class TPOEvent : public TObject {
 
 public:
   int run_number;
   int event_id;
-  double prim_vx[3];
+  double prim_vx[3];    // in mm
   bool isCC;
   bool istau;
   int tau_decaymode; // =1 e, =2 mu, =3 1-prong, =4 rho =5 3-prong, =6 other
-  size_t n_particles;
   struct PO in_neutrino;
   struct PO out_lepton;
-  struct PO POs[MAXPARTICLES];       // TODO: move to vector
-  size_t n_taudecay;
-  struct PO taudecay[MAXPARTICLES];       // TODO: move to vector
+  std::vector<struct PO> POs;
+  std::vector<struct PO> taudecay;
   double tautracklength;
   double spx, spy, spz;
   double vis_spx, vis_spy, vis_spz;
@@ -45,7 +42,7 @@ public:
   double tauvis_px, tauvis_py, tauvis_pz;
   double Evis, ptmiss;
 
-  TPOEvent() : n_particles(0) {};
+  TPOEvent() { clear_event(); };
 
   void clear_event();
   bool is_lepton(int pdgid);
@@ -55,11 +52,14 @@ public:
   void dump_header() const;
   void dump_event() const;
 
+  size_t n_particles() const { return POs.size(); };
+  size_t n_taudecay() const { return taudecay.size(); };
+
   void setGEANT4TrackID(int iPO, int trackID) { POs[iPO].geanttrackID = trackID; };
   int  findFromGEANT4TrackID(int trackID);
   void setPrimaryVtx(double x, double y, double z) { prim_vx[0]=x; prim_vx[1]=y; prim_vx[2]=z;};
 
-  ClassDef(TPOEvent, 1)
+  ClassDef(TPOEvent, 2)
 };
 
 #endif

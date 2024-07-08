@@ -9,6 +9,7 @@ OBJ := $(OBJ:.cc=.o)
 
 INCS = $(wildcard *.h)
 INCS += $(wildcard *.hh)
+INCS += $(COREUTILSDIR)/TPOEvent.hh
 
 ROOTCFLAGS = -g $(shell root-config --cflags)
 
