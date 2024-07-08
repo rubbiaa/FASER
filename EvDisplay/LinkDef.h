@@ -13,4 +13,9 @@
 #pragma link C++ class TPORecoEvent+;
 #pragma link C++ class TPORec+;
 
+#pragma link C++ class TPOEvent+;
+#pragma link C++ class TcalEvent+;
+#pragma link C++ class DigitizedTrack+;
+#pragma link C++ struct PO+;
+
 //#endif

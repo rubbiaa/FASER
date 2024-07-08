@@ -4,7 +4,9 @@ FASERPSINCLUDEDIR := /home/rubbiaa/faserps/FASERPS/include/
 FASERPSSRCDIR := /home/rubbiaa/faserps/FASERPS/src/
 # FASERPSLIB := -L/home/rubbiaa/faserps/FASERPS/ -lFaserPS
 
-SRC = BatchReco.cc TPORecoEvent.cc dict.cxx $(FASERPSSRCDIR)/TcalEvent.cc $(FASERPSSRCDIR)/TPOEvent.cc $(FASERPSSRCDIR)/../G__PS.cxx
+COREUTILSDIR := ../CoreUtils
+
+SRC = BatchReco.cc $(COREUTILSDIR)/TPORecoEvent.cc dict.cxx $(FASERPSSRCDIR)/TcalEvent.cc $(COREUTILSDIR)/TPOEvent.cc
 OBJ = $(SRC:.C=.o)
 OBJ := $(OBJ:.cxx=.o)
 OBJ := $(OBJ:.cc=.o)
@@ -14,12 +16,12 @@ INCS += $(wildcard *.hh)
 
 ROOTCFLAGS = -g $(shell root-config --cflags)
 
-ROOTCFLAGS += -I$(FASERPSINCLUDEDIR)
+ROOTCFLAGS += -I$(FASERPSINCLUDEDIR) -I$(COREUTILSDIR)
 
 all : $(EXE)
 
 dict.cxx : $(INCS) BatchReco.cc
-	rootcling -f dict.cxx -c LinkDef.h -I $(FASERPSINCLUDEDIR)
+	rootcling -f dict.cxx -c LinkDef.h -I $(FASERPSINCLUDEDIR) -I$(COREUTILSDIR)
 
 $(EXE) : $(OBJ)
 	g++ $(ROOTCFLAGS) $(OBJ) `root-config --glibs` -lEG -lGeom $(FASERPSLIB) -o $(EXE)
