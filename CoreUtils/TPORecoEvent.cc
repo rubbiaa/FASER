@@ -25,6 +25,7 @@ void TPORecoEvent::Reconstruct() {
             TPORec* aPORec = new TPORec(POID);
             aPORec->POID = POID;
             aPORec->fGEANTTrackIDs.push_back(it->ftrackID);
+            aPORec->DTs.push_back(it);
             struct TPORec::CALENERGIES calene = computeEnergiesAndCOG(it);
             aPORec->fEnergiesCogs.push_back(calene);
             fPORecs.push_back(aPORec);
@@ -40,6 +41,7 @@ void TPORecoEvent::Reconstruct() {
                 for (auto itRecs : fPORecs) {
                     if(itRecs->fGEANTTrackIDs[0] == primaryID) {
                         itRecs->fGEANTTrackIDs.push_back(it->ftrackID);
+                        itRecs->DTs.push_back(it);
                         struct TPORec::CALENERGIES calene = computeEnergiesAndCOG(it);
                         itRecs->fEnergiesCogs.push_back(calene);
                         break;

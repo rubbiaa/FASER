@@ -82,7 +82,7 @@ void save_map_TXT(const std::string& filename) {
 }
 
 void create_map(int run_number, std::string inputDirFiles) {
-    std::cout << "Loading map of files " << inputDirFiles << " ..." << std::endl;
+    std::cout << "Loading FASERMC files " << inputDirFiles << " ..." << std::endl;
 
     TChain *tree = new TChain("m_NuMCTruth_tree");
     tree->Add(inputDirFiles.c_str());  
@@ -193,9 +193,7 @@ void convert_FASERMC(int run_number, std::string inputDirFiles, int min_event, i
 	        fTPOEvent.event_id = m_event_id_MC;
 
     	    if(!got_primvtx && m_status == 1) {
-    	        fTPOEvent.prim_vx[0] = m_vx_prod;   // in mm
-	            fTPOEvent.prim_vx[1] = m_vy_prod;
-	            fTPOEvent.prim_vx[2] = m_vz_prod;
+    	        fTPOEvent.setPrimaryVtx(m_vx_prod, m_vy_prod, m_vz_prod);  // in mm
 	            got_primvtx = true;
 	        }
 	    
@@ -207,9 +205,9 @@ void convert_FASERMC(int run_number, std::string inputDirFiles, int min_event, i
 	        aPO.m_pz = m_pz/1e3;
 		    aPO.m_energy = m_energy/1e3;
 		    aPO.m_kinetic_energy = m_kinetic_energy/1e3;	
-	        aPO.m_vx_decay = m_vx_prod-fTPOEvent.prim_vx[0];
-	        aPO.m_vy_decay = m_vy_prod-fTPOEvent.prim_vx[1];
-	        aPO.m_vz_decay = m_vz_prod-fTPOEvent.prim_vx[2];
+	        aPO.m_vx_decay = m_vx_prod-fTPOEvent.prim_vx.X();
+	        aPO.m_vy_decay = m_vy_prod-fTPOEvent.prim_vx.Y();
+	        aPO.m_vz_decay = m_vz_prod-fTPOEvent.prim_vx.Z();
 	        aPO.nparent = m_trackid_in_particle->size();
 	        for (int i=0; i<aPO.nparent;i++){
 	            aPO.m_trackid_in_particle[i] = m_trackid_in_particle->at(i);
@@ -262,7 +260,7 @@ void convert_FASERMC(int run_number, std::string inputDirFiles, int min_event, i
 bool confirmAction() {
     char response;
     while (true) {
-        std::cout << "Do you want to proceed? (y/n): ";
+        std::cout << "Do you want to proceed to regenerate the map (very slow)? (y/n): ";
         std::cin >> response;
 
         // Convert response to lowercase to make the check case-insensitive
@@ -280,29 +278,52 @@ bool confirmAction() {
 
 int main(int argc, char** argv) {
     // get the output file name as the first argument
-	if (argc != 1) {
-		std::cout << "Usage: " << argv[0] << " <run> " << std::endl;
+	if (argc < 2) {
+		std::cout << "Usage: " << argv[0] << " <run> [minevent] [maxevent]" << std::endl;
 		return 1;
 	}
 
-//    std::string inputDir = argv[1];
-//	std::string ROOToutputFile = argv[2];
-
-    std::string runString("200026");
+    std::string runString = argv[1];
+//    std::string runString("200026");
+//    std::string runString("200035");
+//    std::string runString("200025");
 
     int run_number;
+    int min_event = 0;
+    int max_event = 1000;
+
     try {
         run_number = std::stoi(runString);
     } catch (const std::invalid_argument& e) {
-        std::cerr << "Invalid argument: " << e.what() << std::endl;
+        std::cerr << "Invalid argument for run: " << e.what() << std::endl;
     } catch (const std::out_of_range& e) {
-        std::cerr << "Out of range: " << e.what() << std::endl;
+        std::cerr << "Out of range for run: " << e.what() << std::endl;
+    }
+
+    if(argc>2){
+        try {
+            min_event = std::stoi(argv[2]);
+        } catch (const std::invalid_argument& e) {
+            std::cerr << "Invalid argument for minevent: " << e.what() << std::endl;
+        } catch (const std::out_of_range& e) {
+            std::cerr << "Out of range for minevent: " << e.what() << std::endl;
+        }
+    }
+
+    if(argc>3){
+        try {
+            max_event = std::stoi(argv[3]);
+        } catch (const std::invalid_argument& e) {
+            std::cerr << "Invalid argument for maxevent: " << e.what() << std::endl;
+        } catch (const std::out_of_range& e) {
+            std::cerr << "Out of range for maxevent: " << e.what() << std::endl;
+        }
     }
 
     std::ostringstream inputDirFiles;
     inputDirFiles << "../FASERDATA/sim" << run_number << "/*.root";
     std::ostringstream ROOTOutputFile;
-    ROOTOutputFile << "run" << run_number << ".root";
+    ROOTOutputFile << "FASERMC-PO-Run" << run_number << "-" << min_event << "_" << max_event << ".root";
     std::ostringstream MapFile;
     MapFile << "map_run" << run_number << ".txt";
 
@@ -316,11 +337,8 @@ int main(int argc, char** argv) {
         }
     }
 
-    int min_event = 0;
-    int max_event = 1000;
-
     convert_FASERMC(run_number, inputDirFiles.str(), min_event, max_event, ROOTOutputFile.str());
     
     std::cout << "I'm done." << std::endl;
-
+    return 0;
 }

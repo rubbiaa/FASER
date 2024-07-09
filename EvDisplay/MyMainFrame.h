@@ -12,10 +12,10 @@
 class MyMainFrame : public TGMainFrame {
     RQ_OBJECT("MyMainFrame")
 public:
-    MyMainFrame(int ievent, const TGWindow *p, UInt_t w, UInt_t h);
+    MyMainFrame(int run_number, int ievent, const TGWindow *p, UInt_t w, UInt_t h);
     virtual ~MyMainFrame();
 
-    void Load_event(int ievent);
+    void Load_event(int run_number, int ievent);
     void Draw_event();
 
     void HandleButton(); // Function to handle button click

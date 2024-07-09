@@ -12,11 +12,11 @@
 #include "MyMainFrame.h"
 #include "TPORecoEvent.hh"
 
-MyMainFrame::MyMainFrame(int ieve, const TGWindow *p, UInt_t w, UInt_t h) {
+MyMainFrame::MyMainFrame(int run_number, int ieve, const TGWindow *p, UInt_t w, UInt_t h) {
 
     // load event
     ievent = ieve;
-    Load_event(ievent);
+    Load_event(run_number, ievent);
 
     fMain = new TGMainFrame(p, w, h);
 
@@ -68,15 +68,15 @@ MyMainFrame::~MyMainFrame() {
     delete fMain;
 }
 
-void MyMainFrame::Load_event(int ievent) {
+void MyMainFrame::Load_event(int run_number, int ievent) {
 
-    std::string base_path = "input/tcalevent_";
+    std::string base_path = "input/";
 
     // Create an instance of TcalEvent and TPOEvent
     fTcalEvent = new TcalEvent();
     POevent = new TPOEvent();
 
-    fTcalEvent -> Load_event(base_path, ievent, POevent);
+    fTcalEvent -> Load_event(base_path, run_number, ievent, POevent);
     std::cout << "Transverse size " << fTcalEvent->geom_detector.fScintillatorSizeX << " mm " << std::endl;
     std::cout << "Total size of one sandwich layer " << fTcalEvent->geom_detector.fSandwichLength << " mm " << std::endl;
 	std::cout << "Number of layers " << fTcalEvent->geom_detector.NRep << std::endl;
@@ -221,8 +221,8 @@ void MyMainFrame::Draw_event() {
 // Function to handle button click
 void MyMainFrame::HandleButton() {
     // get the first hit
-    ROOT::Math::XYZVector pos = fTcalEvent->getChannelXYZfromID(0);
-    ZoomToPosition(0,0,pos.Z()/10.0);
+    double zvtx = fTcalEvent->fTPOEvent->prim_vx.z();
+    ZoomToPosition(0,0,zvtx/10.0);
 }
 
 // Function to handle button click
@@ -242,11 +242,18 @@ void MyMainFrame::next_event() {
     TGeoNode *nodeToRemove5 = gGeoManager->GetTopVolume()->FindNode("si_tracker_1");
     gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove5);
 
+    int run_number = fTcalEvent->fTPOEvent->run_number;
     delete POevent;
     delete fTcalEvent;
     delete fPORecoEvent;
 
-    Load_event(++ievent);
+    Load_event(run_number, ++ievent);
+
+    toggle_primary_em=
+    toggle_primary_had=
+    toggle_secondary_em=
+    toggle_secondary_had=true;
+
     Draw_event();
     canvas->Modified();
     canvas->Update();
@@ -304,9 +311,6 @@ void MyMainFrame::toggle_sec_had() {
 
 void MyMainFrame::ZoomToPosition(Double_t x, Double_t y, Double_t z) {
     TCanvas *canvas = fCanvas->GetCanvas();
-    
-    // Define the range for the view manually
-    Double_t viewRange[6] = {-10, -10, -10, 10, 10, 10}; // xmin, ymin, zmin, xmax, ymax, zmax
     
     TView *view = (TView *)canvas->GetView();
     view->SetRange(0,0,z-10,0.1,0.1,z+30);

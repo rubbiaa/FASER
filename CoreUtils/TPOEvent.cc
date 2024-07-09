@@ -1,6 +1,7 @@
-// FASER ntuple interface library
-// A. Rubbia May 2024
-//
+/* 
+  FASER ntuple interface library
+  A. Rubbia May 2024 
+*/
 
 #include <iostream>
 #include <fstream>
@@ -17,7 +18,8 @@ ClassImp(PO)
 
 void TPOEvent::clear_event() {
   run_number = event_id = -1;
-  prim_vx[0] = prim_vx[1] = prim_vx[2] = 0;
+  setPrimaryVtx(0,0,0);
+  vtx_target = 0;
   POs.clear();
   taudecay.clear();
   tau_decaymode = -1;
@@ -39,6 +41,8 @@ bool TPOEvent::is_neutrino(int pdgid) {
 
 void TPOEvent::kinematics_event() {
   bool got_out_lepton = false;
+  spx=spy=spz=0;
+  tauvis_px=tauvis_py=tauvis_pz=0;
   for (size_t i=0; i<n_particles(); i++) {
     struct PO aPO = POs[i];
     if(aPO.m_status == 4 && i==0) {
@@ -62,6 +66,8 @@ void TPOEvent::kinematics_event() {
   vis_spy = spy;
   vis_spz = spz;
   isCC = !(in_neutrino.m_pdg_id == out_lepton.m_pdg_id);
+
+  // additiona processing in case of tau decay
   if(istau && isCC){
     TDatabasePDG *pdgDB = TDatabasePDG::Instance();
     int nc = 0, nn = 0;
@@ -69,20 +75,19 @@ void TPOEvent::kinematics_event() {
       struct PO aPO = taudecay[i];
       TParticlePDG *particle = pdgDB->GetParticle(aPO.m_pdg_id);
       if(aPO.m_status == 1 && !is_neutrino(aPO.m_pdg_id)){
-	if(abs(aPO.m_pdg_id) == 11) {
-	  tau_decaymode = 1;
-	}
-	if(abs(aPO.m_pdg_id) == 13) {
-	  tau_decaymode = 2;
-	}
-	if(particle->Charge() == 0){
-	  nn++;
-	} else {
-	  nc++;
-	}
-	tauvis_px += aPO.m_px;
-	tauvis_py += aPO.m_py;
-	tauvis_pz += aPO.m_pz;
+      	if(abs(aPO.m_pdg_id) == 11) {
+	        tau_decaymode = 1;
+	      } else if(abs(aPO.m_pdg_id) == 13) {
+	        tau_decaymode = 2;
+	      }
+	      if(particle->Charge() == 0){
+	        nn++;
+	      } else {
+	        nc++;
+	      }
+      	tauvis_px += aPO.m_px;
+	      tauvis_py += aPO.m_py;
+	      tauvis_pz += aPO.m_pz;
       }
     }
     if(tau_decaymode < 0){
@@ -119,19 +124,48 @@ void TPOEvent::dump_PO(struct PO aPO,  TDatabasePDG *pdgDB) const {
   std::cout << std::endl;
 }
 
-void TPOEvent::dump_header() const {
+const char* TPOEvent::reaction_desc() const {
   if(isCC) {
-    std::cout << "--- Run " << run_number << " Event " << event_id << " ---------------------------------------- CC --------------------------------------------" << std::endl;
+    switch(in_neutrino.m_pdg_id) {
+      case 12:
+        return "nueCC";
+      case 14:
+        return "numuCC";
+      case 16:
+        return "nutauCC";
+      case -12:
+        return "antinueCC";
+      case -14:
+        return "antinumuCC";
+      case -16:
+        return "antinutauCC";
+    }
   } else {
-    std::cout << "--- Run " << run_number << " Event " << event_id << " ------------------------------------------- NC ------------------------------------------" << std::endl;
+    return "nuNC";
   }
+  return " ?? ";
+}
+
+void TPOEvent::dump_header() const {
+  const char *reaction = reaction_desc();
+  std::cout << "--- Run " << run_number << " Event " << event_id << " ---------------------------------------- " << reaction << " --------------------------------------------" << std::endl;
 }
  
 void TPOEvent::dump_event() const {
-  double spx=0, spy=0, spz=0;
   TDatabasePDG *pdgDB = TDatabasePDG::Instance();
   dump_header();
-  std::cout << " Primary vtx = " << prim_vx[0] << " " << prim_vx[1] << " " << prim_vx[2] << " mm " << std::endl;
+  std::cout << " Primary vtx = " << prim_vx.x() << " " << prim_vx.y() << " " << prim_vx.z() << " mm ";
+  if(vtx_target>0) {
+    switch(vtx_target) {
+      case kVtx_in_W: 
+        std::cout << " - in W target";
+        break;
+      case kVtx_in_Scint:
+        std::cout << " - in Scint target";
+        break;
+    }
+  } 
+  std::cout << std::endl;
   std::cout << "--------------------------------------------------------------------------------------------" << std::endl;
   std::cout << "¨    trackID, pdg_ID, name, px, py, pz, E, status, geant4ID, parents" << std::endl;
   for (size_t i=0; i<n_particles(); i++) {
@@ -165,3 +199,4 @@ int TPOEvent::findFromGEANT4TrackID(int trackID) {
   }
   return -1;
 }
+

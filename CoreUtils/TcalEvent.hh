@@ -45,10 +45,10 @@ class TcalEvent : public TObject {
 
 public:
     TcalEvent();
-    TcalEvent(long event_number);
+    TcalEvent(int run_number, long event_number);
     virtual ~TcalEvent();
 
-    int Load_event(std::string base_path, int ievent, TPOEvent *POevent);
+    int Load_event(std::string base_path, int run_number, int ievent, TPOEvent *POevent);
 
     TPOEvent* fTPOEvent;
     void AssignGEANTTrackID(int G4TrackID, int PDGcode, double px, double py, double pz);
@@ -69,6 +69,8 @@ public:
         Double_t fTotalLength; // in mm
         Int_t NRep;
         Double_t fTotalMass;  // in kg
+        Double_t fTotalWmass; // in kg
+        Double_t fTotalScintmass; // in kg
     };
  
     struct GEOM_DETECTOR geom_detector;

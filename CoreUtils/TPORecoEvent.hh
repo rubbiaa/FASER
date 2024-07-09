@@ -21,6 +21,7 @@ public:
 
     int POID;                          // the primary track in POEvent
     std::vector<int> fGEANTTrackIDs;   // all the geant track id that belong to this PORec
+    std::vector<DigitizedTrack*> DTs;  // all the DigitizedTracks that belong to this POREC
     std::vector<struct CALENERGIES> fEnergiesCogs;
     
     struct CALENERGIES fTotal;         // the cumulative energies for the primary

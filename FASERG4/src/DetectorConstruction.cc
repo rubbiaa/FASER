@@ -58,7 +58,7 @@ void DetectorConstruction::DefineMaterials()
 		double HPerCent = HAtomsPerVolume / (HAtomsPerVolume + CAtomsPerVolume);
 		double CPerCent = CAtomsPerVolume / (HAtomsPerVolume + CAtomsPerVolume);
 
-		fPolyvinyltoluene = new G4Material("PVT", 1.023 * g / cm3, 2);
+		fPolyvinyltoluene = new G4Material("PVT", 1.03 * g / cm3, 2);
 		fPolyvinyltoluene->AddElement(fHydrogen, HPerCent);
 		fPolyvinyltoluene->AddElement(fCarbon, CPerCent);
 
@@ -80,8 +80,34 @@ void DetectorConstruction::DefineMaterials()
 		    "SCINTILLATIONCOMPONENT1", fPhotonEnergyPVT, fScintillation_PVT,
 		    nEntriesPVT);  // The scintillation spectrum of the scintillator, see in the header file for the valuesTODO
 		fPolyvinyltoluene->SetMaterialPropertiesTable(fPolyvinyltoluene_MPT);
-		fPolyvinyltoluene->GetIonisation()->SetBirksConstant(
-		    0.126 * mm / MeV);	// The Birks constant of the scintillator, see in the header file for the valuesTODO
+	
+	// 0.898e-2 g/cm^2/MeV
+	// M.Hirschberg et al., IEEE Trans. Nuc. Sci. 39 (1992) 511
+    // SCSN-38: kB = (0.806 +/- 0.012)E-2 g/cm^2/MeV
+    // SCSN-28: kB = (0.877 +/- 0.03)E-2 g/cm^2/MeV
+    // GS 2003: kB = (0.844 +/- 0.015)E-2 g/cm^2/MeV
+    // NE 102A: kB = (0.882 +/- 0.012)E-2 g/cm^2/MeV
+    // NE 102A: kB = (0.888 +/- 0.025)E-2 g/cm^2/MeV
+    // KSTI 390: kB = (1.09 +/- 0.015)E-2 g/cm^2/MeV
+    // Simple average: (0.898 +/- 0.099)E-2 g/cm^2/MeV
+    // Average excluding KSTI 390: (0.859 +/- 0.034)E-2 g/cm^2/MeV
+    //
+    // Also: M. Bongrand AIP Conf. Proc. 807 (2007) 14: kB = 9E-2 g/cm^2/MeV
+    //
+    // Wikipedia give a value of 0.126 mm/MeV for polystyrene based
+    // scintillator, and this value seems to pop up in various places.  It
+    // comes from a measurement of 1 mm scintillating fibers.  This value also
+    // appears in Geant4 Examples.
+    //
+    // Leverington, Anelli, Campana, and Rosellini, arxiv:1106.5649 (2011))
+    //
+    // As best I can tell, the value was not fit to data, and is simply what
+    // was used in their simulation.  I don't find any supporting
+    // information in the paper.
+
+		// The Birks constant of the scintillator
+		double birks_constant = (0.898e-2 * g / cm / cm / MeV);
+		fPolyvinyltoluene->GetIonisation()->SetBirksConstant(8.718e-3 * cm / MeV);	
 	}
 
 	// Print materials
@@ -253,8 +279,15 @@ void DetectorConstruction::CreateFaserNu(G4Material* material1, G4Material* mate
 	fTotalLength = NRep*sizeZ;
 	G4cout << "Total length " << fTotalLength << " mm" << G4endl;
 
-	fTotalMass = sizeX*sizeY*size2.getZ()*19.3e-3*NRep*1e-3;
-	G4cout << "Total mass W " << fTotalMass << " kg" << G4endl;
+	fTotalWMass = sizeX*sizeY*size2.getZ()*19.3e-3*NRep*1e-3;
+	G4cout << "Total mass W " << fTotalWMass << " kg" << G4endl;
+
+	fTotalScintMass = sizeX*sizeY*size1.getZ()*1.03e-3*NRep*1e-3;
+	G4cout << "Total mass scint " << fTotalScintMass << " kg" << G4endl;
+
+	fTotalMass = fTotalWMass + fTotalScintMass;
+	G4cout << "Total mass W+scint " << fTotalMass << " kg" << G4endl;
+
 
 	// TODO Setup via macro commands - currently set to large values for simulation speed.
 	G4UserLimits* userLimits_Scint = new G4UserLimits();

@@ -19,15 +19,14 @@
 int main(int argc, char** argv)
 {
 	// get the output file name as the first argument
-	if (argc != 3) {
-		G4cout << "Usage: " << argv[0] << " <macro|vis>  <output.root>" << G4endl;
+	if (argc != 2) {
+		G4cout << "Usage: " << argv[0] << " <macro|vis>" << G4endl;
 		return 1;
 	}
 
 	// Detect interactive mode (if no arguments) and define UI session
 
 	G4UIExecutive* ui = nullptr;
-	std::string fileName = argv[2];
 	if (argv[1] == "vis") {
 		ui = new G4UIExecutive(argc - 1, argv);
 	}
@@ -43,7 +42,7 @@ int main(int argc, char** argv)
 	G4SteppingVerbose::UseBestUnit(precision);
 
 	// Create the ParticleManager
-	auto particleManager = new ParticleManager(10, fileName);
+	auto particleManager = new ParticleManager(10);
 
 	// Construct the default run manager
 	//

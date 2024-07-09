@@ -12,9 +12,8 @@
 #include "G4TrackingManager.hh"
 #include "G4SystemOfUnits.hh"
 
-ParticleManager::ParticleManager(int number, std::string rootOutputFileName) : m_rootFile(nullptr), m_particleTree(nullptr)
+ParticleManager::ParticleManager(int number) : m_rootFile(nullptr)
 {
-	m_rootOutputFileName = rootOutputFileName;
 }
 
 ParticleManager::~ParticleManager() {}
@@ -99,14 +98,15 @@ void ParticleManager::beginOfEvent()
 {
 	// Clear the track map
 	m_particleMap.clear();
-	m_particleIDMap->clear();
 	fPrimaries.clear();
 
-	fTcalEvent = new TcalEvent(fTcalEvent_number);
-
-	// set the link to the primary event information
 	PrimaryGeneratorAction* prim = dynamic_cast<PrimaryGeneratorAction*>
 		(const_cast<G4VUserPrimaryGeneratorAction*>(G4RunManager::GetRunManager()->GetUserPrimaryGeneratorAction()));
+	fTcalEvent = new TcalEvent(prim->GetTPOEvent()->run_number, fTcalEvent_number);
+
+	// set the link to the primary event information
+//	PrimaryGeneratorAction* prim = dynamic_cast<PrimaryGeneratorAction*>
+//		(const_cast<G4VUserPrimaryGeneratorAction*>(G4RunManager::GetRunManager()->GetUserPrimaryGeneratorAction()));
 	fTcalEvent -> fTPOEvent = const_cast<TPOEvent*>(prim->GetTPOEvent());
 
 	fTcalEvent -> fTPOEvent -> setPrimaryVtx(primary_vertex_position.X(), primary_vertex_position.Y(), primary_vertex_position.Z()) ;
@@ -188,111 +188,16 @@ void ParticleManager::endOfEvent(G4Event const* event)
 		delete entry.second;
 	}
 	
-	for( int i = 0; i < m_numberParticleVectors; i++){
-		
-		m_particleVectorOutput->at(i).clear();
-	}
-	
 	m_particleMap.clear();
 }
 
 void ParticleManager::beginOfRun()
 {
-	if (!initializedFile){
-		m_particleVectorOutput = new std::vector<std::vector<Track>>;
-		for(int i = 0; i < m_numberParticleVectors; i++){
-			std::vector<Track> particleVector;
-			m_particleVectorOutput->push_back(particleVector);
-		}
-
-		InitializeOutput();
-		initializedFile = true;
-	}
-
 	fPrimaries.clear();
 }
 
 void ParticleManager::endOfRun()
 {
-	// Run action EndOfRunAction gets called twice, hence we need to protect against float writing
-	if (writtenToFile == false) {
-		m_rootFile->cd();
-		m_particleTree->Write();
-		m_vertexTree->Write();
-		m_detectorTree->Fill();
-		m_detectorTree->Write();
-		m_metaInformationTree->Fill();
-		m_metaInformationTree->Write();
-		m_rootFile->Close();
-		writtenToFile = true;
-	}
-	else {
-		std::cout << "ParticleManager::endOfRun, already written to file" << std::endl;
-	}
-}
-
-void ParticleManager::InitializeOutput()
-{
-	// We use the compression level 505 to reduce the file size.
-	// I did compare the different compression levels [listed here](https://root.cern/doc/master/Compression_8h_source.html).
-	// 0 -> 40GB, 101 -> 3.5GB, 207 -> 2.5 GB, 404-> 3.5GB, 505 -> 2.7GB
-	// 0 -> 1h, 207 -> 130min , 505 -> 65min
-	//  505 is the best compromise between file size and writing time for the current setup.
-
-	m_rootFile = new TFile(m_rootOutputFileName.c_str(), "RECREATE", "", 505);  // 505 is the compression level
-	m_rootFile->cd();
-
-	m_particleTree = new TTree("Geant4", "Geant4");
-	m_metaInformationTree = new TTree("Info", "Info");
-	m_vertexTree = new TTree("Vertex", "Vertex");
-	//m_particleVector = new std::vector<Track>();
-	for(int i = 0; i < m_numberParticleVectors; i++){
-		std::string branchName = "particles_"+std::to_string(i);
-		m_particleTree->Branch(branchName.c_str(), &m_particleVectorOutput->at(i));
-	}
-
-	//m_particleTree->Branch("particles", &m_particleVector);
-	m_particleTree->Branch("particleIDMap", &m_particleIDMap);
-
-	m_particleIDMap = new std::map<int, int>();
-	//m_particleVector = new std::vector<Track>();
-
-	m_vertexPositions = new std::vector<XYZVector>();
-	m_vertexMomenta = new std::vector<XYZVector>();
-	m_vertexTimes = new std::vector<double>();
-	m_vertexEnergy = new std::vector<double>();
-	m_vertexKinEnergy = new std::vector<double>();
-	m_vertexTrackID = new std::vector<int>();
-	m_vertexDecayMode = new std::vector<int>();
-	m_vertexPDG = new std::vector<int>();
-	m_vertexTree->Branch("vertexPositions", &m_vertexPositions);
-	m_vertexTree->Branch("vertexMomenta", &m_vertexMomenta);
-	m_vertexTree->Branch("vertexTimes", &m_vertexTimes);
-	m_vertexTree->Branch("vertexEnergy", &m_vertexEnergy);
-	m_vertexTree->Branch("vertexKinEnergy", &m_vertexKinEnergy);
-	m_vertexTree->Branch("vertexTrackID", &m_vertexTrackID);
-	m_vertexTree->Branch("vertexDecayMode", &m_vertexDecayMode);
-	m_vertexTree->Branch("vertexPDG", &m_vertexPDG);
-	m_vertexTree->Branch("vertexMode", &m_vertexMode);
-	m_vertexTree->Branch("vertexNParticles", &m_vertexNParticles);
-	m_vertexTree->Branch("vertexNuEnergy", &m_vertexNuEnergy);
-
-	m_detectorTree = new TTree("Detector", "Detector");
-	m_detectorTree->Branch("Size1", &m_size1);
-	m_detectorTree->Branch("Size2", &m_size2);
-	m_detectorTree->Branch("Material1", &m_material1);
-	m_detectorTree->Branch("Material2", &m_material2);
-	m_detectorTree->Branch("NRep",&m_nrep);
-
-	m_metaInformationTree->Branch("NumberParticleVectors", &m_numberParticleVectors);
-	m_metaInformationTree->Branch("NumberParticlesPerVector", &m_numberParticlesPerVector);
-
-
-	// check if rayTree, rayVector and rootFile are not nullptr
-	if (m_particleTree == nullptr  || m_rootFile == nullptr) {
-		std::cout << "ParticleManager::beginOfRun, nullptr" << std::endl;
-		exit(1);
-	}
 }
 
 void ParticleManager::RecordTrack(const G4Track* track) {

@@ -25,16 +25,6 @@ class ParticleManager {
     private:
 	std::map<int, Track*> m_particleMap;  ///< Map to store track ID and corresponding Track object
 	TFile* m_rootFile;		     ///< ROOT file to store the rays
-	TTree* m_vertexTree;		     ///< TTree to store the information about the primary vertices of the event
-	TTree* m_particleTree;		     ///< TTree to store the information about the particles of the events
-	TTree* m_detectorTree;	///< TTree to store information about the simulated detector geometry to the output file. Can be actived/deactived
-				///< using the macro files.
-	TTree* m_metaInformationTree;  ///< TTree to store meta information about the simulation, like the number of ray vectors, size of them and the
-				       ///< number of events.
-	//std::vector<Track>* m_particleVector;  ///< Vector to store the tracks during simulaiton and output
-	std::map<int, int>*
-	    m_particleIDMap;  ///< Map to store the trackID to the position in the particle Vector for later retrieval. This is needed because the
-			      ///< trackID is not the same as the position in the vector. `Track particle = particleVector[particleIDMap[trackID]]`.
 
 	std::string m_rootOutputFileName;  ///< Name of the ROOT output file, set by the user using the CLI when calling the program
 
@@ -44,8 +34,6 @@ class ParticleManager {
 	bool writtenToFile = false;  ///< This is a flag, that prevents the wiriting of duplicate informaiton. THe endOfRun action is called twice
 				     ///< per event, for some reason. I currently think it is called by the worker and master thread.
 
-	int m_numberParticleVectors = 17;
-	int m_numberParticlesPerVector = 100000;
 
 	std::vector<std::vector<Track>>* m_particleVectorOutput = nullptr;
 
@@ -87,7 +75,7 @@ class ParticleManager {
 	 * @param number Currently not used
 	 * @param rootOutputFileName Name of the ROOT output file, set by the user using the CLI when calling the program
 	 */
-	ParticleManager(int number, std::string rootOutputFileName);
+	ParticleManager(int number);
 	~ParticleManager();  ///< Destructor
 
 	/**
@@ -159,11 +147,6 @@ class ParticleManager {
 	 * @brief Writes the trees to the root file and saves the file
 	 */
 	void endOfRun();
-
-	/**
-	 * @brief Initializes the output trees
-	 */
-	void InitializeOutput();
 
 	G4int FindPrimaryParticle(G4int trackID);
 	void RecordTrack(const G4Track* track);

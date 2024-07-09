@@ -30,11 +30,28 @@ void load_geometry() {
 
 int main(int argc, char** argv) {
 
+    // get the run number as the first argument
+	if (argc < 2) {
+		std::cout << "Usage: " << argv[0] << " <run>" << std::endl;
+		return 1;
+	}
+
+    std::string runString = argv[1];
+    int run_number;
+
+    try {
+        run_number = std::stoi(runString);
+    } catch (const std::invalid_argument& e) {
+        std::cerr << "Invalid argument for run: " << e.what() << std::endl;
+    } catch (const std::out_of_range& e) {
+        std::cerr << "Out of range for run: " << e.what() << std::endl;
+    }
+
     TApplication app("app", &argc, argv);
 
     load_geometry();
 
-    new MyMainFrame(0, gClient->GetRoot(), 800, 600);
+    new MyMainFrame(run_number, 0, gClient->GetRoot(), 800, 600);
 
     // Run the application
     app.Run();

@@ -61,23 +61,9 @@ private:
   int valid_event;
   int n_passed_event;
   
-  TChain *tree; // input FASER ntuple chain
+  TFile *m_ROOTInputFile = nullptr;
+  TTree *m_POEventTree = nullptr;
   size_t tree_ientry;
-  
-  Int_t last_event_id_MC = -1;
-  Int_t current_event_first_entry = -1;
-  bool found_tau_lepton = false;
-  bool got_primvtx = false;
-  int tau_lepton_track_id = 0;
-
-  // Set up variables to hold the data and link them to the tree branches
-  Int_t m_runnumber, m_event_id_MC, m_track_id, m_pdg_id, m_num_in_particle, m_num_out_particle;
-  Double_t m_px, m_py, m_pz, m_energy, m_kinetic_energy, m_mass;
-  Float_t m_vx_prod, m_vy_prod, m_vz_prod, m_vx_decay, m_vy_decay, m_vz_decay;
-  std::vector<int> *m_pdg_in_particle = nullptr, *m_pdg_out_particle = nullptr;
-  std::vector<int> *m_trackid_in_particle = nullptr, *m_trackid_out_particle = nullptr;
-  Int_t m_status;
-
   TPOEvent fTPOEvent;
 
 };

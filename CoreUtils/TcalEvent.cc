@@ -12,10 +12,10 @@ TcalEvent::TcalEvent()
 
 /// @brief Create a TcalEvent with a given event number for OUTPUT
 /// @param event_number 
-TcalEvent::TcalEvent(long event_number) : TcalEvent()
+TcalEvent::TcalEvent(int run_number, long event_number) : TcalEvent()
 {
     std::ostringstream fileNameStream;
-    fileNameStream << "output/tcalevent_" << event_number << ".root";
+    fileNameStream << "output/FASERG4-Tcalevent_" << run_number << "_" << event_number << ".root";
     std::string m_rootOutputFileName = fileNameStream.str();
 
     m_rootFile = new TFile(m_rootOutputFileName.c_str(), "RECREATE", "", 505); // last is the compression level
@@ -54,12 +54,12 @@ TcalEvent::~TcalEvent()
 /// @param base_path 
 /// @param ievent 
 /// @return error = 0, ok, error = 1, file not found
-int TcalEvent::Load_event(std::string base_path, int ievent, TPOEvent *POevent) {
+int TcalEvent::Load_event(std::string base_path, int run_number, int ievent, TPOEvent *POevent) {
     std::string extension = ".root";
 
     // Create the filename based on ievent
     std::ostringstream filename;
-    filename << base_path << ievent << extension;
+    filename << base_path << "FASERG4-Tcalevent_" << run_number << "_" << ievent << extension;
 
     // Print the filename to verify
     std::cout << "Loading file: " << filename.str() << " ..... ";
@@ -102,7 +102,7 @@ void TcalEvent::AssignGEANTTrackID(int G4TrackID, int PDGcode, double px, double
 {
     //    std::cout << "Assigning GEANT4 track ID " << G4TrackID << std::endl;
 
-    for (int i = 0; i < fTPOEvent->n_particles; i++)
+    for (int i = 0; i < fTPOEvent->n_particles(); i++)
     {
         const struct PO *aPO = &fTPOEvent->POs[i];
         if (aPO->geanttrackID > -1)
