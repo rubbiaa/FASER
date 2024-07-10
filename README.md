@@ -16,6 +16,8 @@ Code to read FASERCAL GEANT4 output and batch reconstruct events, filling histog
 
 Interactive Event Display of FASERCAL GEANT4 output
 
+![Diagram of the project](images/numuCC_ev1.jpg)
+
 # FASERTuple
 
 Convert official FASER MC files into FASERCAL PO files (generator level) 
