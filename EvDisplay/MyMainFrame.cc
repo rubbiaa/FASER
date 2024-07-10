@@ -21,7 +21,7 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, const TGWindow *p, UInt_t w, 
     fMain = new TGMainFrame(p, w, h);
 
     // Create an embedded canvas
-    fCanvas = new TRootEmbeddedCanvas("EmbeddedCanvas", fMain, 800, 600);
+    fCanvas = new TRootEmbeddedCanvas("EmbeddedCanvas", fMain, 1200, 600);
     fMain->AddFrame(fCanvas, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY));
 
     // Create a horizontal frame to contain the buttons

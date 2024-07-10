@@ -111,7 +111,7 @@ void create_map(int run_number, std::string inputDirFiles) {
 }
 
 void convert_FASERMC(int run_number, std::string inputDirFiles, int min_event, int max_event,
-    std::string ROOTOutputFile) {
+    std::string ROOTOutputFile, int mask) {
 
     std::cout << "Converting events ..." << std::endl;
 
@@ -245,13 +245,29 @@ void convert_FASERMC(int run_number, std::string inputDirFiles, int min_event, i
 
     	fTPOEvent.kinematics_event();
 
-        if(evt_to_dump++ < 20) {
-        	fTPOEvent.dump_header();
-        	fTPOEvent.dump_event();	
-        };
-
-        m_POEventTree -> Fill();
+        // now check for mask
+        bool masked = false;
+        if(mask>0) {
+            bool wanted = false;
+            wanted |= (mask == TPOEvent::kMask_nueCC && fTPOEvent.isCC && 
+                abs(fTPOEvent.in_neutrino.m_pdg_id) == 12);
+            wanted |= (mask == TPOEvent::kMask_numuCC && fTPOEvent.isCC && 
+                abs(fTPOEvent.in_neutrino.m_pdg_id) == 14);
+            wanted |= (mask == TPOEvent::kMask_nutauCC && fTPOEvent.isCC && 
+                abs(fTPOEvent.in_neutrino.m_pdg_id) == 16);
+            wanted |= (mask == TPOEvent::kMask_NC && !fTPOEvent.isCC);
+            masked = !wanted;
+            fTPOEvent.SetEventMask(mask);
+        }
+        if(!masked) {
+            if(evt_to_dump++ < 20) {
+        	    fTPOEvent.dump_header();
+        	    fTPOEvent.dump_event();	
+            };
+            m_POEventTree -> Fill();
+        }
     } // for
+
     m_POEventTree->Write();
     m_rootFile->Close();
     std::cout << " Processed " << evt_to_dump << " events." << std::endl;
@@ -279,14 +295,18 @@ bool confirmAction() {
 int main(int argc, char** argv) {
     // get the output file name as the first argument
 	if (argc < 2) {
-		std::cout << "Usage: " << argv[0] << " <run> [minevent] [maxevent]" << std::endl;
+		std::cout << "Usage: " << argv[0] << " <run> [minevent] [maxevent] [mask]" << std::endl;
+        std::cout << std::endl;
+        std::cout << "Options:" << std::endl;
+        std::cout << "   minevent                  Minimum event to process (def=0)" << std::endl;
+        std::cout << "   maxevent                  Maximum event to process (def=1000):";
+        std::cout << "  =-1 for all events" << std::endl;
+        std::cout << "   mask                      To process only specific events (def=none): ";
+        std::cout << "  nueCC, numuCC, nutauCC, or nuNC" << std::endl;
 		return 1;
 	}
 
     std::string runString = argv[1];
-//    std::string runString("200026");
-//    std::string runString("200035");
-//    std::string runString("200025");
 
     int run_number;
     int min_event = 0;
@@ -319,16 +339,36 @@ int main(int argc, char** argv) {
             std::cerr << "Out of range for maxevent: " << e.what() << std::endl;
         }
     }
+    if(max_event == -1) {
+        max_event = 99999999;
+    }
+
+    int event_mask = 0;
+    if(argc>4) {
+        int mask = TPOEvent::EncodeEventMask(argv[4]);
+        if(mask>0) {
+            event_mask = mask;
+        } else {
+            std::cerr << "Unknown mask " << argv[4] << std::endl;
+            exit(1);            
+        }
+    }
 
     std::ostringstream inputDirFiles;
     inputDirFiles << "../FASERDATA/sim" << run_number << "/*.root";
     std::ostringstream ROOTOutputFile;
-    ROOTOutputFile << "FASERMC-PO-Run" << run_number << "-" << min_event << "_" << max_event << ".root";
+    ROOTOutputFile << "FASERMC-PO-Run" << run_number << "-" << min_event << "_" << max_event;
+    if(event_mask>0) {
+        const char *mask = TPOEvent::DecodeEventMask(event_mask);
+        ROOTOutputFile << "_" << mask;
+    }
+    ROOTOutputFile << ".root";
     std::ostringstream MapFile;
     MapFile << "map_run" << run_number << ".txt";
 
     std::cout << "Converting FASERMC from " << inputDirFiles.str() << std::endl;
     std::cout << "The event indices map is " << MapFile.str() << std::endl;
+    std::cout << "The output file is " << ROOTOutputFile.str() << std::endl;
 
     if(load_map_TXT(MapFile.str()) != 0) {
         if (confirmAction()) {
@@ -337,7 +377,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    convert_FASERMC(run_number, inputDirFiles.str(), min_event, max_event, ROOTOutputFile.str());
+    convert_FASERMC(run_number, inputDirFiles.str(), min_event, max_event, ROOTOutputFile.str(), event_mask);
     
     std::cout << "I'm done." << std::endl;
     return 0;

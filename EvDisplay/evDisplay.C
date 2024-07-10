@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
 
     load_geometry();
 
-    new MyMainFrame(run_number, 0, gClient->GetRoot(), 800, 600);
+    new MyMainFrame(run_number, 0, gClient->GetRoot(), 1200, 600);
 
     // Run the application
     app.Run();

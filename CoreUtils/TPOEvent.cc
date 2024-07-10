@@ -200,3 +200,31 @@ int TPOEvent::findFromGEANT4TrackID(int trackID) {
   return -1;
 }
 
+int TPOEvent::EncodeEventMask(std::string maskname) const {
+  if(maskname == "nueCC") {
+    return kMask_nueCC;
+  } else if(maskname == "numuCC") {
+    return kMask_numuCC;
+  } else if(maskname == "nutauCC") {
+    return kMask_nutauCC;
+  } else if(maskname == "nuNC") {
+    return kMask_NC;
+  }
+  return -1;
+};
+
+const char * TPOEvent::DecodeEventMask(int mask) const {
+  switch(mask) {
+    case kMask_nueCC:
+      return "nueCC";
+    case kMask_numuCC:
+      return "numuCC";
+    case kMask_nutauCC:
+      return "nutauCC";
+    case kMask_NC:
+      return "nuNC";
+  }
+  return "unkmask";
+};
+
+
