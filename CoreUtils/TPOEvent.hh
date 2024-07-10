@@ -43,10 +43,16 @@ public:
   static const int kVtx_in_W = 1;          //!
   static const int kVtx_in_Scint = 2;      //!
 
+  static const int kMask_nueCC = 1;
+  static const int kMask_numuCC = 2;
+  static const int kMask_nutauCC = 3;
+  static const int kMask_NC = 4;
+
   int run_number;                   // run number
   int event_id;                     // event number
   ROOT::Math::PositionVector3D<ROOT::Math::Cartesian3D<double>> prim_vx;  // primary vertex in mm
   int vtx_target;                   // in which target did the interaction occur
+  int event_mask = 0;               // if events are masked (see kMask_... constants)
   bool isCC;                        // event is a charged current
   bool istau;                       // incoming neutrino is a nutau
   int tau_decaymode;                // =1 e, =2 mu, =3 1-prong, =4 rho =5 3-prong, =6 other
@@ -72,12 +78,18 @@ public:
   /// @brief Check if PDGid is a lepton (e,mu,tau or neutrinos)
   /// @param pdgid 
   /// @return true if lepton
-  bool is_lepton(int pdgid);
+  static bool is_lepton(int pdgid) {
+      int pdgidabs = abs(pdgid);
+      return (pdgidabs >= 11 && pdgidabs <= 16);
+  }
 
   /// @brief Check if PDGid is a neutrino (any flavor)
   /// @param pdgid 
   /// @return true if neutrino
-  bool is_neutrino(int pdgid);
+  static bool is_neutrino(int pdgid) {
+      int pdgidabs = abs(pdgid);
+      return (pdgidabs == 12 || pdgidabs == 14 || pdgidabs == 16);
+  }
 
   /// @brief Return number of POs in the event
   /// @return Number of POs
@@ -122,6 +134,45 @@ public:
   /// @param trackID 
   /// @return 
   int  findFromGEANT4TrackID(int trackID);
+
+  int GetEventMask() const { return event_mask; }
+  void SetEventMask(int mask) { event_mask = mask; };
+  static int EncodeEventMask(std::string maskname)
+  {
+    if (maskname == "nueCC")
+    {
+      return kMask_nueCC;
+    }
+    else if (maskname == "numuCC")
+    {
+      return kMask_numuCC;
+    }
+    else if (maskname == "nutauCC")
+    {
+      return kMask_nutauCC;
+    }
+    else if (maskname == "nuNC")
+    {
+      return kMask_NC;
+    }
+    return -1;
+  };
+
+  static const char *DecodeEventMask(int mask)
+  {
+    switch (mask)
+    {
+    case kMask_nueCC:
+      return "nueCC";
+    case kMask_numuCC:
+      return "numuCC";
+    case kMask_nutauCC:
+      return "nutauCC";
+    case kMask_NC:
+      return "nuNC";
+    }
+    return "unkmask";
+  }
 
   ClassDef(TPOEvent, 2)
 };

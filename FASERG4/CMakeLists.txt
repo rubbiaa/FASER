@@ -48,6 +48,8 @@ set(SOURCES
     src/PrimaryGeneratorMessenger.cc
     src/RunAction.cc
     src/TrackerSD.cc
+    src/TauDecayPhysics.cc
+    src/CustomTauDecay.cc
     ${EXTERNAL_SOURCE_DIR}/TcalEvent.cc
     ${EXTERNAL_SOURCE_DIR}/TPOEvent.cc
     faserps.cc

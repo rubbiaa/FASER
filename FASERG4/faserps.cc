@@ -6,12 +6,16 @@
 #include "G4RunManagerFactory.hh"
 #include "G4StepLimiterPhysics.hh"
 #include "G4SteppingVerbose.hh"
+
 #include "G4UIExecutive.hh"
 #include "G4UImanager.hh"
 #include "G4VisExecutive.hh"
 #include "ParticleManager.hh"
 #include "Randomize.hh"
 #include "RunAction.hh"
+
+#include "TauDecayPhysics.hh"
+
 #include "TFile.h"
 #include "TH2F.h"
 
@@ -56,11 +60,15 @@ int main(int argc, char** argv)
 	physicsList->RegisterPhysics(new G4StepLimiterPhysics());
 	//	physicsList->RegisterPhysics(new G4OpticalPhysics());
 	physicsList->RegisterPhysics(stepLimitPhys);
+
+	// add custom tau decays
+	physicsList->RegisterPhysics(new TauDecayPhysics());
+
 	runManager->SetUserInitialization(physicsList);
 	// Set the ParticleManager in RunAction and EventAction
 	//auto runAction = new RunAction(photonManager);
 	//auto eventAction = new EventAction(photonManager, runAction);
-
+	
 	// Set the user actions
 	auto actionInitialization = new ActionInitialization(particleManager);
 	runManager->SetUserInitialization(actionInitialization);

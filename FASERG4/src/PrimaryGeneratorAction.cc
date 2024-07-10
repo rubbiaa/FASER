@@ -110,6 +110,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 
 	fTPOEvent.dump_event();	
 
+#if 0
 	std::vector<XYZVector> ParticlePosition;
 	std::vector<XYZVector> ParticleMomentum;
 	std::vector<double> ParticleTime;
@@ -127,6 +128,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 	ParticleKinEnergy.clear();
 	ParticleTrackID.clear();
 	DecayModeFlag.clear();
+#endif
 
 	valid_event++;
 	for (G4int i = 0; i < fTPOEvent.n_particles(); ++i)
@@ -136,14 +138,10 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 
 		if (particle != nullptr && aPO.m_status == 1)
 		{
-//			if(aPO.m_pdg_id != 311) continue;  // TODO/FIXME remove
+//			if(aPO.m_pdg_id != 15) continue;  // TODO/FIXME remove
 			G4ParticleGun *particleGun = new G4ParticleGun(1);
 
-			ParticlePDGCode.push_back(aPO.m_pdg_id);
-
-			// 	G4cout << "Particle found: " << particle->GetParticleName()
-			//  	<< ", mass: " << particle->GetPDGMass()/GeV << " GeV"
-			//  	<< ", charge: " << particle->GetPDGCharge() << G4endl;
+//			ParticlePDGCode.push_back(aPO.m_pdg_id);
 
 			particleGun->SetParticleDefinition(particle);
 
@@ -168,6 +166,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 		}
 	}
 
+#if 0
 	// still need to add tau decay products if any present
 	if (fTPOEvent.n_taudecay() > 0)
 	{
@@ -207,8 +206,9 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 			}
 		}
 	}
+#endif
 
-	int NParticlesIF = ParticlePDGCode.size();
+	int NParticlesIF = fParticleGuns.size();
 
 	std::cout<<"Number of particles: "<<NParticlesIF<<std::endl;
 	

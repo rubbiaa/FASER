@@ -56,7 +56,8 @@ void ParticleManager::beginOfEvent()
 
 	PrimaryGeneratorAction* prim = dynamic_cast<PrimaryGeneratorAction*>
 		(const_cast<G4VUserPrimaryGeneratorAction*>(G4RunManager::GetRunManager()->GetUserPrimaryGeneratorAction()));
-	fTcalEvent = new TcalEvent(prim->GetTPOEvent()->run_number, fTcalEvent_number);
+	int mask_event = const_cast<TPOEvent*>(prim->GetTPOEvent())->event_mask;
+	fTcalEvent = new TcalEvent(prim->GetTPOEvent()->run_number, fTcalEvent_number, mask_event);
 
 	// set the link to the primary event information
 //	PrimaryGeneratorAction* prim = dynamic_cast<PrimaryGeneratorAction*>

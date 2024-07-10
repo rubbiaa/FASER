@@ -12,16 +12,16 @@
 #include "MyMainFrame.h"
 #include "TPORecoEvent.hh"
 
-MyMainFrame::MyMainFrame(int run_number, int ieve, const TGWindow *p, UInt_t w, UInt_t h) {
+MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, const TGWindow *p, UInt_t w, UInt_t h) {
 
     // load event
     ievent = ieve;
-    Load_event(run_number, ievent);
+    Load_event(run_number, ievent, mask);
 
     fMain = new TGMainFrame(p, w, h);
 
     // Create an embedded canvas
-    fCanvas = new TRootEmbeddedCanvas("EmbeddedCanvas", fMain, 800, 600);
+    fCanvas = new TRootEmbeddedCanvas("EmbeddedCanvas", fMain, 1200, 600);
     fMain->AddFrame(fCanvas, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY));
 
     // Create a horizontal frame to contain the buttons
@@ -84,7 +84,7 @@ MyMainFrame::~MyMainFrame() {
     delete fMain;
 }
 
-void MyMainFrame::Load_event(int run_number, int ievent) {
+void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
 
     std::string base_path = "input/";
 
@@ -92,7 +92,8 @@ void MyMainFrame::Load_event(int run_number, int ievent) {
     fTcalEvent = new TcalEvent();
     POevent = new TPOEvent();
 
-    fTcalEvent -> Load_event(base_path, run_number, ievent, POevent);
+    event_mask = mask;
+    fTcalEvent -> Load_event(base_path, run_number, ievent, mask, POevent);
     std::cout << "Transverse size " << fTcalEvent->geom_detector.fScintillatorSizeX << " mm " << std::endl;
     std::cout << "Total size of one sandwich layer " << fTcalEvent->geom_detector.fSandwichLength << " mm " << std::endl;
 	std::cout << "Number of layers " << fTcalEvent->geom_detector.NRep << std::endl;
@@ -158,17 +159,19 @@ void MyMainFrame::Draw_event() {
                     hitVolume->SetLineColor(kBlue); // electromagnetic is blue
                 } else if(fabs(track->fPDG) == 13){
                     hitVolume->SetLineColor(kGreen); // muons
+                } else if(fabs(track->fPDG) == 15) {
+                    hitVolume->SetLineColor(kCyan); // taus
                 }
 
                 // Add the hit volume to the top volume with the translation
                 if(track->fparentID == 0) {
-                    if(fabs(track->fPDG) == 11) {
+                    if(fabs(track->fPDG) == 11 || fabs(track->fPDG) == 13 || fabs(track->fPDG) == 15) {
                         primary_em->AddNode(hitVolume, i, trans);
                     } else {
                         primary_had->AddNode(hitVolume, i, trans);
                     }
                 } else {
-                    if(fabs(track->fPDG) == 11) {
+                    if(fabs(track->fPDG) == 11 || fabs(track->fPDG) == 13) {
                         secondary_em->AddNode(hitVolume, i, trans);
                     } else {
                         secondary_had->AddNode(hitVolume, i, trans);
@@ -269,7 +272,7 @@ void MyMainFrame::next_event() {
     delete fTcalEvent;
     delete fPORecoEvent;
 
-    Load_event(run_number, ++ievent);
+    Load_event(run_number, ++ievent, event_mask);
 
     toggle_primary_em=
     toggle_primary_had=

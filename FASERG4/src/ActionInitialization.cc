@@ -1,5 +1,13 @@
 #include "ActionInitialization.hh"
 
+#include "G4ParticleDefinition.hh"
+#include "G4ParticleTable.hh"
+#include "CustomTauDecay.hh"
+#include "G4Decay.hh"
+#include "G4DecayTable.hh"
+
+#include "G4TauPlus.hh"
+#include "G4TauMinus.hh"
 
 ActionInitialization::ActionInitialization(ParticleManager* pm)
     : G4VUserActionInitialization(), fParticleManager(pm) {}  // Initialize the member variable in the constructor

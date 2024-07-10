@@ -12,10 +12,10 @@
 class MyMainFrame : public TGMainFrame {
     RQ_OBJECT("MyMainFrame")
 public:
-    MyMainFrame(int run_number, int ievent, const TGWindow *p, UInt_t w, UInt_t h);
+    MyMainFrame(int run_number, int ievent, int mask, const TGWindow *p, UInt_t w, UInt_t h);
     virtual ~MyMainFrame();
 
-    void Load_event(int run_number, int ievent);
+    void Load_event(int run_number, int ievent, int mask);
     void Draw_event();
 
     void HandleButton(); // Function to handle button click
@@ -40,6 +40,7 @@ private:
     TText *energyText = nullptr;
 
     int ievent;
+    int event_mask;
 
     TcalEvent* fTcalEvent;
     TPOEvent *POevent;

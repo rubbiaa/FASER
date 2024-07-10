@@ -45,10 +45,10 @@ class TcalEvent : public TObject {
 
 public:
     TcalEvent();
-    TcalEvent(int run_number, long event_number);
+    TcalEvent(int run_number, long event_number, int event_mask);
     virtual ~TcalEvent();
 
-    int Load_event(std::string base_path, int run_number, int ievent, TPOEvent *POevent);
+    int Load_event(std::string base_path, int run_number, int ievent, int event_mask, TPOEvent *POevent);
 
     TPOEvent* fTPOEvent;
     void AssignGEANTTrackID(int G4TrackID, int PDGcode, double px, double py, double pz);

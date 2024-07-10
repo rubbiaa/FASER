@@ -29,16 +29,6 @@ void TPOEvent::clear_event() {
   tauvis_px=tauvis_py=tauvis_pz=0;
 };
 
-bool TPOEvent::is_lepton(int pdgid) {
-  int pdgidabs = abs(pdgid);
-  return (pdgidabs >= 11 && pdgidabs <= 16);
-}
-
-bool TPOEvent::is_neutrino(int pdgid) {
-  int pdgidabs = abs(pdgid);
-  return (pdgidabs == 12 || pdgidabs == 14 || pdgidabs == 16);
-}
-
 void TPOEvent::kinematics_event() {
   bool got_out_lepton = false;
   spx=spy=spz=0;
@@ -183,6 +173,7 @@ void TPOEvent::dump_event() const {
   std::cout << "--------------------------------------------------------------------------------------------" << std::endl;
   if(n_taudecay()>0) {
     std::cout << "Tau decay mode : " << tau_decaymode << std::endl;
+    std::cout << "¨    trackID, pdg_ID, name, px, py, pz, E, status, geant4ID, parents" << std::endl;
     for (size_t i=0; i<n_taudecay(); i++) {
       struct PO aPO = taudecay[i];
       dump_PO(aPO, pdgDB);
@@ -199,4 +190,7 @@ int TPOEvent::findFromGEANT4TrackID(int trackID) {
   }
   return -1;
 }
+
+
+
 
