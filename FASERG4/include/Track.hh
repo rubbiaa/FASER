@@ -313,11 +313,11 @@ legit process. Prints warning to cout
 	 * @param momentum Momentum of the particle at the new step (XYZVector)
 	 * @param time Time of the particle at the new step (double)
 	 * @param energyDeposit Energy deposit of the particle at the new step (double)
-	 * @param process Process that caused the particle to stop (Geant4Process)
 	 * @param volume Volume in which the particle is at the new step (std::string)
 	 * @param CopyVolume volume replica number (if any)
 	 */
-	void update(XYZVector position, XYZVector momentum, double time, double energyDeposit, Geant4Process process, std::string volume, int CopyVolume);
+	void update(XYZVector position, XYZVector momentum, double time, double energyDeposit, 
+			std::string volume, int CopyVolume);
 
 	/**
 	 * @brief Add to the total energy deposit of the particle

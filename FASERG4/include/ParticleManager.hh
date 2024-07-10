@@ -28,29 +28,12 @@ class ParticleManager {
 
 	std::string m_rootOutputFileName;  ///< Name of the ROOT output file, set by the user using the CLI when calling the program
 
-	bool initializedFile = false;  ///< Flag to check if the file is initialized, the beginOfRun action is called twice per event, for some reason. I
+//	bool initializedFile = false;  ///< Flag to check if the file is initialized, the beginOfRun action is called twice per event, for some reason. I
 				       ///< currently think it is called by the worker and master thread.
 
-	bool writtenToFile = false;  ///< This is a flag, that prevents the wiriting of duplicate informaiton. THe endOfRun action is called twice
+//	bool writtenToFile = false;  ///< This is a flag, that prevents the wiriting of duplicate informaiton. THe endOfRun action is called twice
 				     ///< per event, for some reason. I currently think it is called by the worker and master thread.
 
-
-//	std::vector<std::vector<Track>>* m_particleVectorOutput = nullptr;
-
-#if 0
-	bool saveDetector = false;
-	int m_vertexMode;				  ///< Information about the vertex mode. Either from neut or userdefined
-	int m_vertexNParticles;				  ///< Number of particles in the vertex
-	std::vector<XYZVector>* m_vertexPositions;	  ///< Vector of vertex positions
-	std::vector<XYZVector>* m_vertexMomenta;	  ///< Vector of vertex momenta
-	std::vector<double>* m_vertexTimes;		  ///< Vector of vertex times
-	std::vector<double>* m_vertexEnergy;		  ///< Vector of vertex energies
-	std::vector<double>* m_vertexKinEnergy; 	  ///< Vector of vertex kinetic energies
-	std::vector<int>* m_vertexTrackID;		  ///< Vector of vertex track IDs
-	std::vector<int>* m_vertexDecayMode;		  ///< Vector of vertex decay modes
-	std::vector<int>* m_vertexPDG;			  ///< Vector of vertex PDG codes
-	double m_vertexNuEnergy;			  ///< Energy of the neutrino if the vertex is from a neutrino, otherwise userdefined
-#endif
 
 	XYZVector m_size1;
 	XYZVector m_size2;
@@ -95,7 +78,7 @@ class ParticleManager {
 	 * @param CopyNumber The replica number of the volume
 	 */
 	void processParticleHit(int trackID, XYZVector const& position, XYZVector const& direction, double const& time, double const& energydeposit,
-				Geant4Process const& process, int const& parentID, int const& pdg, std::string const& VolumeName, G4int CopyNumber);
+				int const& parentID, int const& pdg, std::string const& VolumeName, G4int CopyNumber);
 
 	/**
 	 * @brief Get the Information about the primary Vertex from the Primary Generator Action

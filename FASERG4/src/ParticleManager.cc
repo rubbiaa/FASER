@@ -19,14 +19,14 @@ ParticleManager::ParticleManager(int number) : m_rootFile(nullptr)
 ParticleManager::~ParticleManager() {}
 
 void ParticleManager::processParticleHit(int trackID, XYZVector const& position, XYZVector const& direction, double const& time,
-					 double const& energydeposit, Geant4Process const& process, int const& parentID, int const& pdg,
+					 double const& energydeposit, int const& parentID, int const& pdg,
 					 std::string const& VolumeName, int CopyNumber)
 {
 	if(energydeposit>0 || parentID == 0) { 					// or some energy or is primary
 		auto it = m_particleMap.find(trackID);
 		if (it != m_particleMap.end()) {
 			it->second->addTotalEnergyDeposit(energydeposit);
-			it->second->update(position, direction, time, energydeposit, process, VolumeName, CopyNumber);
+			it->second->update(position, direction, time, energydeposit, VolumeName, CopyNumber);
 		}
 		else {
 			// If the track does not exist, create a new one

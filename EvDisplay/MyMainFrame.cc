@@ -24,25 +24,40 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, const TGWindow *p, UInt_t w, 
     fCanvas = new TRootEmbeddedCanvas("EmbeddedCanvas", fMain, 800, 600);
     fMain->AddFrame(fCanvas, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY));
 
-    // Create a button
-    fButton = new TGTextButton(fMain, "&Zoom vtx");
-    fButton->Connect("Clicked()", "MyMainFrame", this, "HandleButton()");
-    fMain->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsBottom, 5, 5, 3, 4));
-    fButton = new TGTextButton(fMain, "Toggle prim_em");
+    // Create a horizontal frame to contain the buttons
+    TGHorizontalFrame *hFrame = new TGHorizontalFrame(fMain);
+    fButton = new TGTextButton(hFrame, "Toggle prim_em");
     fButton->Connect("Clicked()", "MyMainFrame", this, "toggle_prim_em()");
-    fMain->AddFrame(fButton, new TGLayoutHints(kLHintsBottom, 5, 5, 3, 4));
-    fButton = new TGTextButton(fMain, "Toggle prim_had");
+    hFrame->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
+    fButton = new TGTextButton(hFrame, "Toggle prim_had");
     fButton->Connect("Clicked()", "MyMainFrame", this, "toggle_prim_had()");
-    fMain->AddFrame(fButton, new TGLayoutHints(kLHintsBottom, 5, 5, 3, 4));
-    fButton = new TGTextButton(fMain, "Toggle sec_em");
+    hFrame->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
+    fButton = new TGTextButton(hFrame, "Toggle sec_em");
     fButton->Connect("Clicked()", "MyMainFrame", this, "toggle_sec_em()");
-    fMain->AddFrame(fButton, new TGLayoutHints(kLHintsBottom, 5, 5, 3, 4));
-    fButton = new TGTextButton(fMain, "Toggle sec_had");
+    hFrame->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
+    fButton = new TGTextButton(hFrame, "Toggle sec_had");
     fButton->Connect("Clicked()", "MyMainFrame", this, "toggle_sec_had()");
-    fMain->AddFrame(fButton, new TGLayoutHints(kLHintsBottom, 5, 5, 3, 4));
+    hFrame->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
+
     fButton = new TGTextButton(fMain, "Next");
     fButton->Connect("Clicked()", "MyMainFrame", this, "next_event()");
     fMain->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsBottom, 5, 5, 3, 4));
+
+    // Create a horizontal frame to contain the buttons
+    TGHorizontalFrame *hFrame2 = new TGHorizontalFrame(fMain);
+    // Create a button
+    fButton = new TGTextButton(hFrame2, "Side View");
+    fButton->Connect("Clicked()", "MyMainFrame", this, "SideView()");
+    hFrame2->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
+    fButton = new TGTextButton(hFrame2, "Zoom vtx");
+    fButton->Connect("Clicked()", "MyMainFrame", this, "HandleButton()");
+    hFrame2->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
+
+    // Add the horizontal frame to the main frame
+    fMain->AddFrame(hFrame, new TGLayoutHints(kLHintsCenterX | kLHintsBottom, 5, 5, 3, 4));
+
+   // Add the horizontal frame to the main frame
+    fMain->AddFrame(hFrame2, new TGLayoutHints(kLHintsCenterX | kLHintsBottom, 5, 5, 3, 4));
 
     fMain->SetWindowName("The FASERkine event display");
     fMain->MapSubwindows();
@@ -54,6 +69,7 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, const TGWindow *p, UInt_t w, 
     // Draw the geometry
     gGeoManager->GetTopVolume()->Draw("ogl");
 
+    SideView();
     Draw_event();
 
     toggle_primary_em=
@@ -131,9 +147,11 @@ void MyMainFrame::Draw_event() {
 
             ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(track->fhitIDs[i]);
             // Create a translation matrix for the hit position
-            TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, position.Y() / 10.0, position.Z() / 10.0);
 
             if(hittype == 0) {
+                position += ROOT::Math::XYZVector(2.5,2.5,2.5);    // in mm
+                TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, 
+                position.Y() / 10.0, position.Z() / 10.0);
                 TGeoVolume *hitVolume = new TGeoVolume("HitVolume", box, air);
                 hitVolume->SetLineColor(kRed); 
                 if(fabs(track->fPDG) == 11){
@@ -157,6 +175,9 @@ void MyMainFrame::Draw_event() {
                     }
                 }
             } else if (hittype == 1) {
+                position += ROOT::Math::XYZVector(0.05,0.05,-0.2);
+                TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, 
+                position.Y() / 10.0, position.Z() / 10.0);
                 TGeoVolume *hitVolume = new TGeoVolume("TrackerHitVolume", trackerhitbox, air);
                 hitVolume->SetLineColor(kBlack); 
                 si_tracker->AddNode(hitVolume, i, trans);
@@ -215,6 +236,7 @@ void MyMainFrame::Draw_event() {
     energyText->SetNDC();
     energyText->SetTextSize(0.03);
     energyText->Draw();
+
 }
 
 
@@ -253,6 +275,8 @@ void MyMainFrame::next_event() {
     toggle_primary_had=
     toggle_secondary_em=
     toggle_secondary_had=true;
+
+    SideView();
 
     Draw_event();
     canvas->Modified();
@@ -309,10 +333,20 @@ void MyMainFrame::toggle_sec_had() {
     canvas->Update();
 }
 
+void MyMainFrame::SideView() {
+    TCanvas *canvas = fCanvas->GetCanvas();
+    TView *view = (TView *)canvas->GetView();
+    view->SetPsi(90);
+    view->SetRange(12.5,12.5,-100,25.,25.,100.);
+    canvas->Modified();
+    canvas->Update();
+}
+
 void MyMainFrame::ZoomToPosition(Double_t x, Double_t y, Double_t z) {
     TCanvas *canvas = fCanvas->GetCanvas();
     
     TView *view = (TView *)canvas->GetView();
+    view->SetPsi(0);
     view->SetRange(0,0,z-10,0.1,0.1,z+30);
     canvas->Modified();
     canvas->Update();

@@ -26,6 +26,7 @@ public:
     void next_event();
 
     void ZoomToPosition(Double_t x, Double_t y, Double_t z);
+    void SideView();
 
     ClassDef(MyMainFrame,1)
 

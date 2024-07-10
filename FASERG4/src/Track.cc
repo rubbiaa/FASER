@@ -280,7 +280,8 @@ void Track::addProcess(Geant4Process process) { fProcess.push_back(process); }
 
 void Track::addVolume(std::string volume) { fVolume.push_back(volume); }
 
-void Track::update(XYZVector position, XYZVector momentum, double time, double energyDeposit, Geant4Process process, std::string volume, int CopyVolume)
+void Track::update(XYZVector position, XYZVector momentum, double time, double energyDeposit, 
+	std::string volume, int CopyVolume)
 {
 	//addPosition(position);
 	//addMomentum(momentum);

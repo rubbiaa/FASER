@@ -141,18 +141,16 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZfromID(long ID) const
         double y = iy * geom_detector.fScintillatorVoxelSize - geom_detector.fScintillatorSizeY / 2.0;
         double z = ilayer * geom_detector.fSandwichLength + iz * geom_detector.fScintillatorVoxelSize 
             - (geom_detector.NRep * geom_detector.fSandwichLength) / 2.0;
+            + geom_detector.fScintillatorVoxelSize*2;
         return ROOT::Math::XYZVector(x, y, z);
     } else if (hittype == 1) {
-
-        double fSiTrackerSizeZ = 0.2;
-	    double fSiTrackerPixelSize = 0.1;  // TODO: read from geometry
 
         long ix = ID % 10000;
         long iy = (ID / 10000) % 10000;
         long ilayer = (ID / 100000000) % 1000;
-        double x = ix * fSiTrackerPixelSize - geom_detector.fScintillatorSizeX / 2.0;
-        double y = iy * fSiTrackerPixelSize - geom_detector.fScintillatorSizeY / 2.0;
-        double z = ilayer * geom_detector.fSandwichLength + geom_detector.fSandwichLength - fSiTrackerSizeZ
+        double x = ix * geom_detector.fSiTrackerPixelSize - geom_detector.fScintillatorSizeX / 2.0;
+        double y = iy * geom_detector.fSiTrackerPixelSize - geom_detector.fScintillatorSizeY / 2.0;
+        double z = ilayer * geom_detector.fSandwichLength + geom_detector.fSandwichLength 
             - (geom_detector.NRep * geom_detector.fSandwichLength) / 2.0;
         return ROOT::Math::XYZVector(x, y, z);
     } else {
