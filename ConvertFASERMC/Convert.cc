@@ -164,6 +164,8 @@ void convert_FASERMC(int run_number, std::string inputDirFiles, int min_event, i
 
     int evt_to_dump = 0;
 
+    size_t n_entries = tree->GetEntries();
+
     for (auto it : index_events) {
         int event = it.first;
         if( event < min_event || event > max_event) continue;
@@ -182,7 +184,7 @@ void convert_FASERMC(int run_number, std::string inputDirFiles, int min_event, i
         int tau_lepton_track_id = 0;
         while (!must_end){
             tree->GetEntry(tree_ientry);
-            if(event != m_event_id_MC) {
+            if(event != m_event_id_MC || tree_ientry >= n_entries) {
                 if(fTPOEvent.n_particles() == 0){
                     std::cerr << " Something went wrong .. maybe wrong index? -- empty event" << std::endl;
                 }
@@ -268,9 +270,10 @@ void convert_FASERMC(int run_number, std::string inputDirFiles, int min_event, i
         }
     } // for
 
+    std::cout << " Processed " << evt_to_dump << " events." << std::endl;
     m_POEventTree->Write();
     m_rootFile->Close();
-    std::cout << " Processed " << evt_to_dump << " events." << std::endl;
+    std::cout << "Done saving..." << std::endl;
 }
 
 bool confirmAction() {

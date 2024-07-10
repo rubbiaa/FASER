@@ -78,12 +78,18 @@ public:
   /// @brief Check if PDGid is a lepton (e,mu,tau or neutrinos)
   /// @param pdgid 
   /// @return true if lepton
-  bool is_lepton(int pdgid);
+  static bool is_lepton(int pdgid) {
+      int pdgidabs = abs(pdgid);
+      return (pdgidabs >= 11 && pdgidabs <= 16);
+  }
 
   /// @brief Check if PDGid is a neutrino (any flavor)
   /// @param pdgid 
   /// @return true if neutrino
-  bool is_neutrino(int pdgid);
+  static bool is_neutrino(int pdgid) {
+      int pdgidabs = abs(pdgid);
+      return (pdgidabs == 12 || pdgidabs == 14 || pdgidabs == 16);
+  }
 
   /// @brief Return number of POs in the event
   /// @return Number of POs

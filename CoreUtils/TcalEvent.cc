@@ -12,10 +12,15 @@ TcalEvent::TcalEvent()
 
 /// @brief Create a TcalEvent with a given event number for OUTPUT
 /// @param event_number 
-TcalEvent::TcalEvent(int run_number, long event_number) : TcalEvent()
+TcalEvent::TcalEvent(int run_number, long event_number, int event_mask) : TcalEvent()
 {
     std::ostringstream fileNameStream;
-    fileNameStream << "output/FASERG4-Tcalevent_" << run_number << "_" << event_number << ".root";
+    fileNameStream << "output/FASERG4-Tcalevent_" << run_number << "_" << event_number ;
+    if(event_mask>0) {
+        const char *mask = TPOEvent::DecodeEventMask(event_mask);
+        fileNameStream << "_" << mask;
+    }
+    fileNameStream << ".root";
     std::string m_rootOutputFileName = fileNameStream.str();
 
     m_rootFile = new TFile(m_rootOutputFileName.c_str(), "RECREATE", "", 505); // last is the compression level
@@ -54,12 +59,18 @@ TcalEvent::~TcalEvent()
 /// @param base_path 
 /// @param ievent 
 /// @return error = 0, ok, error = 1, file not found
-int TcalEvent::Load_event(std::string base_path, int run_number, int ievent, TPOEvent *POevent) {
+int TcalEvent::Load_event(std::string base_path, int run_number, int ievent, 
+                            int event_mask, TPOEvent *POevent) {
     std::string extension = ".root";
 
     // Create the filename based on ievent
     std::ostringstream filename;
-    filename << base_path << "FASERG4-Tcalevent_" << run_number << "_" << ievent << extension;
+    filename << base_path << "FASERG4-Tcalevent_" << run_number << "_" << ievent;
+    if(event_mask>0) {
+        const char *mask = TPOEvent::DecodeEventMask(event_mask);
+        filename << "_" << mask;
+    }
+    filename << extension;
 
     // Print the filename to verify
     std::cout << "Loading file: " << filename.str() << " ..... ";
