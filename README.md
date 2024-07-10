@@ -1,8 +1,14 @@
 # FASERCAL - electronic calorimeter for FASER Run4
 
-FASERcal code to simulate and analyse events in the FASERCAL detector
+FASERCAL code to simulate and analyse events in the FASERCAL detector
 
-# BatchReco
+# Event data flow
+
+This project follows a structured workflow for simulating and processing neutrino interactions within the FASERCAL experiment using GEANT4. The process begins with the FASERMC official Monte Carlo (MC) simulation. These interactions are converted into the TPOEvent class format by **ConvertFASERMC**. Next, the **FASERG4** module uses GEANT4 to simulate events from the TPOEvent class, generating TcalEvent objects. These simulated events can be visualized using the **EvDisplay** module or processed through the **BatchReco** module for batch reconstruction, providing a comprehensive analysis pipeline for neutrino interaction events.
+
+![Diagram of the project](images/eventchainflow.png)
+
+# Batch (BatchReco)
 
 Code to read FASERCAL GEANT4 output and batch reconstruct events, filling histograms, ...
 
