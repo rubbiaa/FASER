@@ -22,66 +22,20 @@ void ParticleManager::processParticleHit(int trackID, XYZVector const& position,
 					 double const& energydeposit, Geant4Process const& process, int const& parentID, int const& pdg,
 					 std::string const& VolumeName, int CopyNumber)
 {
-	if(energydeposit>0) {
+	if(energydeposit>0 || parentID == 0) { 					// or some energy or is primary
 		auto it = m_particleMap.find(trackID);
 		if (it != m_particleMap.end()) {
 			it->second->addTotalEnergyDeposit(energydeposit);
 			it->second->update(position, direction, time, energydeposit, process, VolumeName, CopyNumber);
 		}
 		else {
-			// If the photon does not exist, create a new one
-			Track* newParticle = new Track(trackID, parentID, pdg, position, direction, time, energydeposit, process, VolumeName, CopyNumber);
+			// If the track does not exist, create a new one
+			Track* newParticle = new Track(trackID, parentID, pdg, position, direction, time, 
+			energydeposit, VolumeName, CopyNumber);
 			m_particleMap[trackID] = newParticle;
 		}
 	}
 }
-
-#if 0
-void ParticleManager::setVertexInformation(int Mode, int NParticles, std::vector<XYZVector> const& VertexPositions,
-					   std::vector<XYZVector> const& VertexMomenta, std::vector<double> const& VertexTimes, 
-					   std::vector<double> const& VertexEnergies, std::vector<double> const& VertexKinEnergy,
-					   std::vector<int> const& VertexTrackID, std::vector<int> const& VertexDecayMode,
-					   std::vector<int> const& VertexPDG, double const& vertexNuEnergy)
-{
-	m_vertexMode = Mode;
-	m_vertexNParticles = NParticles;
-	m_vertexPositions->clear();
-	m_vertexMomenta->clear();
-	m_vertexTimes->clear();
-	m_vertexEnergy->clear();
-	m_vertexKinEnergy->clear();
-	m_vertexTrackID->clear();
-	m_vertexDecayMode->clear();
-	m_vertexPDG->clear();
-	m_vertexNuEnergy = vertexNuEnergy;
-	for (auto const& pos : VertexPositions) {
-		m_vertexPositions->push_back(pos);
-	}
-	for (auto const& mom : VertexMomenta) {
-		m_vertexMomenta->push_back(mom);
-	}
-	for (auto const& time : VertexTimes) {
-		m_vertexTimes->push_back(time);
-	}
-	for (auto const& energy : VertexEnergies) {
-		m_vertexEnergy->push_back(energy);
-	}
-	for (auto const& kinEnergy : VertexKinEnergy) {
-		m_vertexKinEnergy->push_back(kinEnergy);
-	}
-	for (auto const& trackID : VertexTrackID) {
-		m_vertexTrackID->push_back(trackID);
-	}
-	for (auto const& decayMode : VertexDecayMode) {
-		m_vertexDecayMode->push_back(decayMode);
-	}
-	for (auto const& pdg : VertexPDG) {
-		m_vertexPDG->push_back(pdg);
-	}
-	m_vertexTree->Fill();
-}
-#endif
-
 
 void ParticleManager::setDetectorInformation(std::string material1, XYZVector size1, std::string material2, XYZVector size2, int NRep)
 {
@@ -91,7 +45,7 @@ void ParticleManager::setDetectorInformation(std::string material1, XYZVector si
 	m_size1 = size1;
 	m_size2 = size2;
 	m_nrep = NRep;
-	saveDetector = true;
+//	saveDetector = true;
 }
 
 void ParticleManager::beginOfEvent()
@@ -122,6 +76,8 @@ void ParticleManager::beginOfEvent()
 	fTcalEvent->geom_detector.fTotalLength = detector->fTotalLength;
 	fTcalEvent->geom_detector.NRep = detector->getNumberReplicas();
 	fTcalEvent->geom_detector.fTotalMass = detector->fTotalMass;
+	fTcalEvent->geom_detector.fTotalWmass = detector->fTotalWMass;
+	fTcalEvent->geom_detector.fTotalScintmass = detector->fTotalScintMass;
 }
 
 void ParticleManager::endOfEvent(G4Event const* event)
@@ -200,8 +156,10 @@ void ParticleManager::endOfRun()
 {
 }
 
+/// @brief Record track into the map to link trackID to primaries and create Track
+/// @param track 
 void ParticleManager::RecordTrack(const G4Track* track) {
-	// are we in?
+	// are we in the map that will allow us to easily find primary track of any track?
 	int trackID = track->GetTrackID();
 	auto it = fPrimaries.find(trackID);
 	if(it == fPrimaries.end()) {
@@ -213,6 +171,32 @@ void ParticleManager::RecordTrack(const G4Track* track) {
 			pinfo.primaryID = trackID;     // it's myself
 		}
 		fPrimaries[trackID] = pinfo;		
+	}
+
+	// handle case of neutral primary particle that don't deposit energy
+	// this is to take care of the case where the neutral particle never 
+	// triggers a TrackerSD hit
+	G4int parentID = track->GetParentID();
+	if(parentID == 0) {
+		const G4ParticleDefinition *particle = track->GetParticleDefinition();
+		if(particle->GetPDGCharge() == 0){
+			auto it = m_particleMap.find(trackID);
+			if (it == m_particleMap.end()) {
+				G4int pdg = particle->GetPDGEncoding();
+
+				// insert a Track but skip final state neutrinos
+				if(!fTcalEvent -> fTPOEvent->is_neutrino(pdg)) {
+					XYZVector position(0, 0, 0);
+					XYZVector direction(0, 0, 0);
+					double Time = 0;
+					double energydeposit = 0;
+
+					Track *newParticle = new Track(trackID, parentID, pdg,
+												   position, direction, Time, energydeposit, "", 0);
+					m_particleMap[trackID] = newParticle;
+				}
+			}
+		}
 	}
 }
 

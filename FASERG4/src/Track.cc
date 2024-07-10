@@ -11,13 +11,14 @@ Track::Track() {
 	fMomentum.clear();
 	fTime.clear();
 	fEnergyDeposit.clear();
-	fProcess.clear();
+//	fProcess.clear();
 	fVolume.clear();
 }
 
 
-Track::Track(int TrackID, int ParentID, int PDG, XYZVector Position, XYZVector Momentum, double Time, double EnergyDeposit,
-				       Geant4Process Process, std::string Volume, int CopyVolume) : Track()
+Track::Track(int TrackID, int ParentID, int PDG, XYZVector Position, XYZVector Momentum, 
+						double Time, double EnergyDeposit,
+						std::string Volume, int CopyVolume) : Track()
 {
     fTotalEDep = EnergyDeposit;
 	fTrackID = TrackID;
@@ -28,19 +29,23 @@ Track::Track(int TrackID, int ParentID, int PDG, XYZVector Position, XYZVector M
 	fMomentum.push_back(Momentum);
 	fTime.push_back(Time);
 	fEnergyDeposit.push_back(EnergyDeposit);
-	fProcess.push_back(Process);
+//	fProcess.push_back(Process);
 	fVolume.push_back(Volume);
 
-	const DetectorConstruction* detector = static_cast<const DetectorConstruction*>(G4RunManager::GetRunManager()->GetUserDetectorConstruction());
-	const XYZVector pos = Position;
-	G4long chanID = detector->getChannelIDfromXYZ(Volume, CopyVolume, pos);
+	if(EnergyDeposit > 0) {
+		const DetectorConstruction *detector = static_cast<const DetectorConstruction *>(G4RunManager::GetRunManager()->GetUserDetectorConstruction());
+		const XYZVector pos = Position;
+		G4long chanID = detector->getChannelIDfromXYZ(Volume, CopyVolume, pos);
 
-	auto it = m_hitIDMap.find(chanID);
-	if (it != m_hitIDMap.end()) {
+		auto it = m_hitIDMap.find(chanID);
+		if (it != m_hitIDMap.end())
+		{
 			it->second += EnergyDeposit;
-	}
-	else {
-		m_hitIDMap[chanID] = EnergyDeposit;
+		}
+		else
+		{
+			m_hitIDMap[chanID] = EnergyDeposit;
+		}
 	}
 }
 
@@ -82,6 +87,8 @@ std::vector<double> Track::getEnergyDepositVector() const
 	}
 	return energyDepositVector;
 }
+
+#if 0
 std::vector<Geant4Process> Track::getProcessVector() const
 {
 	std::vector<Geant4Process> processVector;
@@ -90,6 +97,7 @@ std::vector<Geant4Process> Track::getProcessVector() const
 	}
 	return processVector;
 }
+#endif
 
 std::vector<std::string> Track::getVolumeVector() const
 {
@@ -148,6 +156,7 @@ double Track::getEnergyDeposit(int i) const
 	}
 }
 
+#if 0
 Geant4Process Track::getProcess(int i) const
 {
 	if (i < fProcess.size()) {
@@ -169,7 +178,7 @@ Geant4Process Track::getProcess() const
 		return NoProcess;
 	}
 }
-
+#endif
 
 std::string Track::getVolume(int i) const
 {
@@ -227,6 +236,7 @@ void Track::setEnergyDepositVector(std::vector<double> energyDeposit)
 	}
 }
 
+#if 0
 void Track::setProcessVector(std::vector<Geant4Process> process)
 {
 	fProcess.clear();
@@ -237,6 +247,7 @@ void Track::setProcessVector(std::vector<Geant4Process> process)
 		fProcess.push_back(proc);
 	}
 }
+#endif
 
 void Track::setVolumeVector(std::vector<std::string> volume)
 {
@@ -263,16 +274,18 @@ void Track::addTime(double time) { fTime.push_back(time); }
 
 void Track::addEnergyDeposit(double energyDeposit) { fEnergyDeposit.push_back(energyDeposit); }
 
+#if 0
 void Track::addProcess(Geant4Process process) { fProcess.push_back(process); }
+#endif
 
 void Track::addVolume(std::string volume) { fVolume.push_back(volume); }
 
 void Track::update(XYZVector position, XYZVector momentum, double time, double energyDeposit, Geant4Process process, std::string volume, int CopyVolume)
 {
-	addPosition(position);
+	//addPosition(position);
 	//addMomentum(momentum);
 	//addTime(time);
-	addEnergyDeposit(energyDeposit);
+	//addEnergyDeposit(energyDeposit);
 	//addProcess(process);
 	//addVolume(volume);
 
@@ -291,6 +304,7 @@ void Track::update(XYZVector position, XYZVector momentum, double time, double e
 
 void Track::addTotalEnergyDeposit(double EDep) { fTotalEDep += EDep; }
 
+#if 0
 void Track::printProcessVector() const
 {
 	std::cout << "Process Vector: ";
@@ -309,6 +323,7 @@ void Track::printProcess(int i) const
 		std::cout << "Error: Index out of range" << std::endl;
 	}
 }
+#endif
 
 int Track::getNumberOfSteps() const { return fPosition.size(); }
 

@@ -35,8 +35,9 @@ class ParticleManager {
 				     ///< per event, for some reason. I currently think it is called by the worker and master thread.
 
 
-	std::vector<std::vector<Track>>* m_particleVectorOutput = nullptr;
+//	std::vector<std::vector<Track>>* m_particleVectorOutput = nullptr;
 
+#if 0
 	bool saveDetector = false;
 	int m_vertexMode;				  ///< Information about the vertex mode. Either from neut or userdefined
 	int m_vertexNParticles;				  ///< Number of particles in the vertex
@@ -49,7 +50,7 @@ class ParticleManager {
 	std::vector<int>* m_vertexDecayMode;		  ///< Vector of vertex decay modes
 	std::vector<int>* m_vertexPDG;			  ///< Vector of vertex PDG codes
 	double m_vertexNuEnergy;			  ///< Energy of the neutrino if the vertex is from a neutrino, otherwise userdefined
-
+#endif
 
 	XYZVector m_size1;
 	XYZVector m_size2;

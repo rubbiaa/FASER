@@ -136,6 +136,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 
 		if (particle != nullptr && aPO.m_status == 1)
 		{
+//			if(aPO.m_pdg_id != 311) continue;  // TODO/FIXME remove
 			G4ParticleGun *particleGun = new G4ParticleGun(1);
 
 			ParticlePDGCode.push_back(aPO.m_pdg_id);
@@ -147,9 +148,12 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 			particleGun->SetParticleDefinition(particle);
 
 			particleGun->SetParticlePosition(G4ThreeVector(x * mm, y * mm, z * mm));
+			G4ThreeVector StartMomentum(aPO.m_px * GeV, aPO.m_py * GeV, aPO.m_pz * GeV);
+
+#if 0
+
 			ParticlePosition.push_back(XYZVector(x * mm, y * mm, z * mm));
 
-			G4ThreeVector StartMomentum(aPO.m_px * GeV, aPO.m_py * GeV, aPO.m_pz * GeV);
 			ParticleMomentum.push_back(XYZVector(aPO.m_px * GeV, aPO.m_py * GeV, aPO.m_pz * GeV));
 
 			ParticleTime.push_back(0);
@@ -157,6 +161,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 			ParticleKinEnergy.push_back(aPO.m_kinetic_energy);
 			ParticleTrackID.push_back(aPO.m_track_id);
 			DecayModeFlag.push_back(0);
+#endif
 
 			particleGun->SetParticleMomentum(StartMomentum);
 			fParticleGuns.push_back(particleGun);

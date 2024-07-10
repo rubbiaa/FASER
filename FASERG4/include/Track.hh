@@ -26,7 +26,7 @@ class Track : public TObject {
 	std::vector<XYZVector> fMomentum;	 ///< Momentum of the particle at each step
 	std::vector<double> fTime;		 ///< Time of the particle at each step
 	std::vector<double> fEnergyDeposit;	 ///< Energy deposit of the particle at each step
-	std::vector<Geant4Process> fProcess;	 ///< Process that caused the particle to stop
+//	std::vector<Geant4Process> fProcess;	 ///< Process that caused the particle to stop
 	std::vector<std::string> fVolume;	 ///< Volume in which the particle is at each step
 	int fTrackID;					 ///< Track ID of the particle
 	int fParentID;					 ///< Track ID of the parent particle
@@ -51,11 +51,10 @@ class Track : public TObject {
 	 * @param Momentum Momentum of the particle at each step
 	 * @param Time Time of the particle at each step
 	 * @param EnergyDeposit Energy deposit of the particle at each step
-	 * @param Process Process that caused the particle to stop
 	 * @param Volume Volume in which the particle is at each step
 	 * @param CopyVolume volume replica number (if any)
 	 */
-	Track(int TrackID, int ParentID, int PDG, XYZVector Position, XYZVector Momentum, double Time, double EnergyDeposit, Geant4Process Process,
+	Track(int TrackID, int ParentID, int PDG, XYZVector Position, XYZVector Momentum, double Time, double EnergyDeposit,
 	      std::string Volume, int CopyVolume);
 
 	~Track();  ///< Default destructor

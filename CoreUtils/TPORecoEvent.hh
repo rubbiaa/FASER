@@ -17,6 +17,7 @@ public:
         double had;            // in GeV
         double Ecompensated;   // in GeV
         ROOT::Math::XYZVector cog;
+        ROOT::Math::XYZVector Eflow;
     };
 
     int POID;                          // the primary track in POEvent
@@ -39,6 +40,7 @@ class TPORecoEvent : public TObject {
 public:
 
     std::vector<class TPORec*> fPORecs;
+    TPORec *fPOFullEvent = nullptr;                   // the kinematics of the full event
 
     TcalEvent* fTcalEvent;
     TPOEvent* fTPOEvent;

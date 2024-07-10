@@ -25,7 +25,9 @@ G4bool TrackerSD::ProcessHits(G4Step* aStep, G4TouchableHistory*)
 		float time = aStep->GetPreStepPoint()->GetGlobalTime();
 		float energyDeposit = aStep->GetTotalEnergyDeposit();
 
-		if(energyDeposit < 1e-6) {
+		// if no energy deposited or track is not a primary, then we skip
+		G4Track *track = aStep->GetTrack();
+		if(energyDeposit < 1e-6 && track->GetParentID()!=0) {
 			return true;
 		}
 

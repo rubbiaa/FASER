@@ -210,7 +210,7 @@ void MyMainFrame::Draw_event() {
     eventypeText->Draw();
 
     delete energyText;
-    energyText = new TText(0.05, 0.85, Form("%f GeV", 
+    energyText = new TText(0.05, 0.85, Form("Etrue:%6.2f GeV", 
         POevent->in_neutrino.m_energy));
     energyText->SetNDC();
     energyText->SetTextSize(0.03);
