@@ -99,7 +99,7 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
 	std::cout << "Number of layers " << fTcalEvent->geom_detector.NRep << std::endl;
     std::cout << "Voxel size " << fTcalEvent->geom_detector.fScintillatorVoxelSize << " mm " << std::endl;
 
-    std::cout << " copied digitized tracks " << fTcalEvent->fTracks.size() << std::endl;
+    std::cout << " copied digitized tracks " << fTcalEvent->getfTracks().size() << std::endl;
 
     fTcalEvent -> fTPOEvent -> dump_event();
 
@@ -134,7 +134,7 @@ void MyMainFrame::Draw_event() {
 
     TGeoShape *trackerhitbox = new TGeoBBox("box", 0.1/2.0,0.1/2.0,0.1/2.0);
 
-    for (const auto& track : fTcalEvent->fTracks) {
+    for (const auto& track : fTcalEvent->getfTracks()) {
 //        std::cout << track->ftrackID << std::endl;
         size_t nhits = track->fhitIDs.size();
 //        std::cout << nhits << std::endl;

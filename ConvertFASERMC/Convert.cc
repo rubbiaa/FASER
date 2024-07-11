@@ -125,7 +125,7 @@ void convert_FASERMC(int run_number, std::string inputDirFiles, int min_event, i
     TPOEvent fTPOEvent;
     TPOEvent *branch_POEvent = &fTPOEvent;
     TTree *m_POEventTree = new TTree("POEvent", "POEvent");
-    m_POEventTree->Branch("event", &branch_POEvent);
+    m_POEventTree->Branch("event", &branch_POEvent);    // this should be named POEvent
 
     TChain *tree = new TChain("m_NuMCTruth_tree");
     tree->Add(inputDirFiles.c_str());  

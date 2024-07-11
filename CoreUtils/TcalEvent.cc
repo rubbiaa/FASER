@@ -32,7 +32,7 @@ TcalEvent::TcalEvent(int run_number, long event_number, int event_mask) : TcalEv
 
     m_calEventTree = new TTree("calEvent", "calEvent");
     m_calEventTree->Branch("tracks", &fTracks);
-    m_calEventTree->Branch("event", &fTPOEvent);
+    m_calEventTree->Branch("event", &fTPOEvent);    // this should be labelled POEvent !
     m_calEventTree->Branch("geom", &geom_detector);
 
     //    fTracks = new std::vector<DigitizedTrack*>;
@@ -72,14 +72,16 @@ int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
     }
     filename << extension;
 
-    // Print the filename to verify
-    std::cout << "Loading file: " << filename.str() << " ..... ";
+    if(verbose > 0) {
+       // Print the filename to verify
+       std::cout << "Loading file: " << filename.str() << " ..... ";
+    }
 
     TChain *event_tree = new TChain("calEvent");
     int nFiles = event_tree->Add(filename.str().c_str());
 
     Long_t nentries = event_tree->GetEntries();
-    std::cout << "Number of entries " << nentries << std::endl;
+    if(verbose > 0) std::cout << "Number of entries " << nentries << std::endl;
 
     if(nentries == 0){
         return 1;
@@ -100,9 +102,10 @@ int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
     // Read the first entry
     event_tree->GetEntry(0);
 
-    // Use the loaded data (example)
-    std::cout << "Loaded event data for event 0" << std::endl;
-    std::cout << " digitized tracks " << t->size() << std::endl;
+    if(verbose > 0) {
+        std::cout << "Loaded event data for event 0" << std::endl;
+        std::cout << " digitized tracks " << t->size() << std::endl;
+    }
 
     delete event_tree;
 

@@ -21,37 +21,56 @@ public:
     };
 
     int POID;                          // the primary track in POEvent
-    std::vector<int> fGEANTTrackIDs;   // all the geant track id that belong to this PORec
-    std::vector<DigitizedTrack*> DTs;  // all the DigitizedTracks that belong to this POREC
-    std::vector<struct CALENERGIES> fEnergiesCogs;
+    std::vector<int> fGEANTTrackIDs;   //! all the geant track id that belong to this PORec
+    std::vector<DigitizedTrack*> DTs;  //! all the DigitizedTracks that belong to this POREC
+    std::vector<struct CALENERGIES> fEnergiesCogs; //! the energies and COG of each Digitized track
     
     struct CALENERGIES fTotal;         // the cumulative energies for the primary
 
+    // constructors & destructors
     TPORec() = default;
+    TPORec(int id) : POID(id) {};
     virtual ~TPORec() = default;
 
-    TPORec(int id) : POID(id) {};
+    // computed quantities
+    double TotalEvis() { return fTotal.Ecompensated; };   // Total visible energy
+    double TotalET() { return sqrt(fTotal.Eflow.Perp2()); };// Total transverse energy
 
     ClassDef(TPORec,1)
 };
 
 class TPORecoEvent : public TObject {
+private:
+
+    /// @brief Private function to compute energies and COG belonging from a Digitized Track hits.
+    struct TPORec::CALENERGIES computeEnergiesAndCOG(DigitizedTrack *dt);   //! (no ROOT I/O output)
+
+    /// @brief The vector that holds all the PORec (Reconstructed POs) in the event
+    std::vector<class TPORec*> fPORecs;                                     //! (no ROOT I/O output)         
+
+    TPORec *fPOFullEvent = nullptr;                   // the kinematics of the full event
+
+    TcalEvent* fTcalEvent;                            //! Reference to the TCAL event
+    TPOEvent* fTPOEvent;                              //! Reference to the TPOEvent
 
 public:
 
-    std::vector<class TPORec*> fPORecs;
-    TPORec *fPOFullEvent = nullptr;                   // the kinematics of the full event
-
-    TcalEvent* fTcalEvent;
-    TPOEvent* fTPOEvent;
-
+    TPORecoEvent() : fTcalEvent(0), fTPOEvent(0) {};
     TPORecoEvent(TcalEvent* c, TPOEvent* p);
     virtual ~TPORecoEvent();
 
+    /// @brief Reconstruct the FASERG4 simulated event to the PORec
     void Reconstruct();
+
+    /// @brief Dump PORecs to the screen
     void Dump();
 
-    struct TPORec::CALENERGIES computeEnergiesAndCOG(DigitizedTrack *dt);
+    /// @brief Returns the vector of Reconstructed POs
+    std::vector<class TPORec*> GetPORecs() { return fPORecs;}; 
+
+    /// @brief Returns the kinematic quantities of the full event
+    /// @return TPORec of the full event
+    TPORec *GetPOFullEvent() { return fPOFullEvent; };
 
     ClassDef(TPORecoEvent,1)
 };
