@@ -64,8 +64,18 @@ int TcalEvent::Load_event(std::string base_path, int ievent, TPOEvent *POevent) 
     // Print the filename to verify
     std::cout << "Loading file: " << filename.str() << " ..... ";
 
-    TChain *event_tree = new TChain("calEvent");
-    int nFiles = event_tree->Add(filename.str().c_str());
+    // by defautl ROOT open files in R/W mode
+    //    TChain *event_tree = new TChain("calEvent");
+    //    int nFiles = event_tree->Add(filename.str().c_str());
+
+    TFile *m_rootFile = new TFile(filename.str().c_str(), "READ"); 
+    if (!m_rootFile || !m_rootFile->IsOpen())
+    {
+        return 1;
+    }
+    m_rootFile->cd();
+    TTree *event_tree;
+    m_rootFile->GetObject("calEvent",event_tree);
 
     Long_t nentries = event_tree->GetEntries();
     std::cout << "Number of entries " << nentries << std::endl;
