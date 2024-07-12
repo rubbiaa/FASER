@@ -67,8 +67,8 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, const TGWindow *p, 
     TCanvas *canvas = fCanvas->GetCanvas();
     canvas->cd();
     // Draw the geometry
-    gGeoManager->GetTopVolume()->Draw("ogl");
-
+    gGeoManager->GetTopVolume()->Draw("gl");
+ 
     SideView();
     Draw_event();
 
@@ -93,7 +93,8 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
     POevent = new TPOEvent();
 
     event_mask = mask;
-    fTcalEvent -> Load_event(base_path, run_number, ievent, mask, POevent);
+    int error = fTcalEvent -> Load_event(base_path, run_number, ievent, mask, POevent);
+    if(error !=0) return;
     std::cout << "Transverse size " << fTcalEvent->geom_detector.fScintillatorSizeX << " mm " << std::endl;
     std::cout << "Total size of one sandwich layer " << fTcalEvent->geom_detector.fSandwichLength << " mm " << std::endl;
 	std::cout << "Number of layers " << fTcalEvent->geom_detector.NRep << std::endl;

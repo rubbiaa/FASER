@@ -19,7 +19,8 @@
 
 #include "MyMainFrame.h"
 
-// #include <TEveManager.h>
+#include <TEveManager.h>
+#include <TEveGeoNode.h>
 
 void load_geometry() {
     // Load the GDML geometry
@@ -27,9 +28,11 @@ void load_geometry() {
 
 #if 0
     TEveManager::Create();
-    TEveGeoTopNode *FASERCAL = new TEveGeoTopNode(gGeoManager, gGeoManager->GetTopNode());
+
+//    GeoTopVolume *topVolume = dynamic_cast<GeoTopVolume*>(gGeoManager->GetTopVolume());
+    TEveGeoNode *FASERCAL = new TEveGeoNode(gGeoManager->GetTopNode());
     gEve->AddGlobalElement(FASERCAL);
-    gEve->FullRedraw3D(kTrue)
+    gEve->FullRedraw3D(true);
 #endif
 }
 

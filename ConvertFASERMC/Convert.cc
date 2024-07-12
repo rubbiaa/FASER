@@ -224,9 +224,13 @@ void convert_FASERMC(int run_number, std::string inputDirFiles, int min_event, i
 	        // found charged tau lepton - store decay products
 	        if(!found_tau_lepton && abs(aPO.m_pdg_id) == 15) {
 	            found_tau_lepton = true;
-	            tau_lepton_track_id = m_track_id;
+	            tau_lepton_track_id = m_track_id;   // obsolete
+#ifdef _INCLUDE_PYTHIA_
+                fTPOEvent.perform_taulepton_decay(aPO);
+#endif
 	        }
-	    
+
+#if 0	    
 	        if(found_tau_lepton) {
 	            for(int i=0;i<aPO.nparent;i++) {
 				    if(aPO.m_trackid_in_particle[i] == tau_lepton_track_id) {
@@ -236,16 +240,18 @@ void convert_FASERMC(int run_number, std::string inputDirFiles, int min_event, i
 				    }
                 }
 	        }
+#endif
 
             tree_ientry++;
 
         } // while
 	
-    	if(fTPOEvent.istau && fTPOEvent.n_taudecay()==0) {
-    	    std::cout << "Could not find tau decay product??" << std::endl;
-    	}
-
     	fTPOEvent.kinematics_event();
+
+    	if(fTPOEvent.istau && fTPOEvent.isCC && fTPOEvent.n_taudecay()==0) {
+    	    std::cerr << "Convert_FASERMC: Could not find tau decay product??" << std::endl;
+            fTPOEvent.dump_event();
+    	}
 
         // now check for mask
         bool masked = false;

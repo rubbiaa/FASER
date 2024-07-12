@@ -11,11 +11,11 @@
 #include <Math/Vector3D.h>
 #include <Math/Point3D.h>
 
-
 #define MAXPARENT 10
 
 /// @brief Particle Object structure to hold generator level (truth) information.
-struct PO {
+struct PO { // : public TObject {
+public:
   int m_pdg_id;                  // PDG code 
   int m_track_id;                // track ID within MC
   double m_px;                   // x momentum
@@ -30,13 +30,23 @@ struct PO {
 
   int geanttrackID;              // GEANT4 track id of this primary
 
-  ClassDef(PO,1)
+#if 1
+  /// @brief Compute mass of the PO
+  /// @return mass
+  double m_mass() { 
+    double mass2 = m_energy*m_energy-m_px*m_px-m_py*m_py-m_pz*m_pz;
+    return sqrt(std::max(mass2,0.0));
+  };   //!
+#endif
+
+//  ClassDef(PO,1)
 
 };
 
 /// @brief Particle Object Event to hold a full generator level (truth) event.
 /// Many entries of compute by calling kinematics_event().
 class TPOEvent : public TObject {
+private:
 public:
 
   // target constants (not saved in ROOT I/O)
@@ -94,6 +104,12 @@ public:
   /// @brief Return number of POs in the event
   /// @return Number of POs
   size_t n_particles() const { return POs.size(); };
+
+  /// @brief Perform the decay of the charged tau lepton and store decay products
+  /// @param tauPO - the PO of the tau to be decayed
+#ifdef _INCLUDE_PYTHIA_
+  void perform_taulepton_decay(struct PO tauPO);
+#endif
 
   /// @brief Return number of tau decay products
   /// @return Number of tau decay products
