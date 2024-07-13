@@ -139,6 +139,18 @@ void TPOEvent::perform_taulepton_decay(struct PO tauPO) {
 }
 #endif
 
+size_t TPOEvent::n_charged() const {
+  TDatabasePDG *pdgDB = TDatabasePDG::Instance();
+  size_t nc=0;
+  for (size_t i=0; i<n_particles(); i++) {
+    struct PO aPO = POs[i];
+    if(aPO.m_status != 1) continue;
+    TParticlePDG *particle = pdgDB->GetParticle(aPO.m_pdg_id);
+    if(particle != nullptr && particle->Charge() == 0) nc++;
+  }
+  return nc;
+}
+
 void TPOEvent::kinematics_event() {
   bool got_out_lepton = false;
   spx=spy=spz=0;

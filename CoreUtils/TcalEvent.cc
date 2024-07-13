@@ -146,6 +146,18 @@ long TcalEvent::getChannelTypefromID(long ID) const {
     return ID / 100000000000LL;
 }
 
+long TcalEvent::getChannelLayerfromID(long ID) const {
+    long hittype = ID / 100000000000LL;
+    if(hittype == 0) {        // hit in scintillator
+        long ilayer = (ID / 1000000000);
+        return ilayer;
+    } else if (hittype == 1) {
+        long ilayer = (ID / 100000000) % 1000;
+        return ilayer;
+    }
+    return 0;
+}
+
 ROOT::Math::XYZVector TcalEvent::getChannelXYZfromID(long ID) const
 {
     long hittype = ID / 100000000000LL;

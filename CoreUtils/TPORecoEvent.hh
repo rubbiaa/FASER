@@ -72,6 +72,17 @@ public:
     /// @return TPORec of the full event
     TPORec *GetPOFullEvent() { return fPOFullEvent; };
 
+    // Reconstructed event summary variables
+
+    /// @brief Number of charged particles at the primary
+    int primary_n_charged;
+
+    /// @brief Number of scintillator hits left by tau
+    int nhits_tau;
+
+    /// @brief Number of hits left found in first tracker layers
+    int nhits_tracker_first;
+
     ClassDef(TPORecoEvent,1)
 };
 

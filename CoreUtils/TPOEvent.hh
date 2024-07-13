@@ -105,6 +105,10 @@ public:
   /// @return Number of POs
   size_t n_particles() const { return POs.size(); };
 
+  /// @brief Return number of electrically charged particles in the event
+  /// @return Number of electrically charged POs.
+  size_t n_charged() const;
+
   /// @brief Perform the decay of the charged tau lepton and store decay products
   /// @param tauPO - the PO of the tau to be decayed
 #ifdef _INCLUDE_PYTHIA_

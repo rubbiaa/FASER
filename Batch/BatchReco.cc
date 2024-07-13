@@ -21,8 +21,9 @@ void load_geometry() {
 int main(int argc, char** argv) {
 
 	if (argc < 2) {
-	std::cout << "Usage: " << argv[0] << " <run> [mask]" << std::endl;
+	std::cout << "Usage: " << argv[0] << " <run> [maxevent] [mask]" << std::endl;
         std::cout << "   <run>                     Run number" << std::endl;
+        std::cout << "   maxevent                  Maximum number of events to process (def=-1)" << std::endl;
         std::cout << "   mask                      To process only specific events (def=none): ";
         std::cout << "  nueCC, numuCC, nutauCC, or nuNC" << std::endl;
     	return 1;
@@ -36,17 +37,32 @@ int main(int argc, char** argv) {
         run_number = std::stoi(runString);
     } catch (const std::invalid_argument& e) {
         std::cerr << "Invalid argument for run: " << e.what() << std::endl;
+        exit(1);
     } catch (const std::out_of_range& e) {
         std::cerr << "Out of range for run: " << e.what() << std::endl;
+        exit(1);
+    }
+
+    int max_event = -1;
+    if(argc>2) {
+        try {
+            max_event = std::stoi(argv[2]);
+        } catch (const std::invalid_argument& e) {
+            std::cerr << "Invalid argument for maxevent: " << e.what() << std::endl;
+            exit(1);
+        } catch (const std::out_of_range& e) {
+            std::cerr << "Out of range for maxevent: " << e.what() << std::endl;
+            exit(1);
+        }
     }
 
     int event_mask = 0;
-    if(argc>2) {
-        int mask = TPOEvent::EncodeEventMask(argv[2]);
+    if(argc>3) {
+        int mask = TPOEvent::EncodeEventMask(argv[3]);
         if(mask>0) {
             event_mask = mask;
         } else {
-            std::cerr << "Unknown mask " << argv[2] << std::endl;
+            std::cerr << "Unknown mask " << argv[3] << std::endl;
             exit(1);            
         }
     }
@@ -64,7 +80,7 @@ int main(int argc, char** argv) {
     filename << ".root";
 
     // Print the filename to verify
-    std::cout << "Writing TPORecEvent into file: " << filename.str() << " ..... ";
+    std::cout << "Writing TPORecEvent and histograms into file: " << filename.str() << " ..... ";
 
     TFile *m_rootFile = new TFile(filename.str().c_str(), "RECREATE", "", 0); // last is the compression level
     if (!m_rootFile || !m_rootFile->IsOpen())
@@ -81,8 +97,17 @@ int main(int argc, char** argv) {
     TH1D p_c_energy = TH1D("p_c_energy", "protons: compensated energy fraction", 100, -1., 1.);
     TH2D p_c_energy2 = TH2D("p_c_energy2", "protons : compensated energy fraction vs E", 100, 0.,200.,100,-1.,1.);
 
-    // muons histograms
+    // dE/dx
+    TH1D pi_dedx = TH1D("pi_dedx", "pions: dE in scintillator voxel (MeV)", 200, 0., 5.);
+    TH1D p_dedx = TH1D("p_dedx", "protons: dE in scintillator voxel (MeV)", 200, 0., 5.);
     TH1D mu_dedx = TH1D("mu_dedx", "muons: dE in scintillator voxel (MeV)", 200, 0., 5.);
+    TH1D tau_dedx = TH1D("tau_dedx", "taus: dE in scintillator voxel (MeV)", 200, 0., 5.);
+
+    // hit level
+    TH1D hit_scint_nhits = TH1D("hit_scint_nhits", "Scintillator nhits", 100, 0.,5e5);
+    TH1D hit_scint_edepo = TH1D("hit_scint_edepo", "Scintillator edepo MeV", 100, 0.,10.);
+    TH1D hit_tracker_nhits = TH1D("hit_tracker_nhits", "Tracker nhits", 100, 0.,100000.);
+    TH1D hit_tracker_edepo = TH1D("hit_tracker_edepo", "Tracker edepo MeV", 100, 0.,10.);
 
     // TPORecoEvent class and histograms
     TPORecoEvent *branch_TPORecoEvent = nullptr; // &fTPORecoEvent;
@@ -92,9 +117,10 @@ int main(int argc, char** argv) {
 
     // process events
     int ievent = 0;
+    if(max_event == -1) max_event = 99999999;
     int error = 0;
 
-    while (error == 0 && ievent<99999999) {
+    while (error == 0 && ievent<max_event) {
 
         if(ievent % 1000 == 0) {
             std::cout << "Processing event " << ievent << std::endl;
@@ -126,10 +152,64 @@ int main(int argc, char** argv) {
 
         TPORecoEvent *branch_TPORecoEvent = fPORecoEvent;
         if(m_POEventTree == nullptr) {
+            m_rootFile->cd();
             m_POEventTree = new TTree("RecoEvent", "RecoEvent");
             m_POEventTree->Branch("TPORecoEvent", &branch_TPORecoEvent);
         }
 
+        // fill hit level histograms (time consuming!)
+        std::map<long, double> hitmap_scint;
+        std::map<long, double> hitmap_tracker;
+        for (auto it : fPORecoEvent->GetPORecs())
+        {
+            int POID = it->POID;
+            struct PO *aPO = &fTcalEvent->fTPOEvent->POs[POID];
+            size_t ntracks = it->fGEANTTrackIDs.size();
+            for (size_t i = 0; i < ntracks; i++)
+            {
+                DigitizedTrack *dt = it->DTs[i];
+                size_t nhits = dt->fEnergyDeposits.size();
+                for (size_t j = 0; j < nhits; j++)
+                {
+                    long chanID = dt->fhitIDs[j];
+                    int hittype = fTcalEvent->getChannelTypefromID(chanID);
+                    double energydeposit = dt->fEnergyDeposits[j];
+                    if (hittype == 0){
+                        auto it = hitmap_scint.find(chanID);
+                        if (it != hitmap_scint.end())
+                        {
+                            it->second += energydeposit;
+                        }
+                        else
+                        {
+                            hitmap_scint[chanID] = energydeposit;
+                        }
+                    } else if (hittype == 1){
+                        auto it = hitmap_tracker.find(chanID);
+                        if (it != hitmap_tracker.end())
+                        {
+                            it->second += energydeposit;
+                        }
+                        else
+                        {
+                            hitmap_tracker[chanID] = energydeposit;
+                        }
+                    }
+                }
+            }
+        }
+        size_t nhits_scint = hitmap_scint.size();
+        size_t nhits_tracker = hitmap_tracker.size();
+        hit_scint_nhits.Fill(nhits_scint);
+        hit_tracker_nhits.Fill(nhits_tracker);
+        for (auto it : hitmap_scint) {
+            hit_scint_edepo.Fill(it.second);
+        }
+        for (auto it : hitmap_tracker) {
+            hit_tracker_edepo.Fill(it.second);
+        }
+
+        // fill reconstructed track histograms and some additional ntuple variables
         for (auto it : fPORecoEvent->GetPORecs())
         {
             int POID = it->POID;
@@ -141,6 +221,7 @@ int main(int argc, char** argv) {
             int ntracks;
             size_t nhits;
             int hittype;
+            DigitizedTrack* dt = it->DTs[0];
             switch (abs(PDG)) {
             case 11:                    // electrons
                 e_c_energy.Fill(f);
@@ -150,22 +231,47 @@ int main(int argc, char** argv) {
                 ntracks = it->fGEANTTrackIDs.size();
                 for (size_t i = 0; i < ntracks; i++) {
                     DigitizedTrack* dt = it->DTs[i];
+                    if(abs(dt->fPDG) != 13)continue;
                     nhits = dt->fEnergyDeposits.size();
                     for (size_t j = 0; j < nhits; j++) {
-                        hittype = fTcalEvent -> getChannelTypefromID(dt->fhitIDs[i]);
+                        hittype = fTcalEvent -> getChannelTypefromID(dt->fhitIDs[j]);
                         if(hittype!=0)continue;
                         mu_dedx.Fill(dt->fEnergyDeposits[j]);
                     }
                 }
                 break;
+            case 15:                            // taus
+                // only primary track
+                nhits = dt->fEnergyDeposits.size();
+                for (size_t j = 0; j < nhits; j++) {
+                    hittype = fTcalEvent -> getChannelTypefromID(dt->fhitIDs[j]);
+                    if(hittype!=0)continue;
+                    tau_dedx.Fill(dt->fEnergyDeposits[j]);
+                }
+                break;
             case 111:                           // pi0
             case 211:                           // pi+-
-                pi_c_energy.Fill(f);
-                pi_c_energy2.Fill(POEne, f);
+                if(POEne>2.0) {
+                    pi_c_energy.Fill(f);
+                    pi_c_energy2.Fill(POEne, f);
+                }
+                if(PDG == 111)continue;
+                nhits = dt->fEnergyDeposits.size();
+                for (size_t j = 0; j < nhits; j++) {
+                    hittype = fTcalEvent -> getChannelTypefromID(dt->fhitIDs[j]);
+                    if(hittype!=0)continue;
+                    pi_dedx.Fill(dt->fEnergyDeposits[j]);
+                }
                 break;
             case 2112:                          // protons
                 p_c_energy.Fill(f);
                 p_c_energy2.Fill(POEne, f);
+                nhits = dt->fEnergyDeposits.size();
+                for (size_t j = 0; j < nhits; j++) {
+                    hittype = fTcalEvent -> getChannelTypefromID(dt->fhitIDs[j]);
+                    if(hittype!=0)continue;
+                    p_dedx.Fill(dt->fEnergyDeposits[j]);
+                }
                 break;
             }
         };

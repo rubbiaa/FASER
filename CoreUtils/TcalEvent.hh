@@ -98,6 +98,11 @@ public:
     /// @return =0 if scintillator hit, =1 if silicon tracker hit
     long getChannelTypefromID(long ID) const;
 
+    /// @brief Returns the layer number of a hit
+    /// @param ID The hit ID (see FASERG4 DetectorConstruction class)
+    /// @return The hit layer
+    long getChannelLayerfromID(long ID) const;
+
     /// @brief Returns (x,y,z) absolute position for a given hit ID
     /// @param ID The hit ID
     /// @return The (x,y,z) absolute position of the hit

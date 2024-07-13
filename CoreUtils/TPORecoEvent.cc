@@ -128,6 +128,53 @@ void TPORecoEvent::Reconstruct() {
     ROOT::Math::XYZVector primary(fTPOEvent->prim_vx.X(), fTPOEvent->prim_vx.Y(), fTPOEvent->prim_vx.Z());
     ROOT::Math::XYZVector direction = fPOFullEvent->fTotal.cog - primary;
     fPOFullEvent->fTotal.Eflow = fPOFullEvent->fTotal.Ecompensated * direction.Unit();
+
+    // some additional event summary variables
+    primary_n_charged = fTPOEvent->n_charged();
+    nhits_tau = 0;
+    nhits_tracker_first = 0;
+    for (auto it : fPORecs)
+    {
+        int POID = it->POID;
+        struct PO *aPO = &fTcalEvent->fTPOEvent->POs[POID];
+        int PDG = aPO->m_pdg_id;
+        // consider only primary track
+        DigitizedTrack *dt = it->DTs[0];
+        size_t nhits = dt->fEnergyDeposits.size();
+        int hittype;
+        long minlayer = 999999999;
+        // first search for the minimal layer
+        for (size_t i = 0; i < nhits; i++)
+        {
+            // loop over hits in the tracker
+            hittype = fTcalEvent->getChannelTypefromID(dt->fhitIDs[i]);
+            if (hittype != 1) continue;
+            long layer = fTcalEvent->getChannelLayerfromID(dt->fhitIDs[i]);
+            if(layer < minlayer) minlayer = layer;
+        }
+        for (size_t i = 0; i < nhits; i++)
+        {
+            // loop over hits in the tracker
+            hittype = fTcalEvent->getChannelTypefromID(dt->fhitIDs[i]);
+            if (hittype != 1) continue;
+            long layer = fTcalEvent->getChannelLayerfromID(dt->fhitIDs[i]);
+            if(abs(layer - minlayer) <=1) {
+                nhits_tracker_first++;
+            }
+        }
+        switch (abs(PDG))
+        {
+        case 15: // taus
+            // compute number of hits in scintillator
+            for (size_t i = 0; i < nhits; i++)
+            {
+                hittype = fTcalEvent->getChannelTypefromID(dt->fhitIDs[i]);
+                if (hittype != 0)
+                    continue;
+                nhits_tau++;
+            }
+        }
+    }
 }
 
 struct TPORec::CALENERGIES TPORecoEvent::computeEnergiesAndCOG(DigitizedTrack *dt) {
