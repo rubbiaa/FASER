@@ -72,6 +72,10 @@ public:
     /// @return TPORec of the full event
     TPORec *GetPOFullEvent() { return fPOFullEvent; };
 
+    /// @brief Returns the truth MC information
+    /// @return TPOEvent pointer of the MC truth event
+    TPOEvent *GetPOEvent() { return fTPOEvent; };
+
     // Reconstructed event summary variables
 
     /// @brief Number of charged particles at the primary

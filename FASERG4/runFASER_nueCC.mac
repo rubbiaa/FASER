@@ -15,5 +15,5 @@
 /run/numberOfThreads 1
 /run/initialize
 /generator/rootinputfilename ../ConvertFASERMC/FASERMC-PO-Run200026-0_99999999_nueCC.root
-/run/beamOn 1000
+/run/beamOn 10000
 
