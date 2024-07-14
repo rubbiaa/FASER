@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
     }
 
     int event_mask = 0;
-    if(argc>1) {
+    if(argc>2) {
         int mask = TPOEvent::EncodeEventMask(argv[2]);
         if(mask>0) {
             event_mask = mask;

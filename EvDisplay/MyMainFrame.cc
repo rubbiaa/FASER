@@ -8,6 +8,7 @@
 #include <TView3D.h>
 #include <TChain.h>
 #include <TText.h>
+#include <TGTextEntry.h>
 
 #include "MyMainFrame.h"
 #include "TPORecoEvent.hh"
@@ -24,7 +25,7 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, const TGWindow *p, 
     fCanvas = new TRootEmbeddedCanvas("EmbeddedCanvas", fMain, 1200, 600);
     fMain->AddFrame(fCanvas, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY));
 
-    // Create a horizontal frame to contain the buttons
+    // Create a horizontal frame to contain the toggle buttons
     TGHorizontalFrame *hFrame = new TGHorizontalFrame(fMain);
     fButton = new TGTextButton(hFrame, "Toggle prim_em");
     fButton->Connect("Clicked()", "MyMainFrame", this, "toggle_prim_em()");
@@ -39,11 +40,19 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, const TGWindow *p, 
     fButton->Connect("Clicked()", "MyMainFrame", this, "toggle_sec_had()");
     hFrame->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
 
-    fButton = new TGTextButton(fMain, "Next");
+    // Create a horizontal frame to contain the toggle buttons
+    TGHorizontalFrame *hFrame3 = new TGHorizontalFrame(fMain);
+    fButton = new TGTextButton(hFrame3, "Next Event");
     fButton->Connect("Clicked()", "MyMainFrame", this, "next_event()");
-    fMain->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsBottom, 5, 5, 3, 4));
+    hFrame3->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsBottom, 5, 5, 3, 4));
+    fButton = new TGTextButton(hFrame3, "Goto Event:");
+    fButton->Connect("Clicked()", "MyMainFrame", this, "goto_event()");
+    textNextEventEntry = new TGTextEntry(hFrame3, new TGTextBuffer(50));
+    textNextEventEntry->Connect("ReturnPressed()", "MyMainFrame", this, "goto_event()");
+    hFrame3->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
+    hFrame3->AddFrame(textNextEventEntry, new TGLayoutHints(kLHintsExpandX | kLHintsCenterY));
 
-    // Create a horizontal frame to contain the buttons
+    // Create a horizontal frame to contain the zoom and sideview buttons
     TGHorizontalFrame *hFrame2 = new TGHorizontalFrame(fMain);
     // Create a button
     fButton = new TGTextButton(hFrame2, "Side View");
@@ -58,6 +67,9 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, const TGWindow *p, 
 
    // Add the horizontal frame to the main frame
     fMain->AddFrame(hFrame2, new TGLayoutHints(kLHintsCenterX | kLHintsBottom, 5, 5, 3, 4));
+
+    // Add the horizontal frame to the main frame
+    fMain->AddFrame(hFrame3, new TGLayoutHints(kLHintsCenterX | kLHintsBottom, 5, 5, 3, 4));
 
     fMain->SetWindowName("The FASERkine event display");
     fMain->MapSubwindows();
@@ -199,8 +211,8 @@ void MyMainFrame::Draw_event() {
 //    gGeoManager->GetTopVolume()->Print();
 
     delete runText;
-    runText = new TText(0.05, 0.95, Form("Run: %d Event: %d", 
-        POevent->run_number, POevent->event_id));
+    runText = new TText(0.05, 0.95, Form("Seq. Event: %d - Run: %d Event: %d", 
+        ievent, POevent->run_number, POevent->event_id));
     runText->SetNDC();
     runText->SetTextSize(0.03);
     runText->Draw();
@@ -243,16 +255,7 @@ void MyMainFrame::Draw_event() {
 
 }
 
-
-// Function to handle button click
-void MyMainFrame::HandleButton() {
-    // get the first hit
-    double zvtx = fTcalEvent->fTPOEvent->prim_vx.z();
-    ZoomToPosition(0,0,zvtx/10.0);
-}
-
-// Function to handle button click
-void MyMainFrame::next_event() {
+void MyMainFrame::Next_Event(int ievent) {
 
     TCanvas *canvas = fCanvas->GetCanvas();
 
@@ -273,7 +276,7 @@ void MyMainFrame::next_event() {
     delete fTcalEvent;
     delete fPORecoEvent;
 
-    Load_event(run_number, ++ievent, event_mask);
+    Load_event(run_number, ievent, event_mask);
 
     toggle_primary_em=
     toggle_primary_had=
@@ -285,6 +288,33 @@ void MyMainFrame::next_event() {
     Draw_event();
     canvas->Modified();
     canvas->Update();
+}
+
+
+// Function to handle button click
+void MyMainFrame::HandleButton() {
+    // get the first hit
+    double zvtx = fTcalEvent->fTPOEvent->prim_vx.z();
+    ZoomToPosition(0,0,zvtx/10.0);
+}
+
+// Function to handle goto event button click
+void MyMainFrame::goto_event() {
+    const char* text = textNextEventEntry->GetText();
+    printf("Text Entry Content: %s\n", text);
+    try {
+        ievent = std::stoi(text);
+        Next_Event(ievent); 
+    } catch (const std::invalid_argument& e) {
+        std::cerr << "Invalid input: not an integer" << std::endl;
+    } catch (const std::out_of_range& e) {
+        std::cerr << "Invalid input: out of range" << std::endl;
+    }
+}
+
+// Function to handle next eventbutton click
+void MyMainFrame::next_event() {
+    Next_Event(++ievent);  
 }
 
 void MyMainFrame::toggle_prim_em() {

@@ -5,6 +5,8 @@
 #include <TGeoVolume.h>
 #include <RQ_OBJECT.h>
 #include <TText.h>
+#include <TGTextEntry.h>
+
 
 #include <TcalEvent.hh>
 #include "TPORecoEvent.hh"
@@ -17,6 +19,7 @@ public:
 
     void Load_event(int run_number, int ievent, int mask);
     void Draw_event();
+    void Next_Event(int ievent);
 
     void HandleButton(); // Function to handle button click
     void toggle_prim_em();
@@ -24,6 +27,7 @@ public:
     void toggle_sec_em();
     void toggle_sec_had();
     void next_event();
+    void goto_event();
 
     void ZoomToPosition(Double_t x, Double_t y, Double_t z);
     void SideView();
@@ -34,6 +38,7 @@ private:
     TGMainFrame *fMain;
     TGTextButton *fButton;
     TRootEmbeddedCanvas *fCanvas;
+    TGTextEntry *textNextEventEntry;
 
     TText *runText = nullptr;
     TText *eventypeText = nullptr;
