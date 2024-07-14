@@ -264,6 +264,7 @@ void convert_FASERMC(int run_number, std::string inputDirFiles, int min_event, i
             wanted |= (mask == TPOEvent::kMask_nutauCC && fTPOEvent.isCC && 
                 abs(fTPOEvent.in_neutrino.m_pdg_id) == 16);
             wanted |= (mask == TPOEvent::kMask_NC && !fTPOEvent.isCC);
+            wanted |= (mask == TPOEvent::kMask_ES && fTPOEvent.isES());
             masked = !wanted;
             fTPOEvent.SetEventMask(mask);
         }
@@ -311,7 +312,7 @@ int main(int argc, char** argv) {
         std::cout << "   maxevent                  Maximum event to process (def=1000):";
         std::cout << "  =-1 for all events" << std::endl;
         std::cout << "   mask                      To process only specific events (def=none): ";
-        std::cout << "  nueCC, numuCC, nutauCC, or nuNC" << std::endl;
+        std::cout << "  nueCC, numuCC, nutauCC, nuNC or nuES" << std::endl;
 		return 1;
 	}
 

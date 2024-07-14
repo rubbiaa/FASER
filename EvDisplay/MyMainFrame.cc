@@ -236,7 +236,9 @@ void MyMainFrame::Draw_event() {
         default:
             eventtype << " ?? ";
     }
-    if(POevent->isCC) {
+    if(POevent->isES()){
+        eventtype << " ES ";
+    } else if(POevent->isCC) {
         eventtype << " CC ";
     } else {
         eventtype << " NC ";

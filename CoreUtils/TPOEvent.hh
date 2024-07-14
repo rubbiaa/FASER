@@ -57,6 +57,7 @@ public:
   static const int kMask_numuCC = 2;
   static const int kMask_nutauCC = 3;
   static const int kMask_NC = 4;
+  static const int kMask_ES = 5;
 
   int run_number;                   // run number
   int event_id;                     // event number
@@ -64,6 +65,7 @@ public:
   int vtx_target;                   // in which target did the interaction occur
   int event_mask = 0;               // if events are masked (see kMask_... constants)
   bool isCC;                        // event is a charged current
+  bool isES() const { return jetpx==0 && jetpy == 0 && jetpz == 0;}; // event is elastic scattering on electron
   bool istau;                       // incoming neutrino is a nutau
   int tau_decaymode;                // =1 e, =2 mu, =3 1-prong, =4 rho =5 3-prong, =6 other
   std::vector<struct PO> POs;       // vector of PO of the event
@@ -175,6 +177,10 @@ public:
     {
       return kMask_NC;
     }
+    else if (maskname == "nuES")
+    {
+      return kMask_ES;
+    }
     return -1;
   };
 
@@ -190,6 +196,8 @@ public:
       return "nutauCC";
     case kMask_NC:
       return "nuNC";
+    case kMask_ES:
+      return "nuES";
     }
     return "unkmask";
   }
