@@ -133,15 +133,15 @@ public:
   void kinematics_event();
 
   /// @brief Nicely formatted header of the event on std::cout
-  void dump_header() const;
+  void dump_header(std::ostream& out = std::cout) const;
 
   /// @brief Nicely formatted dump of the full event on std::cout
-  void dump_event() const;
+  void dump_event(std::ostream& out = std::cout) const;
 
   /// @brief Nicely formatted dump of a single PO on std::cout
   /// @param aPO 
   /// @param pdgDB 
-  void dump_PO(struct PO aPO,  TDatabasePDG *pdgDB) const;
+  void dump_PO(struct PO aPO,  TDatabasePDG *pdgDB, std::ostream& out = std::cout) const;
 
   /// @brief Return brief description (nueCC, numuCC, nutauCC, NC, etc..)
   /// @return The text describing the reaction

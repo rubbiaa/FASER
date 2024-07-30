@@ -217,23 +217,23 @@ void TPOEvent::kinematics_event() {
 }
 
 
-void TPOEvent::dump_PO(struct PO aPO,  TDatabasePDG *pdgDB) const {
+void TPOEvent::dump_PO(struct PO aPO,  TDatabasePDG *pdgDB, std::ostream& out) const {
   TParticlePDG *particle = pdgDB->GetParticle(aPO.m_pdg_id);
-  std::cout << std::setw(10) << aPO.m_track_id << " " << std::setw(12) << aPO.m_pdg_id << " ";
+  out << std::setw(10) << aPO.m_track_id << " " << std::setw(12) << aPO.m_pdg_id << " ";
   if(particle) {
-    std::cout << std::setw(10) << particle->GetName() << " ";
+    out << std::setw(10) << particle->GetName() << " ";
   } else {
-    std::cout << "        ?? ";
+    out << "        ?? ";
   }
 //  double decaylength = sqrt(aPO.m_vx_decay*aPO.m_vx_decay+aPO.m_vy_decay*aPO.m_vy_decay+aPO.m_vz_decay*aPO.m_vz_decay);
 //  std::cout << std::setw(10) << decaylength << " ";
 //  std::cout << std::setw(10) << aPO.m_vx_decay << " " << std::setw(10) << aPO.m_vy_decay << " " << std::setw(10) << aPO.m_vz_decay << " ";
-  std::cout << std::setw(12) << aPO.m_px << " " << " " << std::setw(12) << aPO.m_py << " " << std::setw(12) << aPO.m_pz 
+  out << std::setw(12) << aPO.m_px << " " << " " << std::setw(12) << aPO.m_py << " " << std::setw(12) << aPO.m_pz 
           << " " << std::setw(12) << aPO.m_energy << " " << std::setw(4) << aPO.m_status << " " << std::setw(4) << aPO.geanttrackID << " ";
   for (size_t j=0; j<aPO.nparent; j++) {
-    std::cout << std::setw(10) << aPO.m_trackid_in_particle[j] << " ";
+    out << std::setw(10) << aPO.m_trackid_in_particle[j] << " ";
   }
-  std::cout << std::endl;
+  out << std::endl;
 }
 
 const char* TPOEvent::reaction_desc() const {
@@ -258,49 +258,49 @@ const char* TPOEvent::reaction_desc() const {
   return " ?? ";
 }
 
-void TPOEvent::dump_header() const {
+void TPOEvent::dump_header(std::ostream& out) const {
   const char *reaction = reaction_desc();
-  std::cout << "--- Run " << run_number << " Event " << event_id << " ---------------------------------------- " << reaction << " --------------------------------------------" << std::endl;
+  out << "--- Run " << run_number << " Event " << event_id << " ---------------------------------------- " << reaction << " --------------------------------------------" << std::endl;
 }
  
-void TPOEvent::dump_event() const {
+void TPOEvent::dump_event(std::ostream& out) const {
   TDatabasePDG *pdgDB = TDatabasePDG::Instance();
-  dump_header();
-  std::cout << " Primary vtx = " << prim_vx.x() << " " << prim_vx.y() << " " << prim_vx.z() << " mm ";
+  dump_header(out);
+  out << " Primary vtx = " << prim_vx.x() << " " << prim_vx.y() << " " << prim_vx.z() << " mm ";
   if(vtx_target>0) {
     switch(vtx_target) {
       case kVtx_in_W: 
-        std::cout << " - in W target";
+        out << " - in W target";
         break;
       case kVtx_in_Scint:
-        std::cout << " - in Scint target";
+        out << " - in Scint target";
         break;
     }
   } 
-  std::cout << std::endl;
-  std::cout << "--------------------------------------------------------------------------------------------" << std::endl;
-  std::cout << "¨    trackID, pdg_ID, name, px, py, pz, E, status, geant4ID, parents" << std::endl;
+  out << std::endl;
+  out << "--------------------------------------------------------------------------------------------" << std::endl;
+  out << "¨    trackID, pdg_ID, name, px, py, pz, E, status, geant4ID, parents" << std::endl;
   for (size_t i=0; i<n_particles(); i++) {
     struct PO aPO = POs[i];
-    dump_PO(aPO, pdgDB);
+    dump_PO(aPO, pdgDB, out);
   }
-  std::cout << "--------------------------------------------------------------------------------------------" << std::endl;
-  std::cout << std::setw(10) << "Outgoing lepton: " << std::endl;
-  dump_PO(out_lepton, pdgDB);
-  std::cout << "--------------------------------------------------------------------------------------------" << std::endl;
-  std::cout << std::setw(10) << "Jet :                      " << jetpx << " " << jetpy << " " << jetpz << std::endl;
-  std::cout << std::setw(10) << "Sum final state particles: " << spx << " " << spy << " " << spz << std::endl;
-  std::cout << std::setw(10) << "Sum final state particles (VIS): " << vis_spx << " " << vis_spy << " " << vis_spz << std::endl;
-  std::cout << std::setw(10) << "Ptmiss = " << ptmiss << "  Evis = " << Evis << std::endl;
-  std::cout << "--------------------------------------------------------------------------------------------" << std::endl;
+  out << "--------------------------------------------------------------------------------------------" << std::endl;
+  out << std::setw(10) << "Outgoing lepton: " << std::endl;
+  dump_PO(out_lepton, pdgDB, out);
+  out << "--------------------------------------------------------------------------------------------" << std::endl;
+  out << std::setw(10) << "Jet :                      " << jetpx << " " << jetpy << " " << jetpz << std::endl;
+  out << std::setw(10) << "Sum final state particles: " << spx << " " << spy << " " << spz << std::endl;
+  out << std::setw(10) << "Sum final state particles (VIS): " << vis_spx << " " << vis_spy << " " << vis_spz << std::endl;
+  out << std::setw(10) << "Ptmiss = " << ptmiss << "  Evis = " << Evis << std::endl;
+  out << "--------------------------------------------------------------------------------------------" << std::endl;
   if(n_taudecay()>0) {
-    std::cout << "Tau decay mode : " << tau_decaymode << std::endl;
-    std::cout << "¨    trackID, pdg_ID, name, px, py, pz, E, status, geant4ID, parents" << std::endl;
+    out << "Tau decay mode : " << tau_decaymode << std::endl;
+    out << "¨    trackID, pdg_ID, name, px, py, pz, E, status, geant4ID, parents" << std::endl;
     for (size_t i=0; i<n_taudecay(); i++) {
       struct PO aPO = taudecay[i];
-      dump_PO(aPO, pdgDB);
+      dump_PO(aPO, pdgDB, out);
     }
-    std::cout << "--------------------------------------------------------------------------------------------" << std::endl;
+    out << "--------------------------------------------------------------------------------------------" << std::endl;
   }
 }
 
