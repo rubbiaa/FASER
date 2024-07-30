@@ -9,15 +9,15 @@
 #include "G4TauPlus.hh"
 #include "G4TauMinus.hh"
 
-ActionInitialization::ActionInitialization(ParticleManager* pm)
-    : G4VUserActionInitialization(), fParticleManager(pm) {}  // Initialize the member variable in the constructor
-
+ActionInitialization::ActionInitialization(G4int startEvent, ParticleManager* pm)
+    : G4VUserActionInitialization(), fParticleManager(pm), fStartEvent(startEvent) {}  
+	
 void ActionInitialization::BuildForMaster() const { SetUserAction(new RunAction(fParticleManager)); }
 
 void ActionInitialization::Build() const
 {
 	SetUserAction(new PrimaryGeneratorAction(fParticleManager));
 	SetUserAction(new RunAction(fParticleManager));
-	SetUserAction(new EventAction(fParticleManager));
+	SetUserAction(new EventAction(fStartEvent, fParticleManager));
 	SetUserAction(new TrackingAction(fParticleManager));
 }

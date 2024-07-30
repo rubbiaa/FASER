@@ -44,7 +44,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 	if (m_ROOTInputFile == nullptr) {
 		// Open FASERMC PO input ntuple files
 		std::string inputFile = fROOTInputFileName;
-		m_ROOTInputFile = new TFile(inputFile.c_str());
+		m_ROOTInputFile = new TFile(inputFile.c_str(), "READ");
 
 		m_ROOTInputFile->GetObject("POEvent", m_POEventTree);
 		if (!m_POEventTree)

@@ -35,6 +35,8 @@ int main(int argc, char** argv)
 		ui = new G4UIExecutive(argc - 1, argv);
 	}
 
+	G4int fStartEvent = 0;
+
 	// Optionally: choose a different Random engine...
 	G4Random::setTheEngine(new CLHEP::MTwistEngine);
 	//G4long seed = time(NULL);
@@ -70,7 +72,7 @@ int main(int argc, char** argv)
 	//auto eventAction = new EventAction(photonManager, runAction);
 	
 	// Set the user actions
-	auto actionInitialization = new ActionInitialization(particleManager);
+	auto actionInitialization = new ActionInitialization(fStartEvent, particleManager);
 	runManager->SetUserInitialization(actionInitialization);
 
 	// Need to call the GeometryHasBeenModified() method as the macros can change the geometry

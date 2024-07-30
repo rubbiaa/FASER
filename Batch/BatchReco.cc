@@ -93,8 +93,8 @@ int main(int argc, char** argv) {
     // calorimetry histograms
     TH1D e_c_energy = TH1D("e_c_energy", "electrons: compensated energy fraction", 200, -1., 1.);
     TH2D e_c_energy2 = TH2D("e_c_energy2", "electrons: compensated energy fraction", 100, 0., 1000., 200, -1., 1.);
-    TH1D pi_c_energy = TH1D("pi_c_energy", "pions: compensated energy fraction", 100, -1., 1.);
-    TH2D pi_c_energy2 = TH2D("pi_c_energy2", "pions : compensated energy fraction vs E", 100, 0.,200.,100,-1.,1.);
+    TH1D pi_c_energy = TH1D("pi_c_energy", "charged pions: compensated energy fraction", 100, -1., 1.);
+    TH2D pi_c_energy2 = TH2D("pi_c_energy2", "charged pions : compensated energy fraction vs E", 100, 0.,200.,100,-1.,1.);
     TH1D p_c_energy = TH1D("p_c_energy", "protons: compensated energy fraction", 100, -1., 1.);
     TH2D p_c_energy2 = TH2D("p_c_energy2", "protons : compensated energy fraction vs E", 100, 0.,200.,100,-1.,1.);
 
@@ -255,13 +255,11 @@ int main(int argc, char** argv) {
                     tau_dedx.Fill(dt->fEnergyDeposits[j]);
                 }
                 break;
-            case 111:                           // pi0
             case 211:                           // pi+-
                 if(POEne>2.0) {
                     pi_c_energy.Fill(f);
                     pi_c_energy2.Fill(POEne, f);
                 }
-                if(PDG == 111)continue;
                 nhits = dt->fEnergyDeposits.size();
                 for (size_t j = 0; j < nhits; j++) {
                     hittype = fTcalEvent -> getChannelTypefromID(dt->fhitIDs[j]);
@@ -307,14 +305,16 @@ int main(int argc, char** argv) {
             // nueCC background
             if(abs(PDG) == 11 && !found_electron) {
                 found_electron = true;
-                fTTauSearch_e.Fill_Sel_Tree(m_tausearch_e_Tree);
+                if(!POevent->isES())                     // skip ES events
+                    fTTauSearch_e.Fill_Sel_Tree(m_tausearch_e_Tree);
             }
 
             // nutau signal -> e
             if(abs(PDG) == 15 && !found_tau_e) {
                 if(fPORecoEvent->GetPOEvent()->tau_decaymode==1) {
                     found_tau_e = true;
-                    fTTauSearch_e.Fill_Sel_Tree(m_tausearch_e_Tree);
+                    if(!POevent->isES())                     // skip ES events
+                        fTTauSearch_e.Fill_Sel_Tree(m_tausearch_e_Tree);
                 }
             }
         }

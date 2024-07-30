@@ -1,6 +1,7 @@
 #include "EventAction.hh"
 
-EventAction::EventAction(ParticleManager* photonManager) : fParticleManager(photonManager)
+EventAction::EventAction(G4int startEvent, ParticleManager* photonManager) : 
+    fParticleManager(photonManager), fStartEvent(startEvent)
 {}
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 

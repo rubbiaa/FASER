@@ -18,9 +18,10 @@ class ActionInitialization : public G4VUserActionInitialization {
     private:
 	ParticleManager* fParticleManager;  // The particle manager is used to store all particles and their tracks. It is used in the RunAction to
 					    // write the output file and in the EventAction to fill the trees inside the root file.
+	G4int fStartEvent;
 
     public:
-	ActionInitialization(ParticleManager* photonManager);  // Constructor taking ParticleManager as an argument
+	ActionInitialization(G4int startEvent, ParticleManager* photonManager);  // Constructor taking ParticleManager as an argument
 	~ActionInitialization() override = default; // Destructor
 
 	void BuildForMaster() const override; // Build for master thread

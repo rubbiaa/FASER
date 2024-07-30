@@ -27,8 +27,10 @@ class EventAction : public G4UserEventAction {
     private:
 	ParticleManager* fParticleManager; ///< Pointer to the particle manager
 
+	G4int fStartEvent;
+
     public:
-	EventAction(ParticleManager* photonManager); ///< Constructor, sets the pointer to the particle manager
+	EventAction(G4int startEvent, ParticleManager* photonManager); ///< Constructor, sets the pointer to the particle manager
 	~EventAction() override = default; ///< Destructor
 
 	void BeginOfEventAction(const G4Event*) override; ///< Called at the beginning of an event - calls particle Managers begin of event action
