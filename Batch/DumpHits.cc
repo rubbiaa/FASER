@@ -29,8 +29,8 @@ int main(int argc, char **argv)
         std::cout << "   <run>                     Run number" << std::endl;
         std::cout << "   maxevent                  Maximum number of events to process (def=-1)" << std::endl;
         std::cout << "   mask                      To process only specific events (def=none): ";
-        std::cout << "  nueCC, numuCC, nutauCC, or nuNC" << std::endl;
-        return 1;
+        std::cout << "  nueCC, numuCC, nutauCC, nuNC or nuES" << std::endl;
+	    return 1;
     }
 
     // get the run number as the first argument
@@ -152,7 +152,6 @@ int main(int argc, char **argv)
                 ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(track->fhitIDs[i]);
                 std::cout << std::setw(10) << track->ftrackID << " ";
                 std::cout << std::setw(10) << track->fPDG << " ";
-                std::cout << std::setw(10) << track->fparentID << " ";
                 std::cout << std::setw(10) << track->fparentID << " ";
                 std::cout << std::setw(10) << position.x() << " " << std::setw(10) << position.y() << " " << std::setw(10) <<  position.z() << " ";
                 std::cout << std::setw(10) << track->fEnergyDeposits[i];

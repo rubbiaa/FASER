@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
 		std::cout << "Usage: " << argv[0] << " <run> [mask]" << std::endl;
         std::cout << "   <run>                     Run number" << std::endl;
         std::cout << "   mask                      To process only specific events (def=none): ";
-        std::cout << "  nueCC, numuCC, nutauCC, or nuNC" << std::endl;
+        std::cout << "  nueCC, numuCC, nutauCC, nuNC or nuES" << std::endl;
 		return 1;
 	}
 
