@@ -1,0 +1,19 @@
+# Macro example
+/FASER/scint/material PVT
+/FASER/scint/lightYield 12000.
+/FASER/scint/sizeX 50 cm
+/FASER/scint/sizeY 50 cm
+/FASER/scint/sizeZ 5 cm
+/FASER/scint/voxel 5 mm
+/FASER/targetW/sizeX 50 cm
+/FASER/targetW/sizeY 50 cm
+/FASER/targetW/sizeZ 2 mm
+/FASER/layers 50
+#
+/tracking/verbose 0
+#/process/optical/processActivation Cerenkov false
+/run/numberOfThreads 1
+/run/initialize
+/generator/rootinputfilename ../ConvertFASERMC/FASERMC-PO-Run200035-0_99999999_nutauCC.root
+/run/beamOn 10000
+

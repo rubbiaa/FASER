@@ -10,6 +10,7 @@ TPORecoEvent::~TPORecoEvent() {
     for(auto it : fPORecs) {
         delete it;
     }
+    delete fPOFullEvent;
     fPORecs.clear();
 }
 
@@ -17,14 +18,19 @@ TPORecoEvent::~TPORecoEvent() {
 void TPORecoEvent::Reconstruct() {
     fPORecs.clear();
 
-    std::cout << "Starting reconstruction... " << fTcalEvent->fTracks.size() << " tracks to process" << std::endl;
+    std::cout << "Starting reconstruction... " << fTcalEvent->getfTracks().size() << " G4 tracks to process" << std::endl;
     // loop over all digitized tracks and create primaries
-    for (auto it : fTcalEvent->fTracks) {
+    for (auto it : fTcalEvent->getfTracks()) {
         if(it -> fparentID ==0) {
             int POID = fTPOEvent->findFromGEANT4TrackID(it->ftrackID);
+
+            // skip final state neutrinos
+            if(fTPOEvent->is_neutrino(fTPOEvent->POs[POID].m_pdg_id)) continue;
+
             TPORec* aPORec = new TPORec(POID);
             aPORec->POID = POID;
             aPORec->fGEANTTrackIDs.push_back(it->ftrackID);
+            aPORec->DTs.push_back(it);
             struct TPORec::CALENERGIES calene = computeEnergiesAndCOG(it);
             aPORec->fEnergiesCogs.push_back(calene);
             fPORecs.push_back(aPORec);
@@ -32,7 +38,7 @@ void TPORecoEvent::Reconstruct() {
     }
 
     // now loop over secondaries and add to the primary
-    for (auto it : fTcalEvent->fTracks) {
+    for (auto it : fTcalEvent->getfTracks()) {
         if(it -> fparentID !=0){
             // find primary
             int primaryID = it->fprimaryID;
@@ -40,6 +46,7 @@ void TPORecoEvent::Reconstruct() {
                 for (auto itRecs : fPORecs) {
                     if(itRecs->fGEANTTrackIDs[0] == primaryID) {
                         itRecs->fGEANTTrackIDs.push_back(it->ftrackID);
+                        itRecs->DTs.push_back(it);
                         struct TPORec::CALENERGIES calene = computeEnergiesAndCOG(it);
                         itRecs->fEnergiesCogs.push_back(calene);
                         break;
@@ -61,14 +68,25 @@ void TPORecoEvent::Reconstruct() {
         int ntracks = it->fGEANTTrackIDs.size();
         it->fTotal.em = 0;
         it->fTotal.had = 0;
+        it->fTotal.cog.SetCoordinates(0,0,0);
         for (int i = 0; i < ntracks; i++) {
-            it->fTotal.em += it->fEnergiesCogs[i].em*alpha;
-            it->fTotal.had += it->fEnergiesCogs[i].had*beta;
+            it->fTotal.em += it->fEnergiesCogs[i].em;
+            it->fTotal.had += it->fEnergiesCogs[i].had;
+            it->fTotal.cog += it->fEnergiesCogs[i].cog*(it->fEnergiesCogs[i].em+it->fEnergiesCogs[i].had);
         }
-        it->fTotal.Ecompensated = it->fTotal.em+it->fTotal.had;
+        double Eraw = it->fTotal.em+it->fTotal.had;
+        if(std::isnan(Eraw)) {
+            std::cerr << "TPORecoEvent::Reconstruct - raw energy is nan!" << std::endl;
+        }
+        if(Eraw > 0) {
+            it->fTotal.cog /= Eraw;
+        }
+        // apply compensation
+        it->fTotal.Ecompensated = it->fTotal.em*alpha+it->fTotal.had*beta;
 
         // if the energy is less than 2 GeV then we should go for the integration of dE/dx
-        if(it->fTotal.Ecompensated < 2.0) {
+        double Threshold_for_dEdx = 2.0;
+        if(it->fTotal.Ecompensated>0 && it->fTotal.Ecompensated < Threshold_for_dEdx) {
             double EKin = 0;
             for (int i = 0; i < ntracks; i++) {
                 EKin += it->fEnergiesCogs[i].em + it->fEnergiesCogs[i].had;               
@@ -78,12 +96,85 @@ void TPORecoEvent::Reconstruct() {
             double py = fTPOEvent->POs[it->POID].m_py;
             double pz = fTPOEvent->POs[it->POID].m_pz;
             double E = fTPOEvent->POs[it->POID].m_energy;
-            double mass = sqrt(E*E-px*px-py*py-pz*pz);
+            double mass = sqrt(std::max(E*E-px*px-py*py-pz*pz,0.0));
+
             double Ereco = EKin + mass;
+            if(std::isnan(Ereco)) {
+                std::cerr << "TPORecoEvent::Reconstruct - Ereco is nan!" << std::endl;
+            }
             it->fTotal.Ecompensated = Ereco;
         }
+
+        // now compute the energy compensated eflow relative to primary vertex
+        ROOT::Math::XYZVector primary(fTPOEvent->prim_vx.X(), fTPOEvent->prim_vx.Y(), fTPOEvent->prim_vx.Z());
+        ROOT::Math::XYZVector direction = it->fTotal.cog - primary;
+        it->fTotal.Eflow = it->fTotal.Ecompensated *direction.Unit();
+
     }
 
+    // Now compute full event quantities
+    fPOFullEvent = new TPORec(-1);
+    fPOFullEvent->fTotal.Ecompensated = 0;
+    fPOFullEvent->fTotal.cog.SetCoordinates(0,0,0);
+    for(auto it : fPORecs) {
+        fPOFullEvent->fTotal.Ecompensated += it->fTotal.Ecompensated;
+        fPOFullEvent->fTotal.cog += it->fTotal.cog*it->fTotal.Ecompensated;
+    }
+    if(std::isnan(fPOFullEvent->fTotal.Ecompensated)) {
+        std::cerr << "TPORecoEvent::Reconstruct - compensated total energy is nan!" << std::endl;
+    }
+    fPOFullEvent->fTotal.cog /= fPOFullEvent->fTotal.Ecompensated;
+    // now compute the energy compensated eflow relative to primary vertex
+    ROOT::Math::XYZVector primary(fTPOEvent->prim_vx.X(), fTPOEvent->prim_vx.Y(), fTPOEvent->prim_vx.Z());
+    ROOT::Math::XYZVector direction = fPOFullEvent->fTotal.cog - primary;
+    fPOFullEvent->fTotal.Eflow = fPOFullEvent->fTotal.Ecompensated * direction.Unit();
+
+    // some additional event summary variables
+    primary_n_charged = fTPOEvent->n_charged();
+    nhits_tau = 0;
+    nhits_tracker_first = 0;
+    for (auto it : fPORecs)
+    {
+        int POID = it->POID;
+        struct PO *aPO = &fTcalEvent->fTPOEvent->POs[POID];
+        int PDG = aPO->m_pdg_id;
+        // consider only primary track
+        DigitizedTrack *dt = it->DTs[0];
+        size_t nhits = dt->fEnergyDeposits.size();
+        int hittype;
+        long minlayer = 999999999;
+        // first search for the minimal layer
+        for (size_t i = 0; i < nhits; i++)
+        {
+            // loop over hits in the tracker
+            hittype = fTcalEvent->getChannelTypefromID(dt->fhitIDs[i]);
+            if (hittype != 1) continue;
+            long layer = fTcalEvent->getChannelLayerfromID(dt->fhitIDs[i]);
+            if(layer < minlayer) minlayer = layer;
+        }
+        for (size_t i = 0; i < nhits; i++)
+        {
+            // loop over hits in the tracker
+            hittype = fTcalEvent->getChannelTypefromID(dt->fhitIDs[i]);
+            if (hittype != 1) continue;
+            long layer = fTcalEvent->getChannelLayerfromID(dt->fhitIDs[i]);
+            if(abs(layer - minlayer) <=1) {
+                nhits_tracker_first++;
+            }
+        }
+        switch (abs(PDG))
+        {
+        case 15: // taus
+            // compute number of hits in scintillator
+            for (size_t i = 0; i < nhits; i++)
+            {
+                hittype = fTcalEvent->getChannelTypefromID(dt->fhitIDs[i]);
+                if (hittype != 0)
+                    continue;
+                nhits_tau++;
+            }
+        }
+    }
 }
 
 struct TPORec::CALENERGIES TPORecoEvent::computeEnergiesAndCOG(DigitizedTrack *dt) {
@@ -100,7 +191,7 @@ struct TPORec::CALENERGIES TPORecoEvent::computeEnergiesAndCOG(DigitizedTrack *d
     size_t nhits = dt->fhitIDs.size();
     for ( size_t i = 0; i < nhits; i++) {
         ROOT::Math::XYZVector position = fTcalEvent -> getChannelXYZfromID(dt->fhitIDs[i]);
-        double ehit = dt->fEnergyDeposits[i]/1e3;
+        double ehit = dt->fEnergyDeposits[i]/1e3;   // *CLHEP::MeV
         if(isEM) {
             result.em += ehit;
         } else {
@@ -111,9 +202,23 @@ struct TPORec::CALENERGIES TPORecoEvent::computeEnergiesAndCOG(DigitizedTrack *d
         cogz += position.Z()*ehit;
     }
     double etot = result.em + result.had;
-    result.cog.SetX(cogx/etot);
-    result.cog.SetY(cogy/etot);
-    result.cog.SetZ(cogz/etot);
+    if(std::isnan(etot)) {
+        std::cerr << "TPORecoEvent::computeEnergiesAndCOG - compensated energy is nan!" << std::endl;
+    }
+    if(etot>0) {
+        result.cog.SetX(cogx/etot);
+        result.cog.SetY(cogy/etot);
+        result.cog.SetZ(cogz/etot);
+
+        // compute energy flow relative to primary vertex
+        ROOT::Math::XYZVector primary(fTPOEvent->prim_vx.X(), fTPOEvent->prim_vx.Y(), fTPOEvent->prim_vx.Z());
+        ROOT::Math::XYZVector direction = result.cog - primary;
+        result.Eflow = etot*direction.Unit();
+
+    } else {
+        result.cog.SetCoordinates(0,0,0);   
+        result.Eflow.SetCoordinates(0,0,0);
+    }
 
     return result;
 }
@@ -126,7 +231,26 @@ void TPORecoEvent::Dump() {
         int ntracks = it->fGEANTTrackIDs.size();
         std::cout << "RECO>>" << std::setw(10) << ntracks << " tracks ";
         std::cout << "em: " << std::setw(10) << it->fTotal.em << " had: " << std::setw(10) << it->fTotal.had << " ";
-        std::cout << "tot: " << std::setw(10) << it->fTotal.Ecompensated << " ";
+        std::cout << "comp: " << std::setw(10) << it->fTotal.Ecompensated << " ";
+        std::cout << std::endl;
+        std::cout << "EFLOW>> ";
+        std::cout << " Ex: " << it->fTotal.Eflow.X();
+        std::cout << " Ey: " << it->fTotal.Eflow.Y();
+        std::cout << " Ez: " << it->fTotal.Eflow.Z();
+        std::cout << "      (COG: " << it->fTotal.cog.X() << " " << it->fTotal.cog.Y() << " " << it->fTotal.cog.Z() << ")";
         std::cout << std::endl;
     }
+    std::cout << std::endl;
+    std::cout << "FULL EFLOW>> ";
+    std::cout << " Ex: " << fPOFullEvent->fTotal.Eflow.X();
+    std::cout << " Ey: " << fPOFullEvent->fTotal.Eflow.Y();
+    std::cout << " Ez: " << fPOFullEvent->fTotal.Eflow.Z();
+//    std::cout << " cogx: " << fPOFullEvent->fTotal.cog.X() << " ";
+//    std::cout << " cogy: " << fPOFullEvent->fTotal.cog.Y() << " ";
+//    std::cout << " cogz: " << fPOFullEvent->fTotal.cog.Z() << " ";
+    std::cout << std::endl;
+    std::cout << "FULL EVENT>> Ene: " << fPOFullEvent->TotalEvis() << " ";;
+    std::cout << " ET: " << fPOFullEvent->TotalET();
+    std::cout << std::endl;
+    fTPOEvent->dump_header();
 }

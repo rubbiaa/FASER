@@ -11,11 +11,16 @@ TcalEvent::TcalEvent()
 }
 
 /// @brief Create a TcalEvent with a given event number for OUTPUT
-/// @param event_number 
-TcalEvent::TcalEvent(long event_number) : TcalEvent()
+/// @param event_number
+TcalEvent::TcalEvent(int run_number, long event_number, int event_mask) : TcalEvent()
 {
     std::ostringstream fileNameStream;
-    fileNameStream << "output/tcalevent_" << event_number << ".root";
+    fileNameStream << "output/FASERG4-Tcalevent_" << run_number << "_" << event_number ;
+    if(event_mask>0) {
+        const char *mask = TPOEvent::DecodeEventMask(event_mask);
+        fileNameStream << "_" << mask;
+    }
+    fileNameStream << ".root";
     std::string m_rootOutputFileName = fileNameStream.str();
 
     m_rootFile = new TFile(m_rootOutputFileName.c_str(), "RECREATE", "", 505); // last is the compression level
@@ -27,7 +32,7 @@ TcalEvent::TcalEvent(long event_number) : TcalEvent()
 
     m_calEventTree = new TTree("calEvent", "calEvent");
     m_calEventTree->Branch("tracks", &fTracks);
-    m_calEventTree->Branch("event", &fTPOEvent);
+    m_calEventTree->Branch("event", &fTPOEvent);    // this should be labelled POEvent !
     m_calEventTree->Branch("geom", &geom_detector);
 
     //    fTracks = new std::vector<DigitizedTrack*>;
@@ -51,28 +56,38 @@ TcalEvent::~TcalEvent()
 }
 
 /// @brief Load event from G4 output for INPUT
-/// @param base_path 
-/// @param ievent 
+/// @param base_path
+/// @param ievent
 /// @return error = 0, ok, error = 1, file not found
-int TcalEvent::Load_event(std::string base_path, int ievent, TPOEvent *POevent) {
+int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
+                            int event_mask, TPOEvent *POevent) {
     std::string extension = ".root";
 
     // Create the filename based on ievent
     std::ostringstream filename;
-    filename << base_path << ievent << extension;
+    filename << base_path << "FASERG4-Tcalevent_" << run_number << "_" << ievent;
+    if(event_mask>0) {
+        const char *mask = TPOEvent::DecodeEventMask(event_mask);
+        filename << "_" << mask;
+    }
+    filename << extension;
 
-    // Print the filename to verify
-    std::cout << "Loading file: " << filename.str() << " ..... ";
+    if(verbose > 0) {
+       // Print the filename to verify
+       std::cout << "Loading file: " << filename.str() << " ..... ";
+    }
 
-    TChain *event_tree = new TChain("calEvent");
-    int nFiles = event_tree->Add(filename.str().c_str());
-
-    Long_t nentries = event_tree->GetEntries();
-    std::cout << "Number of entries " << nentries << std::endl;
-
-    if(nentries == 0){
+    TFile *m_rootFile = new TFile(filename.str().c_str(), "READ"); 
+    if (!m_rootFile || !m_rootFile->IsOpen())
+    {
         return 1;
     }
+    m_rootFile->cd();
+    TTree *event_tree;
+    m_rootFile->GetObject("calEvent",event_tree);
+
+    Long_t nentries = event_tree->GetEntries();
+    if(verbose > 0) std::cout << "Number of entries " << nentries << std::endl;
 
     // Set the branch address
     std::vector<DigitizedTrack*> *t = &fTracks;
@@ -85,15 +100,18 @@ int TcalEvent::Load_event(std::string base_path, int ievent, TPOEvent *POevent) 
 
     struct TcalEvent::GEOM_DETECTOR *g_d = &geom_detector;
     event_tree -> SetBranchAddress("geom", &g_d);
- 
+
     // Read the first entry
     event_tree->GetEntry(0);
 
-    // Use the loaded data (example)
-    std::cout << "Loaded event data for event 0" << std::endl;
-    std::cout << " digitized tracks " << t->size() << std::endl;
+    if(verbose > 0) {
+        std::cout << "Loaded event data for event 0" << std::endl;
+        std::cout << " digitized tracks " << t->size() << std::endl;
+    }
 
     delete event_tree;
+    m_rootFile -> Close();
+    delete m_rootFile;
 
     return 0;
 }
@@ -102,7 +120,7 @@ void TcalEvent::AssignGEANTTrackID(int G4TrackID, int PDGcode, double px, double
 {
     //    std::cout << "Assigning GEANT4 track ID " << G4TrackID << std::endl;
 
-    for (int i = 0; i < fTPOEvent->n_particles; i++)
+    for (int i = 0; i < fTPOEvent->n_particles(); i++)
     {
         const struct PO *aPO = &fTPOEvent->POs[i];
         if (aPO->geanttrackID > -1)
@@ -121,11 +139,23 @@ void TcalEvent::AssignGEANTTrackID(int G4TrackID, int PDGcode, double px, double
     }
 }
 
-/// @brief Return the type of the hit 
+/// @brief Return the type of the hit
 /// @param ID The hit ID
 /// @return =0 for scintillator, = 1 for silicon tracker hit
 long TcalEvent::getChannelTypefromID(long ID) const {
     return ID / 100000000000LL;
+}
+
+long TcalEvent::getChannelLayerfromID(long ID) const {
+    long hittype = ID / 100000000000LL;
+    if(hittype == 0) {        // hit in scintillator
+        long ilayer = (ID / 1000000000);
+        return ilayer;
+    } else if (hittype == 1) {
+        long ilayer = (ID / 100000000) % 1000;
+        return ilayer;
+    }
+    return 0;
 }
 
 ROOT::Math::XYZVector TcalEvent::getChannelXYZfromID(long ID) const
@@ -139,20 +169,18 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZfromID(long ID) const
 
         double x = ix * geom_detector.fScintillatorVoxelSize - geom_detector.fScintillatorSizeX / 2.0;
         double y = iy * geom_detector.fScintillatorVoxelSize - geom_detector.fScintillatorSizeY / 2.0;
-        double z = ilayer * geom_detector.fSandwichLength + iz * geom_detector.fScintillatorVoxelSize 
+        double z = ilayer * geom_detector.fSandwichLength + iz * geom_detector.fScintillatorVoxelSize
             - (geom_detector.NRep * geom_detector.fSandwichLength) / 2.0;
+            + geom_detector.fScintillatorVoxelSize*2;
         return ROOT::Math::XYZVector(x, y, z);
     } else if (hittype == 1) {
-
-        double fSiTrackerSizeZ = 0.2;
-	    double fSiTrackerPixelSize = 0.1;  // TODO: read from geometry
 
         long ix = ID % 10000;
         long iy = (ID / 10000) % 10000;
         long ilayer = (ID / 100000000) % 1000;
-        double x = ix * fSiTrackerPixelSize - geom_detector.fScintillatorSizeX / 2.0;
-        double y = iy * fSiTrackerPixelSize - geom_detector.fScintillatorSizeY / 2.0;
-        double z = ilayer * geom_detector.fSandwichLength + geom_detector.fSandwichLength - fSiTrackerSizeZ
+        double x = ix * geom_detector.fSiTrackerPixelSize - geom_detector.fScintillatorSizeX / 2.0;
+        double y = iy * geom_detector.fSiTrackerPixelSize - geom_detector.fScintillatorSizeY / 2.0;
+        double z = ilayer * geom_detector.fSandwichLength + geom_detector.fSandwichLength
             - (geom_detector.NRep * geom_detector.fSandwichLength) / 2.0;
         return ROOT::Math::XYZVector(x, y, z);
     } else {
