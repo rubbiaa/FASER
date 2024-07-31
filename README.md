@@ -81,7 +81,7 @@ $ ln -fs </path_to_g4_simulated_data> input
 
  - on lxplus.cern.ch, there is data available
 
- $ ln -fs /eos/home-r/rubbiaa/FASER/FASERCALDATA_v2.0 input
+ $ ln -fs /eos/home-r/rubbiaa/FASERCALDATA_v2.0 input
 
  - run the event display
 
@@ -106,4 +106,3 @@ $ ln -fs </path_to_g4_simulated_data> input
     200025 flux from pion decay (i.e. basically numu)
     200026 flux from kaon decay (i.e. mainly numu and nue)
     200035 flux from charm decay (i.e. numu, nue and some nutau)
-    
