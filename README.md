@@ -21,6 +21,33 @@ Usage: ./batchreco.exe <run> [maxevent] [mask]
 
 EvDisplay - basic Interactive Event Display of FASERCAL GEANT4 output
 
+Usage: ./evDisplay.exe <run> [mask]
+   <run>                     Run number
+   mask                      To process only specific events (def=none):   nueCC, numuCC, nutauCC, or nuNC
+
+- run the event display
+
+   to display nueCC events
+   ```bash
+   $ ./evDisplay.exe 200026 nueCC
+   ````
+
+   to display numuCC events
+   ```bash
+   $ ./evDisplay.exe 200025 numuCC
+   ````
+
+   to display nutauCC events
+   ```bash
+   $ ./evDisplay.exe 200035 nutauCC
+   ````
+
+![Diagram of the project](images/numuCC_ev1.jpg)
+
+# DumpHits (in BatchReco directory)
+
+Very simple app to read and dump all hits from events
+
 Usage: ./dumphits.exe <run> [maxevent] [mask]
    <run>                     Run number
    maxevent                  Maximum number of events to process (def=-1)
@@ -28,13 +55,9 @@ Usage: ./dumphits.exe <run> [maxevent] [mask]
 
 for example to get all the hits of nueCC events from the kaon decay flux:
 
-    $ ./dumphits.exe 200026 10 nueCC > dump.log
-
-![Diagram of the project](images/numuCC_ev1.jpg)
-
-# DumpHits (in BatchReco directory)
-
-Very simple app to read and dump all hits from events
+   ```bash
+   $ ./dumphits.exe 200026 10 nueCC > dump.log
+   ```
 
 # FASERTuple
 
@@ -51,7 +74,9 @@ A generator level tau search analysis code
 
 - Get the source code:
 
-$ git clone https://github.com/rubbiaa/FASER.git
+   ```bash
+   $ git clone https://github.com/rubbiaa/FASER.git
+   ````
 
 - Set up ROOT and GEANT4 environment in the setup.sh file:
 
@@ -63,39 +88,49 @@ $ source setup.sh
 
 - On lxplus use the following command instead:
 
-$ source lxplus_setup.csh
+   ```bash
+   $ source lxplus_setup.csh
+   ````
 
 # Install event display
 
  - move to the evDisplay directory and compile with "make"
 
-$ cd evDiplay
-
-$ make
+   ```bash
+   $ cd evDiplay
+   $ make
+   ````
 
  - if compilation and linking was successful, the executable is "evDisplay.eve"
 
  - make sure G4 FASERCAL simulated files are linked at the "input" subdirectory
  
-$ ln -fs </path_to_g4_simulated_data> input
+   ```bash
+   $ ln -fs </path_to_g4_simulated_data> input
+   ````
 
  - on lxplus.cern.ch, there is data available
 
- $ ln -fs /eos/home-r/rubbiaa/FASERCALDATA_v2.0 input
+   ```bash
+    $ ln -fs /eos/home-r/rubbiaa/FASERCALDATA_v2.0 input
+   ````
 
- - run the event display
-
- $ evDisplay.exe
+   For this to work, you need to be able to access my CERNBOX - please send me an email and I will give you access.
 
  # Event masks
 
  - event masks are used to select only a type of events when running a job
 
  - the currently available event masks are:
+
    nueCC - nue charged currents
+ 
    numuCC  - numu charged currents
+ 
    nutauCC - nutau charged currents
+ 
    nuNC - all neutrinos neutral currents
+ 
    nuES - elastic scattering off target electrons 
 
 
@@ -104,5 +139,12 @@ $ ln -fs </path_to_g4_simulated_data> input
  - run numbers are taken from the official FASER conventions
 
     200025 flux from pion decay (i.e. basically numu)
+ 
     200026 flux from kaon decay (i.e. mainly numu and nue)
+ 
     200035 flux from charm decay (i.e. numu, nue and some nutau)
+
+# Instructions for Reading ROOT Files using PyROOT
+
+Please check the directory `Python_io`
+
