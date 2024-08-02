@@ -62,6 +62,6 @@ Where:
 Example of usage:
 
 ```bash
-python generate_dataset.py --lib lib/ClassesDict.so --input /scratch/faser/FASERCALDATA_v2.0 --output /scratch/salonso/faser/np_events
+python generate_dataset.py --lib lib/ClassesDict.so --input /scratch/faser/FASERCALDATA_v2.0 --output /scratch/faser/np_events
 ```
 
