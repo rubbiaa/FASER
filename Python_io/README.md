@@ -1,6 +1,6 @@
 # Instructions for Reading ROOT Files using PyROOT
 
-This repository provides instructions and necessary files to read ROOT files using PyROOT. The software versions used are:
+This folder provides instructions and necessary files to read ROOT files using PyROOT. The software versions used are:
 
 - ROOT version: `6.30/06`
 - Python version: `3.10.9`
@@ -54,6 +54,14 @@ To run the `generate_dataset.py` script, use the following command:
 python generate_dataset.py --lib lib/ClassesDict.so --input ROOT_DIRECTORY --output OUTPUT_DIRECTORY
 ```
 
-`ROOT_DIRECTORY`: The directory where the ROOT files are stored.
-`OUTPUT_DIRECTORY`: The directory where you want to save the NumPy converted files.
+Where:
+
+- `ROOT_DIRECTORY`: The directory where the ROOT files are stored.
+- `OUTPUT_DIRECTORY`: The directory where you want to save the NumPy converted files.
+
+Example of usage:
+
+```bash
+python generate_dataset.py --lib lib/ClassesDict.so --input /scratch/faser/FASERCALDATA_v2.0 --output /scratch/salonso/faser/np_events
+```
 
