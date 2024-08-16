@@ -1,8 +1,8 @@
 void plots() {
     gSystem->Load("libTPORec.so");
 //    TFile f("Batch-TPORecevent_200035_nutauCC.root");
-    TFile f("Batch-TPORecevent_200026_nueCC.root");
- 
+//    TFile f("Batch-TPORecevent_200026_nueCC.root");
+    TFile f("Batch-TPORecevent_1.root");
  #if 0
     TCanvas *c1 = new TCanvas("c1", "dE/dx", 800, 800);
     c1->Divide(2, 1);
@@ -18,6 +18,16 @@ void plots() {
 #endif
 
     TTree *tt;f.GetObject("RecoEvent",tt);
+    TTree *tree = (TTree*)f.Get("RecoEvent");
+
+    tree->Print();
+
+    TH2D* p = nullptr;
+    TBranch *branch = tree->GetBranch("xviewPS");
+    
+    branch->SetAddress(&p);
+    tree->GetEntry(0);
+    if(p) p->Print();
 
     tt->Draw("fPOFullEvent->TotalEvis()");
     tt->Draw("fPOFullEvent->TotalET()");
@@ -30,5 +40,6 @@ void plots() {
     tt->Draw("fPOFullEvent->TotalEvis()", "nhits_tau>4");
 //    tt->Draw("fPOFullEvent->TotalET()", "nhits_tau>4");
 
+//    TProfile *prof = pi_c_energy2->ProfileX();
     f.Close();
 } 

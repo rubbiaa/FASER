@@ -3,6 +3,7 @@
 
 #include <TObject.h>
 #include <vector>
+#include <TH2D.h>
 
 #include <TDatabasePDG.h>
 
@@ -53,6 +54,9 @@ private:
     TcalEvent* fTcalEvent;                            //! Reference to the TCAL event
     TPOEvent* fTPOEvent;                              //! Reference to the TPOEvent
 
+    TH2D* xviewPS = nullptr;                          //! 2Dview scintillator X-Z
+    TH2D* yviewPS = nullptr;                          //! 2Dview scintillator Y-Z
+
 public:
 
     TPORecoEvent() : fTcalEvent(0), fTPOEvent(0) {};
@@ -86,6 +90,11 @@ public:
 
     /// @brief Number of hits left found in first tracker layers
     int nhits_tracker_first;
+
+    /// @brief Fill the 2D (x-z) and (y-z) views of the Scintillator detector
+    void Fill2DViewsPS();
+    TH2D* Get2DViewXPS() { return xviewPS; };
+    TH2D* Get2DViewYPS() { return yviewPS; };
 
     ClassDef(TPORecoEvent,1)
 };

@@ -156,6 +156,8 @@ int main(int argc, char** argv) {
         fPORecoEvent -> Reconstruct();
         if(dump_event_cout) fPORecoEvent -> Dump();
 
+        fPORecoEvent -> Fill2DViewsPS();
+    
         TPORecoEvent *branch_TPORecoEvent = fPORecoEvent;
         if(m_POEventTree == nullptr) {
             m_rootFile->cd();

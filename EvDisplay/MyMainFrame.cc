@@ -119,6 +119,16 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
     fPORecoEvent = new TPORecoEvent(fTcalEvent, fTcalEvent->fTPOEvent);
     fPORecoEvent -> Reconstruct();
     fPORecoEvent -> Dump();
+
+    fPORecoEvent -> Fill2DViewsPS();
+    TCanvas *c1 = new TCanvas("c1", "2D plastic scintillator views", 600, 300);
+    c1->Divide(2, 1);
+    c1->cd(1);
+    gPad->SetLogz();
+    fPORecoEvent -> Get2DViewXPS() -> Draw("COLZ");
+    c1->cd(2);
+    gPad->SetLogz();
+    fPORecoEvent -> Get2DViewYPS() -> Draw("COLZ");
 }
 
 void MyMainFrame::Draw_event() {
@@ -210,6 +220,7 @@ void MyMainFrame::Draw_event() {
     gGeoManager->GetTopVolume()->AddNode(si_tracker,1);
 //    gGeoManager->GetTopVolume()->Print();
 
+    fCanvas->GetCanvas()->cd();
     delete runText;
     runText = new TText(0.05, 0.95, Form("Seq. Event: %d - Run: %d Event: %d", 
         ievent, POevent->run_number, POevent->event_id));

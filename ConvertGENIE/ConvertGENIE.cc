@@ -107,6 +107,8 @@ void convert_FASERMC(int run_number, TTree *tree, int min_event, int max_event,
     fTPOEvent.setPrimaryVtx(vx * 1e3, vy * 1e3, vz * 1e3); // convert from meters to mm
     fTPOEvent.use_GENIE_vtx = true;     // tell FASERG4 to use this vtx
 
+    bool found_tau_lepton = false;
+
     for (size_t i = 0; i < n; i++)
     {
       struct PO aPO;
@@ -134,6 +136,14 @@ void convert_FASERMC(int run_number, TTree *tree, int min_event, int max_event,
       if (aPO.m_status == 1 || aPO.m_status == 4)
       {
         fTPOEvent.POs.push_back(aPO);
+      }
+
+      if (!found_tau_lepton && abs(aPO.m_pdg_id) == 15)
+      {
+        found_tau_lepton = true;
+#ifdef _INCLUDE_PYTHIA_
+        fTPOEvent.perform_taulepton_decay(aPO);
+#endif
       }
     }
 

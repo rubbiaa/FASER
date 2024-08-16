@@ -1,5 +1,6 @@
 #include "TPORecoEvent.hh"
 
+
 ClassImp(TPORec);
 ClassImp(TPORecoEvent);
 
@@ -253,4 +254,45 @@ void TPORecoEvent::Dump() {
     std::cout << " ET: " << fPOFullEvent->TotalET();
     std::cout << std::endl;
     fTPOEvent->dump_header();
+}
+
+void TPORecoEvent::Fill2DViewsPS() {
+    int nx = fTcalEvent->geom_detector.fScintillatorSizeX / fTcalEvent->geom_detector.fScintillatorVoxelSize;
+    int ny = fTcalEvent->geom_detector.fScintillatorSizeY / fTcalEvent->geom_detector.fScintillatorVoxelSize;
+    int nzlayer = fTcalEvent->geom_detector.fSandwichLength / fTcalEvent->geom_detector.fScintillatorVoxelSize;
+    int nztot = fTcalEvent->geom_detector.NRep * nzlayer;
+
+    if(xviewPS != nullptr) delete xviewPS;
+    if(yviewPS != nullptr) delete yviewPS;
+    xviewPS = new TH2D("yviewPS", "Scintillator x-view", nztot, 0, nztot, nx, 0, nx);
+    yviewPS = new TH2D("yviewPS", "Scintillator y-view", nztot, 0, nztot, ny, 0, ny);
+
+    for (auto it : fPORecs)
+    {
+        int ntracks = it->fGEANTTrackIDs.size();
+        for (size_t i = 0; i < ntracks; i++)
+        {
+            DigitizedTrack *dt = it->DTs[i];
+            size_t nhits = dt->fEnergyDeposits.size();
+            for (size_t j = 0; j < nhits; j++)
+            {
+                long ID = dt->fhitIDs[j];
+                double ehit = dt->fEnergyDeposits[j];   // *CLHEP::MeV
+//                if(ehit < 0.5)continue;
+                long hittype = ID / 100000000000LL;
+                if (hittype == 0)
+                { // hit in scintillator
+                    long ix = ID % 1000;
+                    long iy = (ID / 1000) % 1000;
+                    long iz = (ID / 1000000) % 1000;
+                    long ilayer = (ID / 1000000000);
+                    double fix = ix+0.5;
+                    double fiy = iy+0.5;
+                    double fiz = ilayer*nzlayer + iz + 0.5;
+                    xviewPS -> Fill(fiz, fix, ehit);
+                    yviewPS -> Fill(fiz, fiy, ehit);
+                }
+            }
+        }
+    }
 }
