@@ -95,6 +95,7 @@ void convert_FASERMC(int run_number, TTree *tree, int min_event, int max_event,
 
     tree->GetEntry(event);
 
+    if (event == 0) fTPOEvent.reset_stats();
     if (event % 1000 == 0)
     {
       std::cout << "Processing event " << event << " ..." << std::endl;
@@ -104,13 +105,16 @@ void convert_FASERMC(int run_number, TTree *tree, int min_event, int max_event,
     fTPOEvent.run_number = run_number;
     fTPOEvent.event_id = event;
     fTPOEvent.setPrimaryVtx(vx * 1e3, vy * 1e3, vz * 1e3); // convert from meters to mm
+    fTPOEvent.use_GENIE_vtx = true;     // tell FASERG4 to use this vtx
 
     for (size_t i = 0; i < n; i++)
     {
       struct PO aPO;
       aPO.m_track_id = i;
       aPO.m_pdg_id = pdgc->at(i);
-      //      std::cout << name->at(i) << std::endl;
+      if(i==1) {
+        fTPOEvent.GENIE_vtx_name = name->at(i);
+      }
       aPO.m_status = status->at(i);
       if (aPO.m_status == 0)
         aPO.m_status = 4;
@@ -138,12 +142,16 @@ void convert_FASERMC(int run_number, TTree *tree, int min_event, int max_event,
     {
       fTPOEvent.dump_event();
     };
+    fTPOEvent.update_stats();
     m_POEventTree->Fill();
   }
 
   m_POEventTree->Write();
   m_rootFile->Close();
   std::cout << "Done saving..." << std::endl;
+
+  fTPOEvent.dump_stats();
+
 }
 
 int main(int argc, char **argv)
@@ -159,8 +167,8 @@ int main(int argc, char **argv)
     std::cout << "Options:" << std::endl;
     std::cout << "   mask                      To process only specific events (def=none): ";
     std::cout << "  nueCC, numuCC, nutauCC, nuNC or nuES" << std::endl;
-    return 1;
 #endif
+    return 1;
   }
 
   std::string rootinputString = argv[1];

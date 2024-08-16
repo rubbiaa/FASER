@@ -36,7 +36,7 @@ class PrimaryGeneratorMessenger: public G4UImessenger
     G4UIdirectory* fGunDir;	  ///< Pointer to the UI directory
     G4UIcmdWithAString* fROOTInputFileNameCmd; ///< Input command for the ROOT file name
     G4UIcmdWithAnInteger* fFileNumberCmd; ///< Input command for the file number
-    G4UIcmdWithAnInteger* fNEventsPerFileCmd; ///< Input command for the number of events per file
+    G4UIcmdWithAnInteger* fNStartEvent; ///< Input command for the number of events per file
 };
 
 #endif

@@ -267,6 +267,9 @@ void TPOEvent::dump_event(std::ostream& out) const {
   TDatabasePDG *pdgDB = TDatabasePDG::Instance();
   dump_header(out);
   out << " Primary vtx = " << prim_vx.x() << " " << prim_vx.y() << " " << prim_vx.z() << " mm ";
+  if(use_GENIE_vtx) {
+    out << "(this is the true vertex to be used in G4)";
+  }
   if(vtx_target>0) {
     switch(vtx_target) {
       case kVtx_in_W: 
@@ -276,8 +279,11 @@ void TPOEvent::dump_event(std::ostream& out) const {
         out << " - in Scint target";
         break;
     }
-  } 
-  out << std::endl;
+  }
+  if(GENIE_vtx_name != "") {
+    out << " Genie has chosen this nucleus target " << GENIE_vtx_name;
+  }
+  out << std::endl; 
   out << "--------------------------------------------------------------------------------------------" << std::endl;
   out << "¨    trackID, pdg_ID, name, px, py, pz, E, status, geant4ID, parents" << std::endl;
   for (size_t i=0; i<n_particles(); i++) {
@@ -313,6 +319,44 @@ int TPOEvent::findFromGEANT4TrackID(int trackID) {
   return -1;
 }
 
+void TPOEvent::reset_stats() {
+  stats.ES = stats.nueCC = stats.numuCC = stats.nutauCC = stats.NC = 0;
+}
 
+void TPOEvent::update_stats()
+{
+  if (isES())
+  {
+    stats.ES++;
+  }
+  else
+  {
+    if (isCC)
+    {
+      int in_lepton_pdgid = in_neutrino.m_pdg_id;
+      if (abs(in_lepton_pdgid) == 12)
+      {
+        stats.nueCC++;
+      }
+      if (abs(in_lepton_pdgid) == 14)
+      {
+        stats.numuCC++;
+      }
+      if (abs(in_lepton_pdgid) == 16)
+      {
+        stats.nutauCC++;
+      }
+    } else {
+      stats.NC++;
+    }
+  }
+}
 
-
+void TPOEvent::dump_stats()
+{
+  std::cout << " nueCC = " << stats.nueCC;
+  std::cout << " numuCC = " << stats.numuCC;
+  std::cout << " nutauCC = " << stats.nutauCC;
+  std::cout << " NC = " << stats.NC << std::endl;
+  std::cout << " ES = " << stats.ES << std::endl;
+}

@@ -56,7 +56,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 
 		m_POEventTree->SetBranchAddress("event", &branch_POEvent);
 
-		tree_ientry = 0;
+		tree_ientry = fNStartEvent;
 
 		valid_event = 0;
 
@@ -110,26 +110,6 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 
 	fTPOEvent.dump_event();	
 
-#if 0
-	std::vector<XYZVector> ParticlePosition;
-	std::vector<XYZVector> ParticleMomentum;
-	std::vector<double> ParticleTime;
-	std::vector<int> ParticlePDGCode;
-	std::vector<double> ParticleEnergy;
-	std::vector<double> ParticleKinEnergy;
-	std::vector<int> ParticleTrackID;
-	std::vector<int> DecayModeFlag;
-
-	ParticlePosition.clear();
-	ParticleMomentum.clear();
-	ParticleTime.clear();
-	ParticlePDGCode.clear();
-	ParticleEnergy.clear();
-	ParticleKinEnergy.clear();
-	ParticleTrackID.clear();
-	DecayModeFlag.clear();
-#endif
-
 	valid_event++;
 	for (G4int i = 0; i < fTPOEvent.n_particles(); ++i)
 	{
@@ -148,65 +128,10 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 			particleGun->SetParticlePosition(G4ThreeVector(x * mm, y * mm, z * mm));
 			G4ThreeVector StartMomentum(aPO.m_px * GeV, aPO.m_py * GeV, aPO.m_pz * GeV);
 
-#if 0
-
-			ParticlePosition.push_back(XYZVector(x * mm, y * mm, z * mm));
-
-			ParticleMomentum.push_back(XYZVector(aPO.m_px * GeV, aPO.m_py * GeV, aPO.m_pz * GeV));
-
-			ParticleTime.push_back(0);
-			ParticleEnergy.push_back(aPO.m_energy);
-			ParticleKinEnergy.push_back(aPO.m_kinetic_energy);
-			ParticleTrackID.push_back(aPO.m_track_id);
-			DecayModeFlag.push_back(0);
-#endif
-
 			particleGun->SetParticleMomentum(StartMomentum);
 			fParticleGuns.push_back(particleGun);
 		}
 	}
-
-#if 0
-	// still need to add tau decay products if any present
-	if (fTPOEvent.n_taudecay() > 0)
-	{
-		G4cout << "Found a tau lepton..." << G4endl;
-		fTPOEvent.dump_event();
-		std::cout << "Tau decay mode : " << fTPOEvent.tau_decaymode << std::endl;
-
-		for (size_t i = 0; i < fTPOEvent.n_taudecay(); i++)
-		{
-			struct PO aPO = fTPOEvent.taudecay[i];
-			if (aPO.m_status == 1)
-			{
-				G4ParticleGun *particleGun = new G4ParticleGun(1);
-
-				G4ParticleDefinition *particle = particleTable->FindParticle(aPO.m_pdg_id);
-				ParticlePDGCode.push_back(aPO.m_pdg_id);
-				G4cout << "Particle found: " << particle->GetParticleName()
-					   << ", mass: " << particle->GetPDGMass() / GeV << " GeV"
-					   << ", charge: " << particle->GetPDGCharge() << G4endl;
-
-				particleGun->SetParticleDefinition(particle);
-
-				particleGun->SetParticlePosition(G4ThreeVector((x + aPO.m_vx_decay) * mm, (y + aPO.m_vy_decay) * mm, (z + aPO.m_vz_decay) * mm));
-				ParticlePosition.push_back(XYZVector((x + aPO.m_vx_decay) * mm, (y + aPO.m_vy_decay) * mm, (z + aPO.m_vz_decay) * mm));
-
-				G4ThreeVector StartMomentum(aPO.m_px * GeV, aPO.m_py * GeV, aPO.m_pz * GeV);
-				ParticleMomentum.push_back(XYZVector(aPO.m_px * GeV, aPO.m_py * GeV, aPO.m_pz * GeV));
-
-				ParticleTime.push_back(0);
-				ParticleEnergy.push_back(aPO.m_energy);
-				ParticleKinEnergy.push_back(aPO.m_kinetic_energy);
-				ParticleTrackID.push_back(aPO.m_track_id);
-				DecayModeFlag.push_back(1);
-
-				particleGun->SetParticleMomentum(StartMomentum);
-				fParticleGuns.push_back(particleGun);
-			}
-		}
-	}
-#endif
 
 	int NParticlesIF = fParticleGuns.size();
 
@@ -231,4 +156,3 @@ void PrimaryGeneratorAction::SetROOTInputFileName(G4String value) { fROOTInputFi
 
 void PrimaryGeneratorAction::SetFileNumber(G4int value) { fFileNumber = value; }
 
-void PrimaryGeneratorAction::SetNEventsPerFile(G4int value) { fNEventsPerFile = value; }

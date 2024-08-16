@@ -43,8 +43,8 @@ public:
   void SetFileNumber(G4int number); ///< Set the number of the file to be read, used for larger data sets
   G4int fFileNumber = 0;	    ///< Number of the file to be read, used for larger data sets - default value
   
-  void SetNEventsPerFile(G4int number); ///< Set the number of events per file to be read, used for larger data sets
-  G4int fNEventsPerFile = 0;	    ///< Number of events per file to be read, used for larger data sets - default value
+  void SetfNStartEvent(G4int value) { fNStartEvent = value; }; ///< Set the number of events per file to be read, used for larger data sets
+  G4int fNStartEvent = 0;	    ///< Number of events per file to be read, used for larger data sets - default value
 
   void Clear(); ///< Clear the data from the previous event
 
@@ -57,7 +57,6 @@ private:
 
   std::vector<G4ParticleGun*> fParticleGuns; // Multiple particle guns
 
-  int NStartEvent;
   int valid_event;
   int n_passed_event;
   

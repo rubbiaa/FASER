@@ -41,7 +41,7 @@ class ParticleManager {
 	std::string m_material2;
 	int m_nrep;
 
-	long fTcalEvent_number = 0;
+//	long fTcalEvent_number = 0;
 	TcalEvent *fTcalEvent;
 
 	XYZVector primary_vertex_position;

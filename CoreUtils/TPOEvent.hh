@@ -45,8 +45,18 @@ public:
 
 /// @brief Particle Object Event to hold a full generator level (truth) event.
 /// Many entries of compute by calling kinematics_event().
-class TPOEvent : public TObject {
+class TPOEvent : public TObject
+{
 private:
+  struct stats
+  {
+    size_t nueCC;
+    size_t numuCC;
+    size_t nutauCC;
+    size_t NC;
+    size_t ES;
+  } stats;         //!
+
 public:
 
   // target constants (not saved in ROOT I/O)
@@ -62,6 +72,8 @@ public:
   int run_number;                   // run number
   int event_id;                     // event number
   ROOT::Math::PositionVector3D<ROOT::Math::Cartesian3D<double>> prim_vx;  // primary vertex in mm
+  bool use_GENIE_vtx = false;       // tell FASERG4 to use prim_vx (if true)
+  std::string GENIE_vtx_name = "";  // the name of the hit nucleus
   int vtx_target;                   // in which target did the interaction occur
   int event_mask = 0;               // if events are masked (see kMask_... constants)
   bool isCC;                        // event is a charged current
@@ -202,7 +214,12 @@ public:
     return "unkmask";
   }
 
-  ClassDef(TPOEvent, 2)
+  /// @brief Event statistics
+  void reset_stats();
+  void update_stats();
+  void dump_stats();
+
+  ClassDef(TPOEvent, 3)
 };
 
 #endif
