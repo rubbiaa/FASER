@@ -9,6 +9,7 @@
 #include <TChain.h>
 #include <TText.h>
 #include <TGTextEntry.h>
+#include <TStyle.h>
 
 #include "MyMainFrame.h"
 #include "TPORecoEvent.hh"
@@ -125,9 +126,11 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
     c1->Divide(2, 1);
     c1->cd(1);
     gPad->SetLogz();
+    gStyle->SetOptStat(0);  // Disable the statistics box
     fPORecoEvent -> Get2DViewXPS() -> Draw("COLZ");
     c1->cd(2);
     gPad->SetLogz();
+    gStyle->SetOptStat(0);  // Disable the statistics box
     fPORecoEvent -> Get2DViewYPS() -> Draw("COLZ");
 }
 

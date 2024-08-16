@@ -44,17 +44,44 @@ void TPORecoEvent::Reconstruct() {
             // find primary
             int primaryID = it->fprimaryID;
             if(primaryID>-1){
+                bool foundPORec = false;
                 for (auto itRecs : fPORecs) {
                     if(itRecs->fGEANTTrackIDs[0] == primaryID) {
                         itRecs->fGEANTTrackIDs.push_back(it->ftrackID);
                         itRecs->DTs.push_back(it);
                         struct TPORec::CALENERGIES calene = computeEnergiesAndCOG(it);
                         itRecs->fEnergiesCogs.push_back(calene);
+                        foundPORec = true;
                         break;
                     }
                 }
-            } else {
-                // this is a hanging secondary - it means that some intermediate particle did 
+                if (!foundPORec)
+                { // hanging secondary - for example, if primary did not leave any
+                  // signal in sensitive detectors (e.g. tau decaying within W)
+                    // first insert a primary
+                    int POID = fTPOEvent->findFromGEANT4TrackID(primaryID);
+                    TPORec *aPORec = new TPORec(POID);
+                    aPORec->POID = POID;
+                    aPORec->fGEANTTrackIDs.push_back(primaryID);
+                    DigitizedTrack *itprim = new DigitizedTrack();
+                    itprim -> ftrackID = primaryID;
+                    itprim -> fparentID = 0;
+                    itprim -> fprimaryID = primaryID;
+                    itprim -> fPDG = 0; // FIXME
+                    aPORec->DTs.push_back(itprim);
+                    struct TPORec::CALENERGIES calene = computeEnergiesAndCOG(itprim);
+                    aPORec->fEnergiesCogs.push_back(calene);
+                    // now add secondary
+                    aPORec->fGEANTTrackIDs.push_back(it->ftrackID);
+                    aPORec->DTs.push_back(it);
+                    struct TPORec::CALENERGIES calene2 = computeEnergiesAndCOG(it);
+                    aPORec->fEnergiesCogs.push_back(calene2);
+                    fPORecs.push_back(aPORec);
+                }
+            }
+            else
+            {
+                // this is a hanging secondary - it means that some intermediate particle did
                 // deposit energy anywhere
                 std::cout << " This shouldn't happen...." << std::endl;
                 exit(1);

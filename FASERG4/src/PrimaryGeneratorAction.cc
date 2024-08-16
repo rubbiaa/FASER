@@ -118,7 +118,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 
 		if (particle != nullptr && aPO.m_status == 1)
 		{
-//			if(aPO.m_pdg_id != 15) continue;  // TODO/FIXME remove
+//			if(aPO.m_pdg_id != 15) continue;  // TODO/FIXME debug to process only taus
 			G4ParticleGun *particleGun = new G4ParticleGun(1);
 
 //			ParticlePDGCode.push_back(aPO.m_pdg_id);
