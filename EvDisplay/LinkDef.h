@@ -13,6 +13,7 @@
 #pragma link C++ class MyMainFrame+;
 #pragma link C++ class TPORecoEvent+;
 #pragma link C++ class TPORec+;
+#pragma link C++ struct PSHIT2D;
 
 #pragma link C++ class TPOEvent+;
 #pragma link C++ class TcalEvent+;

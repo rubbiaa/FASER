@@ -54,10 +54,26 @@ private:
     TcalEvent* fTcalEvent;                            //! Reference to the TCAL event
     TPOEvent* fTPOEvent;                              //! Reference to the TPOEvent
 
+public:
+
+   /// @brief A hit in a two dimension plastic scintillator view
+    struct PSHIT2D {
+        float electromagneticity;       // =0 if hadronic, =1 if electromagnetic
+        int  ntracks;                   // number of overlapping tracks
+        float Edeposited;               // deposited energy
+    };
+
+    std::map<long, PSHIT2D> PShitmapX;      // the X-Z view hit map
+    std::map<long, PSHIT2D> PShitmapY;      // the Y-Z view hit map
+
     TH2D* xviewPS = nullptr;                          //! 2Dview scintillator X-Z
     TH2D* yviewPS = nullptr;                          //! 2Dview scintillator Y-Z
-
-public:
+    TH2D* xviewPS_em = nullptr;                          //! 2Dview scintillator X-Z
+    TH2D* yviewPS_em = nullptr;                          //! 2Dview scintillator Y-Z
+    TH2D* xviewPS_had = nullptr;                          //! 2Dview scintillator X-Z
+    TH2D* yviewPS_had = nullptr;                          //! 2Dview scintillator Y-Z0
+    TH2D* xviewPS_eldepo = nullptr;                          //! 2Dview scintillator X-Z
+    TH2D* yviewPS_eldepo = nullptr;                          //! 2Dview scintillator Y-Z
 
     TPORecoEvent() : fTcalEvent(0), fTPOEvent(0) {};
     TPORecoEvent(TcalEvent* c, TPOEvent* p);

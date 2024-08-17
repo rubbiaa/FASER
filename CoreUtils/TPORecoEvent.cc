@@ -4,7 +4,7 @@
 ClassImp(TPORec);
 ClassImp(TPORecoEvent);
 
-TPORecoEvent::TPORecoEvent(TcalEvent* c, TPOEvent* p) : fTcalEvent(c), fTPOEvent(p) { 
+TPORecoEvent::TPORecoEvent(TcalEvent* c, TPOEvent* p) : fTcalEvent(c), fTPOEvent(p) {
 };
 
 TPORecoEvent::~TPORecoEvent() {
@@ -117,7 +117,7 @@ void TPORecoEvent::Reconstruct() {
         if(it->fTotal.Ecompensated>0 && it->fTotal.Ecompensated < Threshold_for_dEdx) {
             double EKin = 0;
             for (int i = 0; i < ntracks; i++) {
-                EKin += it->fEnergiesCogs[i].em + it->fEnergiesCogs[i].had;               
+                EKin += it->fEnergiesCogs[i].em + it->fEnergiesCogs[i].had;
             }
             // get the mass from the PO information - assumes perfect particle ID!
             double px = fTPOEvent->POs[it->POID].m_px;
@@ -244,7 +244,7 @@ struct TPORec::CALENERGIES TPORecoEvent::computeEnergiesAndCOG(DigitizedTrack *d
         result.Eflow = etot*direction.Unit();
 
     } else {
-        result.cog.SetCoordinates(0,0,0);   
+        result.cog.SetCoordinates(0,0,0);
         result.Eflow.SetCoordinates(0,0,0);
     }
 
@@ -284,15 +284,14 @@ void TPORecoEvent::Dump() {
 }
 
 void TPORecoEvent::Fill2DViewsPS() {
+
+    PShitmapX.clear();
+    PShitmapY.clear();
+
     int nx = fTcalEvent->geom_detector.fScintillatorSizeX / fTcalEvent->geom_detector.fScintillatorVoxelSize;
     int ny = fTcalEvent->geom_detector.fScintillatorSizeY / fTcalEvent->geom_detector.fScintillatorVoxelSize;
     int nzlayer = fTcalEvent->geom_detector.fSandwichLength / fTcalEvent->geom_detector.fScintillatorVoxelSize;
     int nztot = fTcalEvent->geom_detector.NRep * nzlayer;
-
-    if(xviewPS != nullptr) delete xviewPS;
-    if(yviewPS != nullptr) delete yviewPS;
-    xviewPS = new TH2D("yviewPS", "Scintillator x-view", nztot, 0, nztot, nx, 0, nx);
-    yviewPS = new TH2D("yviewPS", "Scintillator y-view", nztot, 0, nztot, ny, 0, ny);
 
     for (auto it : fPORecs)
     {
@@ -304,22 +303,106 @@ void TPORecoEvent::Fill2DViewsPS() {
             for (size_t j = 0; j < nhits; j++)
             {
                 long ID = dt->fhitIDs[j];
-                double ehit = dt->fEnergyDeposits[j];   // *CLHEP::MeV
-//                if(ehit < 0.5)continue;
                 long hittype = ID / 100000000000LL;
-                if (hittype == 0)
-                { // hit in scintillator
-                    long ix = ID % 1000;
-                    long iy = (ID / 1000) % 1000;
-                    long iz = (ID / 1000000) % 1000;
-                    long ilayer = (ID / 1000000000);
-                    double fix = ix+0.5;
-                    double fiy = iy+0.5;
-                    double fiz = ilayer*nzlayer + iz + 0.5;
-                    xviewPS -> Fill(fiz, fix, ehit);
-                    yviewPS -> Fill(fiz, fiy, ehit);
+                if (hittype != 0)
+                    continue;
+                long ix = ID % 1000;
+                long iy = (ID / 1000) % 1000;
+                long iz = (ID / 1000000) % 1000;
+                long ilayer = (ID / 1000000000);
+                float ehit = dt->fEnergyDeposits[j];
+                int fPDG = dt->fPDG;
+                float electromagnetic = 0;
+                if (fabs(dt->fPDG) == 11)
+                    electromagnetic = 1.0;
+                // XZ view
+                long IDX = ix + iz * 1000000 + ilayer * 1000000000;
+                auto hitX = PShitmapX.find(IDX);
+                if (hitX != PShitmapX.end())
+                {
+                    hitX->second.Edeposited += ehit;
+                    hitX->second.electromagneticity += electromagnetic;
+                    hitX->second.ntracks++;
+                }
+                else
+                {
+                    PSHIT2D hitx = {electromagnetic, 1, ehit};
+                    PShitmapX[IDX] = hitx;
+                }
+                // YZ view
+                long IDY = iy * 1000 + iz * 1000000 + ilayer * 1000000000;
+                auto hitY = PShitmapY.find(IDY);
+                if (hitY != PShitmapY.end())
+                {
+                    hitY->second.Edeposited += ehit;
+                    hitY->second.electromagneticity += electromagnetic;
+                    hitY->second.ntracks++;
+                }
+                else
+                {
+                    PSHIT2D hity = {electromagnetic, 1, ehit};
+                    PShitmapY[IDY] = hity;
                 }
             }
         }
     }
+
+    // renormalize the electromagneticity
+    for (auto& it : PShitmapX)
+    {
+        it.second.electromagneticity /= float(it.second.ntracks);
+    }
+    for (auto& it : PShitmapY)
+    {
+        it.second.electromagneticity /= float(it.second.ntracks);
+    }
+
+    // fill histrograms
+    xviewPS = new TH2D("xviewPS", "Scintillator x-view", nztot, 0, nztot, nx, 0, nx);
+    yviewPS = new TH2D("yviewPS", "Scintillator y-view", nztot, 0, nztot, ny, 0, ny);
+    xviewPS_em = new TH2D("xviewPS_em", "Scintillator x-view - EM", nztot, 0, nztot, nx, 0, nx);
+    yviewPS_em = new TH2D("yviewPS_em", "Scintillator y-view - EM", nztot, 0, nztot, ny, 0, ny);
+    xviewPS_had = new TH2D("xviewPS_had", "Scintillator x-view - HAD", nztot, 0, nztot, nx, 0, nx);
+    yviewPS_had = new TH2D("yviewPS_had", "Scintillator y-view - HAD", nztot, 0, nztot, ny, 0, ny);
+    xviewPS_eldepo = new TH2D("xviewPS_eldepo", "Scintillator x-view", 11, 0.,1.1,100.,0.,100.);
+    yviewPS_eldepo = new TH2D("xviewPS_eldepo", "Scintillator x-view", 11, 0.,1.1,100.,0.,100.);
+
+    for (auto it : PShitmapX)
+    {
+        long ID = it.first;
+        double ehit = it.second.Edeposited;
+        double elec = it.second.electromagneticity;
+        long ix = ID % 1000;
+        long iz = (ID / 1000000) % 1000;
+        long ilayer = (ID / 1000000000);
+        double fix = ix + 0.5;
+        double fiz = ilayer * nzlayer + iz + 0.5;
+        xviewPS->Fill(fiz, fix, ehit);
+        if(elec>0.5) {
+            xviewPS_em->Fill(fiz, fix, ehit);
+        } else {
+            xviewPS_had->Fill(fiz, fix, ehit);
+        }
+        xviewPS_eldepo -> Fill(elec, ehit);
+    }
+
+    for (auto it : PShitmapY)
+    {
+        long ID = it.first;
+        double ehit = it.second.Edeposited;
+        double elec = it.second.electromagneticity;
+        long iy = (ID / 1000) % 1000;
+        long iz = (ID / 1000000) % 1000;
+        long ilayer = (ID / 1000000000);
+        double fiy = iy + 0.5;
+        double fiz = ilayer * nzlayer + iz + 0.5;
+        yviewPS->Fill(fiz, fiy, ehit);
+        if(elec>0.5) {
+            yviewPS_em->Fill(fiz, fiy, ehit);
+        } else {
+            yviewPS_had->Fill(fiz, fiy, ehit);
+        }
+        yviewPS_eldepo -> Fill(elec, ehit);
+    }
 }
+

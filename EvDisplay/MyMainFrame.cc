@@ -121,6 +121,7 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
     fPORecoEvent -> Reconstruct();
     fPORecoEvent -> Dump();
 
+    // display 2D maps
     fPORecoEvent -> Fill2DViewsPS();
     TCanvas *c1 = new TCanvas("c1", "2D plastic scintillator views", 600, 300);
     c1->Divide(2, 1);
@@ -132,6 +133,40 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
     gPad->SetLogz();
     gStyle->SetOptStat(0);  // Disable the statistics box
     fPORecoEvent -> Get2DViewYPS() -> Draw("COLZ");
+
+    TCanvas *c2 = new TCanvas("c2", "2D plastic scintillator views - EM ", 600, 300);
+    c2->Divide(2, 1);
+    c2->cd(1);
+    gPad->SetLogz();
+    gStyle->SetOptStat(0);  // Disable the statistics box
+    fPORecoEvent -> xviewPS_em -> Draw("COLZ");
+    c2->cd(2);
+    gPad->SetLogz();
+    gStyle->SetOptStat(0);  // Disable the statistics box
+    fPORecoEvent -> yviewPS_em -> Draw("COLZ");
+
+    TCanvas *c3 = new TCanvas("c3", "2D plastic scintillator views - HAD ", 600, 300);
+    c3->Divide(2, 1);
+    c3->cd(1);
+    gPad->SetLogz();
+    gStyle->SetOptStat(0);  // Disable the statistics box
+    fPORecoEvent -> xviewPS_had -> Draw("COLZ");
+    c3->cd(2);
+    gPad->SetLogz();
+    gStyle->SetOptStat(0);  // Disable the statistics box
+    fPORecoEvent -> yviewPS_had -> Draw("COLZ");
+
+    TCanvas *c4 = new TCanvas("c4", "2D plastic scintillator views - eldepo ", 600, 300);
+    c4->Divide(2, 1);
+    c4->cd(1);
+    gPad->SetLogz();
+    gStyle->SetOptStat(0);  // Disable the statistics box
+    fPORecoEvent -> xviewPS_eldepo -> Draw("COLZ");
+    c4->cd(2);
+    gPad->SetLogz();
+    gStyle->SetOptStat(0);  // Disable the statistics box
+    fPORecoEvent -> yviewPS_eldepo -> Draw("COLZ");
+
 }
 
 void MyMainFrame::Draw_event() {
