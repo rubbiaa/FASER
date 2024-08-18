@@ -471,15 +471,35 @@ void TPORecoEvent::Fill2DViewsPS() {
     }
 
     // fill histrograms
+    xviewPS = (TH2D*)gDirectory->Get("xviewPS");
+    if(xviewPS != nullptr) {
+        xviewPS->Reset(); 
+        yviewPS = (TH2D*)gDirectory->Get("yviewPS");
+        yviewPS->Reset(); 
+        xviewPS_em = (TH2D*)gDirectory->Get("xviewPS_em");
+        xviewPS_em->Reset(); 
+        yviewPS_em = (TH2D*)gDirectory->Get("yviewPS_em");
+        yviewPS_em->Reset(); 
+        xviewPS_had = (TH2D*)gDirectory->Get("xviewPS_had");
+        xviewPS_had->Reset(); 
+        yviewPS_had = (TH2D*)gDirectory->Get("yviewPS_had");
+        yviewPS_had->Reset(); 
+        xviewPS_eldepo = (TH2D*)gDirectory->Get("xviewPS_eldepo");
+        xviewPS_eldepo->Reset(); 
+        yviewPS_eldepo = (TH2D*)gDirectory->Get("yviewPS_eldepo");
+        yviewPS_eldepo->Reset(); 
+    } else {
     xviewPS = new TH2D("xviewPS", "Scintillator x-view", nztot, 0, nztot, nx, 0, nx);
     yviewPS = new TH2D("yviewPS", "Scintillator y-view", nztot, 0, nztot, ny, 0, ny);
     xviewPS_em = new TH2D("xviewPS_em", "Scintillator x-view - EM", nztot, 0, nztot, nx, 0, nx);
     yviewPS_em = new TH2D("yviewPS_em", "Scintillator y-view - EM", nztot, 0, nztot, ny, 0, ny);
     xviewPS_had = new TH2D("xviewPS_had", "Scintillator x-view - HAD", nztot, 0, nztot, nx, 0, nx);
     yviewPS_had = new TH2D("yviewPS_had", "Scintillator y-view - HAD", nztot, 0, nztot, ny, 0, ny);
-    xviewPS_eldepo = new TH2D("xviewPS_eldepo", "Scintillator x-view", 11, 0.,1.1,100.,0.,100.);
-    yviewPS_eldepo = new TH2D("xviewPS_eldepo", "Scintillator y-view", 11, 0.,1.1,100.,0.,100.);
+    xviewPS_eldepo = new TH2D("xviewPS_eldepo", "Scintillator x-view", 11, 0.,1.1,100.,0.,25.);
+    yviewPS_eldepo = new TH2D("yviewPS_eldepo", "Scintillator y-view", 11, 0.,1.1,100.,0.,25.);
+    }
 
+    double electromagneticity_threshold = 0.8;
     for (auto it : PShitmapX)
     {
         long ID = it.first;
@@ -491,7 +511,7 @@ void TPORecoEvent::Fill2DViewsPS() {
         double fix = ix + 0.5;
         double fiz = ilayer * nzlayer + iz + 0.5;
         xviewPS->Fill(fiz, fix, ehit);
-        if(elec>0.5) {
+        if(elec>electromagneticity_threshold) {
             xviewPS_em->Fill(fiz, fix, ehit);
         } else {
             xviewPS_had->Fill(fiz, fix, ehit);
@@ -510,7 +530,7 @@ void TPORecoEvent::Fill2DViewsPS() {
         double fiy = iy + 0.5;
         double fiz = ilayer * nzlayer + iz + 0.5;
         yviewPS->Fill(fiz, fiy, ehit);
-        if(elec>0.5) {
+        if(elec>electromagneticity_threshold) {
             yviewPS_em->Fill(fiz, fiy, ehit);
         } else {
             yviewPS_had->Fill(fiz, fiy, ehit);

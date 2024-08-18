@@ -51,18 +51,6 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, const TGWindow *p, 
     fButton->Connect("Clicked()", "MyMainFrame", this, "toggle_reco_track()");
     hFrame->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
 
-    // Create a horizontal frame to contain the toggle buttons
-    TGHorizontalFrame *hFrame3 = new TGHorizontalFrame(tab1);
-    fButton = new TGTextButton(hFrame3, "Next Event");
-    fButton->Connect("Clicked()", "MyMainFrame", this, "next_event()");
-    hFrame3->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsBottom, 5, 5, 3, 4));
-    fButton = new TGTextButton(hFrame3, "Goto Event:");
-    fButton->Connect("Clicked()", "MyMainFrame", this, "goto_event()");
-    textNextEventEntry = new TGTextEntry(hFrame3, new TGTextBuffer(50));
-    textNextEventEntry->Connect("ReturnPressed()", "MyMainFrame", this, "goto_event()");
-    hFrame3->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
-    hFrame3->AddFrame(textNextEventEntry, new TGLayoutHints(kLHintsExpandX | kLHintsCenterY));
-
     // Create a horizontal frame to contain the zoom and sideview buttons
     TGHorizontalFrame *hFrame2 = new TGHorizontalFrame(tab1);
     // Create a button
@@ -97,9 +85,6 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, const TGWindow *p, 
    // Add the horizontal frame to the main frame
     tab1->AddFrame(hFrame2, new TGLayoutHints(kLHintsCenterX | kLHintsBottom, 5, 5, 3, 4));
 
-    // Add the horizontal frame to the main frame
-    tab1->AddFrame(hFrame3, new TGLayoutHints(kLHintsCenterX | kLHintsBottom, 5, 5, 3, 4));
-
     fCanvas_2DPSview = new TRootEmbeddedCanvas("EmbeddedCanvas2", tab2, 1200, 600);;
     tab2->AddFrame(fCanvas_2DPSview, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY));
 
@@ -108,6 +93,20 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, const TGWindow *p, 
 
     fCanvas_eldepo = new TRootEmbeddedCanvas("EmbeddedCanvas4", tab4, 1200, 600);;
     tab4->AddFrame(fCanvas_eldepo, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY));
+
+    // Create a horizontal frame to contain the next and goto event buttons
+    TGHorizontalFrame *hFrame3 = new TGHorizontalFrame(fMain);
+    fButton = new TGTextButton(hFrame3, "Next Event");
+    fButton->Connect("Clicked()", "MyMainFrame", this, "next_event()");
+    hFrame3->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsBottom, 5, 5, 3, 4));
+    fButton = new TGTextButton(hFrame3, "Goto Event:");
+    fButton->Connect("Clicked()", "MyMainFrame", this, "goto_event()");
+    textNextEventEntry = new TGTextEntry(hFrame3, new TGTextBuffer(50));
+    textNextEventEntry->Connect("ReturnPressed()", "MyMainFrame", this, "goto_event()");
+    hFrame3->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
+    hFrame3->AddFrame(textNextEventEntry, new TGLayoutHints(kLHintsExpandX | kLHintsCenterY));
+    // Add the horizontal frame to the main frame
+    fMain->AddFrame(hFrame3, new TGLayoutHints(kLHintsCenterX | kLHintsBottom, 5, 5, 3, 4));
 
     fMain->SetWindowName("The FASERkine event display");
     fMain->MapSubwindows();
@@ -165,53 +164,8 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
     fPORecoEvent -> TrackReconstruct();
     fPORecoEvent -> Dump();
 
-    // display 2D maps
+    // fill 2D maps
     fPORecoEvent -> Fill2DViewsPS();
-    TCanvas *c1 = fCanvas_2DPSview->GetCanvas();
-    c1->Divide(2, 1);
-    c1->cd(1);
-    gPad->SetLogz();
-    gStyle->SetOptStat(0);  // Disable the statistics box
-    fPORecoEvent -> Get2DViewXPS() -> Draw("COLZ");
-    c1->cd(2);
-    gPad->SetLogz();
-    gStyle->SetOptStat(0);  // Disable the statistics box
-    fPORecoEvent -> Get2DViewYPS() -> Draw("COLZ");
-
-    TCanvas *c2 = fCanvas_2DPSview_emhad->GetCanvas();
-    c2->Divide(2, 2);
-    c2->cd(1);
-    gPad->SetLogz();
-    gStyle->SetOptStat(0);  // Disable the statistics box
-    fPORecoEvent -> xviewPS_em -> Draw("COLZ");
-    c2->cd(2);
-    gPad->SetLogz();
-    gStyle->SetOptStat(0);  // Disable the statistics box
-    fPORecoEvent -> yviewPS_em -> Draw("COLZ");
-    c2->cd(3);
-    gPad->SetLogz();
-    gStyle->SetOptStat(0);  // Disable the statistics box
-    fPORecoEvent -> xviewPS_had -> Draw("COLZ");
-    c2->cd(4);
-    gPad->SetLogz();
-    gStyle->SetOptStat(0);  // Disable the statistics box
-    fPORecoEvent -> yviewPS_had -> Draw("COLZ");
-
-    TCanvas *c4 = fCanvas_eldepo->GetCanvas();
-    c4->Divide(2, 1);
-    c4->cd(1);
-    gPad->SetLogz();
-    gStyle->SetOptStat(0);  // Disable the statistics box
-    fPORecoEvent -> xviewPS_eldepo -> GetXaxis() -> SetTitle("Electromagneticity");
-    fPORecoEvent -> xviewPS_eldepo -> GetYaxis() -> SetTitle("Deposited energy (MeV)");
-    fPORecoEvent -> xviewPS_eldepo -> Draw("COLZ");
-    c4->cd(2);
-    gPad->SetLogz();
-    gStyle->SetOptStat(0);  // Disable the statistics box
-    fPORecoEvent -> yviewPS_eldepo -> GetXaxis() -> SetTitle("Electromagneticity");
-    fPORecoEvent -> yviewPS_eldepo -> GetYaxis() -> SetTitle("Deposited energy (MeV)");
-    fPORecoEvent -> yviewPS_eldepo -> Draw("COLZ");
-
 }
 
 void MyMainFrame::Draw_event() {
@@ -351,6 +305,61 @@ void MyMainFrame::Draw_event() {
     energyText->Draw();
 
     Draw_event_reco_tracks();
+
+    TCanvas *c1 = fCanvas_2DPSview->GetCanvas();
+    c1->Clear();
+    c1->cd();
+    c1->Divide(2, 1);
+    c1->cd(1);
+    gPad->SetLogz();
+    gStyle->SetOptStat(0);  // Disable the statistics box
+    fPORecoEvent -> Get2DViewXPS() -> Draw("COLZ");
+    c1->cd(2);
+    gPad->SetLogz();
+    gStyle->SetOptStat(0);  // Disable the statistics box
+    fPORecoEvent -> Get2DViewYPS() -> Draw("COLZ");
+    c1->Modified();
+    c1->Update();
+
+    TCanvas *c2 = fCanvas_2DPSview_emhad->GetCanvas();
+    c2->Clear();
+    c2->Divide(2, 2);
+    c2->cd(1);
+    gPad->SetLogz();
+    gStyle->SetOptStat(0);  // Disable the statistics box
+    fPORecoEvent -> xviewPS_em -> Draw("COLZ");
+    c2->cd(2);
+    gPad->SetLogz();
+    gStyle->SetOptStat(0);  // Disable the statistics box
+    fPORecoEvent -> yviewPS_em -> Draw("COLZ");
+    c2->cd(3);
+    gPad->SetLogz();
+    gStyle->SetOptStat(0);  // Disable the statistics box
+    fPORecoEvent -> xviewPS_had -> Draw("COLZ");
+    c2->cd(4);
+    gPad->SetLogz();
+    gStyle->SetOptStat(0);  // Disable the statistics box
+    fPORecoEvent -> yviewPS_had -> Draw("COLZ");
+    c2->Modified();
+    c2->Update();
+
+    TCanvas *c4 = fCanvas_eldepo->GetCanvas();
+    c4->Clear();
+    c4->Divide(2, 1);
+    c4->cd(1);
+    gPad->SetLogz();
+    gStyle->SetOptStat(0);  // Disable the statistics box
+    fPORecoEvent -> xviewPS_eldepo -> GetXaxis() -> SetTitle("Electromagneticity");
+    fPORecoEvent -> xviewPS_eldepo -> GetYaxis() -> SetTitle("Deposited energy (MeV)");
+    fPORecoEvent -> xviewPS_eldepo -> Draw("COLZ");
+    c4->cd(2);
+    gPad->SetLogz();
+    gStyle->SetOptStat(0);  // Disable the statistics box
+    fPORecoEvent -> yviewPS_eldepo -> GetXaxis() -> SetTitle("Electromagneticity");
+    fPORecoEvent -> yviewPS_eldepo -> GetYaxis() -> SetTitle("Deposited energy (MeV)");
+    fPORecoEvent -> yviewPS_eldepo -> Draw("COLZ");
+    c4->Modified();
+    c4->Update();
 }
 
 void MyMainFrame::Draw_event_reco_tracks() {
