@@ -10,6 +10,7 @@
 #include "TcalEvent.hh"
 #include "TPOEvent.hh"
 
+/// @brief TPORec holds a reconstructed particle object
 class TPORec : public TObject {
 public:
 
@@ -21,12 +22,27 @@ public:
         ROOT::Math::XYZVector Eflow;
     };
 
-    int POID;                          // the primary track in POEvent
+    int POID;                          // the primary track in POEvent (the index)
     std::vector<int> fGEANTTrackIDs;   //! all the geant track id that belong to this PORec
     std::vector<DigitizedTrack*> DTs;  //! all the DigitizedTracks that belong to this POREC
     std::vector<struct CALENERGIES> fEnergiesCogs; //! the energies and COG of each Digitized track
     
     struct CALENERGIES fTotal;         // the cumulative energies for the primary
+
+    struct TRACKHIT {
+        long ID;
+        ROOT::Math::XYZVector point;
+        float eDeposit;
+    };
+
+    struct TRACK {
+        std::vector<TRACKHIT> tkhit;
+        TVector3 centroid;
+        TVector3 direction;
+        double SSR;
+    };
+
+    std::vector<TRACK> fTracks;       // all the reconstructed tracks that belong to this PORec
 
     // constructors & destructors
     TPORec() = default;
@@ -54,6 +70,7 @@ private:
     TcalEvent* fTcalEvent;                            //! Reference to the TCAL event
     TPOEvent* fTPOEvent;                              //! Reference to the TPOEvent
 
+// static    TVector3 fitLineThroughPoints(const struct TPORec::TRACK &track, TVector3& centroid);
 public:
 
    /// @brief A hit in a two dimension plastic scintillator view
@@ -81,6 +98,9 @@ public:
 
     /// @brief Reconstruct the FASERG4 simulated event to the PORec
     void Reconstruct();
+
+    /// @brief Reconstruct all the tracks associated to the PORec (call this after Reconstruct)
+    void TrackReconstruct();
 
     /// @brief Dump PORecs to the screen
     void Dump();

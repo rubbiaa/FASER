@@ -6,6 +6,7 @@
 #include <RQ_OBJECT.h>
 #include <TText.h>
 #include <TGTextEntry.h>
+#include <TPolyLine3D.h>
 
 
 #include <TcalEvent.hh>
@@ -19,6 +20,7 @@ public:
 
     void Load_event(int run_number, int ievent, int mask);
     void Draw_event();
+    void Draw_event_reco_tracks();
     void Next_Event(int ievent);
 
     void HandleButton(); // Function to handle button click
@@ -26,11 +28,18 @@ public:
     void toggle_prim_had();
     void toggle_sec_em();
     void toggle_sec_had();
+    void toggle_reco_track();
     void next_event();
     void goto_event();
 
     void ZoomToPosition(Double_t x, Double_t y, Double_t z);
     void SideView();
+    void ZoomIn();
+    void ZoomOut();
+    void MoveUp();
+    void MoveDown();
+    void MoveLeft();
+    void MoveRight();
 
     ClassDef(MyMainFrame,1)
 
@@ -38,11 +47,16 @@ private:
     TGMainFrame *fMain;
     TGTextButton *fButton;
     TRootEmbeddedCanvas *fCanvas;
+    TRootEmbeddedCanvas *fCanvas_2DPSview;
+    TRootEmbeddedCanvas *fCanvas_2DPSview_emhad;
+    TRootEmbeddedCanvas *fCanvas_eldepo;
     TGTextEntry *textNextEventEntry;
 
     TText *runText = nullptr;
     TText *eventypeText = nullptr;
     TText *energyText = nullptr;
+
+    std::vector<TPolyLine3D*> polylineTracks;
 
     int ievent;
     int event_mask;
@@ -61,5 +75,7 @@ private:
     bool toggle_primary_had;
     bool toggle_secondary_em;
     bool toggle_secondary_had;
+
+    bool toggle_reconstructed_tracks;
 
 };

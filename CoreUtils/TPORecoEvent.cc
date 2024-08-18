@@ -1,5 +1,9 @@
 #include "TPORecoEvent.hh"
 
+#include <TVectorD.h>
+#include <TMatrixDSym.h>
+#include <TDecompSVD.h>
+#include <TVector3.h>
 
 ClassImp(TPORec);
 ClassImp(TPORecoEvent);
@@ -251,6 +255,102 @@ struct TPORec::CALENERGIES TPORecoEvent::computeEnergiesAndCOG(DigitizedTrack *d
     return result;
 }
 
+static TVector3 fitLineThroughPoints(const struct TPORec::TRACK &track, TVector3& centroid) {
+    std::vector<TPORec::TRACKHIT> tkhit = track.tkhit;
+    int N = tkhit.size();
+    // Calculate the centroid of the points
+    centroid.SetXYZ(0, 0, 0);
+    for (const auto& hit : tkhit) {
+        centroid += TVector3(hit.point.x(), hit.point.y(), hit.point.z());
+    }
+    centroid *= (1.0 / N);
+
+    // Compute covariance matrix
+    TMatrixDSym covariance(3);
+    for (const auto& hit : tkhit) {
+        TVector3 centered = TVector3(hit.point.x(), hit.point.y(), hit.point.z()) - centroid;
+        for (int i = 0; i < 3; ++i) {
+            for (int j = 0; j < 3; ++j) {
+                covariance(i, j) += centered[i] * centered[j];
+            }
+        }
+    }
+
+ //   std::cout << " Cov: "; covariance.Print();
+
+    // Perform Singular Value Decomposition (SVD) to find the best-fit line direction
+    TDecompSVD svd(covariance);
+    TMatrixD eigenVectors = svd.GetU();
+//    std::cout << "U: "; eigenVectors.Print();
+//    std::cout << "sigma: "; svd.GetSig().Print();
+
+    // The direction of the best-fit line is given by the eigenvector with the largest eigenvalue
+    double fac = 1.0;
+    if(eigenVectors(2, 0)<0) fac = -1.0;
+    TVector3 direction(fac*eigenVectors(0, 0), fac*eigenVectors(1, 0), fac*eigenVectors(2, 0));
+
+    return direction;
+}
+
+// Calculate the perpendicular distance from a point to a line
+static double pointLineDistance(const ROOT::Math::XYZVector& point, const TVector3& direction, const TVector3& centroid) {
+    TVector3 pointVec(point.x(), point.y(), point.z());
+    TVector3 pointToCentroid = pointVec - centroid;
+    TVector3 crossProduct = pointToCentroid.Cross(direction);
+    return crossProduct.Mag() / direction.Mag();
+}
+
+static double calculateSSR(const struct TPORec::TRACK &track, const TVector3& direction, const TVector3& centroid) {
+    std::vector<TPORec::TRACKHIT> tkhit = track.tkhit;
+    double ssr = 0.0;
+    for (const auto& hit : tkhit) {
+        double distance = pointLineDistance(hit.point, direction, centroid);
+        ssr += distance * distance;
+    }
+    return ssr;
+}
+
+void TPORecoEvent::TrackReconstruct() {
+
+    for (auto it : fPORecs)
+    {
+        it->fTracks.clear();
+        // consider only primary track
+        //        DigitizedTrack *dt = it->DTs[0];
+        int idx = 0;
+        for (auto &dt : it->DTs)
+        {
+            struct TPORec::TRACK track;
+            size_t nhits = dt->fEnergyDeposits.size();
+            for (size_t i = 0; i < nhits; i++)
+            {
+                long ID = dt->fhitIDs[i];
+                long hittype = fTcalEvent->getChannelTypefromID(ID);
+                if (hittype != 1)
+                    continue; // only tracker hits
+                ROOT::Math::XYZVector point = fTcalEvent->getChannelXYZfromID(ID);
+                float ehit = dt->fEnergyDeposits[i];
+                struct TPORec::TRACKHIT tkhit = {ID, point, ehit};
+                track.tkhit.push_back(tkhit);
+            }
+
+            // now fit track of primary
+            if (nhits > 1 && idx ==0)
+            {
+                track.direction = fitLineThroughPoints(track, track.centroid);
+                track.SSR = calculateSSR(track, track.direction, track.centroid);
+            }
+            else
+            {
+                track.direction = {0, 0, 0};
+                track.SSR = -1;
+            }
+            it->fTracks.push_back(track);
+            idx++;
+        }
+    }
+}
+
 void TPORecoEvent::Dump() {
     TDatabasePDG *pdgDB = TDatabasePDG::Instance();
     fTPOEvent->dump_header();
@@ -266,6 +366,19 @@ void TPORecoEvent::Dump() {
         std::cout << " Ey: " << it->fTotal.Eflow.Y();
         std::cout << " Ez: " << it->fTotal.Eflow.Z();
         std::cout << "      (COG: " << it->fTotal.cog.X() << " " << it->fTotal.cog.Y() << " " << it->fTotal.cog.Z() << ")";
+        std::cout << std::endl;
+        std::cout << "TRACK>> ";
+        std::cout << "ntrack = " << it->fTracks.size() << " ";
+        if(it->fTracks.size() > 0){
+        std::cout << " tracks: ";
+        //for (auto itrk : it->fTracks)
+        struct TPORec::TRACK itrk = it->fTracks[0]; 
+        {
+            std::cout << "nhit=" << itrk.tkhit.size() << " ";
+            std::cout << "dir: " << itrk.direction.x() << " " << itrk.direction.y() << " " << itrk.direction.z() << " ";
+            std::cout << "SSR: " << itrk.SSR << " ";
+        }
+        }
         std::cout << std::endl;
     }
     std::cout << std::endl;
@@ -365,7 +478,7 @@ void TPORecoEvent::Fill2DViewsPS() {
     xviewPS_had = new TH2D("xviewPS_had", "Scintillator x-view - HAD", nztot, 0, nztot, nx, 0, nx);
     yviewPS_had = new TH2D("yviewPS_had", "Scintillator y-view - HAD", nztot, 0, nztot, ny, 0, ny);
     xviewPS_eldepo = new TH2D("xviewPS_eldepo", "Scintillator x-view", 11, 0.,1.1,100.,0.,100.);
-    yviewPS_eldepo = new TH2D("xviewPS_eldepo", "Scintillator x-view", 11, 0.,1.1,100.,0.,100.);
+    yviewPS_eldepo = new TH2D("xviewPS_eldepo", "Scintillator y-view", 11, 0.,1.1,100.,0.,100.);
 
     for (auto it : PShitmapX)
     {

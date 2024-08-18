@@ -10,24 +10,31 @@
 #include <TText.h>
 #include <TGTextEntry.h>
 #include <TStyle.h>
+#include <TControlBar.h>
+#include <TButton.h>
+#include <TGTab.h>
 
 #include "MyMainFrame.h"
 #include "TPORecoEvent.hh"
 
 MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, const TGWindow *p, UInt_t w, UInt_t h) {
 
-    // load event
-    ievent = ieve;
-    Load_event(run_number, ievent, mask);
-
+// create window
     fMain = new TGMainFrame(p, w, h);
 
+    TGTab *tab = new TGTab(fMain, w, h);
+    TGCompositeFrame *tab1 = tab->AddTab("Event");
+    TGCompositeFrame *tab2 = tab->AddTab("2DPSView");
+    TGCompositeFrame *tab3 = tab->AddTab("2DPSView_emhad");
+    TGCompositeFrame *tab4 = tab->AddTab("eldepo");
+    fMain->AddFrame(tab, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY));
+
     // Create an embedded canvas
-    fCanvas = new TRootEmbeddedCanvas("EmbeddedCanvas", fMain, 1200, 600);
-    fMain->AddFrame(fCanvas, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY));
+    fCanvas = new TRootEmbeddedCanvas("EmbeddedCanvas", tab1, 1200, 600);
+    tab1->AddFrame(fCanvas, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY));
 
     // Create a horizontal frame to contain the toggle buttons
-    TGHorizontalFrame *hFrame = new TGHorizontalFrame(fMain);
+    TGHorizontalFrame *hFrame = new TGHorizontalFrame(tab1);
     fButton = new TGTextButton(hFrame, "Toggle prim_em");
     fButton->Connect("Clicked()", "MyMainFrame", this, "toggle_prim_em()");
     hFrame->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
@@ -40,9 +47,12 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, const TGWindow *p, 
     fButton = new TGTextButton(hFrame, "Toggle sec_had");
     fButton->Connect("Clicked()", "MyMainFrame", this, "toggle_sec_had()");
     hFrame->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
+    fButton = new TGTextButton(hFrame, "Toggle reco_track");
+    fButton->Connect("Clicked()", "MyMainFrame", this, "toggle_reco_track()");
+    hFrame->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
 
     // Create a horizontal frame to contain the toggle buttons
-    TGHorizontalFrame *hFrame3 = new TGHorizontalFrame(fMain);
+    TGHorizontalFrame *hFrame3 = new TGHorizontalFrame(tab1);
     fButton = new TGTextButton(hFrame3, "Next Event");
     fButton->Connect("Clicked()", "MyMainFrame", this, "next_event()");
     hFrame3->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsBottom, 5, 5, 3, 4));
@@ -54,7 +64,7 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, const TGWindow *p, 
     hFrame3->AddFrame(textNextEventEntry, new TGLayoutHints(kLHintsExpandX | kLHintsCenterY));
 
     // Create a horizontal frame to contain the zoom and sideview buttons
-    TGHorizontalFrame *hFrame2 = new TGHorizontalFrame(fMain);
+    TGHorizontalFrame *hFrame2 = new TGHorizontalFrame(tab1);
     // Create a button
     fButton = new TGTextButton(hFrame2, "Side View");
     fButton->Connect("Clicked()", "MyMainFrame", this, "SideView()");
@@ -62,20 +72,51 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, const TGWindow *p, 
     fButton = new TGTextButton(hFrame2, "Zoom vtx");
     fButton->Connect("Clicked()", "MyMainFrame", this, "HandleButton()");
     hFrame2->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
+    fButton = new TGTextButton(hFrame2, "Zoom in");
+    fButton->Connect("Clicked()", "MyMainFrame", this, "ZoomIn()");
+    hFrame2->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
+    fButton = new TGTextButton(hFrame2, "Zoom out");
+    fButton->Connect("Clicked()", "MyMainFrame", this, "ZoomOut()");
+    hFrame2->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
+    fButton = new TGTextButton(hFrame2, "Move up");
+    fButton->Connect("Clicked()", "MyMainFrame", this, "MoveUp()");
+    hFrame2->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
+    fButton = new TGTextButton(hFrame2, "Move down");
+    fButton->Connect("Clicked()", "MyMainFrame", this, "MoveDown()");
+    hFrame2->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
+    fButton = new TGTextButton(hFrame2, "Move left");
+    fButton->Connect("Clicked()", "MyMainFrame", this, "MoveLeft()");
+    hFrame2->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
+    fButton = new TGTextButton(hFrame2, "Move right");
+    fButton->Connect("Clicked()", "MyMainFrame", this, "MoveRight()");
+    hFrame2->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
 
     // Add the horizontal frame to the main frame
-    fMain->AddFrame(hFrame, new TGLayoutHints(kLHintsCenterX | kLHintsBottom, 5, 5, 3, 4));
+    tab1->AddFrame(hFrame, new TGLayoutHints(kLHintsCenterX | kLHintsBottom, 5, 5, 3, 4));
 
    // Add the horizontal frame to the main frame
-    fMain->AddFrame(hFrame2, new TGLayoutHints(kLHintsCenterX | kLHintsBottom, 5, 5, 3, 4));
+    tab1->AddFrame(hFrame2, new TGLayoutHints(kLHintsCenterX | kLHintsBottom, 5, 5, 3, 4));
 
     // Add the horizontal frame to the main frame
-    fMain->AddFrame(hFrame3, new TGLayoutHints(kLHintsCenterX | kLHintsBottom, 5, 5, 3, 4));
+    tab1->AddFrame(hFrame3, new TGLayoutHints(kLHintsCenterX | kLHintsBottom, 5, 5, 3, 4));
+
+    fCanvas_2DPSview = new TRootEmbeddedCanvas("EmbeddedCanvas2", tab2, 1200, 600);;
+    tab2->AddFrame(fCanvas_2DPSview, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY));
+
+    fCanvas_2DPSview_emhad = new TRootEmbeddedCanvas("EmbeddedCanvas3", tab3, 1200, 600);;
+    tab3->AddFrame(fCanvas_2DPSview_emhad, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY));
+
+    fCanvas_eldepo = new TRootEmbeddedCanvas("EmbeddedCanvas4", tab4, 1200, 600);;
+    tab4->AddFrame(fCanvas_eldepo, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY));
 
     fMain->SetWindowName("The FASERkine event display");
     fMain->MapSubwindows();
     fMain->Resize(fMain->GetDefaultSize());
     fMain->MapWindow();
+
+    // load event
+    ievent = ieve;
+    Load_event(run_number, ievent, mask);
 
     TCanvas *canvas = fCanvas->GetCanvas();
     canvas->cd();
@@ -89,6 +130,8 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, const TGWindow *p, 
     toggle_primary_had=
     toggle_secondary_em=
     toggle_secondary_had=true;
+
+    toggle_reconstructed_tracks = true;
 }
 
 // Destructor
@@ -119,11 +162,12 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
 
     fPORecoEvent = new TPORecoEvent(fTcalEvent, fTcalEvent->fTPOEvent);
     fPORecoEvent -> Reconstruct();
+    fPORecoEvent -> TrackReconstruct();
     fPORecoEvent -> Dump();
 
     // display 2D maps
     fPORecoEvent -> Fill2DViewsPS();
-    TCanvas *c1 = new TCanvas("c1", "2D plastic scintillator views", 600, 300);
+    TCanvas *c1 = fCanvas_2DPSview->GetCanvas();
     c1->Divide(2, 1);
     c1->cd(1);
     gPad->SetLogz();
@@ -134,8 +178,8 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
     gStyle->SetOptStat(0);  // Disable the statistics box
     fPORecoEvent -> Get2DViewYPS() -> Draw("COLZ");
 
-    TCanvas *c2 = new TCanvas("c2", "2D plastic scintillator views - EM ", 600, 300);
-    c2->Divide(2, 1);
+    TCanvas *c2 = fCanvas_2DPSview_emhad->GetCanvas();
+    c2->Divide(2, 2);
     c2->cd(1);
     gPad->SetLogz();
     gStyle->SetOptStat(0);  // Disable the statistics box
@@ -144,27 +188,28 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
     gPad->SetLogz();
     gStyle->SetOptStat(0);  // Disable the statistics box
     fPORecoEvent -> yviewPS_em -> Draw("COLZ");
-
-    TCanvas *c3 = new TCanvas("c3", "2D plastic scintillator views - HAD ", 600, 300);
-    c3->Divide(2, 1);
-    c3->cd(1);
+    c2->cd(3);
     gPad->SetLogz();
     gStyle->SetOptStat(0);  // Disable the statistics box
     fPORecoEvent -> xviewPS_had -> Draw("COLZ");
-    c3->cd(2);
+    c2->cd(4);
     gPad->SetLogz();
     gStyle->SetOptStat(0);  // Disable the statistics box
     fPORecoEvent -> yviewPS_had -> Draw("COLZ");
 
-    TCanvas *c4 = new TCanvas("c4", "2D plastic scintillator views - eldepo ", 600, 300);
+    TCanvas *c4 = fCanvas_eldepo->GetCanvas();
     c4->Divide(2, 1);
     c4->cd(1);
     gPad->SetLogz();
     gStyle->SetOptStat(0);  // Disable the statistics box
+    fPORecoEvent -> xviewPS_eldepo -> GetXaxis() -> SetTitle("Electromagneticity");
+    fPORecoEvent -> xviewPS_eldepo -> GetYaxis() -> SetTitle("Deposited energy (MeV)");
     fPORecoEvent -> xviewPS_eldepo -> Draw("COLZ");
     c4->cd(2);
     gPad->SetLogz();
     gStyle->SetOptStat(0);  // Disable the statistics box
+    fPORecoEvent -> yviewPS_eldepo -> GetXaxis() -> SetTitle("Electromagneticity");
+    fPORecoEvent -> yviewPS_eldepo -> GetYaxis() -> SetTitle("Deposited energy (MeV)");
     fPORecoEvent -> yviewPS_eldepo -> Draw("COLZ");
 
 }
@@ -206,6 +251,7 @@ void MyMainFrame::Draw_event() {
 
             // apply energy cut on scintillator voxel
             if(hittype == 0 && track->fEnergyDeposits[i] < 0.5)continue;
+//            if(hittype == 0 && track->fEnergyDeposits[i] < 1e-3)continue;
 
             ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(track->fhitIDs[i]);
             // Create a translation matrix for the hit position
@@ -243,7 +289,7 @@ void MyMainFrame::Draw_event() {
                 TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, 
                 position.Y() / 10.0, position.Z() / 10.0);
                 TGeoVolume *hitVolume = new TGeoVolume("TrackerHitVolume", trackerhitbox, air);
-                hitVolume->SetLineColor(kBlack); 
+                hitVolume->SetLineColor(kMagenta); 
                 si_tracker->AddNode(hitVolume, i, trans);
             } else {
                 std::cout << " Unknown type of hit " << std::endl;
@@ -304,6 +350,44 @@ void MyMainFrame::Draw_event() {
     energyText->SetTextSize(0.03);
     energyText->Draw();
 
+    Draw_event_reco_tracks();
+}
+
+void MyMainFrame::Draw_event_reco_tracks() {
+    // draw tracks
+    for(auto &it : polylineTracks) {
+        delete it;
+    }
+    polylineTracks.clear();
+    if(toggle_reconstructed_tracks) {
+        for (auto &it : fPORecoEvent->GetPORecs())
+        {
+            // plot all track of each PORec
+            //            struct TPORec::TRACK itrk = it->fTracks[0];
+            for (auto &itrk : it->fTracks)
+            {
+                int nhits = itrk.tkhit.size();
+                if (nhits == 0)
+                    continue;
+                double *x = (double *)malloc(nhits * sizeof(double));
+                double *y = (double *)malloc(nhits * sizeof(double));
+                double *z = (double *)malloc(nhits * sizeof(double));
+                int idx = 0;
+                for (auto &itrk : itrk.tkhit)
+                {
+                    x[idx] = itrk.point.x() / 10.0;
+                    y[idx] = itrk.point.y() / 10.0;
+                    z[idx] = itrk.point.z() / 10.0;
+                    idx++;
+                }
+                TPolyLine3D *trackpoly = new TPolyLine3D(nhits, x, y, z);
+                trackpoly->SetLineColor(kBlack);
+                trackpoly->SetLineWidth(2);
+                trackpoly->Draw("same");
+                polylineTracks.push_back(trackpoly);
+            }
+        }
+    }
 }
 
 void MyMainFrame::Next_Event(int ievent) {
@@ -333,6 +417,8 @@ void MyMainFrame::Next_Event(int ievent) {
     toggle_primary_had=
     toggle_secondary_em=
     toggle_secondary_had=true;
+
+    toggle_reconstructed_tracks = true;
 
     SideView();
 
@@ -417,6 +503,19 @@ void MyMainFrame::toggle_sec_had() {
     canvas->Modified();
     canvas->Update();
 }
+void MyMainFrame::toggle_reco_track() {
+    TCanvas *canvas = fCanvas->GetCanvas();
+    toggle_reconstructed_tracks = !toggle_reconstructed_tracks;
+    if(toggle_reconstructed_tracks) {
+        gGeoManager->GetTopVolume()->AddNode(si_tracker,1);
+    } else {
+        TGeoNode *nodeToRemove = gGeoManager->GetTopVolume()->FindNode("si_tracker_1");
+        gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove);
+    }
+    Draw_event_reco_tracks();
+    canvas->Modified();
+    canvas->Update();
+}
 
 void MyMainFrame::SideView() {
     TCanvas *canvas = fCanvas->GetCanvas();
@@ -428,13 +527,43 @@ void MyMainFrame::SideView() {
 }
 
 void MyMainFrame::ZoomToPosition(Double_t x, Double_t y, Double_t z) {
-    TCanvas *canvas = fCanvas->GetCanvas();
-    
+    TCanvas *canvas = fCanvas->GetCanvas();    
     TView *view = (TView *)canvas->GetView();
     view->SetPsi(0);
     view->SetRange(0,0,z-10,0.1,0.1,z+30);
     canvas->Modified();
     canvas->Update();
+}
+
+void MyMainFrame::ZoomIn() {
+    TCanvas *canvas = fCanvas->GetCanvas();    
+    TView *view = (TView *)canvas->GetView();
+    view->ZoomIn();
+}
+void MyMainFrame::ZoomOut() {
+    TCanvas *canvas = fCanvas->GetCanvas();    
+    TView *view = (TView *)canvas->GetView();
+    view->ZoomOut();
+}
+void MyMainFrame::MoveUp() {
+    TCanvas *canvas = fCanvas->GetCanvas();    
+    TView *view = (TView *)canvas->GetView();
+    view->MoveWindow('u');
+}
+void MyMainFrame::MoveDown() {
+    TCanvas *canvas = fCanvas->GetCanvas();    
+    TView *view = (TView *)canvas->GetView();
+    view->MoveWindow('i');
+}
+void MyMainFrame::MoveLeft() {
+    TCanvas *canvas = fCanvas->GetCanvas();    
+    TView *view = (TView *)canvas->GetView();
+    view->MoveWindow('l');
+}
+void MyMainFrame::MoveRight() {
+    TCanvas *canvas = fCanvas->GetCanvas();    
+    TView *view = (TView *)canvas->GetView();
+    view->MoveWindow('h');
 }
 
 ClassImp(MyMainFrame)
