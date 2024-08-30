@@ -1,4 +1,5 @@
 #include "TPORecoEvent.hh"
+#include "DBScan.hh"
 
 #include <TVectorD.h>
 #include <TMatrixDSym.h>
@@ -396,7 +397,7 @@ void TPORecoEvent::Dump() {
     fTPOEvent->dump_header();
 }
 
-void TPORecoEvent::Fill2DViewsPS() {
+void TPORecoEvent::Reconstruct2DViewsPS() {
 
     PShitmapX.clear();
     PShitmapY.clear();
@@ -411,6 +412,9 @@ void TPORecoEvent::Fill2DViewsPS() {
         int ntracks = it->fGEANTTrackIDs.size();
         for (size_t i = 0; i < ntracks; i++)
         {
+            // only primaries
+          ////  if(i>0) continue;
+            /////////////////
             DigitizedTrack *dt = it->DTs[i];
             size_t nhits = dt->fEnergyDeposits.size();
             for (size_t j = 0; j < nhits; j++)
@@ -469,7 +473,13 @@ void TPORecoEvent::Fill2DViewsPS() {
     {
         it.second.electromagneticity /= float(it.second.ntracks);
     }
+}
 
+void TPORecoEvent::Fill2DViewsPS() {
+    int nx = fTcalEvent->geom_detector.fScintillatorSizeX / fTcalEvent->geom_detector.fScintillatorVoxelSize;
+    int ny = fTcalEvent->geom_detector.fScintillatorSizeY / fTcalEvent->geom_detector.fScintillatorVoxelSize;
+    int nzlayer = fTcalEvent->geom_detector.fSandwichLength / fTcalEvent->geom_detector.fScintillatorVoxelSize;
+    int nztot = fTcalEvent->geom_detector.NRep * nzlayer;
     // fill histrograms
     xviewPS = (TH2D*)gDirectory->Get("xviewPS");
     if(xviewPS != nullptr) {
@@ -539,3 +549,210 @@ void TPORecoEvent::Fill2DViewsPS() {
     }
 }
 
+void TPORecoEvent::pshit2d_position(long ID, double &fix, double &fiy, double &fiz) {
+    int nzlayer = fTcalEvent->geom_detector.fSandwichLength / fTcalEvent->geom_detector.fScintillatorVoxelSize;
+    long ix = ID % 1000;
+    long iy = (ID / 1000) % 1000;
+    long iz = (ID / 1000000) % 1000;
+    long ilayer = (ID / 1000000000);
+    fix = ix + 0.5;
+    fiy = iy + 0.5;
+    fiz = ilayer * nzlayer + iz + 0.5;
+}
+
+/// @brief Reconstruct all 2D clusters for the xz and the yz views
+/// @param view = 0 for XZ, and .ne.0 for YZ
+void TPORecoEvent::ReconstructClusters(int view) {
+
+    double threshold_2dhit = 2.0; // MeV
+    double eps = 5; // mm
+    int minPts = 10; // minimum number of points
+
+    DBScan dbscan;
+
+    std::map<int, struct PSCLUSTER> *PSClusters = (view==0) ? &PSClustersX : &PSClustersY;
+    PSClusters->clear();
+
+    std::vector<DBScan::Point> points;
+
+    // XZ or YZ view view
+    for (auto it : (view==0) ? PShitmapX : PShitmapY)
+    {
+        long ID = it.first;
+        double ehit = it.second.Edeposited;
+        if(ehit < threshold_2dhit) continue;
+        double fix, fiy, fiz;
+        pshit2d_position(ID, fix, fiy, fiz);
+        DBScan::Point p = {ID, ehit, (view==0) ? fix : fiy, fiz};
+        points.push_back(p);
+    }
+    dbscan.scan(points, eps, minPts);
+    for (const auto& point : points) {
+        if(point.clusterID == 0)continue;
+
+        PSCLUSTERHIT hit = {point.ID}; 
+        auto c = PSClusters->find(point.clusterID);
+        if (c != PSClusters->end())
+        {
+            c->second.hits.push_back(hit);
+            c->second.rawenergy += point.ehit;
+        }
+        else
+        {
+            PSCLUSTER newc;
+            newc.clusterID = point.clusterID;
+            newc.rawenergy = point.ehit;
+            newc.hits.push_back(hit);
+            (*PSClusters)[point.clusterID] = newc;
+        }
+    }
+
+    for (const auto& c : *PSClusters) {
+        std::cout << "Cluster ID:" << c.second.clusterID << " nhits=" << c.second.hits.size();
+        std::cout << " rawEnergy(MeV): " << c.second.rawenergy; 
+        std::cout << std::endl;        
+    }
+}
+
+void TPORecoEvent::Reconstruct3DPS(int maxIter) {
+
+    double ehit_threshold = 0.5; // MeV
+    int nvox_per_layer_max = 50;
+
+    int nx = fTcalEvent->geom_detector.fScintillatorSizeX / fTcalEvent->geom_detector.fScintillatorVoxelSize;
+    int ny = fTcalEvent->geom_detector.fScintillatorSizeY / fTcalEvent->geom_detector.fScintillatorVoxelSize;
+    int nzlayer = fTcalEvent->geom_detector.fSandwichLength / fTcalEvent->geom_detector.fScintillatorVoxelSize;
+    int nztot = fTcalEvent->geom_detector.NRep * nzlayer;
+
+    // the maximum number layer (from 0 to nRep) that is reconstructed
+    int maxLayer = 50;
+
+    // Step 0: organize hits for easy access
+    std::vector<std::vector<float>> XZ(nx, std::vector<float>(nztot, 0.0));
+    std::vector<std::vector<float>> YZ(ny, std::vector<float>(nztot, 0.0));
+    for (auto it : PShitmapX)
+    {
+        long ID = it.first;
+        double ehit = it.second.Edeposited;
+        if(ehit < ehit_threshold) continue;
+        long ix = ID % 1000;
+        long iz = (ID / 1000000) % 1000;
+        long ilayer = (ID / 1000000000);
+        if(ilayer > maxLayer) continue;
+        long izz = ilayer * nzlayer + iz;
+        if(ix < nx) {
+            XZ[ix][izz] = ehit;
+        }
+    }
+    for (auto it : PShitmapY)
+    {
+        long ID = it.first;
+        double ehit = it.second.Edeposited;
+        if(ehit < ehit_threshold) continue;
+        long iy = (ID / 1000) % 1000;
+        long iz = (ID / 1000000) % 1000;
+        long ilayer = (ID / 1000000000);
+        if(ilayer > maxLayer) continue;
+        long izz = ilayer * nzlayer + iz;
+        if(iy < ny) {
+            YZ[iy][izz] = ehit;
+        }
+    }
+
+
+    struct Voxel {
+        float value;
+        Voxel() : value(0) {}
+    };
+
+    std::vector<std::vector<std::vector<Voxel>>> V(
+        nx, std::vector<std::vector<Voxel>>(
+                   ny, std::vector<Voxel>(
+                               nztot, Voxel())));
+
+    // Step 1: Initial assignment based on projections
+    for (int z = 0; z < nztot; ++z)
+    {
+        for (int x = 0; x < nx; ++x)
+        {
+            if (XZ[x][z] > 0)
+            {
+                for (int y = 0; y < ny; ++y)
+                {
+                    if (YZ[y][z] > 0)
+                    {
+                        V[x][y][z].value = std::min(XZ[x][z], YZ[y][z]); // Initial assignment
+                    }
+                }
+            }
+        }
+    }
+
+    // decide which layers should be used for reconstructing 3D voxels
+    int nvox_per_layer[nztot];
+    for (int z = 0; z < nztot; ++z)
+    {
+        int nvox_layer = 0;
+        for (int x = 0; x < nx; ++x)
+            for (int y = 0; y < ny; ++y) {
+                if(V[x][y][z].value>ehit_threshold) {
+                    nvox_layer++;
+                }
+            }
+        nvox_per_layer[z] = nvox_layer;
+    }
+
+    // Step 2: Iterative Refinement to match projections
+    for (int iter = 0; iter < maxIter; ++iter) {
+        for (int z = 0; z < nztot; ++z) {
+            if(nvox_per_layer[z] > nvox_per_layer_max) continue;
+            // Adjust XZ projection
+            for (int x = 0; x < nx; ++x) {
+                int sumXZ = 0;
+                for (int y = 0; y < ny; ++y) {
+                    sumXZ += V[x][y][z].value;
+                }
+                float difference = XZ[x][z] - sumXZ;
+                for (int y = 0; y < ny && abs(difference)>1e-3 ; ++y) {
+                    float adjust = std::min(difference, YZ[y][z] - V[x][y][z].value);
+                    V[x][y][z].value += adjust;
+                    difference -= adjust;
+                }
+            }
+
+            // Adjust YZ projection
+            for (int y = 0; y < ny; ++y) {
+                int sumYZ = 0;
+                for (int x = 0; x < nx; ++x) {
+                    sumYZ += V[x][y][z].value;
+                }
+                float difference = YZ[y][z] - sumYZ;
+                for (int x = 0; x < nx && abs(difference)>1e-3; ++x) {
+                    float adjust = std::min(difference, XZ[x][z] - V[x][y][z].value);
+                    V[x][y][z].value += adjust;
+                    difference -= adjust;
+                }
+            }
+        }
+    }
+
+    PSvoxelmap.clear();
+    for (int z = 0; z < nztot; ++z) {
+        // 
+            if(nvox_per_layer[z] > nvox_per_layer_max) continue;
+        //
+        for (int y = 0; y < ny; ++y) {
+            for (int x = 0; x < nx; ++x) {
+                float ehit = V[x][y][z].value;
+                if(ehit>0) {
+                    long iz = z % nzlayer;
+                    long ilayer = z / nzlayer;
+    	        	long ID = x + y*1000 + iz*1000000 + ilayer*1000000000;
+                    struct PSVOXEL3D v = {ehit};
+                    PSvoxelmap[ID] = v;
+                }
+            }
+        }
+    }
+
+}

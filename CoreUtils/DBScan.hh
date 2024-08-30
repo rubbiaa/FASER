@@ -10,6 +10,7 @@ public:
 
 struct Point {
     long ID;
+    double ehit;
     double x, y;
     bool visited = false;
     int clusterID = -1; // -1 means not yet assigned to any cluster

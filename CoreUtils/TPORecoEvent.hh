@@ -83,6 +83,9 @@ public:
     std::map<long, PSHIT2D> PShitmapX;      // the X-Z view hit map
     std::map<long, PSHIT2D> PShitmapY;      // the Y-Z view hit map
 
+    /// @brief Return the x,y,z position of a 2D hit (one coordinate x, or y should always be ignored)
+    void pshit2d_position(long ID, double &fix, double &fiy, double &fiz);
+
     TH2D* xviewPS = nullptr;                          //! 2Dview scintillator X-Z
     TH2D* yviewPS = nullptr;                          //! 2Dview scintillator Y-Z
     TH2D* xviewPS_em = nullptr;                          //! 2Dview scintillator X-Z
@@ -91,6 +94,25 @@ public:
     TH2D* yviewPS_had = nullptr;                          //! 2Dview scintillator Y-Z0
     TH2D* xviewPS_eldepo = nullptr;                          //! 2Dview scintillator X-Z
     TH2D* yviewPS_eldepo = nullptr;                          //! 2Dview scintillator Y-Z
+
+    struct PSCLUSTERHIT {
+        long id;
+    };
+
+    struct PSCLUSTER {
+        int clusterID;
+        double rawenergy = 0;   // in MeV !
+        std::vector<struct PSCLUSTERHIT> hits;        
+    };
+
+    std::map<int, struct PSCLUSTER> PSClustersX;
+    std::map<int, struct PSCLUSTER> PSClustersY;
+
+    struct PSVOXEL3D {
+        float RawEnergy;  // MeV
+    };
+
+    std::map<long, struct PSVOXEL3D> PSvoxelmap;
 
     TPORecoEvent() : fTcalEvent(0), fTPOEvent(0) {};
     TPORecoEvent(TcalEvent* c, TPOEvent* p);
@@ -101,6 +123,15 @@ public:
 
     /// @brief Reconstruct all the tracks associated to the PORec (call this after Reconstruct)
     void TrackReconstruct();
+
+    /// @brief Reconstruct the 2D plastic scintillator views XZ and YZ
+    void Reconstruct2DViewsPS();
+
+    /// @brief Reconstruct all 2D clusters for the xz and the yz views (view=0 for XZ, and view=1 for YZ)
+    void ReconstructClusters(int view);
+
+    /// @brief Reconstruct 3D voxels from 2D views in plastic scintillator
+    void Reconstruct3DPS(int maxIter = 10);
 
     /// @brief Dump PORecs to the screen
     void Dump();

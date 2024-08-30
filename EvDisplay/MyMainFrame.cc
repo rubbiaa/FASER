@@ -160,8 +160,15 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
     fTcalEvent -> fTPOEvent -> dump_event();
 
     fPORecoEvent = new TPORecoEvent(fTcalEvent, fTcalEvent->fTPOEvent);
+    std::cout << "Start reconstruction of PORecs..." << std::endl;
     fPORecoEvent -> Reconstruct();
+    std::cout << "Start reconstruction of tracks..." << std::endl;
     fPORecoEvent -> TrackReconstruct();
+    std::cout << "Start reconstruction of clusters..." << std::endl;
+    fPORecoEvent -> Reconstruct2DViewsPS();
+//    fPORecoEvent -> ReconstructClusters(0);    // this is very slow
+    std::cout << "Start reconstruction of 3D voxels..." << std::endl;
+    fPORecoEvent -> Reconstruct3DPS();
     fPORecoEvent -> Dump();
 
     // fill 2D maps
@@ -251,11 +258,6 @@ void MyMainFrame::Draw_event() {
         }
     }
 
-    gGeoManager->GetTopVolume()->AddNode(secondary_em,1);
-    gGeoManager->GetTopVolume()->AddNode(secondary_had,1);
-    gGeoManager->GetTopVolume()->AddNode(primary_em,1);
-    gGeoManager->GetTopVolume()->AddNode(primary_had,1);
-    gGeoManager->GetTopVolume()->AddNode(si_tracker,1);
 //    gGeoManager->GetTopVolume()->Print();
 
     fCanvas->GetCanvas()->cd();
@@ -304,7 +306,28 @@ void MyMainFrame::Draw_event() {
     energyText->SetTextSize(0.03);
     energyText->Draw();
 
-    Draw_event_reco_tracks();
+  //  Draw_event_reco_tracks();
+
+    ps_reco_voxel = new TGeoVolume("ps_reco_voxel", bigbox, air);
+    int i = 1;
+    for (auto& it : fPORecoEvent->PSvoxelmap) {
+        long ID = it.first;
+        double ehit = it.second.RawEnergy;
+        if(ehit < 0.5) continue;
+        ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(ID);
+        position += ROOT::Math::XYZVector(2.5,2.5,2.5);    // in mm
+        TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, 
+                position.Y() / 10.0, position.Z() / 10.0);
+        TGeoVolume *hitVolume = new TGeoVolume("HitVolume", box, air);
+        hitVolume->SetLineColor(kBlack); 
+        ps_reco_voxel->AddNode(hitVolume, i++, trans);
+    }
+    gGeoManager->GetTopVolume()->AddNode(ps_reco_voxel,1);
+    gGeoManager->GetTopVolume()->AddNode(secondary_em,1);
+    gGeoManager->GetTopVolume()->AddNode(secondary_had,1);
+    gGeoManager->GetTopVolume()->AddNode(primary_em,1);
+    gGeoManager->GetTopVolume()->AddNode(primary_had,1);
+    gGeoManager->GetTopVolume()->AddNode(si_tracker,1);
 
     TCanvas *c1 = fCanvas_2DPSview->GetCanvas();
     c1->Clear();
@@ -412,8 +435,12 @@ void MyMainFrame::Next_Event(int ievent) {
     gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove3);
     TGeoNode *nodeToRemove4 = gGeoManager->GetTopVolume()->FindNode("secondary_had_1");
     gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove4);
+ 
     TGeoNode *nodeToRemove5 = gGeoManager->GetTopVolume()->FindNode("si_tracker_1");
     gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove5);
+
+    TGeoNode *nodeToRemove6 = gGeoManager->GetTopVolume()->FindNode("ps_reco_voxel_1");
+    gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove6);
 
     int run_number = fTcalEvent->fTPOEvent->run_number;
     delete POevent;
@@ -548,31 +575,43 @@ void MyMainFrame::ZoomIn() {
     TCanvas *canvas = fCanvas->GetCanvas();    
     TView *view = (TView *)canvas->GetView();
     view->ZoomIn();
+    canvas->Modified();
+    canvas->Update();
 }
 void MyMainFrame::ZoomOut() {
     TCanvas *canvas = fCanvas->GetCanvas();    
     TView *view = (TView *)canvas->GetView();
     view->ZoomOut();
+    canvas->Modified();
+    canvas->Update();
 }
 void MyMainFrame::MoveUp() {
     TCanvas *canvas = fCanvas->GetCanvas();    
     TView *view = (TView *)canvas->GetView();
     view->MoveWindow('u');
+    canvas->Modified();
+    canvas->Update();
 }
 void MyMainFrame::MoveDown() {
     TCanvas *canvas = fCanvas->GetCanvas();    
     TView *view = (TView *)canvas->GetView();
     view->MoveWindow('i');
+    canvas->Modified();
+    canvas->Update();
 }
 void MyMainFrame::MoveLeft() {
     TCanvas *canvas = fCanvas->GetCanvas();    
     TView *view = (TView *)canvas->GetView();
     view->MoveWindow('l');
+    canvas->Modified();
+    canvas->Update();
 }
 void MyMainFrame::MoveRight() {
     TCanvas *canvas = fCanvas->GetCanvas();    
     TView *view = (TView *)canvas->GetView();
     view->MoveWindow('h');
+    canvas->Modified();
+    canvas->Update();
 }
 
 ClassImp(MyMainFrame)

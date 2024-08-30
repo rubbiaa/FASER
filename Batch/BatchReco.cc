@@ -321,6 +321,12 @@ int main(int argc, char** argv) {
             }
         }
 
+        // particle gun studies
+        bool particle_gun = true;
+        if(particle_gun){
+            struct TPORec* aPORec = (fPORecoEvent->GetPORecs())[0];           
+        }
+
         m_POEventTree -> Fill();
 
         delete fPORecoEvent;

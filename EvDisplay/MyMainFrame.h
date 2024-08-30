@@ -65,11 +65,15 @@ private:
     TPOEvent *POevent;
     TPORecoEvent* fPORecoEvent;
 
+    // truth voxels
     TGeoVolume *primary_em;
     TGeoVolume *primary_had;
     TGeoVolume *secondary_em;
     TGeoVolume *secondary_had;
     TGeoVolume *si_tracker;
+
+    // reconstructed 3D voxel
+    TGeoVolume *ps_reco_voxel;
 
     bool toggle_primary_em;
     bool toggle_primary_had;

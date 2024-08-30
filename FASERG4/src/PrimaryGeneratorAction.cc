@@ -39,6 +39,9 @@ PrimaryGeneratorAction::~PrimaryGeneratorAction()
 void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 {
 
+	// DEBUG : only primary lepton if CC otherwise random pion
+	bool want_particleGun = true; //  true;
+
 	const TPOEvent *branch_POEvent = GetTPOEvent();
 
 	if (m_ROOTInputFile == nullptr) {
@@ -108,12 +111,41 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 	fParticleManager->setVertexInformation(vtxpos);
 	fTPOEvent.setPrimaryVtx(x,y,z);
 
+	int ipo_maxhadron = -1;
+	if(want_particleGun) {
+		// shift run number to big number
+		fTPOEvent.run_number += 1000000000;
+		// find most energetic pion
+		for (G4int i = 0; i < fTPOEvent.n_particles(); ++i)
+		{
+			struct PO aPO = fTPOEvent.POs[i];
+			if (abs(aPO.m_pdg_id) != 211 && aPO.m_pdg_id != 111)
+				continue;
+			if(ipo_maxhadron == -1 || aPO.m_energy > fTPOEvent.POs[ipo_maxhadron].m_energy) {
+				ipo_maxhadron = i;
+			}			
+		}
+	}
+	bool got_pion = false;
+
 	fTPOEvent.dump_event();	
 
 	valid_event++;
 	for (G4int i = 0; i < fTPOEvent.n_particles(); ++i)
 	{
 		struct PO aPO = fTPOEvent.POs[i];
+
+		// run in particle gun mode keeping only one relevant track from event
+		if(want_particleGun) {
+			if(got_pion) continue;
+			if(fTPOEvent.isCC) {
+				if(!fTPOEvent.is_lepton(aPO.m_pdg_id)) continue;
+			} else {
+				if(i != ipo_maxhadron) continue;				
+				got_pion = true;
+			}
+		}
+
 		G4ParticleDefinition *particle = particleTable->FindParticle(aPO.m_pdg_id);
 
 		if (particle != nullptr && aPO.m_status == 1)
