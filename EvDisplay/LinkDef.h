@@ -3,6 +3,8 @@
 #include "MyMainFrame.h"
 #include "TPORecoEvent.hh"
 #include "TTauSearch.hh"
+#include "TParticleGun.hh"
+#include "TPSCluster.hh"
 
 //#ifdef CINT
 
@@ -22,5 +24,10 @@
 
 #pragma link C++ class TTauSearch;
 #pragma link C++ struct TTauSearch::KINEMATICS;
+
+#pragma link C++ class TParticleGun;
+#pragma link C++ struct TParticleGun::FEATURES;
+
+#pragma link C++ class TPSCluster;
 
 //#endif

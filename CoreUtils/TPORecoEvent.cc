@@ -562,7 +562,7 @@ void TPORecoEvent::pshit2d_position(long ID, double &fix, double &fiy, double &f
 
 /// @brief Reconstruct all 2D clusters for the xz and the yz views
 /// @param view = 0 for XZ, and .ne.0 for YZ
-void TPORecoEvent::ReconstructClusters(int view) {
+void TPORecoEvent::ReconstructClusters(int view, bool verbose) {
 
     double threshold_2dhit = 2.0; // MeV
     double eps = 5; // mm
@@ -570,7 +570,7 @@ void TPORecoEvent::ReconstructClusters(int view) {
 
     DBScan dbscan;
 
-    std::map<int, struct PSCLUSTER> *PSClusters = (view==0) ? &PSClustersX : &PSClustersY;
+    std::map<int, class TPSCluster> *PSClusters = (view==0) ? &PSClustersX : &PSClustersY;
     PSClusters->clear();
 
     std::vector<DBScan::Point> points;
@@ -590,7 +590,7 @@ void TPORecoEvent::ReconstructClusters(int view) {
     for (const auto& point : points) {
         if(point.clusterID == 0)continue;
 
-        PSCLUSTERHIT hit = {point.ID}; 
+        TPSCluster::PSCLUSTERHIT hit = {point.ID, (float)point.ehit}; 
         auto c = PSClusters->find(point.clusterID);
         if (c != PSClusters->end())
         {
@@ -599,7 +599,7 @@ void TPORecoEvent::ReconstructClusters(int view) {
         }
         else
         {
-            PSCLUSTER newc;
+            TPSCluster newc(view, fTcalEvent);
             newc.clusterID = point.clusterID;
             newc.rawenergy = point.ehit;
             newc.hits.push_back(hit);
@@ -607,10 +607,17 @@ void TPORecoEvent::ReconstructClusters(int view) {
         }
     }
 
-    for (const auto& c : *PSClusters) {
+    // now compute the energy compensated eflow relative to primary vertex
+    ROOT::Math::XYZVector primary(fTPOEvent->prim_vx.X(), fTPOEvent->prim_vx.Y(), fTPOEvent->prim_vx.Z());
+
+    for (auto& c : *PSClusters) {
         std::cout << "Cluster ID:" << c.second.clusterID << " nhits=" << c.second.hits.size();
         std::cout << " rawEnergy(MeV): " << c.second.rawenergy; 
         std::cout << std::endl;        
+        if(c.second.rawenergy < 10*1e3) continue;
+        c.second.ComputeCOG();
+        c.second.setVtx(primary.x(), primary.y(), primary.z());
+        c.second.ComputeLongProfile(verbose);
     }
 }
 

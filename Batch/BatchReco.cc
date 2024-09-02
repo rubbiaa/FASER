@@ -13,6 +13,7 @@
 #include "TcalEvent.hh"
 #include "TPORecoEvent.hh"
 #include "TTauSearch.hh"
+#include "TParticleGun.hh"
 
 void load_geometry() {
     // Load the GDML geometry
@@ -121,6 +122,11 @@ int main(int argc, char** argv) {
     TTree *m_tausearch_e_Tree = new TTree("Tausearch_e", "Tausearch_e");
     fTTauSearch_e.Create_Sel_Tree(m_tausearch_e_Tree);
 
+    // TParticleGun
+    TParticleGun fTParticleGun;
+    TTree *m_particlegun_Tree = new TTree("ParticleGun","ParticleGun");
+    fTParticleGun.Create_Sel_Tree(m_particlegun_Tree);
+
     // process events
     int ievent = 0;
     if(max_event == -1) max_event = 99999999;
@@ -152,8 +158,17 @@ int main(int argc, char** argv) {
 
         if(dump_event_cout) fTcalEvent -> fTPOEvent -> dump_event();
 
+        //// 
+        //// continue;
+        /////
+
         TPORecoEvent* fPORecoEvent = new TPORecoEvent(fTcalEvent, fTcalEvent->fTPOEvent);
         fPORecoEvent -> Reconstruct();
+
+        std::cout << "Start reconstruction of clusters..." << std::endl;
+        fPORecoEvent -> Reconstruct2DViewsPS();
+        fPORecoEvent -> ReconstructClusters(0);    // this is very slow
+
         if(dump_event_cout) fPORecoEvent -> Dump();
 
         fPORecoEvent -> Fill2DViewsPS();
@@ -323,8 +338,29 @@ int main(int argc, char** argv) {
 
         // particle gun studies
         bool particle_gun = true;
+        double emax_cluster = 0;
         if(particle_gun){
-            struct TPORec* aPORec = (fPORecoEvent->GetPORecs())[0];           
+            if((fPORecoEvent->GetPORecs()).size() == 0) continue;
+            struct TPORec* aPORec = (fPORecoEvent->GetPORecs())[0]; 
+            int POID = aPORec->POID;
+            struct PO *aPO = &fTcalEvent->fTPOEvent->POs[POID];
+            fTParticleGun.features.m_pdg_id = aPO->m_pdg_id;
+            fTParticleGun.features.m_energy = aPO->m_energy;  
+
+            // fill features of most energetic reconstructed cluster
+            for (auto& c : fPORecoEvent->PSClustersX) {
+                if(c.second.rawenergy > emax_cluster) {
+                    emax_cluster = c.second.rawenergy;
+                    fTParticleGun.features.ep_chi2_per_ndf = c.second.longenergyprofile.chi2_per_ndf;
+                    fTParticleGun.features.ep_E0 = c.second.longenergyprofile.E0;
+                    fTParticleGun.features.ep_a = c.second.longenergyprofile.a;
+                    fTParticleGun.features.ep_b = c.second.longenergyprofile.b;
+                    fTParticleGun.features.ep_tmax = c.second.longenergyprofile.tmax;
+                    fTParticleGun.features.ep_c = c.second.longenergyprofile.c;
+                }
+            }
+
+            fTParticleGun.Fill_Sel_Tree(m_particlegun_Tree);     
         }
 
         m_POEventTree -> Fill();

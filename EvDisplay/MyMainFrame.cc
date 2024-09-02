@@ -166,7 +166,7 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
     fPORecoEvent -> TrackReconstruct();
     std::cout << "Start reconstruction of clusters..." << std::endl;
     fPORecoEvent -> Reconstruct2DViewsPS();
-//    fPORecoEvent -> ReconstructClusters(0);    // this is very slow
+    fPORecoEvent -> ReconstructClusters(0, true);    // this is very slow
     std::cout << "Start reconstruction of 3D voxels..." << std::endl;
     fPORecoEvent -> Reconstruct3DPS();
     fPORecoEvent -> Dump();

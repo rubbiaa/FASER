@@ -40,7 +40,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 {
 
 	// DEBUG : only primary lepton if CC otherwise random pion
-	bool want_particleGun = true; //  true;
+	bool want_particleGun = false; //  true;
 
 	const TPOEvent *branch_POEvent = GetTPOEvent();
 

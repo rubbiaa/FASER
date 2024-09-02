@@ -9,6 +9,7 @@
 
 #include "TcalEvent.hh"
 #include "TPOEvent.hh"
+#include "TPSCluster.hh"
 
 /// @brief TPORec holds a reconstructed particle object
 class TPORec : public TObject {
@@ -80,8 +81,8 @@ public:
         float Edeposited;               // deposited energy
     };
 
-    std::map<long, PSHIT2D> PShitmapX;      // the X-Z view hit map
-    std::map<long, PSHIT2D> PShitmapY;      // the Y-Z view hit map
+    std::map<long, PSHIT2D> PShitmapX;      //! the X-Z view hit map
+    std::map<long, PSHIT2D> PShitmapY;      //! the Y-Z view hit map
 
     /// @brief Return the x,y,z position of a 2D hit (one coordinate x, or y should always be ignored)
     void pshit2d_position(long ID, double &fix, double &fiy, double &fiz);
@@ -95,18 +96,10 @@ public:
     TH2D* xviewPS_eldepo = nullptr;                          //! 2Dview scintillator X-Z
     TH2D* yviewPS_eldepo = nullptr;                          //! 2Dview scintillator Y-Z
 
-    struct PSCLUSTERHIT {
-        long id;
-    };
-
-    struct PSCLUSTER {
-        int clusterID;
-        double rawenergy = 0;   // in MeV !
-        std::vector<struct PSCLUSTERHIT> hits;        
-    };
-
-    std::map<int, struct PSCLUSTER> PSClustersX;
-    std::map<int, struct PSCLUSTER> PSClustersY;
+    std::map<int, class TPSCluster> PSClustersX;            //! 2Dview clusters XZ
+    std::map<int, class TPSCluster> PSClustersY;            //! 2Dview clusters YZ
+    size_t n_psclustersX() { return PSClustersX.size(); };    // number of reconstructed cluster in XZ view
+    size_t n_psclustersY() { return PSClustersY.size(); };    // number of reconstructed cluster in YZ view
 
     struct PSVOXEL3D {
         float RawEnergy;  // MeV
@@ -128,7 +121,7 @@ public:
     void Reconstruct2DViewsPS();
 
     /// @brief Reconstruct all 2D clusters for the xz and the yz views (view=0 for XZ, and view=1 for YZ)
-    void ReconstructClusters(int view);
+    void ReconstructClusters(int view, bool verbose = false);
 
     /// @brief Reconstruct 3D voxels from 2D views in plastic scintillator
     void Reconstruct3DPS(int maxIter = 10);
