@@ -50,6 +50,9 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, const TGWindow *p, 
     fButton = new TGTextButton(hFrame, "Toggle reco_track");
     fButton->Connect("Clicked()", "MyMainFrame", this, "toggle_reco_track()");
     hFrame->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
+    fButton = new TGTextButton(hFrame, "ONLY RECO");
+    fButton->Connect("Clicked()", "MyMainFrame", this, "only_reco()");
+    hFrame->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
 
     // Create a horizontal frame to contain the zoom and sideview buttons
     TGHorizontalFrame *hFrame2 = new TGHorizontalFrame(tab1);
@@ -160,13 +163,14 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
     fTcalEvent -> fTPOEvent -> dump_event();
 
     fPORecoEvent = new TPORecoEvent(fTcalEvent, fTcalEvent->fTPOEvent);
+    fPORecoEvent->verbose = 1;
     std::cout << "Start reconstruction of PORecs..." << std::endl;
     fPORecoEvent -> Reconstruct();
     std::cout << "Start reconstruction of tracks..." << std::endl;
     fPORecoEvent -> TrackReconstruct();
     std::cout << "Start reconstruction of clusters..." << std::endl;
     fPORecoEvent -> Reconstruct2DViewsPS();
-    fPORecoEvent -> ReconstructClusters(0, true);    // this is very slow
+//   fPORecoEvent -> ReconstructClusters(0, true);    // this is very slow
     std::cout << "Start reconstruction of 3D voxels..." << std::endl;
     fPORecoEvent -> Reconstruct3DPS();
     fPORecoEvent -> Dump();
@@ -319,7 +323,11 @@ void MyMainFrame::Draw_event() {
         TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, 
                 position.Y() / 10.0, position.Z() / 10.0);
         TGeoVolume *hitVolume = new TGeoVolume("HitVolume", box, air);
-        hitVolume->SetLineColor(kBlack); 
+        if(it.second.ghost) {
+            hitVolume->SetLineColor(kMagenta); 
+        } else {
+            hitVolume->SetLineColor(kBlack); 
+        }
         ps_reco_voxel->AddNode(hitVolume, i++, trans);
     }
     gGeoManager->GetTopVolume()->AddNode(ps_reco_voxel,1);
@@ -553,9 +561,34 @@ void MyMainFrame::toggle_reco_track() {
     canvas->Update();
 }
 
+void MyMainFrame::only_reco() {
+    TCanvas *canvas = fCanvas->GetCanvas();
+    // remove the previous event
+    TGeoNode *nodeToRemove1 = gGeoManager->GetTopVolume()->FindNode("primary_em_1");
+    gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove1);
+    TGeoNode *nodeToRemove2 = gGeoManager->GetTopVolume()->FindNode("primary_had_1");
+    gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove2);
+    TGeoNode *nodeToRemove3 = gGeoManager->GetTopVolume()->FindNode("secondary_em_1");
+    gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove3);
+    TGeoNode *nodeToRemove4 = gGeoManager->GetTopVolume()->FindNode("secondary_had_1");
+    gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove4);
+ 
+    TGeoNode *nodeToRemove5 = gGeoManager->GetTopVolume()->FindNode("si_tracker_1");
+    gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove5);
+
+     toggle_primary_em=
+    toggle_primary_had=
+    toggle_secondary_em=
+    toggle_secondary_had=false; 
+    toggle_reconstructed_tracks = false;
+    canvas->Modified();
+    canvas->Update();
+}
+
 void MyMainFrame::SideView() {
     TCanvas *canvas = fCanvas->GetCanvas();
     TView *view = (TView *)canvas->GetView();
+    if(view == nullptr) return;
     view->SetPsi(90);
     view->SetRange(12.5,12.5,-100,25.,25.,100.);
     canvas->Modified();

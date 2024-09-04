@@ -139,6 +139,19 @@ void TPOEvent::perform_taulepton_decay(struct PO tauPO) {
 }
 #endif
 
+bool TPOEvent::isCharmed() const {
+  bool charmed = false;
+  for (size_t i=0; i<n_particles(); i++) {
+    if(charmed) break;
+    struct PO aPO = POs[i];
+    if(abs(aPO.m_pdg_id)/100 == 4) charmed = true;
+    if(abs(aPO.m_pdg_id)/100 == 104) charmed = true;
+    if(abs(aPO.m_pdg_id)/1000 == 4) charmed = true;
+    if(abs(aPO.m_pdg_id)/1000 == 14) charmed = true;
+  }
+  return charmed;
+}
+
 size_t TPOEvent::n_charged() const {
   TDatabasePDG *pdgDB = TDatabasePDG::Instance();
   size_t nc=0;

@@ -94,7 +94,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 	XYZVector vtxpos;
 	// decide where the event is generated
 	if (G4UniformRand() < detector->fTotalWMass / detector->fTotalMass) {
-		// Generate an event in the tungsten
+		// Generate an event in the target
 		fTPOEvent.setVtxTarget(TPOEvent::kVtx_in_W);
 		G4double zfront = -detector->getNumberReplicas() * detector->fSandwichLength / 2.0;
 		z = zfront + wanted_layer * detector->fSandwichLength + detector->getScintillatorSizeZ() + 

@@ -78,6 +78,7 @@ public:
   int event_mask = 0;               // if events are masked (see kMask_... constants)
   bool isCC;                        // event is a charged current
   bool isES() const { return jetpx==0 && jetpy == 0 && jetpz == 0;}; // event is elastic scattering on electron
+  bool isCharmed() const;
   bool istau;                       // incoming neutrino is a nutau
   int tau_decaymode;                // =1 e, =2 mu, =3 1-prong, =4 rho =5 3-prong, =6 other
   std::vector<struct PO> POs;       // vector of PO of the event

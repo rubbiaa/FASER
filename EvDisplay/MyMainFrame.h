@@ -29,6 +29,7 @@ public:
     void toggle_sec_em();
     void toggle_sec_had();
     void toggle_reco_track();
+    void only_reco();
     void next_event();
     void goto_event();
 

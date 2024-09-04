@@ -83,12 +83,14 @@ public:
 
     std::map<long, PSHIT2D> PShitmapX;      //! the X-Z view hit map
     std::map<long, PSHIT2D> PShitmapY;      //! the Y-Z view hit map
+    std::map<int, std::map<long, PSHIT2D>> PShitmapsZ; //! the X-Y views per layer
 
     /// @brief Return the x,y,z position of a 2D hit (one coordinate x, or y should always be ignored)
     void pshit2d_position(long ID, double &fix, double &fiy, double &fiz);
 
     TH2D* xviewPS = nullptr;                          //! 2Dview scintillator X-Z
     TH2D* yviewPS = nullptr;                          //! 2Dview scintillator Y-Z
+    TH2D* zviewPS[50];                                //! 2Dview scintillator X-Z view for 50 planes
     TH2D* xviewPS_em = nullptr;                          //! 2Dview scintillator X-Z
     TH2D* yviewPS_em = nullptr;                          //! 2Dview scintillator Y-Z
     TH2D* xviewPS_had = nullptr;                          //! 2Dview scintillator X-Z
@@ -103,6 +105,7 @@ public:
 
     struct PSVOXEL3D {
         float RawEnergy;  // MeV
+        bool ghost;
     };
 
     std::map<long, struct PSVOXEL3D> PSvoxelmap;
@@ -110,6 +113,8 @@ public:
     TPORecoEvent() : fTcalEvent(0), fTPOEvent(0) {};
     TPORecoEvent(TcalEvent* c, TPOEvent* p);
     virtual ~TPORecoEvent();
+
+    int verbose = 0;
 
     /// @brief Reconstruct the FASERG4 simulated event to the PORec
     void Reconstruct();
@@ -124,7 +129,7 @@ public:
     void ReconstructClusters(int view, bool verbose = false);
 
     /// @brief Reconstruct 3D voxels from 2D views in plastic scintillator
-    void Reconstruct3DPS(int maxIter = 10);
+    void Reconstruct3DPS(int maxIter = 150);
 
     /// @brief Dump PORecs to the screen
     void Dump();

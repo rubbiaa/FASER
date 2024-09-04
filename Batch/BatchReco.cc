@@ -117,6 +117,10 @@ int main(int argc, char** argv) {
     TH1D h_fullevent_Evis = TH1D("h_fullevent_Evis", "Full event energy", 200, 0., 2000.);
     TH1D h_fullevent_ET = TH1D("h_fullevent_ET", "Full event transverse energy", 200, 0., 40.);
 
+    // charm
+    TH1D h_charm_Enuall = TH1D("h_charm_Enuall", "Neutrino energy", 50, 0, 4000.0);
+    TH1D h_charm_Enucharmed = TH1D("h_charm_Enucharmed", "Neutrino energy", 50, 0, 4000.0);
+    
     // TauSearches
     TTauSearch fTTauSearch_e;
     TTree *m_tausearch_e_Tree = new TTree("Tausearch_e", "Tausearch_e");
@@ -156,10 +160,21 @@ int main(int argc, char** argv) {
             std::cout << " copied digitized tracks " << fTcalEvent->getfTracks().size() << std::endl;
         }
 
-        if(dump_event_cout) fTcalEvent -> fTPOEvent -> dump_event();
+        if(dump_event_cout) POevent -> dump_event();
+
+        // charm 
+        double enu = POevent -> POs[0].m_energy;
+        h_charm_Enuall.Fill(enu);
+        if(POevent -> isCharmed()) {
+            POevent -> dump_event();
+            h_charm_Enucharmed.Fill(enu);
+        }
 
         //// 
-        //// continue;
+
+        delete POevent;
+        delete fTcalEvent;   
+        continue;
         /////
 
         TPORecoEvent* fPORecoEvent = new TPORecoEvent(fTcalEvent, fTcalEvent->fTPOEvent);

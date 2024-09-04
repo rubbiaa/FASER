@@ -158,8 +158,10 @@ void TPSCluster::ComputeLongProfile(bool visualize) {
     std::cout << "tmax = " << tmax << std::endl;
     std::cout << "c = " << c << std::endl;
 
+#if 0
     // Visualize the results
     TCanvas *c1 = new TCanvas("TPSclusterenergycanvas", "Energy Profile Fit", 800, 600);
     hist->Draw();
     fitFunc->Draw("SAME");
+#endif
 }

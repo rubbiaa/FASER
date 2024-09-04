@@ -165,11 +165,17 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 					 0,		   // copy number
 					 fCheckOverlaps);  // checking overlaps
 
-	// target is composed of W
+	// target is composed of W or Copper
 	G4Material * G4_W = G4NistManager::Instance()->FindOrBuildMaterial("G4_W");
+	G4Material * G4_Cu = G4NistManager::Instance()->FindOrBuildMaterial("G4_Cu");
 
-	CreateFaserNu(fPolyvinyltoluene, G4_W, G4ThreeVector(sizeScintillatorX, sizeScintillatorY, sizeScintillatorZ),G4ThreeVector(sizetargetWX, sizetargetWY, sizetargetWZ),worldLV, NRep);
-	fParticleManager->setDetectorInformation(fPolyvinyltoluene->GetName(),XYZVector(sizeScintillatorX, sizeScintillatorY, sizeScintillatorZ), G4_W->GetName(),  XYZVector(sizetargetWX, sizetargetWY, sizetargetWZ), NRep);
+	G4Material * G4_Target = G4_W; // fWorldMaterial;
+
+	CreateFaserNu(fPolyvinyltoluene, G4_Target, G4ThreeVector(sizeScintillatorX, sizeScintillatorY, 
+	sizeScintillatorZ),G4ThreeVector(sizetargetWX, sizetargetWY, sizetargetWZ),worldLV, NRep);
+	fParticleManager->setDetectorInformation(fPolyvinyltoluene->GetName(),
+	XYZVector(sizeScintillatorX, sizeScintillatorY, sizeScintillatorZ), G4_Target->GetName(),  
+	XYZVector(sizetargetWX, sizetargetWY, sizetargetWZ), NRep);
 
 	// Save the geometry of the detector
 	G4GDMLParser parser;
@@ -279,7 +285,8 @@ void DetectorConstruction::CreateFaserNu(G4Material* material1, G4Material* mate
 	fTotalLength = NRep*sizeZ;
 	G4cout << "Total length " << fTotalLength << " mm" << G4endl;
 
-	fTotalWMass = sizeX*sizeY*size2.getZ()*19.3e-3*NRep*1e-3;
+	G4double density = material2->GetDensity()/(g/cm3);  // Density in g/cm^3
+	fTotalWMass = sizeX*sizeY*size2.getZ()*density*1e-3*NRep*1e-3;
 	G4cout << "Total mass W " << fTotalWMass << " kg" << G4endl;
 
 	fTotalScintMass = sizeX*sizeY*size1.getZ()*1.03e-3*NRep*1e-3;
