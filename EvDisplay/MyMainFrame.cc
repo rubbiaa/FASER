@@ -201,7 +201,8 @@ void MyMainFrame::Draw_event() {
 
     TGeoMaterial *matAluminum = new TGeoMaterial("Aluminum", 26.98, 13, 2.7);
     TGeoMedium *aluminum = new TGeoMedium("Aluminum", 2, matAluminum);
-    TGeoShape *box = new TGeoBBox("box", 0.5/2.0,0.5/2.0,0.5/2.0);
+    double voxelsize = fTcalEvent->geom_detector.fScintillatorVoxelSize/10.0;
+    TGeoShape *box = new TGeoBBox("box", voxelsize/2.0,voxelsize/2.0,voxelsize/2.0);
 
     TGeoShape *trackerhitbox = new TGeoBBox("box", 0.1/2.0,0.1/2.0,0.1/2.0);
 

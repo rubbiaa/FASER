@@ -18,7 +18,7 @@ INCS = $(wildcard *.h)
 INCS += $(wildcard *.hh)
 INCS += $(wildcard $(COREUTILSDIR)/*.hh)
 
-ROOTCFLAGS = -fPIC -g $(shell root-config --cflags)
+ROOTCFLAGS = -fPIC -g $(shell root-config --cflags) -fsanitize=address
 
 ROOTCFLAGS += -I$(COREUTILSDIR)
 

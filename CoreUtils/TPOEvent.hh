@@ -23,7 +23,7 @@ public:
   double m_pz;                   // z momentum
   double m_energy;               // total energy
   double m_kinetic_energy;       // kinetic energy
-  double m_vx_decay, m_vy_decay, m_vz_decay; 
+  double m_vx_decay, m_vy_decay, m_vz_decay;    // this is mislabeled - it's actually vertex of particle
   int nparent;                   // number of parents
   int m_trackid_in_particle[MAXPARENT]; // list of parents
   int m_status;                  // MC status

@@ -706,7 +706,7 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
     std::uniform_int_distribution<> rnd_ny(0, ny-1);
 
     // the maximum number layer (from 0 to nRep) that is reconstructed
-    int maxLayer = 50;
+    int maxLayer = 25;
 
     // Step 0: organize hits for easy access
     std::vector<std::vector<float>> XZ(nx, std::vector<float>(nztot, 0.0));
@@ -742,7 +742,7 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
         long ilayer = (ID / 1000000000);
         if(ilayer > maxLayer) continue;
         long izz = ilayer * nzlayer + iz;
-        if(ix < nx) {
+        if(ix < nx && izz < nztot) {
             XZ[ix][izz] = ehit;
         }
     }
@@ -756,7 +756,7 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
         long ilayer = (ID / 1000000000);
         if(ilayer > maxLayer) continue;
         long izz = ilayer * nzlayer + iz;
-        if(iy < ny) {
+        if(iy < ny && izz < nztot) {
             YZ[iy][izz] = ehit;
         }
     }
@@ -915,8 +915,8 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
                         int izz = ilayer * nzlayer + z;
 
                         // check difference of two 2D projections
-                        double diff = fabs(XZ[x][izz] - YZ[y][izz]);
-                        if(diff < 1e-3) continue;  // this is likely not a fake
+ //                       double diff = fabs(XZ[x][izz] - YZ[y][izz]);
+ //                       if(diff < 1e-3) continue;  // this is likely not a fake
 
                         float adjust = std::min(difference, XY[ilayer][x][y] - V[x][y][izz].value);
                         if(V[x][y][izz].value + adjust < 0) adjust = -V[x][y][izz].value;

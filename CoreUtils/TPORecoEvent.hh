@@ -153,7 +153,7 @@ public:
     /// @brief Number of scintillator hits left by tau
     int nhits_tau;
 
-    /// @brief Number of hits left found in first tracker layers
+    /// @brief Number of hits found in first tracker layers
     int nhits_tracker_first;
 
     /// @brief Fill the 2D (x-z) and (y-z) views of the Scintillator detector

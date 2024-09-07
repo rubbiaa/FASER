@@ -170,6 +170,12 @@ int main(int argc, char** argv) {
             h_charm_Enucharmed.Fill(enu);
         }
 
+        // tau decay length
+        if(POevent -> istau) {
+           struct PO aPO = POevent-> POs[4];    // first decay product
+           ROOT::Math::XYZVector decayvtx = ROOT::Math::XYZVector(aPO.m_vx_decay, aPO.m_vy_decay, aPO.m_vz_decay);   
+        }
+
         //// 
 
         delete POevent;
