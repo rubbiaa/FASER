@@ -49,6 +49,7 @@ private:
     TGTextButton *fButton;
     TRootEmbeddedCanvas *fCanvas;
     TRootEmbeddedCanvas *fCanvas_2DPSview;
+    TRootEmbeddedCanvas *fCanvas_2DPSviewZ;
     TRootEmbeddedCanvas *fCanvas_2DPSview_emhad;
     TRootEmbeddedCanvas *fCanvas_eldepo;
     TGTextEntry *textNextEventEntry;

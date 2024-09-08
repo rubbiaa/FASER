@@ -270,7 +270,7 @@ void DetectorConstruction::CreateFaserNu(G4Material* material1, G4Material* mate
 
 	// add precision tracker of composed of Si
 	G4Material * G4_Si = G4NistManager::Instance()->FindOrBuildMaterial("G4_Si");
-	G4cout << "Thickness of the Silicon tracker " << fSiTrackerSizeZ << " mm " << G4endl;
+	G4cout << "Thickness of a Silicon tracker layer" << fSiTrackerSizeZ << " mm " << G4endl;
 
 	G4double sizeX = std::max(size1.getX(), size2.getX());
 	G4double sizeY = std::max(size1.getY(), size2.getY());
@@ -295,6 +295,17 @@ void DetectorConstruction::CreateFaserNu(G4Material* material1, G4Material* mate
 	fTotalMass = fTotalWMass + fTotalScintMass;
 	G4cout << "Total mass target+scint " << fTotalMass << " kg" << G4endl;
 
+	G4double radlen1 = material1->GetRadlen()/(mm);
+	G4double interlen1 = material1->GetNuclearInterLength()/(mm);
+	G4double radlen2 = material2->GetRadlen()/(mm);
+	G4double interlen2 = material2->GetNuclearInterLength()/(mm);
+	G4cout << "Radiation length scintillator layer " << size1.getZ()/radlen1 << G4endl;
+	G4cout << "Interaction length scintillator layer " << size1.getZ()/interlen1 << G4endl;
+	G4cout << "Radiation length target layer " << size2.getZ()/radlen2 << G4endl;
+	G4cout << "Interaction length target layer " << size2.getZ()/interlen2 << G4endl;
+
+	G4cout << "Total rad length " << NRep*(size1.getZ()/radlen1+size2.getZ()/radlen2) << G4endl;
+	G4cout << "Total interac length " << NRep*(size1.getZ()/interlen1+size2.getZ()/interlen2) << G4endl;
 
 	// TODO Setup via macro commands - currently set to large values for simulation speed.
 	G4UserLimits* userLimits_Scint = new G4UserLimits();

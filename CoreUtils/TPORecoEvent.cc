@@ -536,18 +536,18 @@ void TPORecoEvent::Fill2DViewsPS() {
         yviewPS_eldepo = (TH2D*)gDirectory->Get("yviewPS_eldepo");
         yviewPS_eldepo->Reset(); 
     } else {
-    xviewPS = new TH2D("xviewPS", "Scintillator x-view", nztot, 0, nztot, nx, 0, nx);
-    yviewPS = new TH2D("yviewPS", "Scintillator y-view", nztot, 0, nztot, ny, 0, ny);
+    xviewPS = new TH2D("xviewPS", "Scintillator xz-view", nztot, 0, nztot, nx, 0, nx);
+    yviewPS = new TH2D("yviewPS", "Scintillator yz-view", nztot, 0, nztot, ny, 0, ny);
     for (int i=0; i<50; i++) {
         std::string hname = "zviewPS_" + std::to_string(i);
-        zviewPS[i] = new TH2D(hname.c_str(), "Scintillator y-view", nx, 0, nx, ny, 0, ny);
+        zviewPS[i] = new TH2D(hname.c_str(), hname.c_str(), nx, 0, nx, ny, 0, ny);
     }
-    xviewPS_em = new TH2D("xviewPS_em", "Scintillator x-view - EM", nztot, 0, nztot, nx, 0, nx);
-    yviewPS_em = new TH2D("yviewPS_em", "Scintillator y-view - EM", nztot, 0, nztot, ny, 0, ny);
-    xviewPS_had = new TH2D("xviewPS_had", "Scintillator x-view - HAD", nztot, 0, nztot, nx, 0, nx);
-    yviewPS_had = new TH2D("yviewPS_had", "Scintillator y-view - HAD", nztot, 0, nztot, ny, 0, ny);
-    xviewPS_eldepo = new TH2D("xviewPS_eldepo", "Scintillator x-view", 11, 0.,1.1,100.,0.,25.);
-    yviewPS_eldepo = new TH2D("yviewPS_eldepo", "Scintillator y-view", 11, 0.,1.1,100.,0.,25.);
+    xviewPS_em = new TH2D("xviewPS_em", "Scintillator xz-view - EM", nztot, 0, nztot, nx, 0, nx);
+    yviewPS_em = new TH2D("yviewPS_em", "Scintillator yz-view - EM", nztot, 0, nztot, ny, 0, ny);
+    xviewPS_had = new TH2D("xviewPS_had", "Scintillator xz-view - HAD", nztot, 0, nztot, nx, 0, nx);
+    yviewPS_had = new TH2D("yviewPS_had", "Scintillator yz-view - HAD", nztot, 0, nztot, ny, 0, ny);
+    xviewPS_eldepo = new TH2D("xviewPS_eldepo", "Scintillator xz-view", 11, 0.,1.1,100.,0.,25.);
+    yviewPS_eldepo = new TH2D("yviewPS_eldepo", "Scintillator yz-view", 11, 0.,1.1,100.,0.,25.);
     }
 
     double electromagneticity_threshold = 0.8;

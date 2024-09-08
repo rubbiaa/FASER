@@ -110,9 +110,13 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	// magnetic field messenger
 	// data members
 
-	/**
-	  @brief: This function sets up a box out of a given material.
-	  */
+	/// @brief Creates the FASERcal geometry
+	/// @param material1 = scintillator geometry
+	/// @param material2 = target geometry
+	/// @param size1 = thickness scintillator
+	/// @param size2 = thickness target
+	/// @param parent 
+	/// @param Nrep = number of layers
 	void CreateFaserNu(G4Material* material1, G4Material* material2, G4ThreeVector size1, G4ThreeVector size2, G4LogicalVolume* parent, G4int Nrep);
 
 	G4LogicalVolume* fLogicScintillator = nullptr;	///< Logical volume of the scintillator

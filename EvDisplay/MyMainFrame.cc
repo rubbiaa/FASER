@@ -25,6 +25,7 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, const TGWindow *p, 
     TGTab *tab = new TGTab(fMain, w, h);
     TGCompositeFrame *tab1 = tab->AddTab("Event");
     TGCompositeFrame *tab2 = tab->AddTab("2DPSView");
+    TGCompositeFrame *tab2b = tab->AddTab("2DPSViewZ");
     TGCompositeFrame *tab3 = tab->AddTab("2DPSView_emhad");
     TGCompositeFrame *tab4 = tab->AddTab("eldepo");
     fMain->AddFrame(tab, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY));
@@ -90,6 +91,9 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, const TGWindow *p, 
 
     fCanvas_2DPSview = new TRootEmbeddedCanvas("EmbeddedCanvas2", tab2, 1200, 600);;
     tab2->AddFrame(fCanvas_2DPSview, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY));
+
+    fCanvas_2DPSviewZ = new TRootEmbeddedCanvas("EmbeddedCanvas2b", tab2b, 1200, 600);;
+    tab2b->AddFrame(fCanvas_2DPSviewZ, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY));
 
     fCanvas_2DPSview_emhad = new TRootEmbeddedCanvas("EmbeddedCanvas3", tab3, 1200, 600);;
     tab3->AddFrame(fCanvas_2DPSview_emhad, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY));
@@ -374,6 +378,18 @@ void MyMainFrame::Draw_event() {
     fPORecoEvent -> yviewPS_had -> Draw("COLZ");
     c2->Modified();
     c2->Update();
+
+    TCanvas *c3 = fCanvas_2DPSviewZ->GetCanvas();
+    c3->Clear();
+    c3->Divide(5, 4);
+    for (int i=0; i<20; i++) {
+        c3->cd(i+1);
+        gPad->SetLogz();
+        gStyle->SetOptStat(0);  // Disable the statistics box
+        fPORecoEvent -> zviewPS[i] -> Draw("COLZ");
+    }
+    c3->Modified();
+    c3->Update();
 
     TCanvas *c4 = fCanvas_eldepo->GetCanvas();
     c4->Clear();
