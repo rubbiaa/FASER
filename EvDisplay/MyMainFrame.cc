@@ -255,7 +255,7 @@ void MyMainFrame::Draw_event() {
                 TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, 
                 position.Y() / 10.0, position.Z() / 10.0);
                 TGeoVolume *hitVolume = new TGeoVolume("TrackerHitVolume", trackerhitbox, air);
-                hitVolume->SetLineColor(kMagenta); 
+                hitVolume->SetLineColor(kRed); 
                 si_tracker->AddNode(hitVolume, i, trans);
             } else {
                 std::cout << " Unknown type of hit " << std::endl;
@@ -311,7 +311,7 @@ void MyMainFrame::Draw_event() {
     energyText->SetTextSize(0.03);
     energyText->Draw();
 
-  //  Draw_event_reco_tracks();
+    Draw_event_reco_tracks();
 
     ps_reco_voxel = new TGeoVolume("ps_reco_voxel", bigbox, air);
     int i = 1;
@@ -463,7 +463,7 @@ void MyMainFrame::Next_Event(int ievent) {
     toggle_secondary_em=
     toggle_secondary_had=true;
 
-    toggle_reconstructed_tracks = true;
+    toggle_reconstructed_tracks = false;
 
     SideView();
 
@@ -551,12 +551,14 @@ void MyMainFrame::toggle_sec_had() {
 void MyMainFrame::toggle_reco_track() {
     TCanvas *canvas = fCanvas->GetCanvas();
     toggle_reconstructed_tracks = !toggle_reconstructed_tracks;
-    if(toggle_reconstructed_tracks) {
+/*    if(toggle_reconstructed_tracks) {
         gGeoManager->GetTopVolume()->AddNode(si_tracker,1);
     } else {
         TGeoNode *nodeToRemove = gGeoManager->GetTopVolume()->FindNode("si_tracker_1");
         gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove);
     }
+    */
+    canvas->cd();
     Draw_event_reco_tracks();
     canvas->Modified();
     canvas->Update();
@@ -574,10 +576,10 @@ void MyMainFrame::only_reco() {
     TGeoNode *nodeToRemove4 = gGeoManager->GetTopVolume()->FindNode("secondary_had_1");
     gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove4);
  
-    TGeoNode *nodeToRemove5 = gGeoManager->GetTopVolume()->FindNode("si_tracker_1");
-    gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove5);
+ /*   TGeoNode *nodeToRemove5 = gGeoManager->GetTopVolume()->FindNode("si_tracker_1");
+    gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove5);*/
 
-     toggle_primary_em=
+    toggle_primary_em=
     toggle_primary_had=
     toggle_secondary_em=
     toggle_secondary_had=false; 

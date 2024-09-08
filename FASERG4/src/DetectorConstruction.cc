@@ -169,7 +169,7 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	G4Material * G4_W = G4NistManager::Instance()->FindOrBuildMaterial("G4_W");
 	G4Material * G4_Cu = G4NistManager::Instance()->FindOrBuildMaterial("G4_Cu");
 
-	G4Material * G4_Target = G4_W; // fWorldMaterial;
+	G4Material * G4_Target = G4_Cu; // fWorldMaterial;
 
 	CreateFaserNu(fPolyvinyltoluene, G4_Target, G4ThreeVector(sizeScintillatorX, sizeScintillatorY, 
 	sizeScintillatorZ),G4ThreeVector(sizetargetWX, sizetargetWY, sizetargetWZ),worldLV, NRep);
@@ -287,20 +287,20 @@ void DetectorConstruction::CreateFaserNu(G4Material* material1, G4Material* mate
 
 	G4double density = material2->GetDensity()/(g/cm3);  // Density in g/cm^3
 	fTotalWMass = sizeX*sizeY*size2.getZ()*density*1e-3*NRep*1e-3;
-	G4cout << "Total mass W " << fTotalWMass << " kg" << G4endl;
+	G4cout << "Total mass target (W, Cu, ...) " << fTotalWMass << " kg" << G4endl;
 
 	fTotalScintMass = sizeX*sizeY*size1.getZ()*1.03e-3*NRep*1e-3;
 	G4cout << "Total mass scint " << fTotalScintMass << " kg" << G4endl;
 
 	fTotalMass = fTotalWMass + fTotalScintMass;
-	G4cout << "Total mass W+scint " << fTotalMass << " kg" << G4endl;
+	G4cout << "Total mass target+scint " << fTotalMass << " kg" << G4endl;
 
 
 	// TODO Setup via macro commands - currently set to large values for simulation speed.
 	G4UserLimits* userLimits_Scint = new G4UserLimits();
 	userLimits_Scint->SetMaxAllowedStep(1*mm);
 	G4UserLimits* userLimits_targetW = new G4UserLimits();
-	userLimits_targetW->SetMaxAllowedStep(1*mm);   // is this really necessary??
+//	userLimits_targetW->SetMaxAllowedStep(1*mm);   // is this really necessary??
 
 	// In this replica solid we place the two actual materials. This replica solid is then replicated NRep times.
     G4Box * replicaSolid = new G4Box("ReplicaSolid" , sizeX/2, sizeY/2, sizeZ/2);

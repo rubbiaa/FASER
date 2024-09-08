@@ -319,10 +319,12 @@ void TPORecoEvent::TrackReconstruct() {
     for (auto it : fPORecs)
     {
         it->fTracks.clear();
+        struct PO aPO = fTPOEvent->POs[it->POID];
+        if(aPO.m_charge() == 0) continue;
         // consider only primary track
-        //        DigitizedTrack *dt = it->DTs[0];
+        DigitizedTrack *dt = it->DTs[0];
         int idx = 0;
-        for (auto &dt : it->DTs)
+//        for (auto &dt : it->DTs)
         {
             struct TPORec::TRACK track;
             size_t nhits = dt->fEnergyDeposits.size();
@@ -641,7 +643,7 @@ void TPORecoEvent::ReconstructClusters(int view, bool verbose) {
 
     std::vector<DBScan::Point> points;
 
-    // XZ or YZ view view
+    // XZ or YZ view
     for (auto it : (view==0) ? PShitmapX : PShitmapY)
     {
         long ID = it.first;
@@ -691,7 +693,10 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
 
     std::random_device rd;  // Seed for the random number generator
     std::mt19937 gen(rd());  // Mersenne Twister random number generator
- 
+
+    unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+    std::default_random_engine rng(seed);
+
     double ehit_threshold = 0.5; // MeV
     int nvox_per_layer_max = 150;
 
@@ -831,6 +836,14 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
         nvox_per_layer[z] = nvox_layer;
     }
 
+    struct VOXEL
+    {
+        int x, y, z, layer;
+        float adjust;
+        float score;
+    };
+    std::vector<struct VOXEL> voxels;
+
     // Step 2: Iterative Refinement to match projections
     for (int iter = 0; iter < maxIter; ++iter) {
 
@@ -880,7 +893,7 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
         }
 
         int adjusted = 0;
-        double score = 0;
+        double total_score = 0;
 
 //        verbose = 4; // FIXME: DEBUG
 
@@ -906,13 +919,75 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
                         sumXY += V[x][y][izz].value;
                     }
                     float difference = XY[ilayer][x][y] - sumXY;
-                    score += abs(difference);
-                    if(verbose>3 && abs(difference)>1e-3) 
+                    total_score += fabs(difference);
+                    if(verbose>3 && fabs(difference)>1e-3) 
                         std::cout << " ilayer: " << ilayer << " difference=" << difference << std::endl;
+
+                    if(fabs(difference) < 1e-3)continue;
+
+                    voxels.clear();
+                    for (int z = 0; z < nzlayer; z++) {
+                        int izz = ilayer * nzlayer + z;
+                        float adjust = XY[ilayer][x][y] - V[x][y][izz].value;
+                        if(V[x][y][izz].value + adjust < 0) adjust = -V[x][y][izz].value;
+                        float score = fabs(adjust);
+                        struct VOXEL vox = {x,y,izz,ilayer,adjust,score};
+                        voxels.push_back(vox);
+                    }
+
+                    // Sorting by score in descending order
+//                    std::sort(voxels.begin(), voxels.end(), [](const VOXEL &a, const VOXEL &b)
+//                              { return a.score > b.score; });
+//                    std::shuffle(voxels.begin(), voxels.end(), rng);
+
+                    // Compute cumulative distribution (CDF)
+                    std::vector<float> cdf(voxels.size());
+                    cdf[0] = voxels[0].score; // Start with the first score
+                    for (size_t i = 1; i < voxels.size(); ++i)
+                    {
+                        cdf[i] = cdf[i - 1] + voxels[i].score;
+                    }
+                    // Get the total sum of scores
+                    float integ_score = cdf.back();
+                    std::uniform_real_distribution<float> dist(0.0, integ_score);
+
+                    int niter = 0;
+                    while(fabs(difference)>1e-3) {
+                        float random_value = dist(rng);
+                    // Use binary search (std::upper_bound) to find the voxel corresponding to the random value
+                        auto it = std::upper_bound(cdf.begin(), cdf.end(), random_value);
+                        int index = std::distance(cdf.begin(), it);
+                        auto vox = voxels[index];
+                        int x = vox.x;
+                        int y = vox.y;
+                        int izz = vox.z;
+                        vox.adjust = XY[ilayer][x][y] - V[x][y][izz].value;  // recompute at each iteration
+                        float adjust = std::min(difference, vox.adjust);    
+                        if(verbose>3 && fabs(adjust)>1e-3) 
+                            std::cout << "    z: " << izz << "  adjust " << adjust << std::endl;
+                        V[x][y][izz].value += adjust;
+                        difference -= adjust;
+                        if(adjust!=0) adjusted++;
+                    }
+#if 0
+                    for (const VOXEL& vox : voxels) {
+                        if(abs(difference)<1e-3) break;
+                        int x = vox.x;
+                        int y = vox.y;
+                        int izz = vox.z;
+                        float adjust = std::min(difference, vox.adjust);    
+                        if(verbose>3 && abs(adjust)>1e-3) 
+                            std::cout << "    z: " << izz << "  adjust " << adjust << std::endl;
+                        V[x][y][izz].value += adjust;
+                        difference -= adjust;
+                        if(adjust!=0) adjusted++;
+                    }
+#endif
+
+#if 0
                     int niter = 0;
                     while(abs(difference)>1e-3 && niter++ < 2*nzlayer) {
                         int z = rnd_layer(gen);
-                        int izz = ilayer * nzlayer + z;
 
                         // check difference of two 2D projections
  //                       double diff = fabs(XZ[x][izz] - YZ[y][izz]);
@@ -926,6 +1001,7 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
                         difference -= adjust;
                         if(adjust!=0) adjusted++;
                     }
+#endif
                 }
             }
         }
@@ -933,6 +1009,8 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
         // adjust XZ and YZ
         for (int z = 0; z < nztot; ++z) {
             if(nvox_per_layer[z] > nvox_per_layer_max) continue;
+
+            long ilayer = z / nrep;
             
             // Adjust XZ projection
             for (int x = 0; x < nx; ++x) {
@@ -941,10 +1019,63 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
                     sumXZ += V[x][y][z].value;
                 }
                 float difference = XZ[x][z] - sumXZ;
-                score += abs(difference);
-                if(verbose>3 && abs(difference)>1e-3) std::cout << " x: " << x << " difference=" << difference << std::endl;
+                total_score += fabs(difference);
+                if(verbose>3 && fabs(difference)>1e-3) std::cout << " x: " << x << " difference=" << difference << std::endl;
+
+#if 0
+                if (fabs(difference) < 1e-3)
+                    continue;
+
+                voxels.clear();
+                for (int y = 0; y < ny; y++)
+                {
+                    float adjust = YZ[y][z] - V[x][y][z].value;
+                    if (V[x][y][z].value + adjust < 0)
+                        adjust = -V[x][y][z].value;
+                    float score = abs(adjust);
+                    struct VOXEL vox = {x, y, z, 0, adjust, score};
+                    voxels.push_back(vox);
+                }
+#if 0
+                // Sorting by score in descending order
+                std::sort(voxels.begin(), voxels.end(), [](const VOXEL &a, const VOXEL &b)
+                          { return a.score > b.score; });
+                std::shuffle(voxels.begin(), voxels.end(), rng);
+#endif
+
+                // Compute cumulative distribution (CDF)
+                std::vector<float> cdf(voxels.size());
+                cdf[0] = voxels[0].score; // Start with the first score
+                for (size_t i = 1; i < voxels.size(); ++i)
+                {
+                    cdf[i] = cdf[i - 1] + voxels[i].score;
+                }
+                // Get the total sum of scores
+                float integ_score = cdf.back();
+                std::uniform_real_distribution<float> dist(0.0, integ_score);
+
+                while (abs(difference) > 1e-3)
+                {
+                    float random_value = dist(rng);
+                    // Use binary search (std::upper_bound) to find the voxel corresponding to the random value
+                    auto it = std::upper_bound(cdf.begin(), cdf.end(), random_value);
+                    int index = std::distance(cdf.begin(), it);
+                    auto vox = voxels[index];
+                    int x = vox.x;
+                    int y = vox.y;
+                    int z = vox.z;
+                    float adjust = std::min(difference, vox.adjust);
+                    if (V[x][y][z].value + adjust < 0)
+                        adjust = -V[x][y][z].value;
+                    V[x][y][z].value += adjust;
+                    difference -= adjust;
+                    if (adjust != 0)
+                        adjusted++;
+                }
+#endif
+#if 1
                 int niter = 0;
-                while(abs(difference)>1e-3 && niter++ < ny) {
+                while(fabs(difference)>1e-3 && niter++ < ny) {
                     int y = rnd_ny(gen);
                     float adjust = std::min(difference, YZ[y][z] - V[x][y][z].value);
                     if(V[x][y][z].value + adjust < 0) adjust = -V[x][y][z].value;
@@ -953,6 +1084,7 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
                     difference -= adjust;
                     if(adjust!=0) adjusted++;
                 }
+#endif
             }
 
             if (verbose > 4)
@@ -996,14 +1128,14 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
                     sumYZ += V[x][y][z].value;
                 }
                 float difference = YZ[y][z] - sumYZ;
-                score += abs(difference);
-                if(verbose>3 && abs(difference)>1e-3)std::cout << " y: " << y << " difference=" << difference << std::endl;
+                total_score += fabs(difference);
+                if(verbose>3 && fabs(difference)>1e-3)std::cout << " y: " << y << " difference=" << difference << std::endl;
                 int niter = 0;
-                while(abs(difference)>1e-3 && niter++ < nx) {
+                while(fabs(difference)>1e-3 && niter++ < nx) {
                     int x = rnd_nx(gen);
                     float adjust = std::min(difference, XZ[x][z] - V[x][y][z].value);
                     if(V[x][y][z].value + adjust < 0) adjust = -V[x][y][z].value;
-                    if(verbose>3 && abs(adjust)>1e-3) std::cout << "    x: " << x << "  adjust " << adjust << std::endl;
+                    if(verbose>3 && fabs(adjust)>1e-3) std::cout << "    x: " << x << "  adjust " << adjust << std::endl;
                     V[x][y][z].value += adjust;
                     difference -= adjust;
                     if(adjust!=0) adjusted++;
@@ -1012,21 +1144,46 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
         }
 
         if(verbose>0 && adjusted>0) std::cout << "Iteration " << iter << ": " << adjusted << 
-        " voxels adjusted. Score = " << score << std::endl;
+        " voxels adjusted. Score = " << total_score << std::endl;
+
+#if 0
+        // do some cleanup removing hits with no XY hit
+        for (int z = 0; z < nztot; ++z) {
+            long ilayer = z / nrep;            
+            for (int x = 0; x < nx; ++x) {
+                for (int y = 0; y < ny; ++y) {
+                    if(V[x][y][z].value > 1e-3) {
+                        if(XY[ilayer][x][y] < 0.5) {
+//                            V[x][y][z].value = 0;
+                        }
+                    }
+                    double neigh = 0;
+                    if(x>0) neigh += V[x-1][y][z].value;
+                    if(x<nx-1) neigh += V[x+1][y][z].value;
+                    if(y>0) neigh += V[x][y-1][z].value;
+                    if(y<ny-1) neigh += V[x][y+1][z].value;
+                    if(neigh<0.5) {
+                            V[x][y][z].value = 0;
+                    }
+                }
+
+            }
+        }
+#endif
 
         // save solution of with minimum score
-        if(score < min_score){
+        if(total_score < min_score){
         for (int z = 0; z < nztot; ++z)
             for (int x = 0; x < nx; ++x)
                 for (int y = 0; y < ny; ++y)
                 {
                     V_min[x][y][z].value = V[x][y][z].value;
                 }
-            min_score = score;
+            min_score = total_score;
         }
 
         // if score degraded, switch back to best answer
-        if(score > prev_score) {
+        if(total_score > prev_score) {
         for (int z = 0; z < nztot; ++z)
             for (int x = 0; x < nx; ++x)
                 for (int y = 0; y < ny; ++y)
@@ -1034,9 +1191,9 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
                     V[x][y][z].value = V_min[x][y][z].value;
                 }
         }
-        prev_score = score;
+        prev_score = total_score;
 
-        if(score == 0) break;
+        if(total_score == 0) break;
     }
 
     std::cout << " We keep best score solution:" << min_score << std::endl;
@@ -1049,7 +1206,19 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
         for (int y = 0; y < ny; ++y) {
             for (int x = 0; x < nx; ++x) {
                 float ehit = V_min[x][y][z].value;
-                if(ehit>0) {
+
+#if 0
+                    double neigh = 0;
+                    if(x>0) neigh += V_min[x-1][y][z].value;
+                    if(x<nx-1) neigh += V_min[x+1][y][z].value;
+                    if(y>0) neigh += V_min[x][y-1][z].value;
+                    if(y<ny-1) neigh += V_min[x][y+1][z].value;
+                    if(neigh<0.5) {
+                        continue;
+                    }
+#endif
+
+                if(ehit>1e-3) {
                     long iz = z % nzlayer;
                     long ilayer = z / nzlayer;
     	        	long ID = x + y*1000 + iz*1000000 + ilayer*1000000000;
@@ -1080,6 +1249,8 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
 
     TH1D h_diff_fake = TH1D("h_diff_fake", "difference XZ vs YZ fakes", 100, 0., 30.);
     TH1D h_diff_real = TH1D("h_diff_real", "difference XZ vs YZ real", 100, 0., 30.);
+    TH1D h_XY_fake = TH1D("h_XY_fake", "XY hit fakes", 100, 0., 30.);
+    TH1D h_XY_real = TH1D("h_XY_real", "XY hit real", 100, 0., 30.);
 
     for (const auto& v : PSvoxelmap) {
         ntot++;
@@ -1092,16 +1263,19 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
         long izz = ilayer * nzlayer + iz;
         double eXZ = XZ[ix][izz];
         double eYZ = YZ[iy][izz];
+        double eXY = XY[ilayer][ix][iy];
         double diff = fabs(eXZ - eYZ);
 
         if(v.second.ghost) {
             fakes++;
             ave_e_ghost += v.second.RawEnergy;
             h_diff_fake.Fill(diff);
+            h_XY_fake.Fill(eXY);
         } else {
             ave_e_real += v.second.RawEnergy;
             nreal++;
             h_diff_real.Fill(diff);
+            h_XY_real.Fill(eXY);
         }
     }
     std::cout << " STATS: " << ntot << " hits " << fakes << " ghosts." << std::endl;
@@ -1113,9 +1287,11 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
     TCanvas *c1 = new TCanvas("3dreco", "3dreco", 800, 600);
     c1->Divide(1,2);
     c1->cd(1);
-    h_diff_real.Draw();
+    h_XY_real.Draw();
+//    h_diff_real.Draw();
     c1->cd(2);
-    h_diff_fake.Draw();
+//    h_diff_fake.Draw();
+    h_XY_fake.Draw();
     c1->Modified();
     c1->Update();
     c1->SaveAs("3dreco.png");
