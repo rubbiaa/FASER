@@ -66,7 +66,7 @@ G4bool TrackerSD::ProcessHits(G4Step* aStep, G4TouchableHistory*)
 		int pdgCode = aStep->GetTrack()->GetDefinition()->GetPDGEncoding();
 
 		fParticleManager->processParticleHit(trackID, position, direction, time, energyDeposit, 
-			parentID, pdgCode, volumeName, motherCopyNumber);
+			parentID, pdgCode, volumeName, copyNumber, motherCopyNumber);
     
 		// determine if the particle is leavingthe world volume or is beeing killed/absorbed
 		// check with fStopAndKill
@@ -87,7 +87,7 @@ G4bool TrackerSD::ProcessHits(G4Step* aStep, G4TouchableHistory*)
 			if (!aStep->GetTrack()->GetNextVolume()) {
 				fParticleManager->processParticleHit(trackID, position, direction, time, 
 				energyDeposit, parentID, pdgCode,
-								     "OutOfWorld",0);
+								     "OutOfWorld",0,0);
 			}
 			else {
 				std::string VolumeName_ = aStep->GetPostStepPoint()->GetPhysicalVolume()->GetName();
@@ -115,7 +115,7 @@ G4bool TrackerSD::ProcessHits(G4Step* aStep, G4TouchableHistory*)
 
 				fParticleManager->processParticleHit(trackID, position, direction, time, 
 						energyDeposit, parentID, pdgCode,
-								     volumeName,motherCopyNumber);
+								     volumeName,copyNumber, motherCopyNumber);
 			}
 
 			// fParticleManager->processParticleHit(trackID, position, direction, time, energyDeposit, process, parentID, pdgCode,

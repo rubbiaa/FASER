@@ -51,6 +51,9 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, const TGWindow *p, 
     fButton = new TGTextButton(hFrame, "Toggle reco_track");
     fButton->Connect("Clicked()", "MyMainFrame", this, "toggle_reco_track()");
     hFrame->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
+    fButton = new TGTextButton(hFrame, "Toggle reco_voxel");
+    fButton->Connect("Clicked()", "MyMainFrame", this, "toggle_reco_voxels()");
+    hFrame->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
     fButton = new TGTextButton(hFrame, "ONLY RECO");
     fButton->Connect("Clicked()", "MyMainFrame", this, "only_reco()");
     hFrame->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
@@ -579,6 +582,18 @@ void MyMainFrame::toggle_reco_track() {
     canvas->Modified();
     canvas->Update();
 }
+void MyMainFrame::toggle_reco_voxels() {
+    TCanvas *canvas = fCanvas->GetCanvas();
+    toggle_reco_voxel = !toggle_reco_voxel;
+    if(toggle_reco_voxel) {
+        gGeoManager->GetTopVolume()->AddNode(ps_reco_voxel,1);
+    } else {
+        TGeoNode *nodeToRemove = gGeoManager->GetTopVolume()->FindNode("ps_reco_voxel_1");
+        gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove);
+    }
+    canvas->Modified();
+    canvas->Update();
+}
 
 void MyMainFrame::only_reco() {
     TCanvas *canvas = fCanvas->GetCanvas();
@@ -600,6 +615,7 @@ void MyMainFrame::only_reco() {
     toggle_secondary_em=
     toggle_secondary_had=false; 
     toggle_reconstructed_tracks = false;
+    toggle_reco_voxel = true;
     canvas->Modified();
     canvas->Update();
 }

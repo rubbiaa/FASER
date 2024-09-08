@@ -20,18 +20,18 @@ ParticleManager::~ParticleManager() {}
 
 void ParticleManager::processParticleHit(int trackID, XYZVector const& position, XYZVector const& direction, double const& time,
 					 double const& energydeposit, int const& parentID, int const& pdg,
-					 std::string const& VolumeName, int CopyNumber)
+					 std::string const& VolumeName, int CopyNumber, int MotherCopyNumber)
 {
 	if(energydeposit>0 || parentID == 0) { 					// or some energy or is primary
 		auto it = m_particleMap.find(trackID);
 		if (it != m_particleMap.end()) {
 			it->second->addTotalEnergyDeposit(energydeposit);
-			it->second->update(position, direction, time, energydeposit, VolumeName, CopyNumber);
+			it->second->update(position, direction, time, energydeposit, VolumeName, CopyNumber, MotherCopyNumber);
 		}
 		else {
 			// If the track does not exist, create a new one
 			Track* newParticle = new Track(trackID, parentID, pdg, position, direction, time, 
-			energydeposit, VolumeName, CopyNumber);
+			energydeposit, VolumeName, CopyNumber, MotherCopyNumber);
 			m_particleMap[trackID] = newParticle;
 		}
 	}
@@ -73,6 +73,7 @@ void ParticleManager::beginOfEvent()
 	fTcalEvent->geom_detector.fScintillatorVoxelSize = detector->fScintillatorVoxelSize;
 	fTcalEvent->geom_detector.fSiTrackerSizeZ = detector->fSiTrackerSizeZ;
 	fTcalEvent->geom_detector.fSiTrackerPixelSize = detector->fSiTrackerPixelSize;
+	fTcalEvent->geom_detector.fTargetSizeZ = detector->ftargetWSizeZ;
 	fTcalEvent->geom_detector.fSandwichLength = detector->fSandwichLength;
 	fTcalEvent->geom_detector.fTotalLength = detector->fTotalLength;
 	fTcalEvent->geom_detector.NRep = detector->getNumberReplicas();
@@ -193,7 +194,7 @@ void ParticleManager::RecordTrack(const G4Track* track) {
 					double energydeposit = 0;
 
 					Track *newParticle = new Track(trackID, parentID, pdg,
-												   position, direction, Time, energydeposit, "", 0);
+												   position, direction, Time, energydeposit, "", 0,0);
 					m_particleMap[trackID] = newParticle;
 				}
 			}

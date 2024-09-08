@@ -29,6 +29,7 @@ public:
     void toggle_sec_em();
     void toggle_sec_had();
     void toggle_reco_track();
+    void toggle_reco_voxels();
     void only_reco();
     void next_event();
     void goto_event();
@@ -81,7 +82,7 @@ private:
     bool toggle_primary_had;
     bool toggle_secondary_em;
     bool toggle_secondary_had;
-
+    bool toggle_reco_voxel;
     bool toggle_reconstructed_tracks;
 
 };

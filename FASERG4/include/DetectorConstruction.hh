@@ -87,6 +87,7 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	G4double fSiTrackerPixelSize = 0.1 * mm;
 
 	G4int fNumberReplicas = 1;
+	G4int fNumberRep_SiTracker = 2;
 	G4double fTotalLength;      // of the full detector
 	G4double fSandwichLength;   // of the given sandwich of scint+W+Silicon
 	G4double fTotalMass;
@@ -97,7 +98,7 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	G4int getNumberReplicas() const {return fNumberReplicas ;}
 
 	// channel ID
-	G4long getChannelIDfromXYZ(std::string const& VolumeName, int CopyNumber, XYZVector const& position) const;
+	G4long getChannelIDfromXYZ(std::string const& VolumeName, int CopyNumber, int MotherCopyVolume, XYZVector const& position) const;
 
     private:
 	// methods

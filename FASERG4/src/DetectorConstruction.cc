@@ -135,9 +135,9 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	G4double sizeY = std::max(sizetargetWY, sizeScintillatorY);
 
 
-	G4double WorldSizeX = 1.0001* sizeX;
-	G4double WorldSizeY = 1.0001* sizeY;
-	G4double WorldSizeZ = 1.0001* NRep*(sizetargetWZ + sizeScintillatorZ);
+	G4double WorldSizeX = 1.2* sizeX;
+	G4double WorldSizeY = 1.2* sizeY;
+	G4double WorldSizeZ = 1.2* NRep*(sizetargetWZ + sizeScintillatorZ);
 
 	G4cout << "Size of the world " << WorldSizeX << " " << WorldSizeY << " " << WorldSizeZ << " mm" << G4endl;
 
@@ -168,8 +168,9 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	// target is composed of W or Copper
 	G4Material * G4_W = G4NistManager::Instance()->FindOrBuildMaterial("G4_W");
 	G4Material * G4_Cu = G4NistManager::Instance()->FindOrBuildMaterial("G4_Cu");
+	G4Material * G4_graphite = G4NistManager::Instance()->FindOrBuildMaterial("G4_GRAPHITE");
 
-	G4Material * G4_Target = G4_Cu; // fWorldMaterial;
+	G4Material * G4_Target = fWorldMaterial; // G4_graphite; // G4_Cu; // fWorldMaterial;
 
 	CreateFaserNu(fPolyvinyltoluene, G4_Target, G4ThreeVector(sizeScintillatorX, sizeScintillatorY, 
 	sizeScintillatorZ),G4ThreeVector(sizetargetWX, sizetargetWY, sizetargetWZ),worldLV, NRep);
@@ -270,11 +271,12 @@ void DetectorConstruction::CreateFaserNu(G4Material* material1, G4Material* mate
 
 	// add precision tracker of composed of Si
 	G4Material * G4_Si = G4NistManager::Instance()->FindOrBuildMaterial("G4_Si");
-	G4cout << "Thickness of a Silicon tracker layer" << fSiTrackerSizeZ << " mm " << G4endl;
+	G4cout << "Thickness of a single Silicon tracker layer" << fSiTrackerSizeZ << " mm " << G4endl;
+	G4cout << "Number of silicon tracker layer " << fNumberRep_SiTracker << G4endl;
 
 	G4double sizeX = std::max(size1.getX(), size2.getX());
 	G4double sizeY = std::max(size1.getY(), size2.getY());
-	G4double sizeZ = size1.getZ() + size2.getZ() + fSiTrackerSizeZ;
+	G4double sizeZ = size1.getZ() + size2.getZ() + 	fNumberRep_SiTracker*fSiTrackerSizeZ;
 
 	fSandwichLength = sizeZ;
 
@@ -332,10 +334,11 @@ void DetectorConstruction::CreateFaserNu(G4Material* material1, G4Material* mate
     //We place the scinitllator and targetW into the replica
     new G4PVPlacement(0, G4ThreeVector(0,0,-sizeZ/2 + size1.getZ()/2), scintillatorLogic, "Scintillator", replicaLogic, false, 1, true);
     new G4PVPlacement(0, G4ThreeVector(0,0,sizeZ/2 - size2.getZ()/2 - fSiTrackerSizeZ), targetWLogic, "targetW", replicaLogic, false, 1, true);
-    new G4PVPlacement(0, G4ThreeVector(0,0,sizeZ/2 - fSiTrackerSizeZ/2), trackerSiLogic, "trackerSi", replicaLogic, false, 1, true);
+    new G4PVPlacement(0, G4ThreeVector(0,0,sizeZ/2 - fSiTrackerSizeZ - size2.getZ() - fSiTrackerSizeZ/2), 
+					trackerSiLogic, "trackerSi", replicaLogic, false, 1, true);
+    new G4PVPlacement(0, G4ThreeVector(0,0,sizeZ/2 - fSiTrackerSizeZ/2), trackerSiLogic, "trackerSi", replicaLogic, false, 2, true);
 
-
-    // Create container, which hosts Nrep replicas of our replica. This container then is set inside the world volume
+    // Create container, which hosts Nrep replicas of our layer. This container then is set inside the world volume
     G4Box* containerSolid = new G4Box("ContainerBox", sizeX/2, sizeY / 2, NRep*sizeZ / 2);
 
     G4LogicalVolume* containerLogic = new G4LogicalVolume(containerSolid, fWorldMaterial, "ContainerLogical");
@@ -344,7 +347,7 @@ void DetectorConstruction::CreateFaserNu(G4Material* material1, G4Material* mate
     new G4PVPlacement(0, G4ThreeVector(0,0,0), containerLogic, "ContainerPlacement", parent,  false, 0, true);
 }
 
-G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, int CopyNumber, XYZVector const& position) const {
+G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, int CopyNumber, int MotherCopyNumber, XYZVector const& position) const {
 
 	G4double dx = position.X()+fScintillatorSizeX/2.0;
 	G4double dy = position.Y()+fScintillatorSizeY/2.0;
@@ -363,7 +366,7 @@ G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, 
 //		return 0;
 //	}
 
-	G4long ilayer = CopyNumber;
+	G4long ilayer = MotherCopyNumber;
 
 	if(VolumeName == "ScintillatorLogical") {
 
@@ -386,7 +389,7 @@ G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, 
 			G4cerr << "ERROR : getCHannelIDfromXYZ problem ix:" << ix << " iy:" << iy << " iz:" << iz << G4endl;
 			return 0;
 		}
-		G4long ID = ix + iy*10000 + iz*100000000 + 100000000000LL;
+		G4long ID = ix + iy*10000 + iz*100000000 + CopyNumber*10000000000LL + 100000000000LL;
 		return ID;
 	} else {
 		G4cerr << "Don't know how to handle volume " << VolumeName << G4endl;

@@ -82,6 +82,8 @@ public:
         Double_t fScintillatorVoxelSize; // in mm
         Double_t fSiTrackerSizeZ; // in mm
         Double_t fSiTrackerPixelSize; // in mm
+        Double_t fTargetSizeZ; // in mm
+        Int_t NRep_SiTracker;     // number of Si layers
         Double_t fSandwichLength; // in mm
         Double_t fTotalLength; // in mm
         Int_t NRep;
@@ -108,7 +110,7 @@ public:
     /// @return The (x,y,z) absolute position of the hit
     ROOT::Math::XYZVector getChannelXYZfromID(long ID) const;
 
-    ClassDef(TcalEvent, 1)
+    ClassDef(TcalEvent, 3)
 };
 
 #endif

@@ -78,7 +78,7 @@ class ParticleManager {
 	 * @param CopyNumber The replica number of the volume
 	 */
 	void processParticleHit(int trackID, XYZVector const& position, XYZVector const& direction, double const& time, double const& energydeposit,
-				int const& parentID, int const& pdg, std::string const& VolumeName, G4int CopyNumber);
+				int const& parentID, int const& pdg, std::string const& VolumeName, G4int CopyNumber, int MotherCopyNumber);
 
 	/**
 	 * @brief Get the Information about the primary Vertex from the Primary Generator Action

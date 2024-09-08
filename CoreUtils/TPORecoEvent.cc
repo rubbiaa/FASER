@@ -322,9 +322,9 @@ void TPORecoEvent::TrackReconstruct() {
         struct PO aPO = fTPOEvent->POs[it->POID];
         if(aPO.m_charge() == 0) continue;
         // consider only primary track
-        DigitizedTrack *dt = it->DTs[0];
+//        DigitizedTrack *dt = it->DTs[0];
         int idx = 0;
-//        for (auto &dt : it->DTs)
+        for (auto &dt : it->DTs)
         {
             struct TPORec::TRACK track;
             size_t nhits = dt->fEnergyDeposits.size();

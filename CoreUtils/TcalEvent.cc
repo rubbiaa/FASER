@@ -177,11 +177,13 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZfromID(long ID) const
 
         long ix = ID % 10000;
         long iy = (ID / 10000) % 10000;
-        long ilayer = (ID / 100000000) % 1000;
+        long ilayer = (ID / 100000000) % 100;
+        long icopy = (ID / 10000000000LL) % 10;
         double x = ix * geom_detector.fSiTrackerPixelSize - geom_detector.fScintillatorSizeX / 2.0;
         double y = iy * geom_detector.fSiTrackerPixelSize - geom_detector.fScintillatorSizeY / 2.0;
         double z = ilayer * geom_detector.fSandwichLength + geom_detector.fSandwichLength
             - (geom_detector.NRep * geom_detector.fSandwichLength) / 2.0;
+        if(icopy == 1) z -= geom_detector.fTargetSizeZ;
         return ROOT::Math::XYZVector(x, y, z);
     } else {
         std::cerr << " TcalEvent::getChannelXYZfromID - hit of unknown type" << hittype << std::endl;
