@@ -61,7 +61,7 @@ void TPSCluster::ComputeCOG() {
     cog.SetZ(cogz/etot);
 }
 
-void TPSCluster::ComputeLongProfile(bool visualize) {
+void TPSCluster::ComputeLongProfile(int verbose) {
 
     const int nBins = 30;
     double mint = 0.0;
@@ -91,7 +91,7 @@ void TPSCluster::ComputeLongProfile(bool visualize) {
         }
     }
 
-    if(visualize) {
+    if(verbose > 1) {
      for (int i = 0; i < nBins; ++i) {
         std::cout << "t: " << i*binWidth << ": " << energyProfile[i] << " MeV" << std::endl;
     }
@@ -149,7 +149,7 @@ void TPSCluster::ComputeLongProfile(bool visualize) {
     longenergyprofile.y = y;
     longenergyprofile.c = c;
 
-    if(!visualize) return;
+    if(verbose < 1) return;
 
     std::cout << "Fitted parameters:" << std::endl;
     std::cout << "E0 = " << E0 << std::endl;

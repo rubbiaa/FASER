@@ -1,5 +1,6 @@
 #include "TPORecoEvent.hh"
 #include "DBScan.hh"
+#include "TTKTrack.hh"
 
 #include <TVectorD.h>
 #include <TMatrixDSym.h>
@@ -315,7 +316,135 @@ static double calculateSSR(const struct TPORec::TRACK &track, const TVector3& di
 }
 
 void TPORecoEvent::TrackReconstruct() {
+    int nrep = fTcalEvent->geom_detector.NRep;
 
+    // fill map of hits
+    std::map <int, std::vector<struct TTKTrack::TRACKHIT>> hitMap;
+
+    for (const auto &track : fTcalEvent->getfTracks())
+    {
+        size_t nhits = track->fhitIDs.size();
+        for (size_t i = 0; i < nhits; i++)
+        {
+            long ID = track->fhitIDs[i];
+            float ehit = track->fEnergyDeposits[i];
+            long hittype = fTcalEvent->getChannelTypefromID(ID);
+            if (hittype != 1)
+                continue;
+            int ilayer = fTcalEvent->getChannelLayerfromID(ID);
+            ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(track->fhitIDs[i]);
+            struct TTKTrack::TRACKHIT hit = {ID, position, ehit};
+            auto hitlayer = hitMap.find(ilayer);
+            if(hitlayer != hitMap.end()) {
+                hitlayer->second.push_back(hit);
+            } else {
+                std::vector<struct TTKTrack::TRACKHIT> hits;
+                hits.push_back(hit);
+                hitMap[ilayer] = hits;
+            }
+        }
+    }
+
+    fTKTracks.clear();
+    // now match doublets in each layer
+    for(auto &it : hitMap) {
+        int ilayer = it.first;
+        for (const auto &hit1 : it.second) {
+            int icopy1 = fTcalEvent->getChannelCopyfromID(hit1.ID);
+            if(icopy1 != 1) continue;
+            double distmin = 1e9;
+            struct TTKTrack::TRACKHIT hitmin;
+            for (const auto &hit2 : it.second) {
+                int icopy2 = fTcalEvent->getChannelCopyfromID(hit2.ID);
+                if(icopy2 != 2) continue;
+                double dist = (hit2.point - hit1.point).R();
+                if(dist < distmin) {
+                    distmin = dist;
+                    hitmin = hit2;
+                }
+            }
+
+            // FIXME: define cut
+            if(distmin>10.0) continue;
+
+            // now create a TKTrack with the doublet if hits are close
+            TTKTrack trk;
+            trk.tkhit.push_back(hit1);
+            trk.tkhit.push_back(hitmin);
+            trk.direction = trk.direction2Hits();
+            ROOT::Math::XYZVector centroid = (hit1.point + hitmin.point) * 0.5;
+            trk.centroid.SetXYZ(centroid.X(), centroid.Y(), centroid.Z());
+            fTKTracks.push_back(trk);
+            // remove hit min from the list of hits
+            it.second.erase(std::remove_if(it.second.begin(), it.second.end(),
+                                           [&hitmin](const TTKTrack::TRACKHIT &hit)
+                                           {
+                                               // Use the ID to match the hit to be removed
+                                               return hit.ID == hitmin.ID;
+                                           }),
+                            it.second.end());
+        }
+    }
+
+    // now sort doublets by z coordinate
+    std::sort(fTKTracks.begin(), fTKTracks.end(), [](const TTKTrack &a, const TTKTrack &b)
+              { return a.centroid.Z() < b.centroid.Z(); });
+    
+    // now loop over tracks and merge segments
+    for (auto &trk : fTKTracks) {
+        trk.SortHitsByZ();
+    }
+
+    double parallel_cut = 0.01; // FIXME: adjust value
+    double mindZcut = fTcalEvent->geom_detector.fTargetSizeZ*1.1;
+
+    for (size_t i = 0; i < fTKTracks.size(); i++) {
+        TTKTrack &track1 = fTKTracks[i];
+        size_t besttrk = -1;
+        double mindZ = 1e9;
+        for( size_t j = 0; j < fTKTracks.size(); j++) {
+            if (i==j) continue;
+            TTKTrack &track2 = fTKTracks[j];
+            // check if segments are parallel
+            TVector3 normDir1 = track1.direction.Unit();
+            TVector3 normDir2 = track2.direction.Unit();
+            double dotProduct = normDir1.Dot(normDir2);
+            if (std::abs(std::abs(dotProduct) - 1.0) > parallel_cut) continue;
+            // ensure that segments belong to different planes
+            struct TTKTrack::TRACKHIT hit1 = track1.tkhit.back();
+            struct TTKTrack::TRACKHIT hit2 = track2.tkhit.front();
+            double dz = std::abs(hit1.point.z()-hit2.point.z());
+            if(dz < mindZcut) continue;
+            // ensure that segments are parallel to main line joining hits
+            ROOT::Math::XYZVector normDir = (hit2.point - hit1.point).Unit();
+            dotProduct = std::min(std::abs(normDir.Dot(normDir1)), std::abs(normDir.Dot(normDir2)));
+            if (std::abs(dotProduct - 1.0) > parallel_cut) continue;
+            if(dz < mindZ) {
+                mindZ = dz;
+                besttrk = j;
+            }
+        }
+        // if match found, then merge the tracks
+        if(besttrk != -1) {
+            // add hits from track2 to track1
+            for (const auto& h : fTKTracks[besttrk].tkhit) {
+                track1.tkhit.push_back(h);
+            }
+            track1.direction = track1.fitLineThroughHits(track1.centroid);
+            fTKTracks.erase(fTKTracks.begin() + besttrk);
+            if(besttrk < i) i--;    
+        }
+    }
+
+    // always order hits in the track by increasing "z"
+    for (auto &trk : fTKTracks) {
+        trk.SortHitsByZ();
+    }
+
+}
+
+void TPORecoEvent::TrackReconstructTruth() {
+// truth tracks
     for (auto it : fPORecs)
     {
         it->fTracks.clear();
@@ -638,8 +767,7 @@ void TPORecoEvent::ReconstructClusters(int view, bool verbose) {
 
     DBScan dbscan;
 
-    std::map<int, class TPSCluster> *PSClusters = (view==0) ? &PSClustersX : &PSClustersY;
-    PSClusters->clear();
+    std::map<int, class TPSCluster> PSClustersMap;
 
     std::vector<DBScan::Point> points;
 
@@ -659,8 +787,8 @@ void TPORecoEvent::ReconstructClusters(int view, bool verbose) {
         if(point.clusterID == 0)continue;
 
         TPSCluster::PSCLUSTERHIT hit = {point.ID, (float)point.ehit}; 
-        auto c = PSClusters->find(point.clusterID);
-        if (c != PSClusters->end())
+        auto c = PSClustersMap.find(point.clusterID);
+        if (c != PSClustersMap.end())
         {
             c->second.hits.push_back(hit);
             c->second.rawenergy += point.ehit;
@@ -671,21 +799,41 @@ void TPORecoEvent::ReconstructClusters(int view, bool verbose) {
             newc.clusterID = point.clusterID;
             newc.rawenergy = point.ehit;
             newc.hits.push_back(hit);
-            (*PSClusters)[point.clusterID] = newc;
+            PSClustersMap[point.clusterID] = newc;
         }
     }
 
     // now compute the energy compensated eflow relative to primary vertex
     ROOT::Math::XYZVector primary(fTPOEvent->prim_vx.X(), fTPOEvent->prim_vx.Y(), fTPOEvent->prim_vx.Z());
 
-    for (auto& c : *PSClusters) {
-        std::cout << "Cluster ID:" << c.second.clusterID << " nhits=" << c.second.hits.size();
-        std::cout << " rawEnergy(MeV): " << c.second.rawenergy; 
-        std::cout << std::endl;        
-        if(c.second.rawenergy < 10*1e3) continue;
-        c.second.ComputeCOG();
-        c.second.setVtx(primary.x(), primary.y(), primary.z());
-        c.second.ComputeLongProfile(verbose);
+    // store in vector
+    std::vector<TPSCluster> *PSClusters = (view==0) ? &PSClustersX : &PSClustersY;
+    PSClusters->clear();
+    for (auto& c : PSClustersMap) {
+        if (c.second.rawenergy < 10 * 1e3)
+            continue;
+        PSClusters->push_back(c.second);
+    }
+
+    for (auto &c : *PSClusters)
+    {
+        c.ComputeCOG();
+        c.setVtx(primary.x(), primary.y(), primary.z());
+        c.ComputeLongProfile(verbose);
+    }
+    
+    // Sort PSClusters by rawEnergy in descending order (highest energy first)
+    std::sort(PSClusters->begin(), PSClusters->end(), [](const TPSCluster& a, const TPSCluster& b) {
+    return a.rawenergy > b.rawenergy;
+    });
+
+    if(verbose > 0) {
+        for (const auto &c : *PSClusters)
+        {
+            std::cout << "Cluster ID:" << c.clusterID << " nhits=" << c.hits.size();
+            std::cout << " rawEnergy(MeV): " << c.rawenergy;
+            std::cout << std::endl;
+        }
     }
 }
 
@@ -847,17 +995,19 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
     // Step 2: Iterative Refinement to match projections
     for (int iter = 0; iter < maxIter; ++iter) {
 
-    for (int z = 0; z < nztot; ++z)
-    {
-        int nvox_layer = 0;
-        for (int x = 0; x < nx; ++x)
-            for (int y = 0; y < ny; ++y) {
-                if(V[x][y][z].value>0) {
-                    nvox_layer++;
+        for (int z = 0; z < nztot; ++z)
+        {
+            int nvox_layer = 0;
+            for (int x = 0; x < nx; ++x)
+                for (int y = 0; y < ny; ++y)
+                {
+                    if (V[x][y][z].value > 0)
+                    {
+                        nvox_layer++;
+                    }
                 }
-            }
-        nvox_per_layer[z] = nvox_layer;
-    }
+            nvox_per_layer[z] = nvox_layer;
+        }
 
         if (verbose > 4)
         {
@@ -1143,7 +1293,7 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
             }
         }
 
-        if(verbose>0 && adjusted>0) std::cout << "Iteration " << iter << ": " << adjusted << 
+        if(verbose>1 && adjusted>0) std::cout << "Iteration " << iter << ": " << adjusted << 
         " voxels adjusted. Score = " << total_score << std::endl;
 
 #if 0

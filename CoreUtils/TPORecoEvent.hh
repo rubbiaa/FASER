@@ -10,6 +10,7 @@
 #include "TcalEvent.hh"
 #include "TPOEvent.hh"
 #include "TPSCluster.hh"
+#include "TTKTrack.hh"
 
 /// @brief TPORec holds a reconstructed particle object
 class TPORec : public TObject {
@@ -98,8 +99,8 @@ public:
     TH2D* xviewPS_eldepo = nullptr;                          //! 2Dview scintillator X-Z
     TH2D* yviewPS_eldepo = nullptr;                          //! 2Dview scintillator Y-Z
 
-    std::map<int, class TPSCluster> PSClustersX;            //! 2Dview clusters XZ
-    std::map<int, class TPSCluster> PSClustersY;            //! 2Dview clusters YZ
+    std::vector<TPSCluster> PSClustersX;            //! 2Dview clusters XZ
+    std::vector<TPSCluster> PSClustersY;            //! 2Dview clusters YZ
     size_t n_psclustersX() { return PSClustersX.size(); };    // number of reconstructed cluster in XZ view
     size_t n_psclustersY() { return PSClustersY.size(); };    // number of reconstructed cluster in YZ view
 
@@ -110,6 +111,9 @@ public:
 
     std::map<long, struct PSVOXEL3D> PSvoxelmap;
 
+    /// @brief All reconstruced TKTracks in event
+    std::vector<TTKTrack> fTKTracks;
+
     TPORecoEvent() : fTcalEvent(0), fTPOEvent(0) {};
     TPORecoEvent(TcalEvent* c, TPOEvent* p);
     virtual ~TPORecoEvent();
@@ -119,8 +123,11 @@ public:
     /// @brief Reconstruct the FASERG4 simulated event to the PORec
     void Reconstruct();
 
-    /// @brief Reconstruct all the tracks associated to the PORec (call this after Reconstruct)
+    /// @brief Reconstruct tracks based on precise tracker information
     void TrackReconstruct();
+
+    /// @brief Reconstruct all the tracks associated to the PORec (call this after Reconstruct)
+    void TrackReconstructTruth();
 
     /// @brief Reconstruct the 2D plastic scintillator views XZ and YZ
     void Reconstruct2DViewsPS();

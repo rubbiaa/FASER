@@ -56,7 +56,7 @@ public:
     void setVtx(double x, double y, double z) { vtx.SetX(x); vtx.SetY(y); vtx.SetZ(z); };
 
     /// @brief Compute longitudinal profile of shower defined by the cluster
-    void ComputeLongProfile(bool visualize = false);
+    void ComputeLongProfile(int verbose = 0);
 
 };
 

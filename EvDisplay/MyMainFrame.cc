@@ -130,9 +130,6 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, const TGWindow *p, 
     TCanvas *canvas = fCanvas->GetCanvas();
     canvas->cd();
     // Draw the geometry
-    gGeoManager->GetTopVolume()->Draw("gl");
- 
-    SideView();
     Draw_event();
 
     toggle_primary_em=
@@ -177,7 +174,7 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
     fPORecoEvent -> TrackReconstruct();
     std::cout << "Start reconstruction of clusters..." << std::endl;
     fPORecoEvent -> Reconstruct2DViewsPS();
-//   fPORecoEvent -> ReconstructClusters(0, true);    // this is very slow
+    fPORecoEvent -> ReconstructClusters(0, true);    // this is very slow
     std::cout << "Start reconstruction of 3D voxels..." << std::endl;
     fPORecoEvent -> Reconstruct3DPS();
     fPORecoEvent -> Dump();
@@ -188,6 +185,11 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
 
 void MyMainFrame::Draw_event() {
 
+    fCanvas->GetCanvas()->cd();
+    fCanvas->GetCanvas()->Clear();
+
+    gGeoManager->GetTopVolume()->Draw("gl");
+ 
     double wdx, wdy, wdz;
     if (TGeoBBox *box = dynamic_cast<TGeoBBox*>(gGeoManager->GetTopVolume()->GetShape())) {
         wdx = box->GetDX();
@@ -230,7 +232,7 @@ void MyMainFrame::Draw_event() {
             // Create a translation matrix for the hit position
 
             if(hittype == 0) {
-                position += ROOT::Math::XYZVector(2.5,2.5,2.5);    // in mm
+//                position += ROOT::Math::XYZVector(2.5,2.5,2.5);    // in mm
                 TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, 
                 position.Y() / 10.0, position.Z() / 10.0);
                 TGeoVolume *hitVolume = new TGeoVolume("HitVolume", box, air);
@@ -258,7 +260,7 @@ void MyMainFrame::Draw_event() {
                     }
                 }
             } else if (hittype == 1) {
-                position += ROOT::Math::XYZVector(0.05,0.05,-0.2);
+//                position += ROOT::Math::XYZVector(0.05,0.05,-0.2);
                 TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, 
                 position.Y() / 10.0, position.Z() / 10.0);
                 TGeoVolume *hitVolume = new TGeoVolume("TrackerHitVolume", trackerhitbox, air);
@@ -269,6 +271,9 @@ void MyMainFrame::Draw_event() {
             }
         }
     }
+
+    // Draw the geometry
+    gGeoManager->GetTopVolume()->Draw("gl");
 
 //    gGeoManager->GetTopVolume()->Print();
 
@@ -327,7 +332,7 @@ void MyMainFrame::Draw_event() {
         double ehit = it.second.RawEnergy;
         if(ehit < 0.5) continue;
         ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(ID);
-        position += ROOT::Math::XYZVector(2.5,2.5,2.5);    // in mm
+//        position += ROOT::Math::XYZVector(2.5,2.5,2.5);    // in mm
         TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, 
                 position.Y() / 10.0, position.Z() / 10.0);
         TGeoVolume *hitVolume = new TGeoVolume("HitVolume", box, air);
@@ -344,6 +349,8 @@ void MyMainFrame::Draw_event() {
     gGeoManager->GetTopVolume()->AddNode(primary_em,1);
     gGeoManager->GetTopVolume()->AddNode(primary_had,1);
     gGeoManager->GetTopVolume()->AddNode(si_tracker,1);
+
+    SideView();
 
     TCanvas *c1 = fCanvas_2DPSview->GetCanvas();
     c1->Clear();
@@ -415,16 +422,21 @@ void MyMainFrame::Draw_event() {
 
 void MyMainFrame::Draw_event_reco_tracks() {
     // draw tracks
+    #if 0 // done in ROOT when canvas is cleared
     for(auto &it : polylineTracks) {
         delete it;
     }
+    #endif
     polylineTracks.clear();
     if(toggle_reconstructed_tracks) {
+#if 0
         for (auto &it : fPORecoEvent->GetPORecs())
         {
             // plot all track of each PORec
             //            struct TPORec::TRACK itrk = it->fTracks[0];
             for (auto &itrk : it->fTracks)
+#endif
+            for (auto &itrk : fPORecoEvent -> fTKTracks)
             {
                 int nhits = itrk.tkhit.size();
                 if (nhits == 0)
@@ -446,7 +458,9 @@ void MyMainFrame::Draw_event_reco_tracks() {
                 trackpoly->Draw("same");
                 polylineTracks.push_back(trackpoly);
             }
+#if 0
         }
+#endif
     }
 }
 

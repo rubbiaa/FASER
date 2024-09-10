@@ -5,6 +5,7 @@
 #include "TTauSearch.hh"
 #include "TParticleGun.hh"
 #include "TPSCluster.hh"
+#include "TTKTrack.hh"
 
 //#ifdef CINT
 
@@ -29,5 +30,7 @@
 #pragma link C++ struct TParticleGun::FEATURES;
 
 #pragma link C++ class TPSCluster;
+
+#pragma link C++ class TTKTrack;
 
 //#endif

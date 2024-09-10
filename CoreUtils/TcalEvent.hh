@@ -105,7 +105,18 @@ public:
     /// @return The hit layer
     long getChannelLayerfromID(long ID) const;
 
-    /// @brief Returns (x,y,z) absolute position for a given hit ID
+    /// @brief Returns the precise tracker "layer" (or copy of volume)
+    /// @param ID The hit ID (see FASERG4 DetectorConstruction class)
+    /// @return The precise tracker layer 
+    long getChannelCopyfromID(long ID) const;
+
+    /// @brief Returns z coordinate of layer
+    /// @param layer the layer index
+    /// @param iz the z position index within the layer
+    /// @return z coordinate
+    inline double getZofLayer(long ilayer, long iz) const;
+
+    /// @brief Returns (x,y,z) absolute position for a given hit ID (the center of the hit/voxel)
     /// @param ID The hit ID
     /// @return The (x,y,z) absolute position of the hit
     ROOT::Math::XYZVector getChannelXYZfromID(long ID) const;

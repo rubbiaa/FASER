@@ -152,10 +152,22 @@ long TcalEvent::getChannelLayerfromID(long ID) const {
         long ilayer = (ID / 1000000000);
         return ilayer;
     } else if (hittype == 1) {
-        long ilayer = (ID / 100000000) % 1000;
+        long ilayer = (ID / 100000000) % 100;
         return ilayer;
     }
     return 0;
+}
+
+long TcalEvent::getChannelCopyfromID(long ID) const {
+    long icopy = (ID / 10000000000LL) % 10;
+    return icopy;
+}
+
+inline double TcalEvent::getZofLayer(long ilayer, long iz) const {
+    double z = ilayer * geom_detector.fSandwichLength + iz * geom_detector.fScintillatorVoxelSize
+            - (geom_detector.NRep * geom_detector.fSandwichLength) / 2.0
+            + geom_detector.fScintillatorVoxelSize/2.0;
+    return z;
 }
 
 ROOT::Math::XYZVector TcalEvent::getChannelXYZfromID(long ID) const
@@ -167,11 +179,14 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZfromID(long ID) const
         long iz = (ID / 1000000) % 1000;
         long ilayer = (ID / 1000000000);
 
-        double x = ix * geom_detector.fScintillatorVoxelSize - geom_detector.fScintillatorSizeX / 2.0;
-        double y = iy * geom_detector.fScintillatorVoxelSize - geom_detector.fScintillatorSizeY / 2.0;
-        double z = ilayer * geom_detector.fSandwichLength + iz * geom_detector.fScintillatorVoxelSize
-            - (geom_detector.NRep * geom_detector.fSandwichLength) / 2.0;
-            + geom_detector.fScintillatorVoxelSize*2;
+        double x = ix * geom_detector.fScintillatorVoxelSize - geom_detector.fScintillatorSizeX / 2.0
+            + geom_detector.fScintillatorVoxelSize/2.0;
+        double y = iy * geom_detector.fScintillatorVoxelSize - geom_detector.fScintillatorSizeY / 2.0
+            + geom_detector.fScintillatorVoxelSize/2.0;
+//        double z = ilayer * geom_detector.fSandwichLength + iz * geom_detector.fScintillatorVoxelSize
+//            - (geom_detector.NRep * geom_detector.fSandwichLength) / 2.0
+//            + geom_detector.fScintillatorVoxelSize/2.0;
+        double z = getZofLayer(ilayer, iz);
         return ROOT::Math::XYZVector(x, y, z);
     } else if (hittype == 1) {
 
