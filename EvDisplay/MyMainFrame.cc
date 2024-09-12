@@ -167,16 +167,17 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
     fTcalEvent -> fTPOEvent -> dump_event();
 
     fPORecoEvent = new TPORecoEvent(fTcalEvent, fTcalEvent->fTPOEvent);
-    fPORecoEvent->verbose = 1;
+    fPORecoEvent->verbose = 2;
     std::cout << "Start reconstruction of PORecs..." << std::endl;
     fPORecoEvent -> Reconstruct();
     std::cout << "Start reconstruction of tracks..." << std::endl;
     fPORecoEvent -> TrackReconstruct();
     std::cout << "Start reconstruction of clusters..." << std::endl;
     fPORecoEvent -> Reconstruct2DViewsPS();
-    fPORecoEvent -> ReconstructClusters(0, true);    // this is very slow
+ //   fPORecoEvent -> ReconstructClusters(0);    // this is very slow
     std::cout << "Start reconstruction of 3D voxels..." << std::endl;
     fPORecoEvent -> Reconstruct3DPS();
+    fPORecoEvent -> ReconstructRearCals();
     fPORecoEvent -> Dump();
 
     // fill 2D maps
@@ -188,7 +189,9 @@ void MyMainFrame::Draw_event() {
     fCanvas->GetCanvas()->cd();
     fCanvas->GetCanvas()->Clear();
 
+    // Draw the geometry
     gGeoManager->GetTopVolume()->Draw("gl");
+    SideView();
  
     double wdx, wdy, wdz;
     if (TGeoBBox *box = dynamic_cast<TGeoBBox*>(gGeoManager->GetTopVolume()->GetShape())) {
@@ -207,6 +210,7 @@ void MyMainFrame::Draw_event() {
     secondary_em = new TGeoVolume("secondary_em", bigbox, air);
     secondary_had = new TGeoVolume("secondary_had", bigbox, air);
     si_tracker = new TGeoVolume("si_tracker", bigbox, air);
+    rearcal = new TGeoVolume("rearcal", bigbox, air);
 
     TGeoMaterial *matAluminum = new TGeoMaterial("Aluminum", 26.98, 13, 2.7);
     TGeoMedium *aluminum = new TGeoMedium("Aluminum", 2, matAluminum);
@@ -272,10 +276,18 @@ void MyMainFrame::Draw_event() {
         }
     }
 
-    // Draw the geometry
-    gGeoManager->GetTopVolume()->Draw("gl");
-
-//    gGeoManager->GetTopVolume()->Print();
+    // draw rear calorimeter
+    for (const auto &it : fTcalEvent->rearCalDeposit) {
+        ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZRearCal(it.moduleID);
+        double zBox = it.energyDeposit / 1e2;  // 1cm is 1 GeV
+        TGeoShape *box = new TGeoBBox("rearcalbox", fTcalEvent->geom_detector.rearCalSizeX/20.0,
+                fTcalEvent->geom_detector.rearCalSizeY/20.0,zBox/20.0);
+        TGeoVolume *hitVolume = new TGeoVolume("RearCalVolume", box, air);
+        hitVolume->SetLineColor(kBlue); 
+        TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, 
+                position.Y() / 10.0, (position.Z()+zBox/2.0)/ 10.0);
+         rearcal->AddNode(hitVolume, it.moduleID, trans);
+    }
 
     fCanvas->GetCanvas()->cd();
     delete runText;
@@ -323,6 +335,18 @@ void MyMainFrame::Draw_event() {
     energyText->SetTextSize(0.03);
     energyText->Draw();
 
+    delete rearcalenergyText;
+    rearcalenergyText = new TText(0.2, 0.85, Form("RearCal:%6.2f GeV", fPORecoEvent->rearCals.rearCalDeposit));
+    rearcalenergyText->SetNDC();
+    rearcalenergyText->SetTextSize(0.03);
+    rearcalenergyText->Draw();
+
+    delete rearmucalenergyText;
+    rearmucalenergyText = new TText(0.35, 0.85, Form("RearMuCal:%6.2f GeV", fPORecoEvent->rearCals.rearMuCalDeposit));
+    rearmucalenergyText->SetNDC();
+    rearmucalenergyText->SetTextSize(0.03);
+    rearmucalenergyText->Draw();
+
     Draw_event_reco_tracks();
 
     ps_reco_voxel = new TGeoVolume("ps_reco_voxel", bigbox, air);
@@ -349,8 +373,7 @@ void MyMainFrame::Draw_event() {
     gGeoManager->GetTopVolume()->AddNode(primary_em,1);
     gGeoManager->GetTopVolume()->AddNode(primary_had,1);
     gGeoManager->GetTopVolume()->AddNode(si_tracker,1);
-
-    SideView();
+    gGeoManager->GetTopVolume()->AddNode(rearcal,1);
 
     TCanvas *c1 = fCanvas_2DPSview->GetCanvas();
     c1->Clear();
@@ -484,6 +507,9 @@ void MyMainFrame::Next_Event(int ievent) {
     TGeoNode *nodeToRemove6 = gGeoManager->GetTopVolume()->FindNode("ps_reco_voxel_1");
     gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove6);
 
+    TGeoNode *nodeToRemove7 = gGeoManager->GetTopVolume()->FindNode("rearcal_1");
+    gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove7);
+
     int run_number = fTcalEvent->fTPOEvent->run_number;
     delete POevent;
     delete fTcalEvent;
@@ -592,6 +618,9 @@ void MyMainFrame::toggle_reco_track() {
     }
     */
     canvas->cd();
+    for(auto &it : polylineTracks) {
+        delete it;
+    }
     Draw_event_reco_tracks();
     canvas->Modified();
     canvas->Update();
@@ -639,7 +668,7 @@ void MyMainFrame::SideView() {
     TView *view = (TView *)canvas->GetView();
     if(view == nullptr) return;
     view->SetPsi(90);
-    view->SetRange(12.5,12.5,-100,25.,25.,100.);
+    view->SetRange(12.5,12.5,-200,25.,25.,200.);
     canvas->Modified();
     canvas->Update();
 }

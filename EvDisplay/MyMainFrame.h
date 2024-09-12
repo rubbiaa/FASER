@@ -58,6 +58,8 @@ private:
     TText *runText = nullptr;
     TText *eventypeText = nullptr;
     TText *energyText = nullptr;
+    TText *rearcalenergyText = nullptr;
+    TText *rearmucalenergyText = nullptr;
 
     std::vector<TPolyLine3D*> polylineTracks;
 
@@ -74,6 +76,7 @@ private:
     TGeoVolume *secondary_em;
     TGeoVolume *secondary_had;
     TGeoVolume *si_tracker;
+    TGeoVolume *rearcal;
 
     // reconstructed 3D voxel
     TGeoVolume *ps_reco_voxel;

@@ -21,4 +21,5 @@
 #pragma link C++ class TcalEvent+;
 #pragma link C++ class TPOEvent+;
 #pragma link C++ struct PO+;
+#pragma link C++ struct TcalEvent::REARCALDEPOSIT+;
 #endif

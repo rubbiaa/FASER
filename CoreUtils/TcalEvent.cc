@@ -34,6 +34,8 @@ TcalEvent::TcalEvent(int run_number, long event_number, int event_mask) : TcalEv
     m_calEventTree->Branch("tracks", &fTracks);
     m_calEventTree->Branch("event", &fTPOEvent);    // this should be labelled POEvent !
     m_calEventTree->Branch("geom", &geom_detector);
+    m_calEventTree->Branch("rearcal", &rearCalDeposit);
+    m_calEventTree->Branch("rearmucal", &rearMuCalDeposit);
 
     //    fTracks = new std::vector<DigitizedTrack*>;
 }
@@ -100,6 +102,11 @@ int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
 
     struct TcalEvent::GEOM_DETECTOR *g_d = &geom_detector;
     event_tree -> SetBranchAddress("geom", &g_d);
+
+    std::vector<struct REARCALDEPOSIT> *g_r = &rearCalDeposit;
+    event_tree ->SetBranchAddress("rearcal", &g_r);
+
+    event_tree -> SetBranchAddress("rearmucal", &rearMuCalDeposit);
 
     // Read the first entry
     event_tree->GetEntry(0);
@@ -204,6 +211,13 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZfromID(long ID) const
         std::cerr << " TcalEvent::getChannelXYZfromID - hit of unknown type" << hittype << std::endl;
         return ROOT::Math::XYZVector(0,0,0);
     }
+}
+
+ROOT::Math::XYZVector TcalEvent::getChannelXYZRearCal(int moduleID) const {
+    double x = (moduleID%geom_detector.rearCalNxy - geom_detector.rearCalNxy/2.0 + 0.5)*geom_detector.rearCalSizeX;
+    double y = (moduleID/geom_detector.rearCalNxy - geom_detector.rearCalNxy/2.0 + 0.5)*geom_detector.rearCalSizeY;
+    double z = geom_detector.rearCalLocZ;
+    return ROOT::Math::XYZVector(x, y, z);
 }
 
 void TcalEvent::fillTree()

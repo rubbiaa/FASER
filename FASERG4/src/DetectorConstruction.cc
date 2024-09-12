@@ -135,8 +135,8 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	G4double sizeY = std::max(sizetargetWY, sizeScintillatorY);
 
 
-	G4double WorldSizeX = 1.2* sizeX;
-	G4double WorldSizeY = 1.2* sizeY;
+	G4double WorldSizeX = 1.5* sizeX;
+	G4double WorldSizeY = 1.5* sizeY;
 	G4double WorldSizeZ = 1.2* NRep*(sizetargetWZ + sizeScintillatorZ);
 
 	G4cout << "Size of the world " << WorldSizeX << " " << WorldSizeY << " " << WorldSizeZ << " mm" << G4endl;
@@ -178,6 +178,12 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	XYZVector(sizeScintillatorX, sizeScintillatorY, sizeScintillatorZ), G4_Target->GetName(),  
 	XYZVector(sizetargetWX, sizetargetWY, sizetargetWZ), NRep);
 
+	G4double sizeZ = (sizeScintillatorZ + sizetargetWZ + fNumberRep_SiTracker*fSiTrackerSizeZ)*NRep;
+	CreateRearCal(sizeZ/2.0, worldLV);
+
+	G4double sizeZmu = sizeZ + 450*mm ;
+	CreateRearMuTag(sizeZmu/2.0, worldLV);
+
 	// Save the geometry of the detector
 	G4GDMLParser parser;
 	parser.Write("geometry.gdml", worldPV->GetLogicalVolume());
@@ -195,6 +201,9 @@ void DetectorConstruction::ConstructSDandField()
 	G4SDManager::GetSDMpointer()->AddNewDetector(aTrackerSD);
 	SetSensitiveDetector("ScintillatorLogical", aTrackerSD, true);
 	SetSensitiveDetector("trackerSiLogical", aTrackerSD, false);
+	SetSensitiveDetector("rearCalscintillatorLogical", aTrackerSD, false);
+	SetSensitiveDetector("muCalscintillatorLogical", aTrackerSD, false);
+
 	//SetSensitiveDetector("World", aTrackerSD, true);
 
 	// Create global magnetic field messenger.
@@ -395,4 +404,51 @@ G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, 
 		G4cerr << "Don't know how to handle volume " << VolumeName << G4endl;
 		return 0;
 	}
+}
+
+
+void DetectorConstruction::CreateRearCal(G4double zLocation, G4LogicalVolume* parent) {
+	G4double sizeX = 121.2*mm;
+	G4double sizeY = 121.2*mm;
+	G4double sizeZ_Pb = 2*mm;
+	G4double sizeZ_PS = 4*mm;
+	G4int nlayer = 66;
+	G4Material * G4_Pb = G4NistManager::Instance()->FindOrBuildMaterial("G4_Pb");
+	G4Material* plasticScintillator = G4NistManager::Instance()->FindOrBuildMaterial("G4_PLASTIC_SC_VINYLTOLUENE");
+
+	G4Box* scintillatorSolid = new G4Box("PSSlab", sizeX / 2, sizeY / 2, sizeZ_PS / 2);
+	G4LogicalVolume* scintillatorLogic = new G4LogicalVolume(scintillatorSolid, plasticScintillator, "rearCalscintillatorLogical");
+	G4Box* absorberSolid = new G4Box("PbSlab", sizeX / 2, sizeY / 2, sizeZ_Pb / 2);
+	G4LogicalVolume* absorberLogic = new G4LogicalVolume(absorberSolid, G4_Pb, "absorberLogical");
+
+	G4double sizeZ_module = nlayer * (sizeZ_Pb + sizeZ_PS);
+	G4Box* rearCal_module = new G4Box("rearCalmodule", sizeX / 2, sizeY / 2, sizeZ_module / 2);
+
+	G4LogicalVolume *rearCal_moduleLogic = new G4LogicalVolume(rearCal_module, fWorldMaterial, "rearCalmoduleLogical");
+
+	for (int i = 0; i < nlayer; i++){
+		double z = i*(sizeZ_Pb+sizeZ_PS)-sizeZ_module/2.0+sizeZ_Pb/2.0;
+		new G4PVPlacement(0, G4ThreeVector(0,0,z), absorberLogic, "rearCalAbs", rearCal_moduleLogic, false, i, true);
+		z += sizeZ_Pb/2.0+sizeZ_PS/2.0;
+		new G4PVPlacement(0, G4ThreeVector(0,0,z), scintillatorLogic, "rearCalScint", rearCal_moduleLogic, false, i, true);
+	}
+
+	// now place 5x5 matrix
+	for (int i = 0; i<25; i++) {
+		double x = (i%5)*sizeX - 2.5*sizeX + sizeX/2.0;
+		double y = (i/5)*sizeY - 2.5*sizeY + sizeY/2.0;
+		new G4PVPlacement(0, G4ThreeVector(x,y,zLocation+sizeZ_module/2.0), rearCal_moduleLogic, "rearCal", parent, false, i, true);
+	}
+}
+
+void DetectorConstruction::CreateRearMuTag(G4double zLocation, G4LogicalVolume* parent) {
+	G4double sizeX = 60*cm;
+	G4double sizeY = 60*cm;
+	G4double sizeZ = 2*cm;
+	G4Material* plasticScintillator = G4NistManager::Instance()->FindOrBuildMaterial("G4_PLASTIC_SC_VINYLTOLUENE");
+	G4Box* scintillatorSolid = new G4Box("PSSlab", sizeX / 2, sizeY / 2, sizeZ / 2);
+	G4LogicalVolume* scintillatorLogic = new G4LogicalVolume(scintillatorSolid, plasticScintillator, "muCalscintillatorLogical");
+
+	double z = zLocation + sizeZ/2.0;
+	new G4PVPlacement(0, G4ThreeVector(0,0,z), scintillatorLogic, "rearMuCal", parent, false, 0, true);
 }

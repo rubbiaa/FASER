@@ -14,7 +14,7 @@
 class TPSCluster : public TObject
 {
 private:
-    TcalEvent* fTcalEvent;
+    TcalEvent* fTcalEvent;          //!
 public:
     /// @brief Longitudinal profile \frac{dE}{dt} = E_0 \cdot b \cdot \frac{(b t)^{a-1} \cdot e^{-b t}}{\Gamma(a)} (see PDG)
     struct PSCLUSTERLONGPROFILE {
@@ -41,12 +41,10 @@ public:
     ROOT::Math::XYZVector cog;                   // the center of gravity of the cluster
     struct PSCLUSTERLONGPROFILE longenergyprofile; // fitted parameters of energy longidutinal profile
 
-    std::vector<struct PSCLUSTERHIT> hits;
+    std::vector<struct PSCLUSTERHIT> hits;       //! all the hits associated the cluster
 
     TPSCluster() : fTcalEvent(0), view(0) {};
     TPSCluster(int v, TcalEvent* ft) { fTcalEvent = ft; view = v;};
-
-    ClassDef(TPSCluster, 1)
 
     /// @brief Compute center of gravity of cluster
     void ComputeCOG();
@@ -57,6 +55,8 @@ public:
 
     /// @brief Compute longitudinal profile of shower defined by the cluster
     void ComputeLongProfile(int verbose = 0);
+
+    ClassDef(TPSCluster, 1)
 
 };
 

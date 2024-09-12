@@ -120,6 +120,14 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	/// @param Nrep = number of layers
 	void CreateFaserNu(G4Material* material1, G4Material* material2, G4ThreeVector size1, G4ThreeVector size2, G4LogicalVolume* parent, G4int Nrep);
 
+	/// @brief Create the RearCalorimeter
+	void CreateRearCal(G4double zLocation, G4LogicalVolume* parent);
+
+	/// @brief Create the rear muon tagger
+	/// @param zLocation 
+	/// @param parent 
+	void CreateRearMuTag(G4double zLocation, G4LogicalVolume* parent);
+
 	G4LogicalVolume* fLogicScintillator = nullptr;	///< Logical volume of the scintillator
 
 	G4Element* fCarbon = nullptr;		  ///< Element Carbon to build PVT

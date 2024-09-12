@@ -176,19 +176,21 @@ int main(int argc, char** argv) {
            ROOT::Math::XYZVector decayvtx = ROOT::Math::XYZVector(aPO.m_vx_decay, aPO.m_vy_decay, aPO.m_vz_decay);   
         }
 
+#if 0
         //// 
-
         delete POevent;
         delete fTcalEvent;   
         continue;
         /////
-
+#endif
         TPORecoEvent* fPORecoEvent = new TPORecoEvent(fTcalEvent, fTcalEvent->fTPOEvent);
         fPORecoEvent -> Reconstruct();
 
         std::cout << "Start reconstruction of clusters..." << std::endl;
         fPORecoEvent -> Reconstruct2DViewsPS();
         fPORecoEvent -> ReconstructClusters(0);    // this is very slow
+        std::cout << "Start reconstruction of 3D voxels..." << std::endl;
+        fPORecoEvent -> Reconstruct3DPS();
 
         if(dump_event_cout) fPORecoEvent -> Dump();
 
@@ -366,19 +368,18 @@ int main(int argc, char** argv) {
             int POID = aPORec->POID;
             struct PO *aPO = &fTcalEvent->fTPOEvent->POs[POID];
             fTParticleGun.features.m_pdg_id = aPO->m_pdg_id;
-            fTParticleGun.features.m_energy = aPO->m_energy;  
+            fTParticleGun.features.m_energy = aPO->m_energy;
 
             // fill features of most energetic reconstructed cluster
-            for (auto& c : fPORecoEvent->PSClustersX) {
-                if(c.second.rawenergy > emax_cluster) {
-                    emax_cluster = c.second.rawenergy;
-                    fTParticleGun.features.ep_chi2_per_ndf = c.second.longenergyprofile.chi2_per_ndf;
-                    fTParticleGun.features.ep_E0 = c.second.longenergyprofile.E0;
-                    fTParticleGun.features.ep_a = c.second.longenergyprofile.a;
-                    fTParticleGun.features.ep_b = c.second.longenergyprofile.b;
-                    fTParticleGun.features.ep_tmax = c.second.longenergyprofile.tmax;
-                    fTParticleGun.features.ep_c = c.second.longenergyprofile.c;
-                }
+            if (fPORecoEvent->PSClustersX.size() > 0)
+            {
+                TPSCluster *c = &fPORecoEvent->PSClustersX[0]; // most energetic one
+                fTParticleGun.features.ep_chi2_per_ndf = c->longenergyprofile.chi2_per_ndf;
+                fTParticleGun.features.ep_E0 = c->longenergyprofile.E0;
+                fTParticleGun.features.ep_a = c->longenergyprofile.a;
+                fTParticleGun.features.ep_b = c->longenergyprofile.b;
+                fTParticleGun.features.ep_tmax = c->longenergyprofile.tmax;
+                fTParticleGun.features.ep_c = c->longenergyprofile.c;
             }
 
             fTParticleGun.Fill_Sel_Tree(m_particlegun_Tree);     

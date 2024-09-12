@@ -22,6 +22,23 @@ void ParticleManager::processParticleHit(int trackID, XYZVector const& position,
 					 double const& energydeposit, int const& parentID, int const& pdg,
 					 std::string const& VolumeName, int CopyNumber, int MotherCopyNumber)
 {
+	if(VolumeName == "rearCalscintillatorLogical") {
+//		std::cout << VolumeName << " copy=" << CopyNumber << " MotherCopy = " << MotherCopyNumber << std::endl;
+		auto it = std::find_if(fTcalEvent->rearCalDeposit.begin(), fTcalEvent->rearCalDeposit.end(),
+                       [MotherCopyNumber](const TcalEvent::REARCALDEPOSIT& deposit) {
+                           return deposit.moduleID == MotherCopyNumber;
+                       });
+		if (it != fTcalEvent->rearCalDeposit.end()) {
+			it->energyDeposit += energydeposit;
+		} else {
+			struct TcalEvent::REARCALDEPOSIT rearhit = {MotherCopyNumber, energydeposit};
+			fTcalEvent->rearCalDeposit.push_back(rearhit);
+		}
+		return;
+	} else if(VolumeName == "muCalscintillatorLogical") {
+		fTcalEvent->rearMuCalDeposit += energydeposit;
+		return;
+	}
 	if(energydeposit>0 || parentID == 0) { 					// or some energy or is primary
 		auto it = m_particleMap.find(trackID);
 		if (it != m_particleMap.end()) {
@@ -80,6 +97,15 @@ void ParticleManager::beginOfEvent()
 	fTcalEvent->geom_detector.fTotalMass = detector->fTotalMass;
 	fTcalEvent->geom_detector.fTotalWmass = detector->fTotalWMass;
 	fTcalEvent->geom_detector.fTotalScintmass = detector->fTotalScintMass;
+	fTcalEvent->geom_detector.rearCalSizeX = 121.2;
+	fTcalEvent->geom_detector.rearCalSizeY = 121.2;
+    fTcalEvent->geom_detector.rearCalLocZ = detector->fTotalLength/2.0;
+	fTcalEvent->geom_detector.rearCalNxy = 5;
+
+	// clear the rear calorimeter
+	fTcalEvent->rearCalDeposit.clear();
+	// clear the rear muCal scintillator
+	fTcalEvent->rearMuCalDeposit = 0;
 }
 
 void ParticleManager::endOfEvent(G4Event const* event)
@@ -115,6 +141,14 @@ void ParticleManager::endOfEvent(G4Event const* event)
 				t->fEnergyDeposits.push_back(hit.second);
 			}
 		}
+
+		// dump RearCal
+		for (const auto &it : fTcalEvent->rearCalDeposit) {
+			G4cout << " Module " << it.moduleID << " deposit: " << it.energyDeposit << G4endl;
+		}
+		// dump rear muCal
+		G4cout << " Rear Mu Scintillator: " << fTcalEvent->rearMuCalDeposit << G4endl;
+
 		fTcalEvent->fillTree();
 	//	fTcalEvent_number++;
 	}

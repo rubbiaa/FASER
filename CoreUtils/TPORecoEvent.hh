@@ -70,7 +70,7 @@ private:
     TPORec *fPOFullEvent = nullptr;                   // the kinematics of the full event
 
     TcalEvent* fTcalEvent;                            //! Reference to the TCAL event
-    TPOEvent* fTPOEvent;                              //! Reference to the TPOEvent
+    TPOEvent* fTPOEvent;                              // Reference to the TPOEvent
 
 // static    TVector3 fitLineThroughPoints(const struct TPORec::TRACK &track, TVector3& centroid);
 public:
@@ -99,8 +99,8 @@ public:
     TH2D* xviewPS_eldepo = nullptr;                          //! 2Dview scintillator X-Z
     TH2D* yviewPS_eldepo = nullptr;                          //! 2Dview scintillator Y-Z
 
-    std::vector<TPSCluster> PSClustersX;            //! 2Dview clusters XZ
-    std::vector<TPSCluster> PSClustersY;            //! 2Dview clusters YZ
+    std::vector<TPSCluster> PSClustersX;                // 2Dview clusters XZ
+    std::vector<TPSCluster> PSClustersY;                // 2Dview clusters YZ
     size_t n_psclustersX() { return PSClustersX.size(); };    // number of reconstructed cluster in XZ view
     size_t n_psclustersY() { return PSClustersY.size(); };    // number of reconstructed cluster in YZ view
 
@@ -114,11 +114,18 @@ public:
     /// @brief All reconstruced TKTracks in event
     std::vector<TTKTrack> fTKTracks;
 
+    /// @brief Structure to hold rear calorimeter and mutag deposited energies
+    struct REARCALS {
+        double rearCalDeposit;
+        double rearMuCalDeposit;
+    };
+    struct REARCALS rearCals;
+
     TPORecoEvent() : fTcalEvent(0), fTPOEvent(0) {};
     TPORecoEvent(TcalEvent* c, TPOEvent* p);
     virtual ~TPORecoEvent();
 
-    int verbose = 0;
+    int verbose = 0;                            //! controls amount of debug information
 
     /// @brief Reconstruct the FASERG4 simulated event to the PORec
     void Reconstruct();
@@ -133,10 +140,13 @@ public:
     void Reconstruct2DViewsPS();
 
     /// @brief Reconstruct all 2D clusters for the xz and the yz views (view=0 for XZ, and view=1 for YZ)
-    void ReconstructClusters(int view, bool verbose = false);
+    void ReconstructClusters(int view);
 
     /// @brief Reconstruct 3D voxels from 2D views in plastic scintillator
     void Reconstruct3DPS(int maxIter = 150);
+
+    /// @brief Reconstruct rear calorimeter and rear mu tag
+    void ReconstructRearCals();
 
     /// @brief Dump PORecs to the screen
     void Dump();

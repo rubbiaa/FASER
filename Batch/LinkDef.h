@@ -4,6 +4,7 @@
 #include "TTauSearch.hh"
 #include "TParticleGun.hh"
 #include "TPSCluster.hh"
+#include "TTKTrack.hh"
 
 #ifdef __CLING__
 
@@ -32,5 +33,7 @@
 
 #pragma link C++ class TPSCluster;
 #pragma link C++ struct TPSCluster::PSCLUSTERLONGPROFILE;
+
+#pragma link C++ class TTKTrack;
 
 #endif

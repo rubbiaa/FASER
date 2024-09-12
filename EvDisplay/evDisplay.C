@@ -73,7 +73,13 @@ int main(int argc, char** argv) {
     TApplication app("app", &argc, argv);
 
     load_geometry();
-
+#if 0
+    TGeoVolume *specificVolume = gGeoManager->FindVolumeFast("rearCalmoduleLogical");
+    if (specificVolume) {
+    specificVolume->SetLineColor(kRed);      
+    specificVolume->SetTransparency(50);       
+    }
+#endif
     new MyMainFrame(run_number, 0, event_mask, gClient->GetRoot(), 1200, 600);
 
     // Run the application
