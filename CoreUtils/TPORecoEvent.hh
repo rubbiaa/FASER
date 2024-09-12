@@ -116,8 +116,8 @@ public:
 
     /// @brief Structure to hold rear calorimeter and mutag deposited energies
     struct REARCALS {
-        double rearCalDeposit;
-        double rearMuCalDeposit;
+        double rearCalDeposit;   // in GeV
+        double rearMuCalDeposit; // in MeV
     };
     struct REARCALS rearCals;
 

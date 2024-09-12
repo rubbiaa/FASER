@@ -18,7 +18,7 @@ ParticleManager::ParticleManager(int number) : m_rootFile(nullptr)
 
 ParticleManager::~ParticleManager() {}
 
-void ParticleManager::processParticleHit(int trackID, XYZVector const& position, XYZVector const& direction, double const& time,
+void ParticleManager::processParticleHit(G4Track *track, XYZVector const& position, XYZVector const& direction, double const& time,
 					 double const& energydeposit, int const& parentID, int const& pdg,
 					 std::string const& VolumeName, int CopyNumber, int MotherCopyNumber)
 {
@@ -37,8 +37,14 @@ void ParticleManager::processParticleHit(int trackID, XYZVector const& position,
 		return;
 	} else if(VolumeName == "muCalscintillatorLogical") {
 		fTcalEvent->rearMuCalDeposit += energydeposit;
+		G4cout << "MucalScint: pdgid=" << pdg << " edepo=" << energydeposit << G4endl;
+        G4double kineticEnergy = track->GetKineticEnergy();
+	    G4ThreeVector momentum = track->GetMomentum();
+		G4cout << "  Kinetic Energy: " << kineticEnergy / MeV << " MeV" << G4endl;
+        G4cout << "  Momentum: " << momentum / MeV << " MeV/c" << G4endl;
 		return;
 	}
+	int trackID = track->GetTrackID();
 	if(energydeposit>0 || parentID == 0) { 					// or some energy or is primary
 		auto it = m_particleMap.find(trackID);
 		if (it != m_particleMap.end()) {

@@ -191,6 +191,7 @@ int main(int argc, char** argv) {
         fPORecoEvent -> ReconstructClusters(0);    // this is very slow
         std::cout << "Start reconstruction of 3D voxels..." << std::endl;
         fPORecoEvent -> Reconstruct3DPS();
+        fPORecoEvent -> ReconstructRearCals();
 
         if(dump_event_cout) fPORecoEvent -> Dump();
 

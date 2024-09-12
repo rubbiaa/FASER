@@ -181,8 +181,8 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	G4double sizeZ = (sizeScintillatorZ + sizetargetWZ + fNumberRep_SiTracker*fSiTrackerSizeZ)*NRep;
 	CreateRearCal(sizeZ/2.0, worldLV);
 
-	G4double sizeZmu = sizeZ + 450*mm ;
-	CreateRearMuTag(sizeZmu/2.0, worldLV);
+	G4double sizeZmu = sizeZ/2.0 + 66*6*mm;
+	CreateRearMuTag(sizeZmu, worldLV);
 
 	// Save the geometry of the detector
 	G4GDMLParser parser;
@@ -320,7 +320,7 @@ void DetectorConstruction::CreateFaserNu(G4Material* material1, G4Material* mate
 
 	// TODO Setup via macro commands - currently set to large values for simulation speed.
 	G4UserLimits* userLimits_Scint = new G4UserLimits();
-	userLimits_Scint->SetMaxAllowedStep(1*mm);
+	userLimits_Scint->SetMaxAllowedStep(2*mm); // necessary; should be tuned to size of voxel
 	G4UserLimits* userLimits_targetW = new G4UserLimits();
 //	userLimits_targetW->SetMaxAllowedStep(1*mm);   // is this really necessary??
 
@@ -444,11 +444,32 @@ void DetectorConstruction::CreateRearCal(G4double zLocation, G4LogicalVolume* pa
 void DetectorConstruction::CreateRearMuTag(G4double zLocation, G4LogicalVolume* parent) {
 	G4double sizeX = 60*cm;
 	G4double sizeY = 60*cm;
-	G4double sizeZ = 2*cm;
+	G4double sizeZ = 4*cm;
+	G4double sizeZ_Pb = 90*cm;
+	G4double sizeZ_nabs = 10*cm;  /// neutron absorber
+
+	G4Material * G4_Pb = G4NistManager::Instance()->FindOrBuildMaterial("G4_Pb");
+	G4Material* polyethylene = G4NistManager::Instance()->FindOrBuildMaterial("G4_POLYETHYLENE");
 	G4Material* plasticScintillator = G4NistManager::Instance()->FindOrBuildMaterial("G4_PLASTIC_SC_VINYLTOLUENE");
+
+	double Pb_mass = sizeX*sizeY*sizeZ_Pb*(G4_Pb->GetDensity()/(kg/cm3));
+	G4cout << "Total mass of RearMuCal absorber " << Pb_mass << " kg " << G4endl;
+
+	G4Box* absorberSolid = new G4Box("PbSlab", sizeX / 2, sizeY / 2, sizeZ_Pb / 2);
+	G4LogicalVolume* absorberLogic = new G4LogicalVolume(absorberSolid, G4_Pb, "absorberLogical");
+
+	G4Box* nabsorberSolid = new G4Box("NeutronAbsSlab", sizeX / 2, sizeY / 2, sizeZ_nabs / 2);
+	G4LogicalVolume* nabsorberLogic = new G4LogicalVolume(nabsorberSolid, polyethylene, "neutabsorberLogical");
+
 	G4Box* scintillatorSolid = new G4Box("PSSlab", sizeX / 2, sizeY / 2, sizeZ / 2);
 	G4LogicalVolume* scintillatorLogic = new G4LogicalVolume(scintillatorSolid, plasticScintillator, "muCalscintillatorLogical");
 
-	double z = zLocation + sizeZ/2.0;
-	new G4PVPlacement(0, G4ThreeVector(0,0,z), scintillatorLogic, "rearMuCal", parent, false, 0, true);
+	double z = zLocation + sizeZ_Pb/2.0;
+	new G4PVPlacement(0, G4ThreeVector(0,0,z), absorberLogic, "rearMuCalAbs", parent, false, 0, true);
+
+	z = zLocation + sizeZ_Pb + sizeZ_nabs/2.0;
+	new G4PVPlacement(0, G4ThreeVector(0,0,z), nabsorberLogic, "rearMuCalNAbs", parent, false, 0, true);
+
+	z = zLocation + sizeZ_Pb + sizeZ_nabs + sizeZ/2.0;
+	new G4PVPlacement(0, G4ThreeVector(0,0,z), scintillatorLogic, "rearMuCalScint", parent, false, 0, true);
 }

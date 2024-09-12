@@ -20,6 +20,8 @@ struct EVENT {
     Int_t n_clusters;
     Float_t c_E1;    // energy most energetic cluster
     Float_t c_E2;    // energy 2nd most energetic cluster
+    Float_t rear_Cal; // energy deposit in rear Cal
+    Float_t rear_MuCal; // energy deposit in rear muCal
 };
 
 int main(int argc, char** argv) {
@@ -97,6 +99,8 @@ int main(int argc, char** argv) {
     t->Branch("n_clusters",&event.n_clusters);
     t->Branch("c_E1", &event.c_E1);
     t->Branch("c_E2", &event.c_E2);
+    t->Branch("rear_Cal", &event.rear_Cal);
+    t->Branch("rear_MuCal", &event.rear_MuCal);
 
     std::ostringstream inputfilename;
     inputfilename << "input/Batch-TPORecevent_" << run_number << ".root";
@@ -164,6 +168,10 @@ int main(int argc, char** argv) {
             event.c_E2 = 0;
         }
 
+        // store energies in rear calorimeters
+        event.rear_Cal = fTPORecoEvent->rearCals.rearCalDeposit;
+        event.rear_MuCal = fTPORecoEvent->rearCals.rearMuCalDeposit;
+    
         t->Fill();
         ievent++;
     }

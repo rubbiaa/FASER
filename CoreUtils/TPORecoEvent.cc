@@ -1467,7 +1467,7 @@ void TPORecoEvent::ReconstructRearCals() {
         eDeposit += it.energyDeposit;
     }
     rearCals.rearCalDeposit = eDeposit/1e3;  // convert to GeV
-    rearCals.rearMuCalDeposit = fTcalEvent->rearMuCalDeposit/1e3;
+    rearCals.rearMuCalDeposit = fTcalEvent->rearMuCalDeposit; // in MeV
     if(verbose>0){
         std::cout << "Rear CalDeposit " << rearCals.rearCalDeposit << std::endl;
         std::cout << "Rear MuCalDeposit " << rearCals.rearMuCalDeposit << std::endl;

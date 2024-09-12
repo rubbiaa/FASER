@@ -36,4 +36,6 @@
 
 #pragma link C++ class TTKTrack;
 
+#pragma link C++ struct TPORecoEvent::REARCALS;
+
 #endif

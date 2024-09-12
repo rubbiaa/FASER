@@ -342,7 +342,7 @@ void MyMainFrame::Draw_event() {
     rearcalenergyText->Draw();
 
     delete rearmucalenergyText;
-    rearmucalenergyText = new TText(0.35, 0.85, Form("RearMuCal:%6.2f GeV", fPORecoEvent->rearCals.rearMuCalDeposit));
+    rearmucalenergyText = new TText(0.35, 0.85, Form("RearMuCal:%6.2f MeV", fPORecoEvent->rearCals.rearMuCalDeposit));
     rearmucalenergyText->SetNDC();
     rearmucalenergyText->SetTextSize(0.03);
     rearmucalenergyText->Draw();
