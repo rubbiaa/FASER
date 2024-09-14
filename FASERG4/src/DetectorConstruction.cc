@@ -384,7 +384,8 @@ G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, 
 		G4long iz = floor((dz-ilayer*fSandwichLength)/ fScintillatorVoxelSize);
 		// sanity check
 		if (ix < 0 || ix > 999 || iy < 0 || iy > 999 || iz < 0 || iz > 999 || ilayer < 0) {
-			G4cerr << "ERROR : getCHannelIDfromXYZ problem ix:" << ix << " iy:" << iy << " iz:" << iz << G4endl;
+			if(iz>1000)
+				G4cerr << "ERROR : getCHannelIDfromXYZ problem ix:" << ix << " iy:" << iy << " iz:" << iz << G4endl;
 			return 0;
 		}
 		G4long ID = ix + iy*1000 + iz*1000000 + ilayer*1000000000;

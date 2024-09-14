@@ -6,6 +6,7 @@
 #include <string>
 
 #include "TFile.h"
+#include "TChain.h"
 #include "TH1.h"
 #include "TH2.h"
 #include <TGeoManager.h>
@@ -16,9 +17,15 @@
 #include "TParticleGun.hh"
 
 struct EVENT {
+    // Truth variables
     Int_t t_reaction; // reaction 1=nue, 2=numu, 3=nutau, +10 if NC, 20=ES (truth)
+    Float_t t_Eneutrino; // true incoming neutrino energy
+    // reconstructed quantities
     Int_t n_clusters;
     Float_t c_E1;    // energy most energetic cluster
+    Float_t c_chi2_1;
+    Float_t c_a_1;
+    Float_t c_b_1;
     Float_t c_E2;    // energy 2nd most energetic cluster
     Float_t rear_Cal; // energy deposit in rear Cal
     Float_t rear_MuCal; // energy deposit in rear muCal
@@ -96,23 +103,32 @@ int main(int argc, char** argv) {
     m_rootFile->cd();
     TTree *t = new TTree("Event", "Event");
     t->Branch("t_reaction",&event.t_reaction);
+    t->Branch("t_Eneutrino",&event.t_Eneutrino);
     t->Branch("n_clusters",&event.n_clusters);
     t->Branch("c_E1", &event.c_E1);
+    t->Branch("c_chi2_1", &event.c_chi2_1);
+    t->Branch("c_a_1", &event.c_a_1);
+    t->Branch("c_b_1", &event.c_b_1);
+
     t->Branch("c_E2", &event.c_E2);
     t->Branch("rear_Cal", &event.rear_Cal);
     t->Branch("rear_MuCal", &event.rear_MuCal);
 
     std::ostringstream inputfilename;
-    inputfilename << "input/Batch-TPORecevent_" << run_number << ".root";
+    inputfilename << "input/Batch-TPORecevent_" << run_number << "_*_*.root";
 
+#if 0
     TFile *m_inrootFile = new TFile(inputfilename.str().c_str(), "READ"); 
     if (!m_inrootFile || !m_inrootFile->IsOpen())
     {
         return 1;
     }
-    m_inrootFile->cd();
+    m_inrootFile->cd();    
     TTree *event_tree;
     m_inrootFile->GetObject("RecoEvent",event_tree);
+#endif
+    TChain *event_tree = new TChain("RecoEvent","READ");
+    event_tree->Add(inputfilename.str().c_str());
 
     Long_t nentries = event_tree->GetEntries();
     std::cout << "Number of entries " << nentries << std::endl;
@@ -137,6 +153,7 @@ int main(int argc, char** argv) {
         if(dump_event_cout) {
             fTPORecoEvent -> GetPOEvent()->dump_event();
         }
+        event.t_Eneutrino = fTPORecoEvent -> GetPOEvent()->in_neutrino.m_energy;
         if(fTPORecoEvent -> GetPOEvent()->isES()) {
             event.t_reaction = 20;
         } else {
@@ -159,8 +176,13 @@ int main(int argc, char** argv) {
         event.n_clusters = fTPORecoEvent->n_psclustersX();
         if(event.n_clusters>0) {
             event.c_E1 = fTPORecoEvent->PSClustersX[0].rawenergy/1e3;   // convert to GeV
+            event.c_chi2_1 = fTPORecoEvent->PSClustersX[0].longenergyprofile.chi2_per_ndf;
+            event.c_a_1 = fTPORecoEvent->PSClustersX[0].longenergyprofile.a;
+            event.c_b_1 = fTPORecoEvent->PSClustersX[0].longenergyprofile.b;
         } else {
             event.c_E1 = 0;
+            event.c_chi2_1 = -999;
+            event.c_a_1 = event.c_b_1 = -999;
         }
         if(event.n_clusters>1) {
             event.c_E2 = fTPORecoEvent->PSClustersX[1].rawenergy/1e3;   // convert to GeV

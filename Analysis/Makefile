@@ -1,8 +1,10 @@
 EXE = AnalyReco.exe
+EXE2 = plots.exe
 
 COREUTILSDIR := ../CoreUtils
 
 SRC = AnalyReco.cc
+SRC2 = plots.C
 
 SRCCORE = $(wildcard $(COREUTILSDIR)/*.cc)
 OBJCORE := $(SRCCORE:.cc=.o)
@@ -12,6 +14,8 @@ OBJ = $(SRC:.C=.o)
 OBJ := $(OBJ:.cxx=.o)
 OBJ := $(OBJ:.cc=.o)
 OBJ += dict.o
+
+OBJ2 = $(SRC2:.C=.o)
 
 INCS = $(wildcard *.h)
 INCS += $(wildcard *.hh)
@@ -29,6 +33,9 @@ dict.cxx : $(INCS) $(SRC)
 $(EXE) : $(OBJ) Makefile
 	g++ $(ROOTCFLAGS) $(OBJ) `root-config --glibs` -lEG -lGeom -o $@
 	g++ -shared -o libTPORec.so dict.o $(OBJCORE) -L$(ROOTSYS)/lib `root-config --glibs`
+
+$(EXE2): $(OBJ2) Makefile
+	g++ -o $(EXE2) $(OBJ2) `root-config --glibs` -lRooFit -lRooFitCore
 
 # Compile source files to object files
 %.o: %.C $(INCS)

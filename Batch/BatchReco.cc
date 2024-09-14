@@ -23,8 +23,9 @@ void load_geometry() {
 int main(int argc, char** argv) {
 
 	if (argc < 2) {
-	std::cout << "Usage: " << argv[0] << " <run> [maxevent] [mask]" << std::endl;
+	std::cout << "Usage: " << argv[0] << " <run> [minevent] [maxevent] [mask]" << std::endl;
         std::cout << "   <run>                     Run number" << std::endl;
+        std::cout << "   minevent                  Minimum number of events to process (def=-1)" << std::endl;
         std::cout << "   maxevent                  Maximum number of events to process (def=-1)" << std::endl;
         std::cout << "   mask                      To process only specific events (def=none): ";
         std::cout << "  nueCC, numuCC, nutauCC, nuNC or nuES" << std::endl;
@@ -45,10 +46,10 @@ int main(int argc, char** argv) {
         exit(1);
     }
 
-    int max_event = -1;
+    int min_event = 0;
     if(argc>2) {
         try {
-            max_event = std::stoi(argv[2]);
+            min_event = std::stoi(argv[2]);
         } catch (const std::invalid_argument& e) {
             std::cerr << "Invalid argument for maxevent: " << e.what() << std::endl;
             exit(1);
@@ -58,13 +59,27 @@ int main(int argc, char** argv) {
         }
     }
 
-    int event_mask = 0;
+    int max_event = -1;
     if(argc>3) {
-        int mask = TPOEvent::EncodeEventMask(argv[3]);
+        try {
+            max_event = std::stoi(argv[3]);
+        } catch (const std::invalid_argument& e) {
+            std::cerr << "Invalid argument for maxevent: " << e.what() << std::endl;
+            exit(1);
+        } catch (const std::out_of_range& e) {
+            std::cerr << "Out of range for maxevent: " << e.what() << std::endl;
+            exit(1);
+        }
+    }
+    if(max_event == -1) max_event = 99999999;
+
+    int event_mask = 0;
+    if(argc>4) {
+        int mask = TPOEvent::EncodeEventMask(argv[4]);
         if(mask>0) {
             event_mask = mask;
         } else {
-            std::cerr << "Unknown mask " << argv[3] << std::endl;
+            std::cerr << "Unknown mask " << argv[4] << std::endl;
             exit(1);            
         }
     }
@@ -74,7 +89,7 @@ int main(int argc, char** argv) {
     std::string base_path = "input/";
 
     std::ostringstream filename;
-    filename << "Batch-TPORecevent_" << run_number;
+    filename << "Batch-TPORecevent_" << run_number << "_" << min_event << "_" << max_event;
     if(event_mask>0) {
         const char *mask = TPOEvent::DecodeEventMask(event_mask);
         filename << "_" << mask;
@@ -132,8 +147,7 @@ int main(int argc, char** argv) {
     fTParticleGun.Create_Sel_Tree(m_particlegun_Tree);
 
     // process events
-    int ievent = 0;
-    if(max_event == -1) max_event = 99999999;
+    int ievent = min_event;
     int error = 0;
 
     while (error == 0 && ievent<max_event) {
@@ -160,7 +174,8 @@ int main(int argc, char** argv) {
             std::cout << " copied digitized tracks " << fTcalEvent->getfTracks().size() << std::endl;
         }
 
-        if(dump_event_cout) POevent -> dump_event();
+        if(dump_event_cout) { POevent -> dump_event(); }
+        else POevent->dump_header();
 
         // charm 
         double enu = POevent -> POs[0].m_energy;
@@ -193,7 +208,7 @@ int main(int argc, char** argv) {
         fPORecoEvent -> Reconstruct3DPS();
         fPORecoEvent -> ReconstructRearCals();
 
-        if(dump_event_cout) fPORecoEvent -> Dump();
+        if(dump_event_cout) { fPORecoEvent -> Dump(); }
 
         fPORecoEvent -> Fill2DViewsPS();
     

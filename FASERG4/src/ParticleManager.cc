@@ -37,11 +37,13 @@ void ParticleManager::processParticleHit(G4Track *track, XYZVector const& positi
 		return;
 	} else if(VolumeName == "muCalscintillatorLogical") {
 		fTcalEvent->rearMuCalDeposit += energydeposit;
+		#if 0
 		G4cout << "MucalScint: pdgid=" << pdg << " edepo=" << energydeposit << G4endl;
         G4double kineticEnergy = track->GetKineticEnergy();
 	    G4ThreeVector momentum = track->GetMomentum();
 		G4cout << "  Kinetic Energy: " << kineticEnergy / MeV << " MeV" << G4endl;
         G4cout << "  Momentum: " << momentum / MeV << " MeV/c" << G4endl;
+		#endif
 		return;
 	}
 	int trackID = track->GetTrackID();
@@ -149,12 +151,14 @@ void ParticleManager::endOfEvent(G4Event const* event)
 		}
 
 		// dump RearCal
+		#if 0
 		for (const auto &it : fTcalEvent->rearCalDeposit) {
 			G4cout << " Module " << it.moduleID << " deposit: " << it.energyDeposit << G4endl;
 		}
 		// dump rear muCal
 		G4cout << " Rear Mu Scintillator: " << fTcalEvent->rearMuCalDeposit << G4endl;
-
+		#endif
+		
 		fTcalEvent->fillTree();
 	//	fTcalEvent_number++;
 	}
