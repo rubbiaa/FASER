@@ -75,11 +75,16 @@ private:
     TGeoVolume *primary_had;
     TGeoVolume *secondary_em;
     TGeoVolume *secondary_had;
+ 
+    // reconstructed tracks
     TGeoVolume *si_tracker;
-    TGeoVolume *rearcal;
 
     // reconstructed 3D voxel
     TGeoVolume *ps_reco_voxel;
+    TGeoVolume *ps_tracks;
+
+    // rear calorimeters
+    TGeoVolume *rearcal;
 
     bool toggle_primary_em;
     bool toggle_primary_had;

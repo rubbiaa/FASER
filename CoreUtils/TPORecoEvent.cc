@@ -1,6 +1,7 @@
 #include "TPORecoEvent.hh"
 #include "DBScan.hh"
 #include "TTKTrack.hh"
+#include "TPSTrack.hh"
 
 #include <TVectorD.h>
 #include <TMatrixDSym.h>
@@ -186,7 +187,7 @@ void TPORecoEvent::Reconstruct() {
             // loop over hits in the tracker
             hittype = fTcalEvent->getChannelTypefromID(dt->fhitIDs[i]);
             if (hittype != 1) continue;
-            long layer = fTcalEvent->getChannelLayerfromID(dt->fhitIDs[i]);
+            long layer = fTcalEvent->getChannelModulefromID(dt->fhitIDs[i]);
             if(layer < minlayer) minlayer = layer;
         }
         for (size_t i = 0; i < nhits; i++)
@@ -194,7 +195,7 @@ void TPORecoEvent::Reconstruct() {
             // loop over hits in the tracker
             hittype = fTcalEvent->getChannelTypefromID(dt->fhitIDs[i]);
             if (hittype != 1) continue;
-            long layer = fTcalEvent->getChannelLayerfromID(dt->fhitIDs[i]);
+            long layer = fTcalEvent->getChannelModulefromID(dt->fhitIDs[i]);
             if(abs(layer - minlayer) <=1) {
                 nhits_tracker_first++;
             }
@@ -331,7 +332,7 @@ void TPORecoEvent::TrackReconstruct() {
             long hittype = fTcalEvent->getChannelTypefromID(ID);
             if (hittype != 1)
                 continue;
-            int ilayer = fTcalEvent->getChannelLayerfromID(ID);
+            int ilayer = fTcalEvent->getChannelModulefromID(ID);
             ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(track->fhitIDs[i]);
             struct TTKTrack::TRACKHIT hit = {ID, position, ehit};
             auto hitlayer = hitMap.find(ilayer);
@@ -1384,7 +1385,7 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
                     long iz = z % nzlayer;
                     long ilayer = z / nzlayer;
     	        	long ID = x + y*1000 + iz*1000000 + ilayer*1000000000;
-                    struct PSVOXEL3D v = {ehit, true};
+                    struct PSVOXEL3D v = {ID, ehit, true};
                     PSvoxelmap[ID] = v;
                 }
             }
@@ -1420,7 +1421,7 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
         long ix = ID % 1000;
         long iy = (ID / 1000) % 1000;
         long iz = (ID / 1000000) % 1000;
-        long ilayer = (ID / 1000000000);
+        long ilayer = fTcalEvent->getChannelModulefromID(ID);
         if(ilayer > maxLayer) continue;
         long izz = ilayer * nzlayer + iz;
         double eXZ = XZ[ix][izz];
@@ -1459,6 +1460,174 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
     c1->Update();
     c1->SaveAs("3dreco.png");
 #endif
+}
+
+void TPORecoEvent::PSVoxelParticleFilter() {
+
+    if(verbose>0) std::cout << "Start PS voxel particle filter..." << std::endl;
+
+    int nmodules = fTcalEvent->geom_detector.NRep;
+    int nzlayer = fTcalEvent->geom_detector.fSandwichLength / fTcalEvent->geom_detector.fScintillatorVoxelSize;
+
+    double closest_voxel_cut = fTcalEvent->geom_detector.fScintillatorVoxelSize*2.0;
+    closest_voxel_cut = closest_voxel_cut*closest_voxel_cut;
+
+    std::map<int, std::vector<struct PSVOXEL3D>> PSvoxelmapModule;
+    // organize voxels by module number
+    for (const auto &it : PSvoxelmap) {
+        long ID = it.first;
+        long module = fTcalEvent->getChannelModulefromID(ID);
+        auto lay = PSvoxelmapModule.find(module);
+        if(lay != PSvoxelmapModule.end()) {
+            lay->second.push_back(it.second);
+        } else {
+            std::vector <struct PSVOXEL3D> voxels;
+            voxels.push_back(it.second);
+            PSvoxelmapModule[module] = voxels;        
+        }
+    }
+
+    std::vector<TPSTrack> track_seeds;
+    track_seeds.clear();
+
+    // loop over modules
+    for (int i = 0; i < nmodules; i++) {
+        if(verbose>1) std::cout << " ------------------- Module " << i << std::endl;
+        auto module = PSvoxelmapModule.find(i);
+        if(module == PSvoxelmapModule.end()) continue;
+        // loop over layers within module
+        for (int layer = nzlayer-1; layer > 0; layer--) {
+            for (const auto &hit : module->second) {
+                long iz = (hit.ID / 1000000) % 1000;
+                ROOT::Math::XYZVector position = fTcalEvent -> getChannelXYZfromID(hit.ID);
+                if(iz != layer) continue;
+
+                TPSTrack track_seed;
+                TPSTrack *track;
+
+                // check if this voxel already belong to a track seed
+                bool found_seed = false;
+                for (auto &ts : track_seeds) {
+                    struct TPSTrack::TRACKHIT *voxel = ts.VoxelBelongstoTrack(hit.ID);
+                    if(voxel != nullptr) {
+                        track = &ts;
+                        found_seed = true;
+                        break;
+                    }
+                }
+                if(!found_seed) {
+                    // create PS track seed
+                    track = &track_seed;
+                    struct TPSTrack::TRACKHIT vox = {hit.ID, position, hit.RawEnergy};
+                    track->tkhit.push_back(vox);
+                }
+
+                int prev_layer = layer - 1;
+                // find closest voxel in previous layer
+                double transv_dist = 1e9;
+                struct PSVOXEL3D *closest_vox = nullptr;
+                for (auto &prev_hit : module->second)
+                {
+                    long prev_iz = (prev_hit.ID / 1000000) % 1000;
+                    if (prev_iz != prev_layer)
+                        continue;
+                    ROOT::Math::XYZVector prev_position = fTcalEvent->getChannelXYZfromID(prev_hit.ID);
+                    ROOT::Math::XYZVector diff = position - prev_position;
+                    double d2 = diff.x() * diff.x() + diff.y() * diff.y();
+                    if (d2 < transv_dist)
+                    {
+                        transv_dist = d2;
+                        closest_vox = &prev_hit;
+                    }
+                }
+                if (transv_dist < closest_voxel_cut)
+                {
+                    ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(closest_vox->ID);
+                    struct TPSTrack::TRACKHIT vox2 = {closest_vox->ID, position, closest_vox->RawEnergy};
+                    track->tkhit.push_back(vox2);
+                }
+                if(!found_seed)
+                    track_seeds.push_back(*track);
+            }
+        }
+        // we should now have all track seeds from the given layer
+        for (auto &tk : track_seeds)
+        {
+            int nhits = tk.tkhit.size();
+            tk.direction.SetXYZ(0,0,0);
+            tk.SortHitsByZ();
+            if(nhits==2) tk.direction = tk.direction2Hits(tk.centroid);
+            if(nhits>2) tk.direction = tk.fitLineThroughHits(tk.centroid);
+        }
+
+        // now loop over tracks and merge segments
+        double parallel_cut = 0.01; // FIXME: adjust value
+        double mindZcut = fTcalEvent->geom_detector.fSandwichLength;
+
+        for (size_t i = 0; i < track_seeds.size(); i++)
+        {
+            TPSTrack &track1 = track_seeds[i];
+            size_t besttrk = -1;
+            double mindZ = 1e9;
+            for (size_t j = 0; j < track_seeds.size(); j++)
+            {
+                if (i == j)
+                    continue;
+                TPSTrack &track2 = track_seeds[j];
+                // check if segments are parallel
+                TVector3 normDir1 = track1.direction.Unit();
+                TVector3 normDir2 = track2.direction.Unit();
+                double dotProduct = normDir1.Dot(normDir2);
+                if (std::abs(std::abs(dotProduct) - 1.0) > parallel_cut)
+                    continue;
+                // ensure that segments belong to different planes
+                struct TPSTrack::TRACKHIT hit1 = track1.tkhit.back();
+                struct TPSTrack::TRACKHIT hit2 = track2.tkhit.front();
+                double dz = std::abs(hit1.point.z() - hit2.point.z());
+                if (dz < mindZcut)
+                    continue;
+                // ensure that segments are parallel to main line joining hits
+                ROOT::Math::XYZVector normDir = (hit2.point - hit1.point).Unit();
+                dotProduct = std::min(std::abs(normDir.Dot(normDir1)), std::abs(normDir.Dot(normDir2)));
+                if (std::abs(dotProduct - 1.0) > parallel_cut)
+                    continue;
+                if (dz < mindZ)
+                {
+                    mindZ = dz;
+                    besttrk = j;
+                }
+            }
+            // if match found, then merge the tracks
+            if (besttrk != -1)
+            {
+                // add hits from track2 to track1
+                for (const auto &h : track_seeds[besttrk].tkhit)
+                {
+                    track1.tkhit.push_back(h);
+                }
+                track1.direction = track1.fitLineThroughHits(track1.centroid);
+                track_seeds.erase(track_seeds.begin() + besttrk);
+                if (besttrk < i)
+                    i--;
+            }
+        }
+
+    }
+
+    // always order hits in the track by increasing "z"
+    for (auto &trk : track_seeds)
+    {
+        trk.SortHitsByZ();
+    }
+
+    // copy into permanent storage
+    fPSTracks.clear();
+    for (auto &trk : track_seeds) {
+        if(trk.tkhit.size()<2) continue;               // ignore isolated hits
+        fPSTracks.push_back(trk);
+        if (verbose > 1)
+            trk.Dump();
+    }
 }
 
 void TPORecoEvent::ReconstructRearCals() {

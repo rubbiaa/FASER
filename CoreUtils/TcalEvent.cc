@@ -146,30 +146,6 @@ void TcalEvent::AssignGEANTTrackID(int G4TrackID, int PDGcode, double px, double
     }
 }
 
-/// @brief Return the type of the hit
-/// @param ID The hit ID
-/// @return =0 for scintillator, = 1 for silicon tracker hit
-long TcalEvent::getChannelTypefromID(long ID) const {
-    return ID / 100000000000LL;
-}
-
-long TcalEvent::getChannelLayerfromID(long ID) const {
-    long hittype = ID / 100000000000LL;
-    if(hittype == 0) {        // hit in scintillator
-        long ilayer = (ID / 1000000000);
-        return ilayer;
-    } else if (hittype == 1) {
-        long ilayer = (ID / 100000000) % 100;
-        return ilayer;
-    }
-    return 0;
-}
-
-long TcalEvent::getChannelCopyfromID(long ID) const {
-    long icopy = (ID / 10000000000LL) % 10;
-    return icopy;
-}
-
 inline double TcalEvent::getZofLayer(long ilayer, long iz) const {
     double z = ilayer * geom_detector.fSandwichLength + iz * geom_detector.fScintillatorVoxelSize
             - (geom_detector.NRep * geom_detector.fSandwichLength) / 2.0

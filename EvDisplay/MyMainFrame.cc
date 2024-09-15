@@ -177,6 +177,7 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
  //   fPORecoEvent -> ReconstructClusters(0);    // this is very slow
     std::cout << "Start reconstruction of 3D voxels..." << std::endl;
     fPORecoEvent -> Reconstruct3DPS();
+    fPORecoEvent -> PSVoxelParticleFilter();
     fPORecoEvent -> ReconstructRearCals();
     fPORecoEvent -> Dump();
 
@@ -349,6 +350,7 @@ void MyMainFrame::Draw_event() {
 
     Draw_event_reco_tracks();
 
+    // Draw reconstructed voxels
     ps_reco_voxel = new TGeoVolume("ps_reco_voxel", bigbox, air);
     int i = 1;
     for (auto& it : fPORecoEvent->PSvoxelmap) {
@@ -367,12 +369,32 @@ void MyMainFrame::Draw_event() {
         }
         ps_reco_voxel->AddNode(hitVolume, i++, trans);
     }
+
+    // Draw reconstructed PSTracks
+    ps_tracks = new TGeoVolume("ps_tracks", bigbox, air);
+    int ivox = 1;
+    Int_t colors[] = {kCyan, kOrange, kSpring, kTeal, kAzure, kViolet, kPink};
+    for (const auto& it : fPORecoEvent->fPSTracks) {
+        Int_t kcolor = colors[(ivox/6)%6]+ivox%6-3;
+        size_t nhits = it.tkhit.size();
+        for ( size_t i = 0; i < nhits; i++) {
+            long ID = it.tkhit[i].ID;
+            ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(ID);
+            TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, 
+                position.Y() / 10.0, position.Z() / 10.0);
+            TGeoVolume *hitVolume = new TGeoVolume("HitVolume", box, air);
+            hitVolume->SetLineColor(kcolor); 
+            ps_tracks->AddNode(hitVolume, ivox++, trans);
+        }
+    }
+
     gGeoManager->GetTopVolume()->AddNode(ps_reco_voxel,1);
     gGeoManager->GetTopVolume()->AddNode(secondary_em,1);
     gGeoManager->GetTopVolume()->AddNode(secondary_had,1);
     gGeoManager->GetTopVolume()->AddNode(primary_em,1);
     gGeoManager->GetTopVolume()->AddNode(primary_had,1);
     gGeoManager->GetTopVolume()->AddNode(si_tracker,1);
+    gGeoManager->GetTopVolume()->AddNode(ps_tracks,1);
     gGeoManager->GetTopVolume()->AddNode(rearcal,1);
 
     TCanvas *c1 = fCanvas_2DPSview->GetCanvas();
@@ -506,6 +528,8 @@ void MyMainFrame::Next_Event(int ievent) {
 
     TGeoNode *nodeToRemove6 = gGeoManager->GetTopVolume()->FindNode("ps_reco_voxel_1");
     gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove6);
+    TGeoNode *nodeToRemove8 = gGeoManager->GetTopVolume()->FindNode("ps_tracks_1");
+    gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove8);
 
     TGeoNode *nodeToRemove7 = gGeoManager->GetTopVolume()->FindNode("rearcal_1");
     gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove7);

@@ -11,6 +11,7 @@
 #include "TPOEvent.hh"
 #include "TPSCluster.hh"
 #include "TTKTrack.hh"
+#include "TPSTrack.hh"
 
 /// @brief TPORec holds a reconstructed particle object
 class TPORec : public TObject {
@@ -105,6 +106,7 @@ public:
     size_t n_psclustersY() { return PSClustersY.size(); };    // number of reconstructed cluster in YZ view
 
     struct PSVOXEL3D {
+        long ID;
         float RawEnergy;  // MeV
         bool ghost;
     };
@@ -113,6 +115,9 @@ public:
 
     /// @brief All reconstruced TKTracks in event
     std::vector<TTKTrack> fTKTracks;
+
+    /// @brief All reconstruced TPSTracks in event
+    std::vector<TPSTrack> fPSTracks;
 
     /// @brief Structure to hold rear calorimeter and mutag deposited energies
     struct REARCALS {
@@ -144,6 +149,9 @@ public:
 
     /// @brief Reconstruct 3D voxels from 2D views in plastic scintillator
     void Reconstruct3DPS(int maxIter = 150);
+
+    /// @brief Recontruct particle tracks from 3D PS voxels
+    void PSVoxelParticleFilter();
 
     /// @brief Reconstruct rear calorimeter and rear mu tag
     void ReconstructRearCals();

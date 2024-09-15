@@ -6,6 +6,7 @@
 #include "TParticleGun.hh"
 #include "TPSCluster.hh"
 #include "TTKTrack.hh"
+#include "TPSTrack.hh"
 
 //#ifdef CINT
 
@@ -32,6 +33,7 @@
 #pragma link C++ class TPSCluster;
 
 #pragma link C++ class TTKTrack;
+#pragma link C++ class TPSTrack;
 
 #pragma link C++ struct TcalEvent::REARCALDEPOSIT+;
 //#endif

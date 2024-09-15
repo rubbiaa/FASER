@@ -112,17 +112,35 @@ public:
     /// @brief Returns type ID of a hit
     /// @param ID The hit ID (see FASERG4 DetectorConstruction class)
     /// @return =0 if scintillator hit, =1 if silicon tracker hit
-    long getChannelTypefromID(long ID) const;
+    inline long getChannelTypefromID(long ID) const {
+        return ID / 100000000000LL;
+    }   
 
-    /// @brief Returns the layer number of a hit
+    /// @brief Returns the module number of a hit
     /// @param ID The hit ID (see FASERG4 DetectorConstruction class)
-    /// @return The hit layer
-    long getChannelLayerfromID(long ID) const;
+    /// @return The module of the hit
+    inline long getChannelModulefromID(long ID) const {
+        long hittype = ID / 100000000000LL;
+        if (hittype == 0)
+        { // hit in scintillator
+            long ilayer = (ID / 1000000000);
+            return ilayer;
+        }
+        else if (hittype == 1)
+        {
+            long ilayer = (ID / 100000000) % 100;
+            return ilayer;
+        }
+        return 0;
+    }
 
     /// @brief Returns the precise tracker "layer" (or copy of volume)
     /// @param ID The hit ID (see FASERG4 DetectorConstruction class)
     /// @return The precise tracker layer 
-    long getChannelCopyfromID(long ID) const;
+    inline long getChannelCopyfromID(long ID) const {
+        long icopy = (ID / 10000000000LL) % 10;
+        return icopy;
+    }
 
     /// @brief Returns z coordinate of layer
     /// @param layer the layer index
