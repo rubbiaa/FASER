@@ -221,6 +221,8 @@ public:
     return "unkmask";
   }
 
+  void clone(TPOEvent *src);
+
   /// @brief Event statistics
   void reset_stats();
   void update_stats();

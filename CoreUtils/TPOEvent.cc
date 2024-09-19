@@ -332,6 +332,18 @@ int TPOEvent::findFromGEANT4TrackID(int trackID) {
   return -1;
 }
 
+void TPOEvent::clone(TPOEvent *src) {
+  run_number = src->run_number;
+  event_id = src->event_id;
+  isCC = src->isCC;
+  istau = src->istau;
+  in_neutrino = src->in_neutrino;
+  out_lepton = src->out_lepton;
+  jetpx = src->jetpx;
+  jetpy = src->jetpy;
+  jetpz = src->jetpz;
+}
+
 void TPOEvent::reset_stats() {
   stats.ES = stats.nueCC = stats.numuCC = stats.nutauCC = stats.NC = 0;
 }

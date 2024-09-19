@@ -146,7 +146,7 @@ int main(int argc, char** argv) {
     if(max_event == -1) max_event = nentries;
     int error = 0;
 
-    TPOEvent myPOevent; // just a temporary PO event to store stats
+    TPOEvent myPOevent; // local copy; just a temporary PO event to store stats
     myPOevent.reset_stats();
 
     while (error == 0 && ievent<max_event) {
@@ -160,6 +160,7 @@ int main(int argc, char** argv) {
         if(dump_event_cout) {
             fTPORecoEvent -> GetPOEvent()->dump_event();
         }
+        myPOevent.clone(fTPORecoEvent -> GetPOEvent());
         myPOevent.update_stats();
  
         // fill event ntuple
