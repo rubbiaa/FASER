@@ -114,6 +114,10 @@ int main(int argc, char** argv) {
     t->Branch("rear_Cal", &event.rear_Cal);
     t->Branch("rear_MuCal", &event.rear_MuCal);
 
+    // charm
+    TH1D h_charm_Enuall = TH1D("h_charm_Enuall", "Neutrino energy", 50, 0, 4000.0);
+    TH1D h_charm_Enucharmed = TH1D("h_charm_Enucharmed", "Neutrino energy", 50, 0, 4000.0);
+
     std::ostringstream inputfilename;
     inputfilename << "input/Batch-TPORecevent_" << run_number << "_*_*.root";
 
@@ -142,6 +146,9 @@ int main(int argc, char** argv) {
     if(max_event == -1) max_event = nentries;
     int error = 0;
 
+    TPOEvent myPOevent; // just a temporary PO event to store stats
+    myPOevent.reset_stats();
+
     while (error == 0 && ievent<max_event) {
 
         event_tree->GetEntry(ievent);
@@ -153,6 +160,9 @@ int main(int argc, char** argv) {
         if(dump_event_cout) {
             fTPORecoEvent -> GetPOEvent()->dump_event();
         }
+        myPOevent.update_stats();
+ 
+        // fill event ntuple
         event.t_Eneutrino = fTPORecoEvent -> GetPOEvent()->in_neutrino.m_energy;
         if(fTPORecoEvent -> GetPOEvent()->isES()) {
             event.t_reaction = 20;
@@ -194,12 +204,22 @@ int main(int argc, char** argv) {
         event.rear_Cal = fTPORecoEvent->rearCals.rearCalDeposit;
         event.rear_MuCal = fTPORecoEvent->rearCals.rearMuCalDeposit;
     
+        // charm 
+        double enu = fTPORecoEvent -> GetPOEvent() -> POs[0].m_energy;
+        h_charm_Enuall.Fill(enu);
+        if(fTPORecoEvent -> GetPOEvent() -> isCharmed()) {
+            fTPORecoEvent -> GetPOEvent() -> dump_event();
+            h_charm_Enucharmed.Fill(enu);
+        }
+
         t->Fill();
         ievent++;
     }
 
     m_rootFile->Write();
     m_rootFile->Close();
+
+    myPOevent.dump_stats();
 
     std::cout << "I'm done." << std::endl;
 

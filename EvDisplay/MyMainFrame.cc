@@ -51,6 +51,9 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, const TGWindow *p, 
     fButton = new TGTextButton(hFrame, "Toggle reco_track");
     fButton->Connect("Clicked()", "MyMainFrame", this, "toggle_reco_track()");
     hFrame->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
+    fButton = new TGTextButton(hFrame, "Toggle reco_pstrack");
+    fButton->Connect("Clicked()", "MyMainFrame", this, "toggle_recon_ps_tracks()");
+    hFrame->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
     fButton = new TGTextButton(hFrame, "Toggle reco_voxel");
     fButton->Connect("Clicked()", "MyMainFrame", this, "toggle_reco_voxels()");
     hFrame->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
@@ -135,9 +138,10 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, const TGWindow *p, 
     toggle_primary_em=
     toggle_primary_had=
     toggle_secondary_em=
-    toggle_secondary_had=true;
+    toggle_secondary_had=false;
 
     toggle_reconstructed_tracks = true;
+    toggle_reconstructed_ps_tracks = true;
 }
 
 // Destructor
@@ -389,10 +393,16 @@ void MyMainFrame::Draw_event() {
     }
 
     gGeoManager->GetTopVolume()->AddNode(ps_reco_voxel,1);
-    gGeoManager->GetTopVolume()->AddNode(secondary_em,1);
-    gGeoManager->GetTopVolume()->AddNode(secondary_had,1);
-    gGeoManager->GetTopVolume()->AddNode(primary_em,1);
-    gGeoManager->GetTopVolume()->AddNode(primary_had,1);
+
+    if(toggle_secondary_em)
+        gGeoManager->GetTopVolume()->AddNode(secondary_em,1);
+    if(toggle_secondary_em)
+        gGeoManager->GetTopVolume()->AddNode(secondary_had,1);
+    if(toggle_primary_em)
+        gGeoManager->GetTopVolume()->AddNode(primary_em,1);
+    if(toggle_primary_had)
+        gGeoManager->GetTopVolume()->AddNode(primary_had,1);
+
     gGeoManager->GetTopVolume()->AddNode(si_tracker,1);
     gGeoManager->GetTopVolume()->AddNode(ps_tracks,1);
     gGeoManager->GetTopVolume()->AddNode(rearcal,1);
@@ -544,9 +554,10 @@ void MyMainFrame::Next_Event(int ievent) {
     toggle_primary_em=
     toggle_primary_had=
     toggle_secondary_em=
-    toggle_secondary_had=true;
+    toggle_secondary_had=false;
 
-    toggle_reconstructed_tracks = false;
+    toggle_reconstructed_tracks = true;
+    toggle_reconstructed_ps_tracks = true;
 
     SideView();
 
@@ -646,6 +657,18 @@ void MyMainFrame::toggle_reco_track() {
         delete it;
     }
     Draw_event_reco_tracks();
+    canvas->Modified();
+    canvas->Update();
+}
+void MyMainFrame::toggle_recon_ps_tracks() {
+    TCanvas *canvas = fCanvas->GetCanvas();
+    toggle_reconstructed_ps_tracks = !toggle_reconstructed_ps_tracks;
+    if(toggle_reconstructed_ps_tracks) {
+        gGeoManager->GetTopVolume()->AddNode(ps_tracks,1);
+    } else {
+        TGeoNode *nodeToRemove = gGeoManager->GetTopVolume()->FindNode("ps_tracks_1");
+        gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove);
+    }
     canvas->Modified();
     canvas->Update();
 }

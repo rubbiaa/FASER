@@ -5,6 +5,7 @@
 #include "TParticleGun.hh"
 #include "TPSCluster.hh"
 #include "TTKTrack.hh"
+#include "TPSTrack.hh"
 
 #ifdef __CLING__
 
@@ -35,6 +36,7 @@
 #pragma link C++ struct TPSCluster::PSCLUSTERLONGPROFILE;
 
 #pragma link C++ class TTKTrack;
+#pragma link C++ class TPSTrack;
 
 #pragma link C++ struct TPORecoEvent::REARCALS;
 

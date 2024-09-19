@@ -30,6 +30,7 @@ public:
     void toggle_sec_had();
     void toggle_reco_track();
     void toggle_reco_voxels();
+    void toggle_recon_ps_tracks();
     void only_reco();
     void next_event();
     void goto_event();
@@ -92,5 +93,6 @@ private:
     bool toggle_secondary_had;
     bool toggle_reco_voxel;
     bool toggle_reconstructed_tracks;
+    bool toggle_reconstructed_ps_tracks;
 
 };
