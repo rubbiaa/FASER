@@ -6,6 +6,8 @@ This folder provides instructions and necessary files to read ROOT files using P
 - Python version: `3.10.9`
 - NumPy version: `2.0.0`
 
+Make sure that the root version you use to compile this library with, is the same as you will use in PyROOT.
+
 ## Directory Structure
 
 The repository contains the following directory:

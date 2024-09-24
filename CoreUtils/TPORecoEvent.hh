@@ -29,7 +29,7 @@ public:
     std::vector<int> fGEANTTrackIDs;   //! all the geant track id that belong to this PORec
     std::vector<DigitizedTrack*> DTs;  //! all the DigitizedTracks that belong to this POREC
     std::vector<struct CALENERGIES> fEnergiesCogs; //! the energies and COG of each Digitized track
-    
+
     struct CALENERGIES fTotal;         // the cumulative energies for the primary
 
     struct TRACKHIT {
@@ -66,7 +66,7 @@ private:
     struct TPORec::CALENERGIES computeEnergiesAndCOG(DigitizedTrack *dt);   //! (no ROOT I/O output)
 
     /// @brief The vector that holds all the PORec (Reconstructed POs) in the event
-    std::vector<class TPORec*> fPORecs;                                     //! (no ROOT I/O output)         
+    std::vector<class TPORec*> fPORecs;                                     //! (no ROOT I/O output)
 
     TPORec *fPOFullEvent = nullptr;                   // the kinematics of the full event
 
@@ -92,7 +92,7 @@ public:
 
     TH2D* xviewPS = nullptr;                          //! 2Dview scintillator X-Z
     TH2D* yviewPS = nullptr;                          //! 2Dview scintillator Y-Z
-    TH2D* zviewPS[50];                                //! 2Dview scintillator X-Z view for 50 planes
+    std::vector<TH2D*> zviewPS;                                //! 2Dview scintillator X-Z view for 50 planes
     TH2D* xviewPS_em = nullptr;                          //! 2Dview scintillator X-Z
     TH2D* yviewPS_em = nullptr;                          //! 2Dview scintillator Y-Z
     TH2D* xviewPS_had = nullptr;                          //! 2Dview scintillator X-Z
@@ -160,7 +160,7 @@ public:
     void Dump();
 
     /// @brief Returns the vector of Reconstructed POs
-    std::vector<class TPORec*> GetPORecs() { return fPORecs;}; 
+    std::vector<class TPORec*> GetPORecs() { return fPORecs;};
 
     /// @brief Returns the kinematic quantities of the full event
     /// @return TPORec of the full event
