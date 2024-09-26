@@ -1625,7 +1625,7 @@ void TPORecoEvent::PSVoxelParticleFilter() {
     for (auto &trk : track_seeds) {
         if(trk.tkhit.size()<2) continue;               // ignore isolated hits
         fPSTracks.push_back(trk);
-        if (verbose > 1)
+        if (verbose > 2)
             trk.Dump();
     }
 }
