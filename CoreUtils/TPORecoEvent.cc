@@ -15,6 +15,9 @@ ClassImp(TPORec);
 ClassImp(TPORecoEvent);
 
 TPORecoEvent::TPORecoEvent(TcalEvent* c, TPOEvent* p) : fTcalEvent(c), fTPOEvent(p) {
+	for(int i =0; i < 50; i++){
+		zviewPS.push_back(nullptr);
+	}
 };
 
 TPORecoEvent::~TPORecoEvent() {
@@ -390,7 +393,7 @@ void TPORecoEvent::TrackReconstruct() {
     // now sort doublets by z coordinate
     std::sort(fTKTracks.begin(), fTKTracks.end(), [](const TTKTrack &a, const TTKTrack &b)
               { return a.centroid.Z() < b.centroid.Z(); });
-    
+
     // now loop over tracks and merge segments
     for (auto &trk : fTKTracks) {
         trk.SortHitsByZ();
@@ -433,7 +436,7 @@ void TPORecoEvent::TrackReconstruct() {
             }
             track1.direction = track1.fitLineThroughHits(track1.centroid);
             fTKTracks.erase(fTKTracks.begin() + besttrk);
-            if(besttrk < i) i--;    
+            if(besttrk < i) i--;
         }
     }
 
@@ -508,7 +511,7 @@ void TPORecoEvent::Dump() {
         if(it->fTracks.size() > 0){
         std::cout << " tracks: ";
         //for (auto itrk : it->fTracks)
-        struct TPORec::TRACK itrk = it->fTracks[0]; 
+        struct TPORec::TRACK itrk = it->fTracks[0];
         {
             std::cout << "nhit=" << itrk.tkhit.size() << " ";
             std::cout << "dir: " << itrk.direction.x() << " " << itrk.direction.y() << " " << itrk.direction.z() << " ";
@@ -645,32 +648,32 @@ void TPORecoEvent::Fill2DViewsPS() {
     // fill histrograms
     xviewPS = (TH2D*)gDirectory->Get("xviewPS");
     if(xviewPS != nullptr) {
-        xviewPS->Reset(); 
+        xviewPS->Reset();
         yviewPS = (TH2D*)gDirectory->Get("yviewPS");
-        yviewPS->Reset(); 
+        yviewPS->Reset();
         for (int i=0; i<50; i++) {
             std::string hname = "zviewPS_" + std::to_string(i);
-            zviewPS[i] = (TH2D*)gDirectory->Get(hname.c_str());
-            zviewPS[i]->Reset(); 
+            zviewPS.at(i) = (TH2D*)gDirectory->Get(hname.c_str());
+            zviewPS.at(i)->Reset();
         }
         xviewPS_em = (TH2D*)gDirectory->Get("xviewPS_em");
-        xviewPS_em->Reset(); 
+        xviewPS_em->Reset();
         yviewPS_em = (TH2D*)gDirectory->Get("yviewPS_em");
-        yviewPS_em->Reset(); 
+        yviewPS_em->Reset();
         xviewPS_had = (TH2D*)gDirectory->Get("xviewPS_had");
-        xviewPS_had->Reset(); 
+        xviewPS_had->Reset();
         yviewPS_had = (TH2D*)gDirectory->Get("yviewPS_had");
-        yviewPS_had->Reset(); 
+        yviewPS_had->Reset();
         xviewPS_eldepo = (TH2D*)gDirectory->Get("xviewPS_eldepo");
-        xviewPS_eldepo->Reset(); 
+        xviewPS_eldepo->Reset();
         yviewPS_eldepo = (TH2D*)gDirectory->Get("yviewPS_eldepo");
-        yviewPS_eldepo->Reset(); 
+        yviewPS_eldepo->Reset();
     } else {
     xviewPS = new TH2D("xviewPS", "Scintillator xz-view", nztot, 0, nztot, nx, 0, nx);
     yviewPS = new TH2D("yviewPS", "Scintillator yz-view", nztot, 0, nztot, ny, 0, ny);
     for (int i=0; i<50; i++) {
         std::string hname = "zviewPS_" + std::to_string(i);
-        zviewPS[i] = new TH2D(hname.c_str(), hname.c_str(), nx, 0, nx, ny, 0, ny);
+        zviewPS.at(i) = new TH2D(hname.c_str(), hname.c_str(), nx, 0, nx, ny, 0, ny);
     }
     xviewPS_em = new TH2D("xviewPS_em", "Scintillator xz-view - EM", nztot, 0, nztot, nx, 0, nx);
     yviewPS_em = new TH2D("yviewPS_em", "Scintillator yz-view - EM", nztot, 0, nztot, ny, 0, ny);
@@ -729,9 +732,14 @@ void TPORecoEvent::Fill2DViewsPS() {
             long ilayer = (ID / 1000000000);
             double fix = ix + 0.5;
             double fiy = iy + 0.5;
-            zviewPS[ilayer]->Fill(fix, fiy, ehit);
+            zviewPS.at(ilayer)->Fill(fix, fiy, ehit);
         }
     }
+
+    std::cout << zviewPS[0] << std::endl;
+    TCanvas *c1 = new TCanvas("","", 1000, 1000);
+    zviewPS[2]->Draw("COLZ");
+    c1->SaveAs("tempfile.png");
 
 #if 0
     // Visualize the results
@@ -787,7 +795,7 @@ void TPORecoEvent::ReconstructClusters(int view) {
     for (const auto& point : points) {
         if(point.clusterID == 0)continue;
 
-        TPSCluster::PSCLUSTERHIT hit = {point.ID, (float)point.ehit}; 
+        TPSCluster::PSCLUSTERHIT hit = {point.ID, (float)point.ehit};
         auto c = PSClustersMap.find(point.clusterID);
         if (c != PSClustersMap.end())
         {
@@ -822,7 +830,7 @@ void TPORecoEvent::ReconstructClusters(int view) {
         c.setVtx(primary.x(), primary.y(), primary.z());
         c.ComputeLongProfile(verbose);
     }
-    
+
     // Sort PSClusters by rawEnergy in descending order (highest energy first)
     std::sort(PSClusters->begin(), PSClusters->end(), [](const TPSCluster& a, const TPSCluster& b) {
     return a.rawenergy > b.rawenergy;
@@ -866,7 +874,7 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
     // Step 0: organize hits for easy access
     std::vector<std::vector<float>> XZ(nx, std::vector<float>(nztot, 0.0));
     std::vector<std::vector<float>> YZ(ny, std::vector<float>(nztot, 0.0));
-    std::vector<std::vector<std::vector<float>>> XY(nrep, 
+    std::vector<std::vector<std::vector<float>>> XY(nrep,
             std::vector<std::vector<float>>(nx, std::vector<float>(ny, 0.0)));
 
 #if 0
@@ -1072,7 +1080,7 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
                     }
                     float difference = XY[ilayer][x][y] - sumXY;
                     total_score += fabs(difference);
-                    if(verbose>3 && fabs(difference)>1e-3) 
+                    if(verbose>3 && fabs(difference)>1e-3)
                         std::cout << " ilayer: " << ilayer << " difference=" << difference << std::endl;
 
                     if(fabs(difference) < 1e-3)continue;
@@ -1120,8 +1128,8 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
                         int y = vox.y;
                         int izz = vox.z;
                         vox.adjust = XY[ilayer][x][y] - V[x][y][izz].value;  // recompute at each iteration
-                        float adjust = std::min(difference, vox.adjust);    
-                        if(verbose>3 && fabs(adjust)>1e-3) 
+                        float adjust = std::min(difference, vox.adjust);
+                        if(verbose>3 && fabs(adjust)>1e-3)
                             std::cout << "    z: " << izz << "  adjust " << adjust << std::endl;
                         V[x][y][izz].value += adjust;
                         difference -= adjust;
@@ -1134,8 +1142,8 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
                         int x = vox.x;
                         int y = vox.y;
                         int izz = vox.z;
-                        float adjust = std::min(difference, vox.adjust);    
-                        if(verbose>3 && abs(adjust)>1e-3) 
+                        float adjust = std::min(difference, vox.adjust);
+                        if(verbose>3 && abs(adjust)>1e-3)
                             std::cout << "    z: " << izz << "  adjust " << adjust << std::endl;
                         V[x][y][izz].value += adjust;
                         difference -= adjust;
@@ -1154,7 +1162,7 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
 
                         float adjust = std::min(difference, XY[ilayer][x][y] - V[x][y][izz].value);
                         if(V[x][y][izz].value + adjust < 0) adjust = -V[x][y][izz].value;
-                        if(verbose>3 && abs(adjust)>1e-3) 
+                        if(verbose>3 && abs(adjust)>1e-3)
                             std::cout << "    z: " << z << "  adjust " << adjust << std::endl;
                         V[x][y][izz].value += adjust;
                         difference -= adjust;
@@ -1170,7 +1178,7 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
             if(nvox_per_layer[z] > nvox_per_layer_max) continue;
 
             long ilayer = z / nrep;
-            
+
             // Adjust XZ projection
             for (int x = 0; x < nx; ++x) {
                 double sumXZ = 0;
@@ -1306,13 +1314,13 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
             }
         }
 
-        if(verbose>1 && adjusted>0) std::cout << "Iteration " << iter << ": " << adjusted << 
+        if(verbose>1 && adjusted>0) std::cout << "Iteration " << iter << ": " << adjusted <<
         " voxels adjusted. Score = " << total_score << std::endl;
 
 #if 0
         // do some cleanup removing hits with no XY hit
         for (int z = 0; z < nztot; ++z) {
-            long ilayer = z / nrep;            
+            long ilayer = z / nrep;
             for (int x = 0; x < nx; ++x) {
                 for (int y = 0; y < ny; ++y) {
                     if(V[x][y][z].value > 1e-3) {
@@ -1363,7 +1371,7 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
 
     PSvoxelmap.clear();
     for (int z = 0; z < nztot; ++z) {
-        // 
+        //
             if(nvox_per_layer[z] > nvox_per_layer_max) continue;
         //
         for (int y = 0; y < ny; ++y) {
@@ -1483,7 +1491,7 @@ void TPORecoEvent::PSVoxelParticleFilter() {
         } else {
             std::vector <struct PSVOXEL3D> voxels;
             voxels.push_back(it.second);
-            PSvoxelmapModule[module] = voxels;        
+            PSvoxelmapModule[module] = voxels;
         }
     }
 
