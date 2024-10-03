@@ -33,11 +33,11 @@ public:
 #if 1
   /// @brief Compute mass of the PO
   /// @return mass
-  double m_mass() { 
+  double m_mass() const { 
     double mass2 = m_energy*m_energy-m_px*m_px-m_py*m_py-m_pz*m_pz;
     return sqrt(std::max(mass2,0.0));
   };   //!
-  double m_charge() {
+  double m_charge() const {
     TDatabasePDG *pdgDB = TDatabasePDG::Instance();
     TParticlePDG *particle = pdgDB->GetParticle(m_pdg_id);
     if(particle != nullptr) return particle->Charge();
