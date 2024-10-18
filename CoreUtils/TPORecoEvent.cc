@@ -736,10 +736,12 @@ void TPORecoEvent::Fill2DViewsPS() {
         }
     }
 
+#if 0
     std::cout << zviewPS[0] << std::endl;
     TCanvas *c1 = new TCanvas("","", 1000, 1000);
     zviewPS[2]->Draw("COLZ");
     c1->SaveAs("tempfile.png");
+#endif
 
 #if 0
     // Visualize the results
@@ -855,7 +857,7 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
     std::default_random_engine rng(seed);
 
     double ehit_threshold = 0.5; // MeV
-    double evox_threshold = 0.1; // MeV
+    double evox_threshold = 0.5; // MeV
     int nvox_per_layer_max = 150;
 
     int nx = fTcalEvent->geom_detector.fScintillatorSizeX / fTcalEvent->geom_detector.fScintillatorVoxelSize;
@@ -959,6 +961,7 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
     double min_score = 1e9;
     double prev_score = 1e9;
 
+#if 1
     // Step 1: Initial assignment based on projections
     for (int z = 0; z < nztot; ++z)
     {
@@ -979,6 +982,7 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
             }
         }
     }
+#endif
 
      // decide which layers should be used for reconstructing 3D voxels
     int nvox_per_layer[nztot];
@@ -1060,7 +1064,7 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
         // adjust XY
         for (int ilayer = 0; ilayer < nrep; ilayer++)
         {
-            // count number of voxel in this layer
+            // count number of voxel in this module
             int sum_nvox = 0;
             for (int z = 0; z < nzlayer; z++){
                 int izz = ilayer * nzlayer + z;
@@ -1089,7 +1093,8 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
                     for (int z = 0; z < nzlayer; z++) {
                         int izz = ilayer * nzlayer + z;
                         float adjust = XY[ilayer][x][y] - V[x][y][izz].value;
-                        if(V[x][y][izz].value + adjust < 0) adjust = -V[x][y][izz].value;
+                        if(V[x][y][izz].value + adjust < 0) 
+                            adjust = -V[x][y][izz].value;
 
                         double eXZ = XZ[x][izz];
                         double eYZ = YZ[y][izz];
@@ -1129,6 +1134,13 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
                         int izz = vox.z;
                         vox.adjust = XY[ilayer][x][y] - V[x][y][izz].value;  // recompute at each iteration
                         float adjust = std::min(difference, vox.adjust);
+#if 0
+                        if(fabs(difference) > fabs(vox.adjust)) {
+                            adjust = vox.adjust;                            
+                        } else {
+                            adjust = difference;
+                        }
+#endif
                         if(verbose>3 && fabs(adjust)>1e-3)
                             std::cout << "    z: " << izz << "  adjust " << adjust << std::endl;
                         V[x][y][izz].value += adjust;
@@ -1211,7 +1223,7 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
                 std::sort(voxels.begin(), voxels.end(), [](const VOXEL &a, const VOXEL &b)
                           { return a.score > b.score; });
 #endif
-                std::shuffle(voxels.begin(), voxels.end(), rng);
+//                std::shuffle(voxels.begin(), voxels.end(), rng);
 #if 0
                 bool stop = false;
                 while (!stop && !voxels.empty())
@@ -1241,7 +1253,7 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
                     if (adjust != 0)
                         adjusted++;
                     voxels.erase(voxels.begin()+index);
-                    stop = true;
+//                    stop = true;
                 }
 #endif
 #if 1
@@ -1378,24 +1390,37 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
             for (int x = 0; x < nx; ++x) {
                 float ehit = V_min[x][y][z].value;
 
+                // cut on minimum energy
+                if(ehit<evox_threshold)
+                    continue;
+
 #if 0
-                    double neigh = 0;
-                    if(x>0) neigh += V_min[x-1][y][z].value;
-                    if(x<nx-1) neigh += V_min[x+1][y][z].value;
-                    if(y>0) neigh += V_min[x][y-1][z].value;
-                    if(y<ny-1) neigh += V_min[x][y+1][z].value;
-                    if(neigh<0.5) {
-                        continue;
-                    }
+                // remove totally isolated hits
+                double neigh = 0;
+                if (x > 0)
+                    neigh += V_min[x - 1][y][z].value;
+                if (x < nx - 1)
+                    neigh += V_min[x + 1][y][z].value;
+                if (y > 0)
+                    neigh += V_min[x][y - 1][z].value;
+                if (y < ny - 1)
+                    neigh += V_min[x][y + 1][z].value;
+                if (neigh < 1.0)
+                    continue;
 #endif
 
-                if(ehit>evox_threshold) {
-                    long iz = z % nzlayer;
-                    long ilayer = z / nzlayer;
-    	        	long ID = x + y*1000 + iz*1000000 + ilayer*1000000000;
-                    struct PSVOXEL3D v = {ID, ehit, true};
-                    PSvoxelmap[ID] = v;
-                }
+                long ilayer = z / nzlayer;
+#if 0
+                double eXZ = XZ[x][z];
+                double eYZ = YZ[y][z];
+                double eXY = XY[ilayer][x][y];
+                double diff = fabs(eXZ - eYZ);
+                if(diff > 10.0) continue;
+#endif
+                long iz = z % nzlayer;
+                long ID = x + y * 1000 + iz * 1000000 + ilayer * 1000000000;
+                struct PSVOXEL3D v = {ID, ehit, true};
+                PSvoxelmap[ID] = v;
             }
         }
     }
@@ -1469,6 +1494,315 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
     c1->SaveAs("3dreco.png");
 #endif
 }
+
+void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
+
+    std::random_device rd;  // Seed for the random number generator
+    std::mt19937 gen(rd());  // Mersenne Twister random number generator
+
+    unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+    std::default_random_engine rng(seed);
+
+    double ehit_threshold = 0.5; // MeV
+    double evox_threshold = 0.5; // MeV
+
+    int nvox_max_after_iteration = 25;  // after this iteration limit the number of voxels in module
+    int nvox_per_layer_max = 3000;      // maximum number of voxels in module
+
+    int nx = fTcalEvent->geom_detector.fScintillatorSizeX / fTcalEvent->geom_detector.fScintillatorVoxelSize;
+    int ny = fTcalEvent->geom_detector.fScintillatorSizeY / fTcalEvent->geom_detector.fScintillatorVoxelSize;
+    int nzlayer = fTcalEvent->geom_detector.fSandwichLength / fTcalEvent->geom_detector.fScintillatorVoxelSize;
+    int nrep = fTcalEvent->geom_detector.NRep;
+    int nztot =  nrep * nzlayer;
+
+    std::uniform_int_distribution<> rnd_layer(0, nzlayer-1);
+    std::uniform_int_distribution<> rnd_nx(0, nx-1);
+    std::uniform_int_distribution<> rnd_ny(0, ny-1);
+
+    // the maximum number layer (from 0 to nRep) that is reconstructed
+    int maxLayer = 25;
+
+    // Step 0: organize hits for easy access
+    std::vector<std::vector<float>> XZ(nx, std::vector<float>(nztot, 0.0));
+    std::vector<std::vector<float>> YZ(ny, std::vector<float>(nztot, 0.0));
+    std::vector<std::vector<std::vector<float>>> XY(nrep,
+            std::vector<std::vector<float>>(nx, std::vector<float>(ny, 0.0)));
+
+    if(verbose>0)
+       std::cout << "Start reconstruction of 3D voxels..." << std::endl;
+
+    for (auto it : PShitmapX)
+    {
+        long ID = it.first;
+        double ehit = it.second.Edeposited;
+        if(ehit < ehit_threshold) continue;
+        long ix = ID % 1000;
+        long iz = (ID / 1000000) % 1000;
+        long ilayer = (ID / 1000000000);
+        if(ilayer > maxLayer) continue;
+        long izz = ilayer * nzlayer + iz;
+        if(ix < nx && izz < nztot) {
+            XZ[ix][izz] = ehit;
+        }
+    }
+    for (auto it : PShitmapY)
+    {
+        long ID = it.first;
+        double ehit = it.second.Edeposited;
+        if(ehit < ehit_threshold) continue;
+        long iy = (ID / 1000) % 1000;
+        long iz = (ID / 1000000) % 1000;
+        long ilayer = (ID / 1000000000);
+        if(ilayer > maxLayer) continue;
+        long izz = ilayer * nzlayer + iz;
+        if(iy < ny && izz < nztot) {
+            YZ[iy][izz] = ehit;
+        }
+    }
+    for (auto itm : PShitmapsZ) {
+        for (auto it: itm.second) {
+            long ID = it.first;
+            double ehit = it.second.Edeposited;
+            if (ehit < ehit_threshold)
+                continue;
+            long ix = ID % 1000;
+            long iy = (ID / 1000) % 1000;
+            long ilayer = (ID / 1000000000);
+            if (ilayer > maxLayer)
+                continue;
+            if(ix < nx && iy < ny) {
+                XY[ilayer][ix][iy] = ehit;
+            }
+        }
+    }
+
+    struct Voxel {
+        float value;
+        Voxel() : value(0) {}
+    };
+
+    std::vector<std::vector<std::vector<Voxel>>> V(
+        nx, std::vector<std::vector<Voxel>>(
+                   ny, std::vector<Voxel>(
+                               nztot, Voxel())));
+
+    std::vector<std::vector<std::vector<Voxel>>> V_min(
+        nx, std::vector<std::vector<Voxel>>(
+                   ny, std::vector<Voxel>(
+                               nztot, Voxel())));
+
+    int nvox_per_layer[nztot];
+
+    for (int iter = 0; iter < maxIter; ++iter)
+    {
+
+        int adjusted = 0;
+        double total_score = 0;
+        // decide which layers should be used for reconstructing 3D voxels
+        for (int z = 0; z < nztot; ++z)
+        {
+            int nvox_layer = 0;
+            for (int x = 0; x < nx; ++x)
+                for (int y = 0; y < ny; ++y)
+                {
+                    if (V[x][y][z].value > 0)
+                    {
+                        nvox_layer++;
+                    }
+                }
+            nvox_per_layer[z] = nvox_layer;
+        }
+
+        for (int imodule = 0; imodule < nrep; imodule++)
+        {
+
+            // count number of voxel in this module
+            int sum_nvox = 0;
+            for (int z = 0; z < nzlayer; z++)
+            {
+                int izz = imodule * nzlayer + z;
+                sum_nvox += nvox_per_layer[izz];
+            }
+            if (iter > nvox_max_after_iteration && sum_nvox > nvox_per_layer_max)
+                continue;
+
+            double module_score = 0;
+            for (int iz = 0; iz < nzlayer; ++iz)
+            {
+
+                int z = imodule * nzlayer + iz;
+
+                for (int iterl = 0; iterl < nx * ny; ++iterl)
+                {
+
+                    int x = rnd_nx(gen);
+                    int y = rnd_ny(gen);
+
+                    double sumXZ = 0;
+                    for (int iy = 0; iy < ny; ++iy)
+                    {
+                        sumXZ += V[x][iy][z].value;
+                    }
+                    double sumYZ = 0;
+                    for (int ix = 0; ix < nx; ++ix)
+                    {
+                        sumYZ += V[ix][y][z].value;
+                    }
+                    long ilayer = imodule; // z / nzlayer;
+                    double sumXY = 0;
+                    for (int iz = 0; iz < nzlayer; iz++)
+                    {
+                        int izz = ilayer * nzlayer + iz;
+                        sumXY += V[x][y][izz].value;
+                    }
+
+                    double tolerance = 1.0;
+                    double learning_rate = 0.01;
+                    int max_iters = 1000;
+                    double prev_value = 0;
+
+                    double adjust = 0;
+
+                    for (int itermin = 0; itermin < max_iters; itermin++)
+                    {
+
+                        double chi2 = pow(sumXY + adjust - XY[ilayer][x][y], 2) + pow(sumXZ + adjust - XZ[x][z], 2) + pow(sumYZ + adjust - YZ[y][z], 2);
+
+                        //                std::cout << itermin << "- adjust: " << adjust << " chi2: " << chi2 << std::endl;
+
+                        if (std::abs(chi2 - prev_value) < tolerance)
+                            break;
+                        double adjust2 = adjust + tolerance;
+                        double chi2_2 = pow(sumXY + adjust2 - XY[ilayer][x][y], 2) + pow(sumXZ + adjust2 - XZ[x][z], 2) + pow(sumYZ + adjust2 - YZ[y][z], 2);
+                        double gradient = (chi2_2 - chi2) / tolerance;
+                        adjust -= learning_rate * gradient;
+                        prev_value = chi2;
+                    }
+
+                    if(std::abs(adjust) == 0) continue;
+
+                    V[x][y][z].value += adjust;
+                    total_score += std::abs(adjust);
+                    module_score += std::abs(adjust);
+                    if (V[x][y][z].value < 0)
+                        V[x][y][z].value = 0;
+                    adjusted++;
+                }
+            }
+            if(verbose > 3)
+                std::cout << " module " << imodule << " has " << sum_nvox << " voxels " << " score " << module_score << std::endl;
+        }
+        if (verbose > 1)
+            std::cout << "Iteration " << iter << ": " << adjusted << " voxels adjusted. Score = " << total_score << std::endl;
+        if(adjusted == 0) break;
+    }
+
+    PSvoxelmap.clear();
+    for (int z = 0; z < nztot; ++z) {
+        //
+        if(nvox_per_layer[z] > nvox_per_layer_max) continue;
+        //
+        for (int y = 0; y < ny; ++y) {
+            for (int x = 0; x < nx; ++x) {
+                float ehit = V[x][y][z].value;
+
+                // cut on minimum energy
+                if(ehit<evox_threshold)
+                    continue;
+
+                // remove totally isolated hits
+                double neigh = 0;
+                if (x > 0)
+                    neigh += V[x - 1][y][z].value;
+                if (x < nx - 1)
+                    neigh += V[x + 1][y][z].value;
+                if (y > 0)
+                    neigh += V[x][y - 1][z].value;
+                if (y < ny - 1)
+                    neigh += V[x][y + 1][z].value;
+                if (z > 0) 
+                    neigh += V[x][y][z-1].value;
+                if (z < nztot - 1)
+                    neigh += V[x][y][z+1].value;
+
+                if (neigh < 1.0)
+                    continue;
+
+                long ilayer = z / nzlayer;
+                long iz = z % nzlayer;
+                long ID = x + y * 1000 + iz * 1000000 + ilayer * 1000000000;
+                struct PSVOXEL3D v = {ID, ehit, true};
+                PSvoxelmap[ID] = v;
+            }
+        }
+    }
+
+    // now flag real hits
+    for (const auto& track : fTcalEvent->getfTracks()) {
+        size_t nhits = track->fhitIDs.size();
+        for ( size_t i = 0; i < nhits; i++) {
+            auto v = PSvoxelmap.find(track->fhitIDs[i]);
+            if (v != PSvoxelmap.end()) {
+                v->second.ghost = false;
+            }
+        }
+    }
+
+        // some stats on hits
+    size_t ntot = 0;
+    size_t fakes = 0;
+    size_t nreal = 0;
+    double ave_e_ghost = 0;
+    double ave_e_real = 0;
+
+    TH1D h_diff_fake = TH1D("h_diff_fake", "difference XZ vs YZ fakes", 100, 0., 30.);
+    TH1D h_diff_real = TH1D("h_diff_real", "difference XZ vs YZ real", 100, 0., 30.);
+    TH1D h_XY_fake = TH1D("h_XY_fake", "XY hit fakes", 100, 0., 30.);
+    TH1D h_XY_real = TH1D("h_XY_real", "XY hit real", 100, 0., 30.);
+
+    int ntotl[nrep];
+    int nfake[nrep];
+    for(int imodule = 0; imodule < nrep; imodule++){
+        ntotl[imodule] = 0;
+        nfake[imodule] = 0;
+    }
+    for (const auto& v : PSvoxelmap) {
+        ntot++;
+        long ID = v.first;
+        long ix = ID % 1000;
+        long iy = (ID / 1000) % 1000;
+        long iz = (ID / 1000000) % 1000;
+        long ilayer = fTcalEvent->getChannelModulefromID(ID);
+        ntotl[ilayer]++;
+        if(ilayer > maxLayer) continue;
+        long izz = ilayer * nzlayer + iz;
+        double eXZ = XZ[ix][izz];
+        double eYZ = YZ[iy][izz];
+        double eXY = XY[ilayer][ix][iy];
+        double diff = fabs(eXZ - eYZ);
+//        diff = v.second.RawEnergy;
+
+        if(v.second.ghost) {
+            fakes++;
+            nfake[ilayer]++;
+            ave_e_ghost += v.second.RawEnergy;
+            h_diff_fake.Fill(diff);
+            h_XY_fake.Fill(eXY);
+        } else {
+            ave_e_real += v.second.RawEnergy;
+            nreal++;
+            h_diff_real.Fill(diff);
+            h_XY_real.Fill(eXY);
+        }
+    }
+    for(int imodule = 0; imodule < nrep; imodule++){
+        std::cout << " Module " << imodule << " " << ntotl[imodule] << " hits " << nfake[imodule] << " fakes" << std::endl;
+    }
+    std::cout << " STATS: " << ntot << " hits " << fakes << " ghosts." << std::endl;
+    std::cout << " Avg energy: " << ave_e_real/float(nreal) << " ghosts: " << ave_e_ghost/float(fakes);
+    std::cout << std::endl;
+}
+
 
 void TPORecoEvent::PSVoxelParticleFilter() {
 

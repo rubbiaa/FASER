@@ -180,7 +180,7 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
     fPORecoEvent -> Reconstruct2DViewsPS();
  //   fPORecoEvent -> ReconstructClusters(0);    // this is very slow
     std::cout << "Start reconstruction of 3D voxels..." << std::endl;
-    fPORecoEvent -> Reconstruct3DPS();
+    fPORecoEvent -> Reconstruct3DPS_2();
     fPORecoEvent -> PSVoxelParticleFilter();
     fPORecoEvent -> ReconstructRearCals();
     fPORecoEvent -> Dump();
@@ -724,7 +724,7 @@ void MyMainFrame::ZoomToPosition(Double_t x, Double_t y, Double_t z) {
     TCanvas *canvas = fCanvas->GetCanvas();    
     TView *view = (TView *)canvas->GetView();
     view->SetPsi(0);
-    view->SetRange(0,0,z-10,0.1,0.1,z+30);
+    view->SetRange(0,0,z-20,0.1,0.1,z+60);
     canvas->Modified();
     canvas->Update();
 }

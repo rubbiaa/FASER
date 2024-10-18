@@ -149,6 +149,7 @@ public:
 
     /// @brief Reconstruct 3D voxels from 2D views in plastic scintillator
     void Reconstruct3DPS(int maxIter = 150);
+    void Reconstruct3DPS_2(int maxIter = 150);
 
     /// @brief Recontruct particle tracks from 3D PS voxels
     void PSVoxelParticleFilter();
