@@ -57,9 +57,16 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, const TGWindow *p, 
     fButton = new TGTextButton(hFrame, "Toggle reco_voxel");
     fButton->Connect("Clicked()", "MyMainFrame", this, "toggle_reco_voxels()");
     hFrame->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
+    fButton = new TGTextButton(hFrame, "Toggle color fakes");
+    fButton->Connect("Clicked()", "MyMainFrame", this, "toggle_color_fakes()");
+    hFrame->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
     fButton = new TGTextButton(hFrame, "ONLY RECO");
     fButton->Connect("Clicked()", "MyMainFrame", this, "only_reco()");
     hFrame->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
+
+    f_fullreco_CheckBox = new TGCheckButton(hFrame, "Full Reco");
+    f_fullreco_CheckBox->Connect("Toggled(Bool_t)", "MyMainFrame", this, "on_fullreco_toggle(Bool_t)");
+    hFrame->AddFrame(f_fullreco_CheckBox, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
 
     // Create a horizontal frame to contain the zoom and sideview buttons
     TGHorizontalFrame *hFrame2 = new TGHorizontalFrame(tab1);
@@ -142,6 +149,8 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, const TGWindow *p, 
 
     toggle_reconstructed_tracks = true;
     toggle_reconstructed_ps_tracks = true;
+
+    toggle_color_fake_voxel = false;
 }
 
 // Destructor
@@ -175,13 +184,16 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
     std::cout << "Start reconstruction of PORecs..." << std::endl;
     fPORecoEvent -> Reconstruct();
     std::cout << "Start reconstruction of tracks..." << std::endl;
-    fPORecoEvent -> TrackReconstruct();
+    if(f_fullreco_CheckBox->IsOn()) {
+        fPORecoEvent->TrackReconstruct();
+    }
     std::cout << "Start reconstruction of clusters..." << std::endl;
     fPORecoEvent -> Reconstruct2DViewsPS();
  //   fPORecoEvent -> ReconstructClusters(0);    // this is very slow
-    std::cout << "Start reconstruction of 3D voxels..." << std::endl;
-    fPORecoEvent -> Reconstruct3DPS_2();
-    fPORecoEvent -> PSVoxelParticleFilter();
+    if(f_fullreco_CheckBox->IsOn()) {
+        fPORecoEvent->Reconstruct3DPS_2();
+        fPORecoEvent->PSVoxelParticleFilter();
+    }
     fPORecoEvent -> ReconstructRearCals();
     fPORecoEvent -> Dump();
 
@@ -207,7 +219,7 @@ void MyMainFrame::Draw_event() {
     } else {
         exit(1);
     }
-    TGeoShape *bigbox = new TGeoBBox("bigbox", wdx, wdy, wdz);
+    bigbox = new TGeoBBox("bigbox", wdx, wdy, wdz);
 
     TGeoMedium *air = gGeoManager->GetMedium("AIR");
     primary_em = new TGeoVolume("primary_em", bigbox, air);
@@ -355,24 +367,7 @@ void MyMainFrame::Draw_event() {
     Draw_event_reco_tracks();
 
     // Draw reconstructed voxels
-    ps_reco_voxel = new TGeoVolume("ps_reco_voxel", bigbox, air);
-    int i = 1;
-    for (auto& it : fPORecoEvent->PSvoxelmap) {
-        long ID = it.first;
-        double ehit = it.second.RawEnergy;
-        if(ehit < 0.5) continue;
-        ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(ID);
-//        position += ROOT::Math::XYZVector(2.5,2.5,2.5);    // in mm
-        TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, 
-                position.Y() / 10.0, position.Z() / 10.0);
-        TGeoVolume *hitVolume = new TGeoVolume("HitVolume", box, air);
-        if(it.second.ghost) {
-            hitVolume->SetLineColor(kMagenta); 
-        } else {
-            hitVolume->SetLineColor(kBlack); 
-        }
-        ps_reco_voxel->AddNode(hitVolume, i++, trans);
-    }
+    Draw_event_reco_voxel(bigbox, air, box);
 
     // Draw reconstructed PSTracks
     ps_tracks = new TGeoVolume("ps_tracks", bigbox, air);
@@ -519,6 +514,28 @@ void MyMainFrame::Draw_event_reco_tracks() {
     }
 }
 
+void MyMainFrame::Draw_event_reco_voxel(TGeoShape *bigbox, TGeoMedium *air, TGeoShape *box) {
+    // Draw reconstructed voxels
+    ps_reco_voxel = new TGeoVolume("ps_reco_voxel", bigbox, air);
+    int i = 1;
+    for (auto& it : fPORecoEvent->PSvoxelmap) {
+        long ID = it.first;
+        double ehit = it.second.RawEnergy;
+        if(ehit < 0.5) continue;
+        ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(ID);
+//        position += ROOT::Math::XYZVector(2.5,2.5,2.5);    // in mm
+        TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, 
+                position.Y() / 10.0, position.Z() / 10.0);
+        TGeoVolume *hitVolume = new TGeoVolume("HitVolume", box, air);
+        if(it.second.ghost) {
+            hitVolume->SetLineColor(toggle_color_fake_voxel ? kMagenta : kBlack); 
+        } else {
+            hitVolume->SetLineColor(kBlack); 
+        }
+        ps_reco_voxel->AddNode(hitVolume, i++, trans);
+    }
+}
+
 void MyMainFrame::Next_Event(int ievent) {
 
     TCanvas *canvas = fCanvas->GetCanvas();
@@ -660,6 +677,19 @@ void MyMainFrame::toggle_reco_track() {
     canvas->Modified();
     canvas->Update();
 }
+void MyMainFrame::toggle_color_fakes() {
+    TCanvas *canvas = fCanvas->GetCanvas();
+    toggle_color_fake_voxel = !toggle_color_fake_voxel;
+    double voxelsize = fTcalEvent->geom_detector.fScintillatorVoxelSize/10.0;
+    TGeoMedium *air = gGeoManager->GetMedium("AIR");
+    TGeoShape *box = new TGeoBBox("box", voxelsize/2.0,voxelsize/2.0,voxelsize/2.0);
+    TGeoNode *nodeToRemove = gGeoManager->GetTopVolume()->FindNode("ps_reco_voxel_1");
+    gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove);
+    Draw_event_reco_voxel(bigbox, air, box);
+    gGeoManager->GetTopVolume()->AddNode(ps_reco_voxel,1);
+    canvas->Modified();
+    canvas->Update();
+}
 void MyMainFrame::toggle_recon_ps_tracks() {
     TCanvas *canvas = fCanvas->GetCanvas();
     toggle_reconstructed_ps_tracks = !toggle_reconstructed_ps_tracks;
@@ -770,6 +800,17 @@ void MyMainFrame::MoveRight() {
     view->MoveWindow('h');
     canvas->Modified();
     canvas->Update();
+}
+void MyMainFrame::on_fullreco_toggle(Bool_t state)
+{
+    if (state)
+    {
+        std::cout << "Checkbox is checked." << std::endl;
+    }
+    else
+    {
+        std::cout << "Checkbox is unchecked." << std::endl;
+    }
 }
 
 ClassImp(MyMainFrame)

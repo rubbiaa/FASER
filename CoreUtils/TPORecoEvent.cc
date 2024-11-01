@@ -1497,6 +1497,8 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
 
 void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
 
+    maxIter = 150; // 300;
+
     std::random_device rd;  // Seed for the random number generator
     std::mt19937 gen(rd());  // Mersenne Twister random number generator
 
@@ -1593,28 +1595,27 @@ void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
 
     int nvox_per_layer[nztot];
 
-    for (int iter = 0; iter < maxIter; ++iter)
+    for (int imodule = 0; imodule < nrep; imodule++)
     {
-
-        int adjusted = 0;
         double total_score = 0;
-        // decide which layers should be used for reconstructing 3D voxels
-        for (int z = 0; z < nztot; ++z)
+        for (int iter = 0; iter < maxIter; ++iter)
         {
-            int nvox_layer = 0;
-            for (int x = 0; x < nx; ++x)
-                for (int y = 0; y < ny; ++y)
-                {
-                    if (V[x][y][z].value > 0)
+            int adjusted = 0;
+            total_score = 0;
+            // decide which layers should be used for reconstructing 3D voxels
+            for (int z = imodule*nzlayer; z < (imodule+1)*nzlayer; ++z)
+            {
+                int nvox_layer = 0;
+                for (int x = 0; x < nx; ++x)
+                    for (int y = 0; y < ny; ++y)
                     {
-                        nvox_layer++;
+                        if (V[x][y][z].value > 0)
+                        {
+                            nvox_layer++;
+                        }
                     }
-                }
-            nvox_per_layer[z] = nvox_layer;
-        }
-
-        for (int imodule = 0; imodule < nrep; imodule++)
-        {
+                nvox_per_layer[z] = nvox_layer;
+            }
 
             // count number of voxel in this module
             int sum_nvox = 0;
@@ -1631,6 +1632,18 @@ void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
             {
 
                 int z = imodule * nzlayer + iz;
+
+#if 0
+                // THIS MAKES RESULTS WORSE... more fake hits
+                // if first iteration, copy result from previous layer as starting point
+                if(iter ==0 && z > 0) {
+                for (int x = 0; x < nx; ++x)
+                    for (int y = 0; y < ny; ++y)
+                    {
+                        V[x][y][z].value = V[x][y][z-1].value;
+                    }
+                }
+#endif
 
                 for (int iterl = 0; iterl < nx * ny; ++iterl)
                 {
@@ -1665,21 +1678,27 @@ void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
 
                     for (int itermin = 0; itermin < max_iters; itermin++)
                     {
+                        double a1 = sumXY - XY[ilayer][x][y];
+                        double a2 = sumXZ - XZ[x][z];
+                        double a3 = sumYZ - YZ[y][z];
+#define SQR(a) ((a)*(a))
+//                        double chi2 = pow(a1 + adjust, 2) + pow(a2 + adjust, 2) + pow(a3 + adjust, 2);
+                        double chi2 = SQR(a1 + adjust) + SQR(a2 + adjust) + SQR(a3 + adjust);
 
-                        double chi2 = pow(sumXY + adjust - XY[ilayer][x][y], 2) + pow(sumXZ + adjust - XZ[x][z], 2) + pow(sumYZ + adjust - YZ[y][z], 2);
-
-                        //                std::cout << itermin << "- adjust: " << adjust << " chi2: " << chi2 << std::endl;
+                     //                   std::cout << itermin << "- adjust: " << adjust << " chi2: " << chi2 << std::endl;
 
                         if (std::abs(chi2 - prev_value) < tolerance)
                             break;
                         double adjust2 = adjust + tolerance;
-                        double chi2_2 = pow(sumXY + adjust2 - XY[ilayer][x][y], 2) + pow(sumXZ + adjust2 - XZ[x][z], 2) + pow(sumYZ + adjust2 - YZ[y][z], 2);
+//                        double chi2_2 = pow(a1 + adjust2, 2) + pow(a2 + adjust2, 2) + pow(a3 + adjust2, 2);
+                        double chi2_2 = SQR(a1 + adjust2) + SQR(a2 + adjust2) + SQR(a3 + adjust2);
                         double gradient = (chi2_2 - chi2) / tolerance;
                         adjust -= learning_rate * gradient;
                         prev_value = chi2;
                     }
 
-                    if(std::abs(adjust) == 0) continue;
+                    if (std::abs(adjust) == 0)
+                        continue;
 
                     V[x][y][z].value += adjust;
                     total_score += std::abs(adjust);
@@ -1689,12 +1708,15 @@ void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
                     adjusted++;
                 }
             }
-            if(verbose > 3)
+            if (verbose > 3) {
                 std::cout << " module " << imodule << " has " << sum_nvox << " voxels " << " score " << module_score << std::endl;
+                std::cout << "Module " << imodule << " - Iteration " << iter << ": " << adjusted << " voxels adjusted. Score = " << total_score << std::endl;
+            }
+            if (adjusted == 0 || total_score < 1.0)
+                break;
         }
         if (verbose > 1)
-            std::cout << "Iteration " << iter << ": " << adjusted << " voxels adjusted. Score = " << total_score << std::endl;
-        if(adjusted == 0) break;
+            std::cout << "Module " << imodule << " - Score = " << total_score << std::endl;
     }
 
     PSvoxelmap.clear();
@@ -1796,7 +1818,9 @@ void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
         }
     }
     for(int imodule = 0; imodule < nrep; imodule++){
-        std::cout << " Module " << imodule << " " << ntotl[imodule] << " hits " << nfake[imodule] << " fakes" << std::endl;
+        double frac = ntotl[imodule] > 0 ? nfake[imodule]*100.0/float(ntotl[imodule]) : -1;
+        std::cout << " Module " << imodule << " " << ntotl[imodule] << " hits " << nfake[imodule] << " fakes ";
+        std::cout << frac << "%" << std::endl;
     }
     std::cout << " STATS: " << ntot << " hits " << fakes << " ghosts." << std::endl;
     std::cout << " Avg energy: " << ave_e_real/float(nreal) << " ghosts: " << ave_e_ghost/float(fakes);
@@ -1805,6 +1829,8 @@ void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
 
 
 void TPORecoEvent::PSVoxelParticleFilter() {
+
+    int max_number_track_seeds = 100;
 
     if(verbose>0) std::cout << "Start PS voxel particle filter..." << std::endl;
 
@@ -1834,10 +1860,14 @@ void TPORecoEvent::PSVoxelParticleFilter() {
 
     // loop over modules
     for (int i = 0; i < nmodules; i++) {
-        if(verbose>1) std::cout << " ------------------- Module " << i << std::endl;
+        if(verbose>1) std::cout << " ------------------- Module " << i << " - track seeds: " << track_seeds.size() << std::endl;
+        //
+        if(track_seeds.size() > max_number_track_seeds)
+            continue;
+        //
         auto module = PSvoxelmapModule.find(i);
         if(module == PSvoxelmapModule.end()) continue;
-        // loop over layers within module
+        // loop over layers within module in reverse order
         for (int layer = nzlayer-1; layer > 0; layer--) {
             for (const auto &hit : module->second) {
                 long iz = (hit.ID / 1000000) % 1000;
@@ -1857,6 +1887,21 @@ void TPORecoEvent::PSVoxelParticleFilter() {
                         break;
                     }
                 }
+
+                // check if it's touching a track
+                if (!found_seed)
+                {
+                    for (auto &ts : track_seeds)
+                    {
+                        if (ts.VoxelTouchesTrack(hit.ID))
+                        {
+                            track = &ts;
+                            found_seed = true;
+                            break;
+                        }
+                    }
+                }
+
                 if(!found_seed) {
                     // create PS track seed
                     track = &track_seed;
@@ -1882,11 +1927,32 @@ void TPORecoEvent::PSVoxelParticleFilter() {
                         closest_vox = &prev_hit;
                     }
                 }
-                if (transv_dist < closest_voxel_cut)
+//                std::cout << track->direction.x() << " " << track->direction.x()*track->direction.x() << std::endl;
+//                std::cout << track->direction.y() << " " << track->direction.y()*track->direction.y() << std::endl;
+                double rt = track->direction.x()*track->direction.x() + track->direction.y()*track->direction.y();
+//                std::cout << rt << std::endl;
+                double tanangle = sqrt(rt) / (std::max(track->direction.z(),1e-3));
+//                std::cout << tanangle << std::endl;
+                double cut = closest_voxel_cut*std::max(1.0,tanangle);
+//                std::cout << cut << std::endl;
+#if 0
+                if(rt>0) {
+                    std::cout << " track angle found - ";
+                    track->Dump();
+                }
+#endif
+                if (transv_dist < cut)
                 {
                     ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(closest_vox->ID);
                     struct TPSTrack::TRACKHIT vox2 = {closest_vox->ID, position, closest_vox->RawEnergy};
                     track->tkhit.push_back(vox2);
+                    int nhits = track->tkhit.size();
+                    track->direction.SetXYZ(0,0,0);
+                    track->SortHitsByZ();
+                    if (nhits == 2)
+                        track->direction = track->direction2Hits(track->centroid);
+                    if (nhits > 2)
+                        track->direction = track->fitLineThroughHits(track->centroid);
                 }
                 if(!found_seed)
                     track_seeds.push_back(*track);

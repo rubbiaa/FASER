@@ -36,6 +36,9 @@ public:
         return (it != tkhit.end()) ? &(*it) : nullptr;
     }
 
+    /// @brief Returns true of Voxel touches any hit of the track
+    bool VoxelTouchesTrack(long ID);
+
     /// @brief Function to sort hits by the Z coordinate of the hits
     inline void SortHitsByZ() {
         std::sort(tkhit.begin(), tkhit.end(), [](const TRACKHIT& a, const TRACKHIT& b) {

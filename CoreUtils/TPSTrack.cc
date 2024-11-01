@@ -63,3 +63,26 @@ TVector3 TPSTrack::fitLineThroughHits(TVector3& centroid) {
 
     return direction;
 }
+
+bool TPSTrack::VoxelTouchesTrack(long ID) {
+    bool touches = false;
+    long ix = ID % 1000;
+    long iy = (ID / 1000) % 1000;
+    long iz = (ID / 1000000) % 1000;
+    long ilayer = (ID / 1000000000);
+    for (const auto& hit : tkhit) {
+        long ID2 = hit.ID;
+        long ix2 = ID2 % 1000;
+        long iy2 = (ID2 / 1000) % 1000;
+        long iz2 = (ID2 / 1000000) % 1000;
+        long ilayer2 = (ID2 / 1000000000);
+        if(ilayer!=ilayer2 || iz != iz2) continue;
+        int dx = abs(ix-ix2);
+        int dy = abs(iy-iy2);
+        if( dx < 2 && dy < 2 ) {
+            touches = true;
+            break;
+        }
+    }
+    return touches;
+}

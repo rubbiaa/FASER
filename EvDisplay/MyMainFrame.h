@@ -7,6 +7,7 @@
 #include <TText.h>
 #include <TGTextEntry.h>
 #include <TPolyLine3D.h>
+#include <TGButton.h>
 
 
 #include <TcalEvent.hh>
@@ -21,6 +22,7 @@ public:
     void Load_event(int run_number, int ievent, int mask);
     void Draw_event();
     void Draw_event_reco_tracks();
+    void Draw_event_reco_voxel(TGeoShape *bigbox, TGeoMedium *air, TGeoShape *box);
     void Next_Event(int ievent);
 
     void HandleButton(); // Function to handle button click
@@ -30,6 +32,7 @@ public:
     void toggle_sec_had();
     void toggle_reco_track();
     void toggle_reco_voxels();
+    void toggle_color_fakes();
     void toggle_recon_ps_tracks();
     void only_reco();
     void next_event();
@@ -71,6 +74,8 @@ private:
     TPOEvent *POevent;
     TPORecoEvent* fPORecoEvent;
 
+    TGeoShape *bigbox;
+
     // truth voxels
     TGeoVolume *primary_em;
     TGeoVolume *primary_had;
@@ -92,7 +97,11 @@ private:
     bool toggle_secondary_em;
     bool toggle_secondary_had;
     bool toggle_reco_voxel;
+    bool toggle_color_fake_voxel;
     bool toggle_reconstructed_tracks;
     bool toggle_reconstructed_ps_tracks;
+
+    TGCheckButton *f_fullreco_CheckBox;
+    void on_fullreco_toggle(Bool_t state);
 
 };

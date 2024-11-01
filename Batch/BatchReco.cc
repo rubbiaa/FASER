@@ -187,11 +187,12 @@ int main(int argc, char** argv) {
 
         // tau decay length
         if(POevent -> istau) {
+           POevent -> dump_event();
            struct PO aPO = POevent-> POs[4];    // first decay product
            ROOT::Math::XYZVector decayvtx = ROOT::Math::XYZVector(aPO.m_vx_decay, aPO.m_vy_decay, aPO.m_vz_decay);   
         }
 
-#if 0
+#if 1
         //// 
         delete POevent;
         delete fTcalEvent;   
@@ -205,7 +206,7 @@ int main(int argc, char** argv) {
         fPORecoEvent -> Reconstruct2DViewsPS();
         fPORecoEvent -> ReconstructClusters(0);    // this is very slow
         std::cout << "Start reconstruction of 3D voxels..." << std::endl;
-        fPORecoEvent -> Reconstruct3DPS();
+        fPORecoEvent -> Reconstruct3DPS_2();
         fPORecoEvent -> ReconstructRearCals();
 
         if(dump_event_cout) { fPORecoEvent -> Dump(); }
