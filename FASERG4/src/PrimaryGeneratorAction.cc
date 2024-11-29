@@ -40,7 +40,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 {
 
 	// DEBUG : only primary lepton if CC otherwise random pion
-	bool want_particleGun = false; //  true;
+	bool want_particleGun = true; //  true;
 
 	const TPOEvent *branch_POEvent = GetTPOEvent();
 
@@ -89,8 +89,9 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 	G4double x = 50 * cos(theta);
 	G4double y = 50 * sin(theta);
 	G4double z = 0;
-	// uniformly distributed in the first 10 layers
-	G4int wanted_layer = floor(G4UniformRand() * 10);
+	// uniformly distributed in the first "n" layers
+	G4int maxlayer = 5;
+	G4int wanted_layer = floor(G4UniformRand() * maxlayer);
 	XYZVector vtxpos;
 	// decide where the event is generated
 	if (G4UniformRand() < detector->fTotalWMass / detector->fTotalMass) {

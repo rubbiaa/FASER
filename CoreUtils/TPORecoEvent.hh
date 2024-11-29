@@ -68,7 +68,8 @@ private:
     /// @brief The vector that holds all the PORec (Reconstructed POs) in the event
     std::vector<class TPORec*> fPORecs;                                     //! (no ROOT I/O output)
 
-    TPORec *fPOFullEvent = nullptr;                   // the kinematics of the full event
+    TPORec *fPOFullEvent = nullptr;                   // the kinematics of the full event (TRUTH)
+    TPORec *fPOFullRecoEvent = nullptr;                   // the kinematics of the full event (RECO)
 
     TcalEvent* fTcalEvent;                            //! Reference to the TCAL event
     TPOEvent* fTPOEvent;                              // Reference to the TPOEvent
@@ -111,6 +112,11 @@ public:
         bool ghost;
     };
 
+    struct Voxel {
+        float value;
+        Voxel() : value(0) {}
+    };
+
     std::map<long, struct PSVOXEL3D> PSvoxelmap;
 
     /// @brief All reconstruced TKTracks in event
@@ -150,6 +156,10 @@ public:
     /// @brief Reconstruct 3D voxels from 2D views in plastic scintillator
     void Reconstruct3DPS(int maxIter = 150);
     void Reconstruct3DPS_2(int maxIter = 150);
+    void reconstruct3DPS_module(int maxIter, int imodule, std::vector<std::vector<std::vector<Voxel>>> &V,
+        std::vector<std::vector<float>> &XZ, std::vector<std::vector<float>> &YZ, std::vector<std::vector<std::vector<float>>> &XY,
+        std::vector<int>& nvox_per_layer, int nvox_per_layer_max);
+    void Reconstruct3DPS_Eflow();
 
     /// @brief Recontruct particle tracks from 3D PS voxels
     void PSVoxelParticleFilter();

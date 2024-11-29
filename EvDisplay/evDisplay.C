@@ -22,10 +22,35 @@
 #include <TEveManager.h>
 #include <TEveGeoNode.h>
 
+// Function to recursively list volumes
+void ListVolumes(TGeoVolume* volume, int depth = 0) {
+    // Print the volume name with indentation for hierarchy
+    for (int i = 0; i < depth; ++i) std::cout << "  "; // Indent based on depth
+    std::cout << volume->GetName() << std::endl;
+
+    // Loop through the list of daughter volumes
+    int nDaughters = volume->GetNdaughters();
+    for (int i = 0; i < nDaughters; ++i) {
+        TGeoVolume* daughter = volume->GetNode(i)->GetVolume();
+        ListVolumes(daughter, depth + 1);  // Recursive call with increased depth
+    }
+}
+
 void load_geometry() {
     // Load the GDML geometry
     TGeoManager::Import("../GeomGDML/geometry.gdml");
 
+    TGeoVolume* topVolume = gGeoManager->GetTopVolume();
+    topVolume->SetTransparency(50);  // Value from 0 (opaque) to 100 (fully transparent)
+
+    // List all volumes in the geometry
+    std::cout << "Listing all volumes in the geometry:" << std::endl;
+    ListVolumes(topVolume);
+
+    TGeoVolume *volume1 = gGeoManager->FindVolumeFast("ShortCylLogical");
+//    volume1->SetLineColor(kRed);      // Set color (optional)
+//    volume1->SetVisibility(kTRUE);    // Ensure it is visible
+//    volume1->SetDrawOption("wireframe");
 #if 0
     TEveManager::Create();
 

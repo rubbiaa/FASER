@@ -24,6 +24,9 @@
 class ParticleManager {
     private:
 	std::map<int, Track*> m_particleMap;  ///< Map to store track ID and corresponding Track object
+
+	std::map<int, MagnetTrack*> m_magnetTrackMap;   // map to store MC tracks in the magnet
+
 	TFile* m_rootFile;		     ///< ROOT file to store the rays
 
 	std::string m_rootOutputFileName;  ///< Name of the ROOT output file, set by the user using the CLI when calling the program

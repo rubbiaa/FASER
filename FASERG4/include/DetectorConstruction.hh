@@ -118,7 +118,10 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	/// @param size2 = thickness target
 	/// @param parent 
 	/// @param Nrep = number of layers
-	void CreateFaserNu(G4Material* material1, G4Material* material2, G4ThreeVector size1, G4ThreeVector size2, G4LogicalVolume* parent, G4int Nrep);
+	void CreateFaserCal(G4double zLocation, G4Material* material1, G4Material* material2, G4ThreeVector size1, G4ThreeVector size2, G4LogicalVolume* parent, G4int Nrep);
+
+	/// @brief Create the Magnet system
+	void CreateMagnetSystem(G4double zLocation, G4LogicalVolume* parent);
 
 	/// @brief Create the RearCalorimeter
 	void CreateRearCal(G4double zLocation, G4LogicalVolume* parent);

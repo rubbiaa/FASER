@@ -46,6 +46,30 @@ void ParticleManager::processParticleHit(G4Track *track, XYZVector const& positi
 		#endif
 		return;
 	}
+	if(VolumeName == "ShortCylLogical" || VolumeName == "LongCylLogical") {
+		const G4ParticleDefinition *particledef = track->GetParticleDefinition();
+		if(particledef->GetPDGCharge() == 0) return;
+
+		int trackID = track->GetTrackID();
+		auto it = m_magnetTrackMap.find(trackID);
+		if (it != m_magnetTrackMap.end())
+		{
+			ROOT::Math::XYZVector pos;
+			pos.SetXYZ(position.x(), position.y(), position.z());
+			it->second->pos.push_back(pos);
+		}
+		else
+		{
+			// If the track does not exist, create a new one
+			MagnetTrack *newT = new MagnetTrack(trackID);
+			newT->fPDG = pdg;
+			ROOT::Math::XYZVector pos;
+			pos.SetXYZ(position.x(), position.y(), position.z());
+			newT->pos.push_back(pos);
+			m_magnetTrackMap[trackID] = newT;
+		}
+		return;
+	}
 	int trackID = track->GetTrackID();
 	if(energydeposit>0 || parentID == 0) { 					// or some energy or is primary
 		auto it = m_particleMap.find(trackID);
@@ -77,6 +101,7 @@ void ParticleManager::beginOfEvent()
 {
 	// Clear the track map
 	m_particleMap.clear();
+	m_magnetTrackMap.clear();
 	fPrimaries.clear();
 
 	PrimaryGeneratorAction* prim = dynamic_cast<PrimaryGeneratorAction*>
@@ -107,7 +132,7 @@ void ParticleManager::beginOfEvent()
 	fTcalEvent->geom_detector.fTotalScintmass = detector->fTotalScintMass;
 	fTcalEvent->geom_detector.rearCalSizeX = 121.2;
 	fTcalEvent->geom_detector.rearCalSizeY = 121.2;
-    fTcalEvent->geom_detector.rearCalLocZ = detector->fTotalLength/2.0;
+    fTcalEvent->geom_detector.rearCalLocZ = detector->fTotalLength/2.0; // when no magnet + 3500.0;
 	fTcalEvent->geom_detector.rearCalNxy = 5;
 
 	// clear the rear calorimeter
@@ -150,6 +175,12 @@ void ParticleManager::endOfEvent(G4Event const* event)
 			}
 		}
 
+		// Fill magnet tracks
+		for (const auto& it : m_magnetTrackMap) {
+			MagnetTrack* magnettrk = it.second;
+			fTcalEvent->fMagnetTracks.push_back(magnettrk);
+		}
+	
 		// dump RearCal
 		#if 0
 		for (const auto &it : fTcalEvent->rearCalDeposit) {

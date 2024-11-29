@@ -192,7 +192,7 @@ int main(int argc, char** argv) {
            ROOT::Math::XYZVector decayvtx = ROOT::Math::XYZVector(aPO.m_vx_decay, aPO.m_vy_decay, aPO.m_vz_decay);   
         }
 
-#if 1
+#if 0
         //// 
         delete POevent;
         delete fTcalEvent;   
@@ -201,13 +201,14 @@ int main(int argc, char** argv) {
 #endif
         TPORecoEvent* fPORecoEvent = new TPORecoEvent(fTcalEvent, fTcalEvent->fTPOEvent);
         fPORecoEvent -> Reconstruct();
-
+        fPORecoEvent->TrackReconstruct();
         std::cout << "Start reconstruction of clusters..." << std::endl;
         fPORecoEvent -> Reconstruct2DViewsPS();
         fPORecoEvent -> ReconstructClusters(0);    // this is very slow
         std::cout << "Start reconstruction of 3D voxels..." << std::endl;
         fPORecoEvent -> Reconstruct3DPS_2();
         fPORecoEvent -> ReconstructRearCals();
+        fPORecoEvent -> Reconstruct3DPS_Eflow();
 
         if(dump_event_cout) { fPORecoEvent -> Dump(); }
 

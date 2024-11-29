@@ -10,11 +10,12 @@
 #include <TCanvas.h>
 
 #include <random>
+#include <thread>
 
 ClassImp(TPORec);
 ClassImp(TPORecoEvent);
 
-TPORecoEvent::TPORecoEvent(TcalEvent* c, TPOEvent* p) : fTcalEvent(c), fTPOEvent(p) {
+TPORecoEvent::TPORecoEvent(TcalEvent* c, TPOEvent* p) : fTcalEvent(c), fTPOEvent(p), fPOFullEvent(0), fPOFullRecoEvent(0) {
 	for(int i =0; i < 50; i++){
 		zviewPS.push_back(nullptr);
 	}
@@ -25,6 +26,7 @@ TPORecoEvent::~TPORecoEvent() {
         delete it;
     }
     delete fPOFullEvent;
+    delete fPOFullRecoEvent;
     fPORecs.clear();
 }
 
@@ -525,13 +527,20 @@ void TPORecoEvent::Dump() {
     std::cout << " Ex: " << fPOFullEvent->fTotal.Eflow.X();
     std::cout << " Ey: " << fPOFullEvent->fTotal.Eflow.Y();
     std::cout << " Ez: " << fPOFullEvent->fTotal.Eflow.Z();
-//    std::cout << " cogx: " << fPOFullEvent->fTotal.cog.X() << " ";
-//    std::cout << " cogy: " << fPOFullEvent->fTotal.cog.Y() << " ";
-//    std::cout << " cogz: " << fPOFullEvent->fTotal.cog.Z() << " ";
     std::cout << std::endl;
-    std::cout << "FULL EVENT>> Ene: " << fPOFullEvent->TotalEvis() << " ";;
+    std::cout << "FULL EVENT>> Ene: " << fPOFullEvent->TotalEvis() << " ";
     std::cout << " ET: " << fPOFullEvent->TotalET();
     std::cout << std::endl;
+    if(fPOFullRecoEvent!=nullptr) {
+        std::cout << "FULL RECO EFLOW>> ";
+        std::cout << " Ex: " << fPOFullRecoEvent->fTotal.Eflow.X();
+        std::cout << " Ey: " << fPOFullRecoEvent->fTotal.Eflow.Y();
+        std::cout << " Ez: " << fPOFullRecoEvent->fTotal.Eflow.Z();
+        std::cout << std::endl;
+        std::cout << "FULL RECO EVENT>> Ene: " << fPOFullRecoEvent->TotalEvis() << " ";
+        std::cout << " ET: " << fPOFullRecoEvent->TotalET();
+        std::cout << std::endl;
+    }
     fTPOEvent->dump_header();
 }
 
@@ -1495,12 +1504,151 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
 #endif
 }
 
-void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
+void TPORecoEvent::reconstruct3DPS_module(int maxIter, int imodule, std::vector<std::vector<std::vector<Voxel>>> &V,
+    std::vector<std::vector<float>> &XZ, std::vector<std::vector<float>> &YZ, std::vector<std::vector<std::vector<float>>> &XY,
+    std::vector<int>& nvox_per_layer, int nvox_per_layer_max) {
 
-    maxIter = 150; // 300;
+    int nvox_max_after_iteration = 25;  // after this iteration limit the number of voxels in module
+
+    int nx = fTcalEvent->geom_detector.fScintillatorSizeX / fTcalEvent->geom_detector.fScintillatorVoxelSize;
+    int ny = fTcalEvent->geom_detector.fScintillatorSizeY / fTcalEvent->geom_detector.fScintillatorVoxelSize;
+    int nzlayer = fTcalEvent->geom_detector.fSandwichLength / fTcalEvent->geom_detector.fScintillatorVoxelSize;
+    int nrep = fTcalEvent->geom_detector.NRep;
+    int nztot =  nrep * nzlayer;
 
     std::random_device rd;  // Seed for the random number generator
     std::mt19937 gen(rd());  // Mersenne Twister random number generator
+    std::uniform_int_distribution<> rnd_nx(0, nx-1);
+    std::uniform_int_distribution<> rnd_ny(0, ny-1);
+
+    double total_score_min_break = 10;
+
+    double total_score = 0;
+    for (int iter = 0; iter < maxIter; ++iter)
+    {
+        int adjusted = 0;
+        total_score = 0;
+        // decide which layers should be used for reconstructing 3D voxels
+        for (int z = imodule * nzlayer; z < (imodule + 1) * nzlayer; ++z)
+        {
+            int nvox_layer = 0;
+            for (int x = 0; x < nx; ++x)
+                for (int y = 0; y < ny; ++y)
+                {
+                    if (V[x][y][z].value > 0)
+                    {
+                        nvox_layer++;
+                    }
+                }
+            nvox_per_layer[z] = nvox_layer;
+        }
+
+        // count number of voxel in this module
+        int sum_nvox = 0;
+        for (int z = 0; z < nzlayer; z++)
+        {
+            int izz = imodule * nzlayer + z;
+            sum_nvox += nvox_per_layer[izz];
+        }
+        if (iter > nvox_max_after_iteration && sum_nvox > nvox_per_layer_max)
+            continue;
+
+        double module_score = 0;
+        for (int iz = 0; iz < nzlayer; ++iz)
+        {
+
+            int z = imodule * nzlayer + iz;
+
+#if 0
+                // THIS MAKES RESULTS WORSE... more fake hits
+                // if first iteration, copy result from previous layer as starting point
+                if(iter ==0 && z > 0) {
+                for (int x = 0; x < nx; ++x)
+                    for (int y = 0; y < ny; ++y)
+                    {
+                        V[x][y][z].value = V[x][y][z-1].value;
+                    }
+                }
+#endif
+
+            for (int iterl = 0; iterl < nx * ny; ++iterl)
+            {
+
+                int x = rnd_nx(gen);
+                int y = rnd_ny(gen);
+
+                double sumXZ = 0;
+                for (int iy = 0; iy < ny; ++iy)
+                {
+                    sumXZ += V[x][iy][z].value;
+                }
+                double sumYZ = 0;
+                for (int ix = 0; ix < nx; ++ix)
+                {
+                    sumYZ += V[ix][y][z].value;
+                }
+                long ilayer = imodule; // z / nzlayer;
+                double sumXY = 0;
+                for (int iz = 0; iz < nzlayer; iz++)
+                {
+                    int izz = ilayer * nzlayer + iz;
+                    sumXY += V[x][y][izz].value;
+                }
+
+                double tolerance = 1.0;
+                double learning_rate = 0.01;
+                int max_iters = 1000;
+                double prev_value = 0;
+
+                double adjust = 0;
+
+                for (int itermin = 0; itermin < max_iters; itermin++)
+                {
+                    double a1 = sumXY - XY[ilayer][x][y];
+                    double a2 = sumXZ - XZ[x][z];
+                    double a3 = sumYZ - YZ[y][z];
+#define SQR(a) ((a) * (a))
+                    //                        double chi2 = pow(a1 + adjust, 2) + pow(a2 + adjust, 2) + pow(a3 + adjust, 2);
+                    double chi2 = SQR(a1 + adjust) + SQR(a2 + adjust) + SQR(a3 + adjust);
+
+                    //                   std::cout << itermin << "- adjust: " << adjust << " chi2: " << chi2 << std::endl;
+
+                    if (std::abs(chi2 - prev_value) < tolerance)
+                        break;
+                    double adjust2 = adjust + tolerance;
+                    //                        double chi2_2 = pow(a1 + adjust2, 2) + pow(a2 + adjust2, 2) + pow(a3 + adjust2, 2);
+                    double chi2_2 = SQR(a1 + adjust2) + SQR(a2 + adjust2) + SQR(a3 + adjust2);
+                    double gradient = (chi2_2 - chi2) / tolerance;
+                    adjust -= learning_rate * gradient;
+                    prev_value = chi2;
+                }
+
+                if (std::abs(adjust) == 0)
+                    continue;
+
+                V[x][y][z].value += adjust;
+                total_score += std::abs(adjust);
+                module_score += std::abs(adjust);
+                if (V[x][y][z].value < 0)
+                    V[x][y][z].value = 0;
+                adjusted++;
+            }
+        }
+        if (verbose > 3)
+        {
+            std::cout << " module " << imodule << " has " << sum_nvox << " voxels " << " score " << module_score << std::endl;
+            std::cout << "Module " << imodule << " - Iteration " << iter << ": " << adjusted << " voxels adjusted. Score = " << total_score << std::endl;
+        }
+        if (adjusted == 0 || total_score < total_score_min_break)
+            break;
+    }
+    if (verbose > 1)
+        std::cout << "Module " << imodule << " - Score = " << total_score << std::endl;
+}
+
+void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
+
+    maxIter = 150; // 300;
 
     unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
     std::default_random_engine rng(seed);
@@ -1508,7 +1656,6 @@ void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
     double ehit_threshold = 0.5; // MeV
     double evox_threshold = 0.5; // MeV
 
-    int nvox_max_after_iteration = 25;  // after this iteration limit the number of voxels in module
     int nvox_per_layer_max = 3000;      // maximum number of voxels in module
 
     int nx = fTcalEvent->geom_detector.fScintillatorSizeX / fTcalEvent->geom_detector.fScintillatorVoxelSize;
@@ -1518,8 +1665,6 @@ void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
     int nztot =  nrep * nzlayer;
 
     std::uniform_int_distribution<> rnd_layer(0, nzlayer-1);
-    std::uniform_int_distribution<> rnd_nx(0, nx-1);
-    std::uniform_int_distribution<> rnd_ny(0, ny-1);
 
     // the maximum number layer (from 0 to nRep) that is reconstructed
     int maxLayer = 25;
@@ -1578,11 +1723,6 @@ void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
         }
     }
 
-    struct Voxel {
-        float value;
-        Voxel() : value(0) {}
-    };
-
     std::vector<std::vector<std::vector<Voxel>>> V(
         nx, std::vector<std::vector<Voxel>>(
                    ny, std::vector<Voxel>(
@@ -1593,130 +1733,20 @@ void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
                    ny, std::vector<Voxel>(
                                nztot, Voxel())));
 
-    int nvox_per_layer[nztot];
+    std::vector<int> nvox_per_layer(nztot);
 
+    std::vector<std::thread> threads;
     for (int imodule = 0; imodule < nrep; imodule++)
     {
-        double total_score = 0;
-        for (int iter = 0; iter < maxIter; ++iter)
-        {
-            int adjusted = 0;
-            total_score = 0;
-            // decide which layers should be used for reconstructing 3D voxels
-            for (int z = imodule*nzlayer; z < (imodule+1)*nzlayer; ++z)
-            {
-                int nvox_layer = 0;
-                for (int x = 0; x < nx; ++x)
-                    for (int y = 0; y < ny; ++y)
-                    {
-                        if (V[x][y][z].value > 0)
-                        {
-                            nvox_layer++;
-                        }
-                    }
-                nvox_per_layer[z] = nvox_layer;
-            }
+ //       reconstruct3DPS_module(maxIter, imodule, V, XZ, YZ, XY, nvox_per_layer, nvox_per_layer_max);
+        threads.emplace_back(&TPORecoEvent::reconstruct3DPS_module, this, maxIter, imodule, 
+            std::ref(V), std::ref(XZ), std::ref(YZ), std::ref(XY),
+            std::ref(nvox_per_layer), nvox_per_layer_max);
+    }
 
-            // count number of voxel in this module
-            int sum_nvox = 0;
-            for (int z = 0; z < nzlayer; z++)
-            {
-                int izz = imodule * nzlayer + z;
-                sum_nvox += nvox_per_layer[izz];
-            }
-            if (iter > nvox_max_after_iteration && sum_nvox > nvox_per_layer_max)
-                continue;
-
-            double module_score = 0;
-            for (int iz = 0; iz < nzlayer; ++iz)
-            {
-
-                int z = imodule * nzlayer + iz;
-
-#if 0
-                // THIS MAKES RESULTS WORSE... more fake hits
-                // if first iteration, copy result from previous layer as starting point
-                if(iter ==0 && z > 0) {
-                for (int x = 0; x < nx; ++x)
-                    for (int y = 0; y < ny; ++y)
-                    {
-                        V[x][y][z].value = V[x][y][z-1].value;
-                    }
-                }
-#endif
-
-                for (int iterl = 0; iterl < nx * ny; ++iterl)
-                {
-
-                    int x = rnd_nx(gen);
-                    int y = rnd_ny(gen);
-
-                    double sumXZ = 0;
-                    for (int iy = 0; iy < ny; ++iy)
-                    {
-                        sumXZ += V[x][iy][z].value;
-                    }
-                    double sumYZ = 0;
-                    for (int ix = 0; ix < nx; ++ix)
-                    {
-                        sumYZ += V[ix][y][z].value;
-                    }
-                    long ilayer = imodule; // z / nzlayer;
-                    double sumXY = 0;
-                    for (int iz = 0; iz < nzlayer; iz++)
-                    {
-                        int izz = ilayer * nzlayer + iz;
-                        sumXY += V[x][y][izz].value;
-                    }
-
-                    double tolerance = 1.0;
-                    double learning_rate = 0.01;
-                    int max_iters = 1000;
-                    double prev_value = 0;
-
-                    double adjust = 0;
-
-                    for (int itermin = 0; itermin < max_iters; itermin++)
-                    {
-                        double a1 = sumXY - XY[ilayer][x][y];
-                        double a2 = sumXZ - XZ[x][z];
-                        double a3 = sumYZ - YZ[y][z];
-#define SQR(a) ((a)*(a))
-//                        double chi2 = pow(a1 + adjust, 2) + pow(a2 + adjust, 2) + pow(a3 + adjust, 2);
-                        double chi2 = SQR(a1 + adjust) + SQR(a2 + adjust) + SQR(a3 + adjust);
-
-                     //                   std::cout << itermin << "- adjust: " << adjust << " chi2: " << chi2 << std::endl;
-
-                        if (std::abs(chi2 - prev_value) < tolerance)
-                            break;
-                        double adjust2 = adjust + tolerance;
-//                        double chi2_2 = pow(a1 + adjust2, 2) + pow(a2 + adjust2, 2) + pow(a3 + adjust2, 2);
-                        double chi2_2 = SQR(a1 + adjust2) + SQR(a2 + adjust2) + SQR(a3 + adjust2);
-                        double gradient = (chi2_2 - chi2) / tolerance;
-                        adjust -= learning_rate * gradient;
-                        prev_value = chi2;
-                    }
-
-                    if (std::abs(adjust) == 0)
-                        continue;
-
-                    V[x][y][z].value += adjust;
-                    total_score += std::abs(adjust);
-                    module_score += std::abs(adjust);
-                    if (V[x][y][z].value < 0)
-                        V[x][y][z].value = 0;
-                    adjusted++;
-                }
-            }
-            if (verbose > 3) {
-                std::cout << " module " << imodule << " has " << sum_nvox << " voxels " << " score " << module_score << std::endl;
-                std::cout << "Module " << imodule << " - Iteration " << iter << ": " << adjusted << " voxels adjusted. Score = " << total_score << std::endl;
-            }
-            if (adjusted == 0 || total_score < 1.0)
-                break;
-        }
-        if (verbose > 1)
-            std::cout << "Module " << imodule << " - Score = " << total_score << std::endl;
+    for (auto& th : threads)
+    {
+        th.join();
     }
 
     PSvoxelmap.clear();
@@ -1827,6 +1857,41 @@ void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
     std::cout << std::endl;
 }
 
+
+void TPORecoEvent::Reconstruct3DPS_Eflow() {
+    struct TPORec::CALENERGIES result;
+    double cogx = 0;
+    double cogy = 0;
+    double cogz = 0;
+    double etot = 0;
+    for (const auto& v : PSvoxelmap) {
+        long ID = v.first;
+        ROOT::Math::XYZVector position = fTcalEvent -> getChannelXYZfromID(ID);
+        double ehit = v.second.RawEnergy;
+        cogx += position.X()*ehit;
+        cogy += position.Y()*ehit;
+        cogz += position.Z()*ehit;
+        etot += ehit;
+    }
+    if(etot>0) {
+        result.cog.SetX(cogx/etot);
+        result.cog.SetY(cogy/etot);
+        result.cog.SetZ(cogz/etot);
+
+        // compute energy flow relative to primary vertex
+        ROOT::Math::XYZVector primary(fTPOEvent->prim_vx.X(), fTPOEvent->prim_vx.Y(), fTPOEvent->prim_vx.Z());
+        ROOT::Math::XYZVector direction = result.cog - primary;
+        result.Eflow = (etot/1e3)*direction.Unit(); // convert to GeV
+
+    } else {
+        result.cog.SetCoordinates(0,0,0);
+        result.Eflow.SetCoordinates(0,0,0);
+    }
+    fPOFullRecoEvent = new TPORec(-1);
+    fPOFullRecoEvent->fTotal.cog = result.cog;
+    fPOFullRecoEvent->fTotal.Eflow = result.Eflow;
+    fPOFullRecoEvent->fTotal.Ecompensated = etot / 1e3; // in GeV
+}
 
 void TPORecoEvent::PSVoxelParticleFilter() {
 

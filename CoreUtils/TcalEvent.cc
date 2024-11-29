@@ -32,6 +32,7 @@ TcalEvent::TcalEvent(int run_number, long event_number, int event_mask) : TcalEv
 
     m_calEventTree = new TTree("calEvent", "calEvent");
     m_calEventTree->Branch("tracks", &fTracks);
+    m_calEventTree->Branch("magnetracks", &fMagnetTracks);
     m_calEventTree->Branch("event", &fTPOEvent);    // this should be labelled POEvent !
     m_calEventTree->Branch("geom", &geom_detector);
     m_calEventTree->Branch("rearcal", &rearCalDeposit);
@@ -54,6 +55,14 @@ TcalEvent::~TcalEvent()
         delete track;
     }
     fTracks.clear();
+
+    // Delete all magnet tracks
+    for (auto track : fMagnetTracks)
+    {
+        delete track;
+    }
+    fMagnetTracks.clear();
+
     //    delete fTracks;
 }
 
@@ -94,6 +103,9 @@ int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
     // Set the branch address
     std::vector<DigitizedTrack*> *t = &fTracks;
     event_tree->SetBranchAddress("tracks", &t);
+
+    std::vector<MagnetTrack*> *mt = &fMagnetTracks;
+    event_tree->SetBranchAddress("magnetracks", &mt);
 
 //    const TPOEvent *POevent = new TPOEvent();
     event_tree -> SetBranchAddress("event", &POevent);
@@ -211,6 +223,5 @@ DigitizedTrack *TcalEvent::addTrack(int trackID)
     fTracks.push_back(digitizedTrack);
     return digitizedTrack;
 }
-
 
 

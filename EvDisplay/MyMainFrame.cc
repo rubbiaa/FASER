@@ -135,7 +135,10 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, const TGWindow *p, 
 
     // load event
     ievent = ieve;
-    Load_event(run_number, ievent, mask);
+    opened_reco_event = false;
+
+//    Load_event(run_number, ievent, mask);
+    Load_Recoevent(run_number, ievent);
 
     TCanvas *canvas = fCanvas->GetCanvas();
     canvas->cd();
@@ -180,25 +183,44 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
     fTcalEvent -> fTPOEvent -> dump_event();
 
     fPORecoEvent = new TPORecoEvent(fTcalEvent, fTcalEvent->fTPOEvent);
-    fPORecoEvent->verbose = 2;
+    fPORecoEvent->verbose = 5;
     std::cout << "Start reconstruction of PORecs..." << std::endl;
     fPORecoEvent -> Reconstruct();
     std::cout << "Start reconstruction of tracks..." << std::endl;
-    if(f_fullreco_CheckBox->IsOn()) {
+    if(f_fullreco_CheckBox->IsOn() || true) {
         fPORecoEvent->TrackReconstruct();
     }
     std::cout << "Start reconstruction of clusters..." << std::endl;
     fPORecoEvent -> Reconstruct2DViewsPS();
- //   fPORecoEvent -> ReconstructClusters(0);    // this is very slow
-    if(f_fullreco_CheckBox->IsOn()) {
+    if(f_fullreco_CheckBox->IsOn() || true) {
         fPORecoEvent->Reconstruct3DPS_2();
         fPORecoEvent->PSVoxelParticleFilter();
     }
     fPORecoEvent -> ReconstructRearCals();
+    fPORecoEvent -> ReconstructClusters(0);    // this is very slow
+    fPORecoEvent -> Reconstruct3DPS_Eflow();
     fPORecoEvent -> Dump();
 
     // fill 2D maps
     fPORecoEvent -> Fill2DViewsPS();
+}
+
+void MyMainFrame::Load_Recoevent(int run_number, int ievent) {
+   if(!opened_reco_event){
+       std::ostringstream inputfilename;
+       inputfilename << "../Batch/Batch-TPORecevent_" << run_number << "_*_*.root";
+
+       reco_event_tree = new TChain("RecoEvent", "READ");
+       reco_event_tree->Add(inputfilename.str().c_str());
+
+       Long_t nentries = reco_event_tree->GetEntries();
+       std::cout << "Number of entries " << nentries << std::endl;
+
+       // TPORecoEvent class and histograms
+       TPORecoEvent *fTPORecoEvent = nullptr; // &fTPORecoEvent;
+       reco_event_tree->SetBranchAddress("TPORecoEvent", &fTPORecoEvent);
+       opened_reco_event = true;
+   }
 }
 
 void MyMainFrame::Draw_event() {
@@ -291,6 +313,33 @@ void MyMainFrame::Draw_event() {
                 std::cout << " Unknown type of hit " << std::endl;
             }
         }
+    }
+
+    // draw magnet MC tracks
+    polylineMagnetTracks.clear();
+    for(const auto &it : fTcalEvent->fMagnetTracks) {
+        int nhits = it->pos.size();
+        if (nhits == 0)
+            continue;
+        double *x = (double *)malloc(nhits * sizeof(double));
+        double *y = (double *)malloc(nhits * sizeof(double));
+        double *z = (double *)malloc(nhits * sizeof(double));
+        int idx = 0;
+        for (const auto &hit : it->pos)
+        {
+            x[idx] = hit.x() / 10.0;
+            y[idx] = hit.y() / 10.0;
+            z[idx] = hit.z() / 10.0;
+            idx++;
+        }
+        TPolyLine3D *trackpoly = new TPolyLine3D(nhits, x, y, z);
+        if(std::abs(it->fPDG) == 13) {
+            trackpoly->SetLineColor(kGreen);
+        } else 
+            trackpoly->SetLineColor(kBlack);
+        trackpoly->SetLineWidth(1);
+        trackpoly->Draw("same");
+        polylineTracks.push_back(trackpoly);
     }
 
     // draw rear calorimeter

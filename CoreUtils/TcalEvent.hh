@@ -39,6 +39,19 @@ class DigitizedTrack : public TObject {
     ClassDef(DigitizedTrack, 1)
 };
 
+class MagnetTrack : public TObject {
+    public:
+
+    MagnetTrack() { };
+    MagnetTrack(int trackID) { ftrackID = trackID; pos.clear(); };
+
+    int ftrackID;           // the GEANT4 track id
+    int fPDG;               // the PDG id of this track
+    std::vector<ROOT::Math::XYZVector> pos;
+
+    ClassDef(MagnetTrack,1)
+};
+
 class TcalEvent : public TObject {
 
 private:
@@ -75,6 +88,9 @@ public:
 
     DigitizedTrack* addTrack(int trackID);
     
+    /// @brief The truth tracks in the magnet to provide nice event display of MC
+    std::vector<MagnetTrack*> fMagnetTracks;
+
     void fillTree();
 
     struct REARCALDEPOSIT {

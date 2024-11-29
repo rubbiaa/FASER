@@ -8,6 +8,7 @@
 #include <TGTextEntry.h>
 #include <TPolyLine3D.h>
 #include <TGButton.h>
+#include <TChain.h>
 
 
 #include <TcalEvent.hh>
@@ -20,6 +21,7 @@ public:
     virtual ~MyMainFrame();
 
     void Load_event(int run_number, int ievent, int mask);
+    void Load_Recoevent(int run_number, int ievent);
     void Draw_event();
     void Draw_event_reco_tracks();
     void Draw_event_reco_voxel(TGeoShape *bigbox, TGeoMedium *air, TGeoShape *box);
@@ -67,8 +69,12 @@ private:
 
     std::vector<TPolyLine3D*> polylineTracks;
 
+    std::vector<TPolyLine3D*> polylineMagnetTracks;
+
     int ievent;
     int event_mask;
+    bool opened_reco_event;
+    TChain *reco_event_tree;
 
     TcalEvent* fTcalEvent;
     TPOEvent *POevent;

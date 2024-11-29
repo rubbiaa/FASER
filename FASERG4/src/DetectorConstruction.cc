@@ -2,6 +2,14 @@
 #include "G4ios.hh"
 #include "G4GDMLParser.hh"
 
+#include "G4MagneticField.hh"
+#include "G4UniformMagField.hh"
+#include "G4FieldManager.hh"
+#include "G4TransportationManager.hh"
+#include "G4Mag_UsualEqRhs.hh"
+#include "G4ClassicalRK4.hh"
+#include "G4ChordFinder.hh"
+
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 G4ThreadLocal G4GlobalMagFieldMessenger* DetectorConstruction::fMagFieldMessenger = nullptr;
@@ -137,7 +145,7 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 
 	G4double WorldSizeX = 1.5* sizeX;
 	G4double WorldSizeY = 1.5* sizeY;
-	G4double WorldSizeZ = 1.2* NRep*(sizetargetWZ + sizeScintillatorZ);
+	G4double WorldSizeZ = 10*m; // 1.2* NRep*(sizetargetWZ + sizeScintillatorZ);
 
 	G4cout << "Size of the world " << WorldSizeX << " " << WorldSizeY << " " << WorldSizeZ << " mm" << G4endl;
 
@@ -157,7 +165,7 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	//  Must place the World Physical volume unrotated at (0,0,0).
 	//
 	auto worldPV = new G4PVPlacement(nullptr,	   // no rotation
-					 G4ThreeVector( 0,0,0),  // at (0,0,0)
+					 G4ThreeVector( 0,0,0*cm), 
 					 worldLV,	   // its logical volume
 					 "World",	   // its name
 					 nullptr,	   // its mother  volume
@@ -169,19 +177,28 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	G4Material * G4_W = G4NistManager::Instance()->FindOrBuildMaterial("G4_W");
 	G4Material * G4_Cu = G4NistManager::Instance()->FindOrBuildMaterial("G4_Cu");
 	G4Material * G4_graphite = G4NistManager::Instance()->FindOrBuildMaterial("G4_GRAPHITE");
+	G4Material * G4_Pb = G4NistManager::Instance()->FindOrBuildMaterial("G4_Pb");
 
 	G4Material * G4_Target = fWorldMaterial; // G4_graphite; // G4_Cu; // fWorldMaterial;
 
-	CreateFaserNu(fPolyvinyltoluene, G4_Target, G4ThreeVector(sizeScintillatorX, sizeScintillatorY, 
+	G4double zLocation = 0*cm;
+	CreateFaserCal(zLocation, fPolyvinyltoluene, G4_Target, G4ThreeVector(sizeScintillatorX, sizeScintillatorY, 
 	sizeScintillatorZ),G4ThreeVector(sizetargetWX, sizetargetWY, sizetargetWZ),worldLV, NRep);
 	fParticleManager->setDetectorInformation(fPolyvinyltoluene->GetName(),
 	XYZVector(sizeScintillatorX, sizeScintillatorY, sizeScintillatorZ), G4_Target->GetName(),  
 	XYZVector(sizetargetWX, sizetargetWY, sizetargetWZ), NRep);
 
 	G4double sizeZ = (sizeScintillatorZ + sizetargetWZ + fNumberRep_SiTracker*fSiTrackerSizeZ)*NRep;
-	CreateRearCal(sizeZ/2.0, worldLV);
+	zLocation += sizeZ/2.0;
 
-	G4double sizeZmu = sizeZ/2.0 + 66*6*mm;
+#if magnet
+	CreateMagnetSystem(zLocation, worldLV);
+	zLocation += 350.0*cm;    // length of the magnet system
+#endif
+
+	CreateRearCal(zLocation, worldLV);
+
+	G4double sizeZmu = zLocation + 66*6*mm;
 	CreateRearMuTag(sizeZmu, worldLV);
 
 	// Save the geometry of the detector
@@ -203,6 +220,11 @@ void DetectorConstruction::ConstructSDandField()
 	SetSensitiveDetector("trackerSiLogical", aTrackerSD, false);
 	SetSensitiveDetector("rearCalscintillatorLogical", aTrackerSD, false);
 	SetSensitiveDetector("muCalscintillatorLogical", aTrackerSD, false);
+
+#if magnet
+	SetSensitiveDetector("ShortCylLogical", aTrackerSD, false);
+	SetSensitiveDetector("LongCylLogical", aTrackerSD, false);
+#endif
 
 	//SetSensitiveDetector("World", aTrackerSD, true);
 
@@ -275,7 +297,7 @@ void DetectorConstruction::SetScintillatorMaterial(G4String materialName)
 	}
 }
 
-void DetectorConstruction::CreateFaserNu(G4Material* material1, G4Material* material2, G4ThreeVector size1, 
+void DetectorConstruction::CreateFaserCal(G4double zLocation, G4Material* material1, G4Material* material2, G4ThreeVector size1, 
 		G4ThreeVector size2, G4LogicalVolume* parent, G4int NRep){
 
 	// add precision tracker of composed of Si
@@ -353,7 +375,7 @@ void DetectorConstruction::CreateFaserNu(G4Material* material1, G4Material* mate
     G4LogicalVolume* containerLogic = new G4LogicalVolume(containerSolid, fWorldMaterial, "ContainerLogical");
     new G4PVReplica("replica", replicaLogic, containerLogic, kZAxis, NRep, sizeZ, 0);
 //    new G4PVPlacement(0, G4ThreeVector(0,0,NRep*sizeZ/2), containerLogic, "ContainerPlacement", parent,  false, 0, true);
-    new G4PVPlacement(0, G4ThreeVector(0,0,0), containerLogic, "ContainerPlacement", parent,  false, 0, true);
+    new G4PVPlacement(0, G4ThreeVector(0,0,zLocation), containerLogic, "ContainerPlacement", parent,  false, 0, true);
 }
 
 G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, int CopyNumber, int MotherCopyNumber, XYZVector const& position) const {
@@ -405,6 +427,48 @@ G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, 
 		G4cerr << "Don't know how to handle volume " << VolumeName << G4endl;
 		return 0;
 	}
+}
+
+void DetectorConstruction::CreateMagnetSystem(G4double zLocation, G4LogicalVolume* parent) {
+
+	G4Material *G4_air = G4NistManager::Instance()->FindOrBuildMaterial("G4_AIR");
+
+	G4double innerRadius = 0.0*cm;
+	G4double outerRadius = 10.0*cm;
+	G4double halfHeight1 = 100.0*cm/2.0;  
+	G4double startAngle = 0.0*deg;
+	G4double spanningAngle = 360.0*deg;
+	G4Tubs* shortsolidCylinder = new G4Tubs("MagnetShort", innerRadius, outerRadius, halfHeight1, startAngle, spanningAngle);
+	G4LogicalVolume* shortCylLogic = new G4LogicalVolume(shortsolidCylinder, G4_air, "ShortCylLogical");
+
+	G4double halfHeight2 = 150.0*cm/2.0;  
+	G4Tubs* longsolidCylinder = new G4Tubs("MagnetLong", innerRadius, outerRadius, halfHeight2, startAngle, spanningAngle);
+	G4LogicalVolume* longCylLogic = new G4LogicalVolume(longsolidCylinder, G4_air, "LongCylLogical");
+
+		// Create a uniform magnetic field (1 Tesla along the Z-axis)
+	G4MagneticField* magField = new G4UniformMagField(G4ThreeVector(0., 0.57*tesla, 0.));
+
+	// Create the field manager and assign the magnetic field
+	G4FieldManager* fieldManager = new G4FieldManager();
+	fieldManager->SetDetectorField(magField);
+
+	// Define the equation of motion and stepper
+	G4Mag_UsualEqRhs* equationOfMotion = new G4Mag_UsualEqRhs(magField);
+	G4int nvar = 8;
+	G4ClassicalRK4* stepper = new G4ClassicalRK4(equationOfMotion, nvar);
+	G4ChordFinder* chordFinder = new G4ChordFinder(magField, 1.0e-2*mm, stepper);
+	fieldManager->SetChordFinder(chordFinder);
+
+	shortCylLogic->SetFieldManager(fieldManager, true);
+	longCylLogic->SetFieldManager(fieldManager, true);
+
+	G4double z = zLocation;
+	z += halfHeight2;
+	new G4PVPlacement(0, G4ThreeVector(0,0,z), longCylLogic, "Magnet", parent, false, 0, true);
+	z += halfHeight2 + halfHeight1;
+	new G4PVPlacement(0, G4ThreeVector(0,0,z), shortCylLogic, "Magnet", parent, false, 1, true);
+	z += halfHeight1 + halfHeight1;
+	new G4PVPlacement(0, G4ThreeVector(0,0,z), shortCylLogic, "Magnet", parent, false, 2, true);
 }
 
 
