@@ -164,6 +164,9 @@ int main(int argc, char** argv) {
         if(!dump_event_cout) fTcalEvent->SetVerbose(0);
         error = fTcalEvent -> Load_event(base_path, run_number, ievent++, event_mask, POevent);
         if(error != 0) break;
+
+        // skip empty events (can happen for example for particle guns G4 where no lepton or pion has been found (i.e. NC ES))
+        if(POevent -> POs.size() == 0) continue;
     
         if(dump_event_cout) {
             std::cout << "Transverse size " << fTcalEvent->geom_detector.fScintillatorSizeX << " mm " << std::endl;
