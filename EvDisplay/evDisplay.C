@@ -66,14 +66,23 @@ int main(int argc, char** argv) {
 
     // get the run number as the first argument
 	if (argc < 2) {
-		std::cout << "Usage: " << argv[0] << " <run> [mask]" << std::endl;
+		std::cout << "Usage: " << argv[0] << " [-r] <run> [mask]" << std::endl;
+        std::cout << "   -r                        Open reconstructed files" << std::endl;
         std::cout << "   <run>                     Run number" << std::endl;
         std::cout << "   mask                      To process only specific events (def=none): ";
         std::cout << "  nueCC, numuCC, nutauCC, nuNC or nuES" << std::endl;
 		return 1;
 	}
 
-    std::string runString = argv[1];
+    bool pre = false;
+    int idx = 1;
+
+    if(strcmp(argv[idx], "-r")==0) {
+        pre = true;
+        idx++;
+    }
+
+    std::string runString = argv[idx];
     int run_number;
 
     try {
@@ -85,12 +94,12 @@ int main(int argc, char** argv) {
     }
 
     int event_mask = 0;
-    if(argc>2) {
-        int mask = TPOEvent::EncodeEventMask(argv[2]);
+    if(argc>idx+1) {
+        int mask = TPOEvent::EncodeEventMask(argv[idx]);
         if(mask>0) {
             event_mask = mask;
         } else {
-            std::cerr << "Unknown mask " << argv[2] << std::endl;
+            std::cerr << "Unknown mask " << argv[idx] << std::endl;
             exit(1);            
         }
     }
@@ -105,7 +114,7 @@ int main(int argc, char** argv) {
     specificVolume->SetTransparency(50);       
     }
 #endif
-    new MyMainFrame(run_number, 0, event_mask, gClient->GetRoot(), 1200, 600);
+    new MyMainFrame(run_number, 0, event_mask, pre, gClient->GetRoot(), 1200, 600);
 
     // Run the application
     app.Run();

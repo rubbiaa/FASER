@@ -17,7 +17,7 @@
 class MyMainFrame : public TGMainFrame {
     RQ_OBJECT("MyMainFrame")
 public:
-    MyMainFrame(int run_number, int ievent, int mask, const TGWindow *p, UInt_t w, UInt_t h);
+    MyMainFrame(int run_number, int ievent, int mask, bool pre, const TGWindow *p, UInt_t w, UInt_t h);
     virtual ~MyMainFrame();
 
     void Load_event(int run_number, int ievent, int mask);
@@ -73,6 +73,7 @@ private:
 
     int ievent;
     int event_mask;
+    bool process_reco_event;
     bool opened_reco_event;
     TChain *reco_event_tree;
 

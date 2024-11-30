@@ -17,7 +17,9 @@
 #include "MyMainFrame.h"
 #include "TPORecoEvent.hh"
 
-MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, const TGWindow *p, UInt_t w, UInt_t h) {
+MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, bool pre, const TGWindow *p, UInt_t w, UInt_t h) : fTcalEvent(0) {
+
+    process_reco_event = pre;
 
 // create window
     fMain = new TGMainFrame(p, w, h);
@@ -137,8 +139,10 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, const TGWindow *p, 
     ievent = ieve;
     opened_reco_event = false;
 
-//    Load_event(run_number, ievent, mask);
-    Load_Recoevent(run_number, ievent);
+    if(!process_reco_event) 
+        Load_event(run_number, ievent, mask);
+    else
+        Load_Recoevent(run_number, ievent);
 
     TCanvas *canvas = fCanvas->GetCanvas();
     canvas->cd();
@@ -217,10 +221,21 @@ void MyMainFrame::Load_Recoevent(int run_number, int ievent) {
        std::cout << "Number of entries " << nentries << std::endl;
 
        // TPORecoEvent class and histograms
-       TPORecoEvent *fTPORecoEvent = nullptr; // &fTPORecoEvent;
-       reco_event_tree->SetBranchAddress("TPORecoEvent", &fTPORecoEvent);
+       fPORecoEvent = nullptr; // &fTPORecoEvent;
+       reco_event_tree->SetBranchAddress("TPORecoEvent", &fPORecoEvent);
        opened_reco_event = true;
+
+       // dummy tcalEvent
+       fTcalEvent = new TcalEvent();
    }
+   reco_event_tree->GetEntry(ievent);
+   POevent = fPORecoEvent -> GetPOEvent();
+   fTcalEvent -> geom_detector = fPORecoEvent -> geom_detector;
+   fTcalEvent -> rearCalDeposit.clear();
+   for (const auto &it : fPORecoEvent -> rearCals.rearCalModule) {
+       fTcalEvent -> rearCalDeposit.push_back(it);
+   }
+   fTcalEvent -> fTPOEvent = POevent;
 }
 
 void MyMainFrame::Draw_event() {
@@ -258,66 +273,88 @@ void MyMainFrame::Draw_event() {
 
     TGeoShape *trackerhitbox = new TGeoBBox("box", 0.1/2.0,0.1/2.0,0.1/2.0);
 
-    for (const auto& track : fTcalEvent->getfTracks()) {
-//        std::cout << track->ftrackID << std::endl;
+    for (const auto &track : fTcalEvent->getfTracks())
+    {
+        //        std::cout << track->ftrackID << std::endl;
         size_t nhits = track->fhitIDs.size();
-//        std::cout << nhits << std::endl;
-//        if(track->fparentID > 0) continue;
-        for ( size_t i = 0; i < nhits; i++) {
+        //        std::cout << nhits << std::endl;
+        //        if(track->fparentID > 0) continue;
+        for (size_t i = 0; i < nhits; i++)
+        {
 
             long hittype = fTcalEvent->getChannelTypefromID(track->fhitIDs[i]);
 
             // apply energy cut on scintillator voxel
-            if(hittype == 0 && track->fEnergyDeposits[i] < 0.5)continue;
-//            if(hittype == 0 && track->fEnergyDeposits[i] < 1e-3)continue;
+            if (hittype == 0 && track->fEnergyDeposits[i] < 0.5)
+                continue;
+            //            if(hittype == 0 && track->fEnergyDeposits[i] < 1e-3)continue;
 
             ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(track->fhitIDs[i]);
             // Create a translation matrix for the hit position
 
-            if(hittype == 0) {
-//                position += ROOT::Math::XYZVector(2.5,2.5,2.5);    // in mm
-                TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, 
-                position.Y() / 10.0, position.Z() / 10.0);
+            if (hittype == 0)
+            {
+                //                position += ROOT::Math::XYZVector(2.5,2.5,2.5);    // in mm
+                TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0,
+                                                             position.Y() / 10.0, position.Z() / 10.0);
                 TGeoVolume *hitVolume = new TGeoVolume("HitVolume", box, air);
-                hitVolume->SetLineColor(kRed); 
-                if(fabs(track->fPDG) == 11){
+                hitVolume->SetLineColor(kRed);
+                if (fabs(track->fPDG) == 11)
+                {
                     hitVolume->SetLineColor(kBlue); // electromagnetic is blue
-                } else if(fabs(track->fPDG) == 13){
+                }
+                else if (fabs(track->fPDG) == 13)
+                {
                     hitVolume->SetLineColor(kGreen); // muons
-                } else if(fabs(track->fPDG) == 15) {
+                }
+                else if (fabs(track->fPDG) == 15)
+                {
                     hitVolume->SetLineColor(kCyan); // taus
                 }
 
                 // Add the hit volume to the top volume with the translation
-                if(track->fparentID == 0) {
-                    if(fabs(track->fPDG) == 11 || fabs(track->fPDG) == 13 || fabs(track->fPDG) == 15) {
+                if (track->fparentID == 0)
+                {
+                    if (fabs(track->fPDG) == 11 || fabs(track->fPDG) == 13 || fabs(track->fPDG) == 15)
+                    {
                         primary_em->AddNode(hitVolume, i, trans);
-                    } else {
+                    }
+                    else
+                    {
                         primary_had->AddNode(hitVolume, i, trans);
                     }
-                } else {
-                    if(fabs(track->fPDG) == 11 || fabs(track->fPDG) == 13) {
+                }
+                else
+                {
+                    if (fabs(track->fPDG) == 11 || fabs(track->fPDG) == 13)
+                    {
                         secondary_em->AddNode(hitVolume, i, trans);
-                    } else {
+                    }
+                    else
+                    {
                         secondary_had->AddNode(hitVolume, i, trans);
                     }
                 }
-            } else if (hittype == 1) {
-//                position += ROOT::Math::XYZVector(0.05,0.05,-0.2);
-                TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, 
-                position.Y() / 10.0, position.Z() / 10.0);
+            }
+            else if (hittype == 1)
+            {
+                //                position += ROOT::Math::XYZVector(0.05,0.05,-0.2);
+                TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0,
+                                                             position.Y() / 10.0, position.Z() / 10.0);
                 TGeoVolume *hitVolume = new TGeoVolume("TrackerHitVolume", trackerhitbox, air);
-                hitVolume->SetLineColor(kRed); 
+                hitVolume->SetLineColor(kRed);
                 si_tracker->AddNode(hitVolume, i, trans);
-            } else {
+            }
+            else
+            {
                 std::cout << " Unknown type of hit " << std::endl;
             }
         }
     }
-
     // draw magnet MC tracks
     polylineMagnetTracks.clear();
-    for(const auto &it : fTcalEvent->fMagnetTracks) {
+    for (const auto &it : fTcalEvent->fMagnetTracks)
+    {
         int nhits = it->pos.size();
         if (nhits == 0)
             continue;
@@ -333,26 +370,28 @@ void MyMainFrame::Draw_event() {
             idx++;
         }
         TPolyLine3D *trackpoly = new TPolyLine3D(nhits, x, y, z);
-        if(std::abs(it->fPDG) == 13) {
+        if (std::abs(it->fPDG) == 13)
+        {
             trackpoly->SetLineColor(kGreen);
-        } else 
+        }
+        else
             trackpoly->SetLineColor(kBlack);
         trackpoly->SetLineWidth(1);
         trackpoly->Draw("same");
         polylineTracks.push_back(trackpoly);
     }
 
-    // draw rear calorimeter
-    for (const auto &it : fTcalEvent->rearCalDeposit) {
+    for (const auto &it : fTcalEvent->rearCalDeposit)
+    {
         ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZRearCal(it.moduleID);
-        double zBox = it.energyDeposit / 1e2;  // 1cm is 1 GeV
-        TGeoShape *box = new TGeoBBox("rearcalbox", fTcalEvent->geom_detector.rearCalSizeX/20.0,
-                fTcalEvent->geom_detector.rearCalSizeY/20.0,zBox/20.0);
+        double zBox = it.energyDeposit / 1e2; // 1cm is 1 GeV
+        TGeoShape *box = new TGeoBBox("rearcalbox", fTcalEvent->geom_detector.rearCalSizeX / 20.0,
+                                      fTcalEvent->geom_detector.rearCalSizeY / 20.0, zBox / 20.0);
         TGeoVolume *hitVolume = new TGeoVolume("RearCalVolume", box, air);
-        hitVolume->SetLineColor(kBlue); 
-        TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, 
-                position.Y() / 10.0, (position.Z()+zBox/2.0)/ 10.0);
-         rearcal->AddNode(hitVolume, it.moduleID, trans);
+        hitVolume->SetLineColor(kBlue);
+        TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0,
+                                                     position.Y() / 10.0, (position.Z() + zBox / 2.0) / 10.0);
+        rearcal->AddNode(hitVolume, it.moduleID, trans);
     }
 
     fCanvas->GetCanvas()->cd();
@@ -458,11 +497,13 @@ void MyMainFrame::Draw_event() {
     c1->cd(1);
     gPad->SetLogz();
     gStyle->SetOptStat(0);  // Disable the statistics box
-    fPORecoEvent -> Get2DViewXPS() -> Draw("COLZ");
+    if(fPORecoEvent -> Get2DViewXPS() != nullptr)
+        fPORecoEvent -> Get2DViewXPS() -> Draw("COLZ");
     c1->cd(2);
     gPad->SetLogz();
     gStyle->SetOptStat(0);  // Disable the statistics box
-    fPORecoEvent -> Get2DViewYPS() -> Draw("COLZ");
+    if(fPORecoEvent -> Get2DViewYPS() != nullptr)
+        fPORecoEvent -> Get2DViewYPS() -> Draw("COLZ");
     c1->Modified();
     c1->Update();
 
@@ -472,19 +513,23 @@ void MyMainFrame::Draw_event() {
     c2->cd(1);
     gPad->SetLogz();
     gStyle->SetOptStat(0);  // Disable the statistics box
-    fPORecoEvent -> xviewPS_em -> Draw("COLZ");
+    if(fPORecoEvent -> xviewPS_em != nullptr)
+        fPORecoEvent -> xviewPS_em -> Draw("COLZ");
     c2->cd(2);
     gPad->SetLogz();
     gStyle->SetOptStat(0);  // Disable the statistics box
-    fPORecoEvent -> yviewPS_em -> Draw("COLZ");
+    if(fPORecoEvent -> yviewPS_em != nullptr)
+        fPORecoEvent -> yviewPS_em -> Draw("COLZ");
     c2->cd(3);
     gPad->SetLogz();
     gStyle->SetOptStat(0);  // Disable the statistics box
-    fPORecoEvent -> xviewPS_had -> Draw("COLZ");
+    if(fPORecoEvent -> xviewPS_had != nullptr)
+        fPORecoEvent -> xviewPS_had -> Draw("COLZ");
     c2->cd(4);
     gPad->SetLogz();
     gStyle->SetOptStat(0);  // Disable the statistics box
-    fPORecoEvent -> yviewPS_had -> Draw("COLZ");
+    if(fPORecoEvent -> yviewPS_had != nullptr)
+        fPORecoEvent -> yviewPS_had -> Draw("COLZ");
     c2->Modified();
     c2->Update();
 
@@ -495,7 +540,8 @@ void MyMainFrame::Draw_event() {
         c3->cd(i+1);
         gPad->SetLogz();
         gStyle->SetOptStat(0);  // Disable the statistics box
-        fPORecoEvent -> zviewPS[i] -> Draw("COLZ");
+        if(fPORecoEvent -> zviewPS.size() > 0)
+            fPORecoEvent -> zviewPS[i] -> Draw("COLZ");
     }
     c3->Modified();
     c3->Update();
@@ -506,15 +552,21 @@ void MyMainFrame::Draw_event() {
     c4->cd(1);
     gPad->SetLogz();
     gStyle->SetOptStat(0);  // Disable the statistics box
-    fPORecoEvent -> xviewPS_eldepo -> GetXaxis() -> SetTitle("Electromagneticity");
-    fPORecoEvent -> xviewPS_eldepo -> GetYaxis() -> SetTitle("Deposited energy (MeV)");
-    fPORecoEvent -> xviewPS_eldepo -> Draw("COLZ");
+    if(fPORecoEvent -> xviewPS_eldepo != nullptr)
+    {
+        fPORecoEvent -> xviewPS_eldepo -> GetXaxis() -> SetTitle("Electromagneticity");
+        fPORecoEvent -> xviewPS_eldepo -> GetYaxis() -> SetTitle("Deposited energy (MeV)");
+        fPORecoEvent -> xviewPS_eldepo -> Draw("COLZ");
+    }
     c4->cd(2);
     gPad->SetLogz();
     gStyle->SetOptStat(0);  // Disable the statistics box
-    fPORecoEvent -> yviewPS_eldepo -> GetXaxis() -> SetTitle("Electromagneticity");
-    fPORecoEvent -> yviewPS_eldepo -> GetYaxis() -> SetTitle("Deposited energy (MeV)");
-    fPORecoEvent -> yviewPS_eldepo -> Draw("COLZ");
+    if(fPORecoEvent -> yviewPS_eldepo != nullptr)
+    {
+        fPORecoEvent -> yviewPS_eldepo -> GetXaxis() -> SetTitle("Electromagneticity");
+        fPORecoEvent -> yviewPS_eldepo -> GetYaxis() -> SetTitle("Deposited energy (MeV)");
+        fPORecoEvent -> yviewPS_eldepo -> Draw("COLZ");
+    }
     c4->Modified();
     c4->Update();
 }
@@ -611,11 +663,17 @@ void MyMainFrame::Next_Event(int ievent) {
     gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove7);
 
     int run_number = fTcalEvent->fTPOEvent->run_number;
-    delete POevent;
-    delete fTcalEvent;
+    if(!process_reco_event) {
+        delete POevent;
+        delete fTcalEvent;
+    }
     delete fPORecoEvent;
+    fPORecoEvent = nullptr;
 
-    Load_event(run_number, ievent, event_mask);
+    if(!process_reco_event) 
+        Load_event(run_number, ievent, event_mask);
+    else
+        Load_Recoevent(run_number, ievent);
 
     toggle_primary_em=
     toggle_primary_had=
