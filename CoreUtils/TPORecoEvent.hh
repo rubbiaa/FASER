@@ -129,8 +129,12 @@ public:
     struct REARCALS {
         double rearCalDeposit;   // in GeV
         double rearMuCalDeposit; // in MeV
+        std::vector<struct TcalEvent::REARCALDEPOSIT> rearCalModule;
     };
     struct REARCALS rearCals;
+
+    // @brief A copy of the geometry originally stored in TCalEvent
+    struct TcalEvent::GEOM_DETECTOR geom_detector;
 
     TPORecoEvent() : fTcalEvent(0), fTPOEvent(0) {};
     TPORecoEvent(TcalEvent* c, TPOEvent* p);

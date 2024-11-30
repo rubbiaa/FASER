@@ -16,6 +16,10 @@ ClassImp(TPORec);
 ClassImp(TPORecoEvent);
 
 TPORecoEvent::TPORecoEvent(TcalEvent* c, TPOEvent* p) : fTcalEvent(c), fTPOEvent(p), fPOFullEvent(0), fPOFullRecoEvent(0) {
+    // copy geometry
+    geom_detector = fTcalEvent->geom_detector;
+
+    // empty histogram pointers
 	for(int i =0; i < 50; i++){
 		zviewPS.push_back(nullptr);
 	}
@@ -2105,8 +2109,11 @@ void TPORecoEvent::PSVoxelParticleFilter() {
 
 void TPORecoEvent::ReconstructRearCals() {
     double eDeposit = 0;
+    rearCals.rearCalModule.clear();
     for (const auto &it : fTcalEvent->rearCalDeposit) {
         eDeposit += it.energyDeposit;
+        struct TcalEvent::REARCALDEPOSIT im = {it.moduleID, it.energyDeposit};
+        rearCals.rearCalModule.push_back(im);
     }
     rearCals.rearCalDeposit = eDeposit/1e3;  // convert to GeV
     rearCals.rearMuCalDeposit = fTcalEvent->rearMuCalDeposit; // in MeV
