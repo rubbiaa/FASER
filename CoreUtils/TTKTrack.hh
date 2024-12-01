@@ -46,6 +46,14 @@ public:
     /// @return the direction of the track
     TVector3 fitLineThroughHits(TVector3& centroid);
 
+    void Dump() const {
+        std::cout << "TKTrack: " << tkhit.size() << " hits ";
+        std::cout << "direction " << direction.x() << " " << direction.y() << " " << direction.z() << std::endl;
+        for (const auto &it : tkhit) {
+            std::cout << "   " << it.ID << " eDeposit: " << it.eDeposit << std::endl;
+        }        
+    }
+
     ClassDef(TTKTrack, 1)
 };
 

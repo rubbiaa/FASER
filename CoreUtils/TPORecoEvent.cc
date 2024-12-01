@@ -408,49 +408,60 @@ void TPORecoEvent::TrackReconstruct() {
     double parallel_cut = 0.01; // FIXME: adjust value
     double mindZcut = fTcalEvent->geom_detector.fTargetSizeZ*1.1;
 
-    for (size_t i = 0; i < fTKTracks.size(); i++) {
-        TTKTrack &track1 = fTKTracks[i];
-        size_t besttrk = -1;
-        double mindZ = 1e9;
-        for( size_t j = 0; j < fTKTracks.size(); j++) {
-            if (i==j) continue;
-            TTKTrack &track2 = fTKTracks[j];
-            // check if segments are parallel
-            TVector3 normDir1 = track1.direction.Unit();
-            TVector3 normDir2 = track2.direction.Unit();
-            double dotProduct = normDir1.Dot(normDir2);
-            if (std::abs(std::abs(dotProduct) - 1.0) > parallel_cut) continue;
-            // ensure that segments belong to different planes
-            struct TTKTrack::TRACKHIT hit1 = track1.tkhit.back();
-            struct TTKTrack::TRACKHIT hit2 = track2.tkhit.front();
-            double dz = std::abs(hit1.point.z()-hit2.point.z());
-            if(dz < mindZcut) continue;
-            // ensure that segments are parallel to main line joining hits
-            ROOT::Math::XYZVector normDir = (hit2.point - hit1.point).Unit();
-            dotProduct = std::min(std::abs(normDir.Dot(normDir1)), std::abs(normDir.Dot(normDir2)));
-            if (std::abs(dotProduct - 1.0) > parallel_cut) continue;
-            if(dz < mindZ) {
-                mindZ = dz;
-                besttrk = j;
+    int max_iter = 3;
+    for (int iter = 0; iter < max_iter; iter++) {
+        for (size_t i = 0; i < fTKTracks.size(); i++) {
+            TTKTrack &track1 = fTKTracks[i];
+            size_t besttrk = -1;
+            double mindZ = 1e9;
+            for( size_t j = 0; j < fTKTracks.size(); j++) {
+                if (i==j) continue;
+                TTKTrack &track2 = fTKTracks[j];
+                // check if segments are parallel
+                TVector3 normDir1 = track1.direction.Unit();
+                TVector3 normDir2 = track2.direction.Unit();
+                double dotProduct = normDir1.Dot(normDir2);
+                if (std::abs(std::abs(dotProduct) - 1.0) > parallel_cut) continue;
+                // ensure that segments belong to different planes
+                struct TTKTrack::TRACKHIT hit1 = track1.tkhit.back();
+                struct TTKTrack::TRACKHIT hit2 = track2.tkhit.front();
+                double dz = std::abs(hit1.point.z()-hit2.point.z());
+                if(dz < mindZcut) continue;
+                // ensure that segments are parallel to main line joining hits
+                ROOT::Math::XYZVector normDir = (hit2.point - hit1.point).Unit();
+                dotProduct = std::min(std::abs(normDir.Dot(normDir1)), std::abs(normDir.Dot(normDir2)));
+                if (std::abs(dotProduct - 1.0) > parallel_cut) continue;
+                if(dz < mindZ) {
+                    mindZ = dz;
+                    besttrk = j;
+                }
             }
-        }
-        // if match found, then merge the tracks
-        if(besttrk != -1) {
-            // add hits from track2 to track1
-            for (const auto& h : fTKTracks[besttrk].tkhit) {
-                track1.tkhit.push_back(h);
+            // if match found, then merge the tracks
+            if(besttrk != -1) {
+                // add hits from track2 to track1
+                for (const auto& h : fTKTracks[besttrk].tkhit) {
+                    track1.tkhit.push_back(h);
+                }
+                track1.direction = track1.fitLineThroughHits(track1.centroid);
+                fTKTracks.erase(fTKTracks.begin() + besttrk);
+                if(besttrk < i) i--;
             }
-            track1.direction = track1.fitLineThroughHits(track1.centroid);
-            fTKTracks.erase(fTKTracks.begin() + besttrk);
-            if(besttrk < i) i--;
         }
     }
-
     // always order hits in the track by increasing "z"
     for (auto &trk : fTKTracks) {
         trk.SortHitsByZ();
     }
 
+    if(verbose > 2) {
+        DumpReconstructedTracks();
+    }
+}
+
+void TPORecoEvent::DumpReconstructedTracks() {
+    for (auto &trk : fTKTracks) {
+        trk.Dump();
+    }
 }
 
 void TPORecoEvent::TrackReconstructTruth() {
@@ -1638,7 +1649,7 @@ void TPORecoEvent::reconstruct3DPS_module(int maxIter, int imodule, std::vector<
                 adjusted++;
             }
         }
-        if (verbose > 3)
+        if (verbose > 4)
         {
             std::cout << " module " << imodule << " has " << sum_nvox << " voxels " << " score " << module_score << std::endl;
             std::cout << "Module " << imodule << " - Iteration " << iter << ": " << adjusted << " voxels adjusted. Score = " << total_score << std::endl;

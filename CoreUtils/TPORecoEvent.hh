@@ -174,12 +174,19 @@ public:
     /// @brief Dump PORecs to the screen
     void Dump();
 
+    /// @brief Dump reconstructed TTKTracks to the screen
+    void DumpReconstructedTracks();
+
     /// @brief Returns the vector of Reconstructed POs
     std::vector<class TPORec*> GetPORecs() { return fPORecs;};
 
-    /// @brief Returns the kinematic quantities of the full event
+    /// @brief Returns the kinematic quantities of the full TRUTH event
     /// @return TPORec of the full event
     TPORec *GetPOFullEvent() { return fPOFullEvent; };
+
+    /// @brief Returns the kinematic quantities of the full event (RECONSTRUCTED)
+    /// @return TPORec of the full event
+    TPORec *GetPOFullRecoEvent() { return fPOFullRecoEvent; };
 
     /// @brief Returns the truth MC information
     /// @return TPOEvent pointer of the MC truth event
