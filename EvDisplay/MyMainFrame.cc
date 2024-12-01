@@ -158,6 +158,7 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, bool pre, const TGW
     toggle_reconstructed_ps_tracks = true;
 
     toggle_color_fake_voxel = false;
+    toggle_reco_voxel = true;
 }
 
 // Destructor
@@ -187,7 +188,7 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
     fTcalEvent -> fTPOEvent -> dump_event();
 
     fPORecoEvent = new TPORecoEvent(fTcalEvent, fTcalEvent->fTPOEvent);
-    fPORecoEvent->verbose = 5;
+    fPORecoEvent->verbose = 4;
     std::cout << "Start reconstruction of PORecs..." << std::endl;
     fPORecoEvent -> Reconstruct();
     std::cout << "Start reconstruction of tracks..." << std::endl;
@@ -407,14 +408,20 @@ void MyMainFrame::Draw_event() {
     int pdgin = POevent->in_neutrino.m_pdg_id;
     switch(pdgin) {
         case -12:
+            eventtype << "antinu_e";
+            break;
         case 12:
             eventtype << "nu_e";
             break;
         case -14:
+            eventtype << "antinu_mu";
+            break;
         case  14:
             eventtype << "nu_mu";
             break;
         case -16:
+            eventtype << "antinu_tau";
+            break;
         case  16:
             eventtype << "nu_tau";
             break;
@@ -428,34 +435,32 @@ void MyMainFrame::Draw_event() {
     } else {
         eventtype << " NC ";
     }
+    eventtype << "    Vtx: x=" << POevent->prim_vx.x() << " y=" << POevent->prim_vx.y() << " z=" << POevent->prim_vx.z() << "  ";
+    eventtype << " Target " << POevent->GENIE_vtx_name;
+    eventtype << " " << Form("       Etrue:%6.2f GeV", POevent->in_neutrino.m_energy);
     eventypeText = new TText(0.05, 0.9, eventtype.str().c_str());
     eventypeText->SetNDC();
     eventypeText->SetTextSize(0.03);
     eventypeText->Draw();
 
     delete energyText;
-    energyText = new TText(0.05, 0.85, Form("Etrue:%6.2f GeV", 
-        POevent->in_neutrino.m_energy));
+    std::ostringstream energies;
+    if(fPORecoEvent->GetPOFullRecoEvent()!=nullptr) {
+        energies << Form("Evis:%6.2f GeV", fPORecoEvent->GetPOFullRecoEvent()->TotalEvis());
+        energies << Form("  ET:%6.2f GeV", fPORecoEvent->GetPOFullRecoEvent()->TotalET());
+    }
+    energies << Form("  RearCal:%6.2f GeV", fPORecoEvent->rearCals.rearCalDeposit);
+    energies << Form("  RearMuCal:%6.2f MeV", fPORecoEvent->rearCals.rearMuCalDeposit);
+    energyText = new TText(0.05, 0.85, energies.str().c_str());
     energyText->SetNDC();
     energyText->SetTextSize(0.03);
     energyText->Draw();
-
-    delete rearcalenergyText;
-    rearcalenergyText = new TText(0.2, 0.85, Form("RearCal:%6.2f GeV", fPORecoEvent->rearCals.rearCalDeposit));
-    rearcalenergyText->SetNDC();
-    rearcalenergyText->SetTextSize(0.03);
-    rearcalenergyText->Draw();
-
-    delete rearmucalenergyText;
-    rearmucalenergyText = new TText(0.35, 0.85, Form("RearMuCal:%6.2f MeV", fPORecoEvent->rearCals.rearMuCalDeposit));
-    rearmucalenergyText->SetNDC();
-    rearmucalenergyText->SetTextSize(0.03);
-    rearmucalenergyText->Draw();
 
     Draw_event_reco_tracks();
 
     // Draw reconstructed voxels
     Draw_event_reco_voxel(bigbox, air, box);
+    gGeoManager->GetTopVolume()->AddNode(ps_reco_voxel,1);
 
     // Draw reconstructed PSTracks
     ps_tracks = new TGeoVolume("ps_tracks", bigbox, air);
@@ -474,8 +479,6 @@ void MyMainFrame::Draw_event() {
             ps_tracks->AddNode(hitVolume, ivox++, trans);
         }
     }
-
-    gGeoManager->GetTopVolume()->AddNode(ps_reco_voxel,1);
 
     if(toggle_secondary_em)
         gGeoManager->GetTopVolume()->AddNode(secondary_em,1);
@@ -618,6 +621,7 @@ void MyMainFrame::Draw_event_reco_tracks() {
 void MyMainFrame::Draw_event_reco_voxel(TGeoShape *bigbox, TGeoMedium *air, TGeoShape *box) {
     // Draw reconstructed voxels
     ps_reco_voxel = new TGeoVolume("ps_reco_voxel", bigbox, air);
+
     int i = 1;
     for (auto& it : fPORecoEvent->PSvoxelmap) {
         long ID = it.first;
@@ -682,6 +686,7 @@ void MyMainFrame::Next_Event(int ievent) {
 
     toggle_reconstructed_tracks = true;
     toggle_reconstructed_ps_tracks = true;
+    toggle_reco_voxel = true;
 
     SideView();
 
@@ -781,6 +786,9 @@ void MyMainFrame::toggle_reco_track() {
         delete it;
     }
     Draw_event_reco_tracks();
+    if(toggle_reconstructed_tracks) {
+        fPORecoEvent->DumpReconstructedTracks();
+    }
     canvas->Modified();
     canvas->Update();
 }
@@ -813,8 +821,10 @@ void MyMainFrame::toggle_reco_voxels() {
     TCanvas *canvas = fCanvas->GetCanvas();
     toggle_reco_voxel = !toggle_reco_voxel;
     if(toggle_reco_voxel) {
+        std::cout << "Adding ps reco voxel..." << std::endl;
         gGeoManager->GetTopVolume()->AddNode(ps_reco_voxel,1);
     } else {
+        std::cout << "Removing ps reco voxel..." << std::endl;
         TGeoNode *nodeToRemove = gGeoManager->GetTopVolume()->FindNode("ps_reco_voxel_1");
         gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove);
     }
