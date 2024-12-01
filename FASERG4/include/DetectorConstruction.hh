@@ -131,6 +131,11 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	/// @param parent 
 	void CreateRearMuTag(G4double zLocation, G4LogicalVolume* parent);
 
+	/// @brief Create the front Pb target
+	/// @param zLocation 
+	/// @param parent 
+	void CreateFrontTarget(G4double zLocation, G4LogicalVolume *parent);
+
 	G4LogicalVolume* fLogicScintillator = nullptr;	///< Logical volume of the scintillator
 
 	G4Element* fCarbon = nullptr;		  ///< Element Carbon to build PVT

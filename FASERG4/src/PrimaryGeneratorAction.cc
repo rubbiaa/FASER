@@ -84,33 +84,45 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 
 	const DetectorConstruction* detector = static_cast<const DetectorConstruction*>(G4RunManager::GetRunManager()->GetUserDetectorConstruction());
 
-	// Generate primary vertex position
-	G4double theta = G4UniformRand() * 2 * M_PI;
-	G4double x = 50 * cos(theta);
-	G4double y = 50 * sin(theta);
-	G4double z = 0;
-	// uniformly distributed in the first "n" layers
-	G4int maxlayer = 5;
-	G4int wanted_layer = floor(G4UniformRand() * maxlayer);
 	XYZVector vtxpos;
-	// decide where the event is generated
-	if (G4UniformRand() < detector->fTotalWMass / detector->fTotalMass) {
-		// Generate an event in the target
-		fTPOEvent.setVtxTarget(TPOEvent::kVtx_in_W);
-		G4double zfront = -detector->getNumberReplicas() * detector->fSandwichLength / 2.0;
-		z = zfront + wanted_layer * detector->fSandwichLength + detector->getScintillatorSizeZ() + 
-				G4UniformRand() * detector->gettargetWSizeZ();
+	if(fTPOEvent.use_GENIE_vtx) {
+		double x = fTPOEvent.prim_vx.x();
+		double y = fTPOEvent.prim_vx.y();
+		double z = fTPOEvent.prim_vx.z();
+		std::cout << " Using GENIE vtx:  x=" << x << " y=" << y << " z=" << z << " ";
+		vtxpos.SetX(x);
+		vtxpos.SetY(y);
+		vtxpos.SetZ(z);
+		fParticleManager->setVertexInformation(vtxpos);
+		std::cout << " Vertex target " << fTPOEvent.GENIE_vtx_name << std::endl;
 	} else {
-		// Generate an event in the scintillator
-		fTPOEvent.setVtxTarget(TPOEvent::kVtx_in_Scint);
-		G4double zfront = -detector->getNumberReplicas() * detector->fSandwichLength / 2.0;
-		z = zfront + wanted_layer * detector->fSandwichLength + G4UniformRand() * detector->getScintillatorSizeZ();
+		// Generate primary vertex position
+		G4double theta = G4UniformRand() * 2 * M_PI;
+		G4double x = 50 * cos(theta);
+		G4double y = 50 * sin(theta);
+		G4double z = 0;
+		// uniformly distributed in the first "n" layers
+		G4int maxlayer = 5;
+		G4int wanted_layer = floor(G4UniformRand() * maxlayer);
+		// decide where the event is generated
+		if (G4UniformRand() < detector->fTotalWMass / detector->fTotalMass) {
+			// Generate an event in the target
+			fTPOEvent.setVtxTarget(TPOEvent::kVtx_in_W);
+			G4double zfront = -detector->getNumberReplicas() * detector->fSandwichLength / 2.0;
+			z = zfront + wanted_layer * detector->fSandwichLength + detector->getScintillatorSizeZ() + 
+					G4UniformRand() * detector->gettargetWSizeZ();
+		} else {
+			// Generate an event in the scintillator
+			fTPOEvent.setVtxTarget(TPOEvent::kVtx_in_Scint);
+			G4double zfront = -detector->getNumberReplicas() * detector->fSandwichLength / 2.0;
+			z = zfront + wanted_layer * detector->fSandwichLength + G4UniformRand() * detector->getScintillatorSizeZ();
+		}
+		vtxpos.SetX(x);
+		vtxpos.SetY(y);
+		vtxpos.SetZ(z);
+		fParticleManager->setVertexInformation(vtxpos);
+		fTPOEvent.setPrimaryVtx(x,y,z);
 	}
-	vtxpos.SetX(x);
-	vtxpos.SetY(y);
-	vtxpos.SetZ(z);
-	fParticleManager->setVertexInformation(vtxpos);
-	fTPOEvent.setPrimaryVtx(x,y,z);
 
 	int ipo_maxhadron = -1;
 	if(want_particleGun) {
@@ -158,7 +170,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 
 			particleGun->SetParticleDefinition(particle);
 
-			particleGun->SetParticlePosition(G4ThreeVector(x * mm, y * mm, z * mm));
+			particleGun->SetParticlePosition(G4ThreeVector(vtxpos.x() * mm, vtxpos.y() * mm, vtxpos.z() * mm));
 			G4ThreeVector StartMomentum(aPO.m_px * GeV, aPO.m_py * GeV, aPO.m_pz * GeV);
 
 			particleGun->SetParticleMomentum(StartMomentum);

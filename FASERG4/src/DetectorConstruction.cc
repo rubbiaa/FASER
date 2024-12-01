@@ -145,7 +145,7 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 
 	G4double WorldSizeX = 1.5* sizeX;
 	G4double WorldSizeY = 1.5* sizeY;
-	G4double WorldSizeZ = 10*m; // 1.2* NRep*(sizetargetWZ + sizeScintillatorZ);
+	G4double WorldSizeZ = 6*m; // 1.2* NRep*(sizetargetWZ + sizeScintillatorZ);
 
 	G4cout << "Size of the world " << WorldSizeX << " " << WorldSizeY << " " << WorldSizeZ << " mm" << G4endl;
 
@@ -189,6 +189,9 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	XYZVector(sizetargetWX, sizetargetWY, sizetargetWZ), NRep);
 
 	G4double sizeZ = (sizeScintillatorZ + sizetargetWZ + fNumberRep_SiTracker*fSiTrackerSizeZ)*NRep;
+
+	CreateFrontTarget(-sizeZ/2.0-20.0*cm, worldLV);
+
 	zLocation += sizeZ/2.0;
 
 #if magnet
@@ -373,8 +376,14 @@ void DetectorConstruction::CreateFaserCal(G4double zLocation, G4Material* materi
     G4Box* containerSolid = new G4Box("ContainerBox", sizeX/2, sizeY / 2, NRep*sizeZ / 2);
 
     G4LogicalVolume* containerLogic = new G4LogicalVolume(containerSolid, fWorldMaterial, "ContainerLogical");
-    new G4PVReplica("replica", replicaLogic, containerLogic, kZAxis, NRep, sizeZ, 0);
+//    new G4PVReplica("replica", replicaLogic, containerLogic, kZAxis, NRep, sizeZ, 0);
 //    new G4PVPlacement(0, G4ThreeVector(0,0,NRep*sizeZ/2), containerLogic, "ContainerPlacement", parent,  false, 0, true);
+	// make nRep copies
+	for(int i = 0; i < NRep; i++) {
+		double zshift = i*sizeZ-sizeZ*NRep/2.0+sizeZ/2.0;
+		std::cout << "Placing first replica at " << zshift << std::endl;
+		new G4PVPlacement(0, G4ThreeVector(0,0,zshift), replicaLogic, "replica", containerLogic, false, i, true);
+	}
     new G4PVPlacement(0, G4ThreeVector(0,0,zLocation), containerLogic, "ContainerPlacement", parent,  false, 0, true);
 }
 
@@ -537,4 +546,18 @@ void DetectorConstruction::CreateRearMuTag(G4double zLocation, G4LogicalVolume* 
 
 	z = zLocation + sizeZ_Pb + sizeZ_nabs + sizeZ/2.0;
 	new G4PVPlacement(0, G4ThreeVector(0,0,z), scintillatorLogic, "rearMuCalScint", parent, false, 0, true);
+}
+
+void DetectorConstruction::CreateFrontTarget(G4double zLocation, G4LogicalVolume *parent) {
+	G4double sizeX = 48*cm;
+	G4double sizeY = 48*cm;
+	G4double sizeZ = 20*cm;
+	G4Material * G4_Pb = G4NistManager::Instance()->FindOrBuildMaterial("G4_Pb");
+	double Pb_mass = sizeX*sizeY*sizeZ*(G4_Pb->GetDensity()/(kg/cm3));
+	G4cout << "Total mass of Front target " << Pb_mass << " g " << G4endl;
+
+	G4Box* absorberSolid = new G4Box("PbSlab", sizeX / 2, sizeY / 2, sizeZ / 2);
+	G4LogicalVolume* absorberLogic = new G4LogicalVolume(absorberSolid, G4_Pb, "frontTargetLogical");
+	double z = zLocation + sizeZ/2.0;
+	new G4PVPlacement(0, G4ThreeVector(0,0,z), absorberLogic, "frontTarget", parent, false, 0, true);
 }
