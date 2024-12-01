@@ -89,6 +89,7 @@ void convert_FASERMC(int run_number, TTree *tree, int min_event, int max_event,
   tree->SetBranchAddress("M", &M);
 
   int evt_to_dump = 0;
+  int iseq = 0;
 
   for (size_t event = min_event; event < max_event; event++)
   {
@@ -103,9 +104,13 @@ void convert_FASERMC(int run_number, TTree *tree, int min_event, int max_event,
 
     fTPOEvent.clear_event();
     fTPOEvent.run_number = run_number;
-    fTPOEvent.event_id = event;
     fTPOEvent.setPrimaryVtx(vx * 1e3, vy * 1e3, vz * 1e3); // convert from meters to mm
     fTPOEvent.use_GENIE_vtx = true;     // tell FASERG4 to use this vtx
+
+    // SKIP VERTICES IN REAR CAL
+    if(fTPOEvent.prim_vx.z() > 1533.0) continue;
+
+    fTPOEvent.event_id = iseq++;
 
     bool found_tau_lepton = false;
 
