@@ -367,7 +367,10 @@ void TPORecoEvent::TrackReconstruct() {
             for (const auto &hit2 : it.second) {
                 int icopy2 = fTcalEvent->getChannelCopyfromID(hit2.ID);
                 if(icopy2 != 2) continue;
-                double dist = (hit2.point - hit1.point).R();
+                ROOT::Math::XYZVector distV = (hit2.point - hit1.point);
+                // check if hits are close in XY plane
+                double dist = distV.X()*distV.X() + distV.Y()*distV.Y();
+//                double dist = (hit2.point - hit1.point).R();
                 if(dist < distmin) {
                     distmin = dist;
                     hitmin = hit2;
@@ -375,7 +378,7 @@ void TPORecoEvent::TrackReconstruct() {
             }
 
             // FIXME: define cut
-            if(distmin>10.0) continue;
+            if(distmin>5.0) continue;
 
             // now create a TKTrack with the doublet if hits are close
             TTKTrack trk;
@@ -408,15 +411,19 @@ void TPORecoEvent::TrackReconstruct() {
     double parallel_cut = 0.01; // FIXME: adjust value
     double mindZcut = fTcalEvent->geom_detector.fTargetSizeZ*1.1;
 
-    int max_iter = 3;
+    int max_iter = 2;
     for (int iter = 0; iter < max_iter; iter++) {
         for (size_t i = 0; i < fTKTracks.size(); i++) {
             TTKTrack &track1 = fTKTracks[i];
+            // for subsequent iterations, consider only tracks with more than 2 hits
+            if(iter > 0 && track1.tkhit.size() < 3) continue;
             size_t besttrk = -1;
             double mindZ = 1e9;
             for( size_t j = 0; j < fTKTracks.size(); j++) {
                 if (i==j) continue;
                 TTKTrack &track2 = fTKTracks[j];
+                // for subsequent iterations, consider only tracks with more than 2 hits
+                if(iter > 0 && track2.tkhit.size() < 3) continue;
                 // check if segments are parallel
                 TVector3 normDir1 = track1.direction.Unit();
                 TVector3 normDir2 = track2.direction.Unit();
@@ -426,6 +433,11 @@ void TPORecoEvent::TrackReconstruct() {
                 struct TTKTrack::TRACKHIT hit1 = track1.tkhit.back();
                 struct TTKTrack::TRACKHIT hit2 = track2.tkhit.front();
                 double dz = std::abs(hit1.point.z()-hit2.point.z());
+                if(dz < mindZcut) continue;
+                // ensure that segments don't start in the same plane
+                struct TTKTrack::TRACKHIT hit1b = track1.tkhit.back();
+                struct TTKTrack::TRACKHIT hit2b = track2.tkhit.back();
+                dz = std::abs(hit1b.point.z()-hit2b.point.z());
                 if(dz < mindZcut) continue;
                 // ensure that segments are parallel to main line joining hits
                 ROOT::Math::XYZVector normDir = (hit2.point - hit1.point).Unit();
@@ -448,6 +460,15 @@ void TPORecoEvent::TrackReconstruct() {
             }
         }
     }
+
+    // get rid of tracks with less than 3 hits
+    fTKTracks.erase(std::remove_if(fTKTracks.begin(), fTKTracks.end(),
+                                   [](const TTKTrack &track)
+                                   {
+                                       return track.tkhit.size() < 3;
+                                   }),
+                    fTKTracks.end());
+
     // always order hits in the track by increasing "z"
     for (auto &trk : fTKTracks) {
         trk.SortHitsByZ();
