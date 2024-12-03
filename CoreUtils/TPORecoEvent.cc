@@ -9,6 +9,10 @@
 #include <TVector3.h>
 #include <TCanvas.h>
 
+// Genfit
+#include <GFRaveVertexFactory.h>
+#include <GFRaveVertex.h>
+
 #include <random>
 #include <thread>
 
@@ -411,53 +415,48 @@ void TPORecoEvent::TrackReconstruct() {
     double parallel_cut = 0.01; // FIXME: adjust value
     double mindZcut = fTcalEvent->geom_detector.fTargetSizeZ*1.1;
 
-    int max_iter = 2;
-    for (int iter = 0; iter < max_iter; iter++) {
-        for (size_t i = 0; i < fTKTracks.size(); i++) {
-            TTKTrack &track1 = fTKTracks[i];
-            // for subsequent iterations, consider only tracks with more than 2 hits
-            if(iter > 0 && track1.tkhit.size() < 3) continue;
-            size_t besttrk = -1;
-            double mindZ = 1e9;
-            for( size_t j = 0; j < fTKTracks.size(); j++) {
-                if (i==j) continue;
-                TTKTrack &track2 = fTKTracks[j];
-                // for subsequent iterations, consider only tracks with more than 2 hits
-                if(iter > 0 && track2.tkhit.size() < 3) continue;
-                // check if segments are parallel
-                TVector3 normDir1 = track1.direction.Unit();
-                TVector3 normDir2 = track2.direction.Unit();
-                double dotProduct = normDir1.Dot(normDir2);
-                if (std::abs(std::abs(dotProduct) - 1.0) > parallel_cut) continue;
-                // ensure that segments belong to different planes
-                struct TTKTrack::TRACKHIT hit1 = track1.tkhit.back();
-                struct TTKTrack::TRACKHIT hit2 = track2.tkhit.front();
-                double dz = std::abs(hit1.point.z()-hit2.point.z());
-                if(dz < mindZcut) continue;
-                // ensure that segments don't start in the same plane
-                struct TTKTrack::TRACKHIT hit1b = track1.tkhit.back();
-                struct TTKTrack::TRACKHIT hit2b = track2.tkhit.back();
-                dz = std::abs(hit1b.point.z()-hit2b.point.z());
-                if(dz < mindZcut) continue;
-                // ensure that segments are parallel to main line joining hits
-                ROOT::Math::XYZVector normDir = (hit2.point - hit1.point).Unit();
-                dotProduct = std::min(std::abs(normDir.Dot(normDir1)), std::abs(normDir.Dot(normDir2)));
-                if (std::abs(dotProduct - 1.0) > parallel_cut) continue;
-                if(dz < mindZ) {
-                    mindZ = dz;
-                    besttrk = j;
-                }
+    for (size_t i = 0; i < fTKTracks.size(); i++) {
+        TTKTrack &track1 = fTKTracks[i];
+        // for subsequent iterations, consider only tracks with more than 2 hits
+        size_t besttrk = -1;
+        double mindZ = 1e9;
+        for( size_t j = 0; j < fTKTracks.size(); j++) {
+            if (i==j) continue;
+            TTKTrack &track2 = fTKTracks[j];
+            // check if segments are parallel
+            TVector3 normDir1 = track1.direction.Unit();
+            TVector3 normDir2 = track2.direction.Unit();
+            double dotProduct = normDir1.Dot(normDir2);
+            if (std::abs(std::abs(dotProduct) - 1.0) > parallel_cut) continue;
+            // ensure that segments belong to different planes
+            struct TTKTrack::TRACKHIT hit1 = track1.tkhit.back();
+            struct TTKTrack::TRACKHIT hit2 = track2.tkhit.front();
+            double dz = std::abs(hit1.point.z()-hit2.point.z());
+            if(dz < mindZcut) continue;
+/*            // ensure that segments don't start in the same plane
+            struct TTKTrack::TRACKHIT hit1b = track1.tkhit.back();
+            struct TTKTrack::TRACKHIT hit2b = track2.tkhit.back();
+            dz = std::abs(hit1b.point.z()-hit2b.point.z());
+            if(dz < mindZcut) continue;
+            */
+            // ensure that segments are parallel to main line joining hits
+            ROOT::Math::XYZVector normDir = (hit2.point - hit1.point).Unit();
+            dotProduct = std::min(std::abs(normDir.Dot(normDir1)), std::abs(normDir.Dot(normDir2)));
+            if (std::abs(dotProduct - 1.0) > parallel_cut) continue;
+            if(dz < mindZ) {
+                mindZ = dz;
+                besttrk = j;
             }
-            // if match found, then merge the tracks
-            if(besttrk != -1) {
-                // add hits from track2 to track1
-                for (const auto& h : fTKTracks[besttrk].tkhit) {
-                    track1.tkhit.push_back(h);
-                }
-                track1.direction = track1.fitLineThroughHits(track1.centroid);
-                fTKTracks.erase(fTKTracks.begin() + besttrk);
-                if(besttrk < i) i--;
+        }
+        // if match found, then merge the tracks
+        if(besttrk != -1) {
+            // add hits from track2 to track1
+            for (const auto& h : fTKTracks[besttrk].tkhit) {
+                track1.tkhit.push_back(h);
             }
+            track1.direction = track1.fitLineThroughHits(track1.centroid);
+            fTKTracks.erase(fTKTracks.begin() + besttrk);
+            if(besttrk < i) i--;
         }
     }
 
@@ -474,6 +473,41 @@ void TPORecoEvent::TrackReconstruct() {
         trk.SortHitsByZ();
     }
 
+    // merge broken tracks
+    double cut_SSR_merge = 10; // FIXME: adjust value
+    for (size_t i = 0; i < fTKTracks.size(); i++) {
+        TTKTrack &track1 = fTKTracks[i];
+        for( size_t j = 0; j < fTKTracks.size(); j++) {
+            if (i==j) continue;
+            TTKTrack &track2 = fTKTracks[j];
+            TTKTrack *tempTrack = new TTKTrack(track1);
+            tempTrack->MergeTracks(track2);
+            // fit line through hits
+            tempTrack->direction = tempTrack->fitLineThroughHits(tempTrack->centroid);
+            if(verbose > 5) {
+                std::cout << "Merging tracks: " << i << " " << j << std::endl;
+                track1.Dump();
+                track2.Dump();
+                tempTrack->Dump();
+            }
+            if(tempTrack->SSR < cut_SSR_merge) {
+                fTKTracks[i] = *tempTrack;
+                fTKTracks.erase(fTKTracks.begin() + j);
+                if(j < i) i--;
+                break;
+            }
+            delete tempTrack;
+        }
+    }
+
+    // now fit tracks with GENFIT2
+    for (auto &trk : fTKTracks) {
+        trk.GenFitTrackFit();
+        if(verbose > 5) {
+            trk.fitTrack->Print();
+        }
+    }
+
     if(verbose > 2) {
         DumpReconstructedTracks();
     }
@@ -482,6 +516,26 @@ void TPORecoEvent::TrackReconstruct() {
 void TPORecoEvent::DumpReconstructedTracks() {
     for (auto &trk : fTKTracks) {
         trk.Dump();
+    }
+}
+
+void TPORecoEvent::FitTrackVertices() {
+    genfit::GFRaveVertexFactory vertexFactory(2);
+    vertexFactory.setMethod("kalman-smoothing:1");
+
+    std::vector<genfit::Track*> tracks;
+    std::vector<genfit::GFRaveVertex*> vertices;
+
+    for (auto &trk : fTKTracks) {
+        tracks.push_back(trk.fitTrack);
+    }
+
+    // vertexing
+    vertexFactory.findVertices(&vertices, tracks);
+
+    // print reconstructed vertices
+    for (auto &vertex : vertices) {
+        vertex->Print();
     }
 }
 

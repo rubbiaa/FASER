@@ -13,6 +13,10 @@
 #include "TPOEvent.hh"
 #include "TPSCluster.hh"
 
+// genfit
+#include <RKTrackRep.h>
+#include <Track.h>
+
 /// @brief Holds a reconstructed track from the precise pixel tracker
 class TTKTrack : public TObject {
 public:
@@ -28,6 +32,8 @@ public:
     TVector3 direction;
     double SSR;
 
+    genfit::Track *fitTrack;
+
     /// @brief Function to sort hits by the Z coordinate of the hits
     void SortHitsByZ() {
         std::sort(tkhit.begin(), tkhit.end(), [](const TRACKHIT& a, const TRACKHIT& b) {
@@ -35,7 +41,16 @@ public:
         });
     }
 
-    TTKTrack() {};
+    TTKTrack() : fitTrack(0) {};
+    TTKTrack(const TTKTrack &t);
+    virtual ~TTKTrack() { delete fitTrack; };
+
+    /// @brief Compute the distance between a point and a line
+    double pointLineDistance(const ROOT::Math::XYZVector& point, const TVector3& direction, const TVector3& centroid);
+
+    /// @brief Merge two tracks
+    /// @param track2 - the track to merge
+    void MergeTracks(TTKTrack &track2);
 
     /// @brief The direction defined by two first hits of the track
     /// @return the direction
@@ -46,13 +61,11 @@ public:
     /// @return the direction of the track
     TVector3 fitLineThroughHits(TVector3& centroid);
 
-    void Dump() const {
-        std::cout << "TKTrack: " << tkhit.size() << " hits ";
-        std::cout << "direction " << direction.x() << " " << direction.y() << " " << direction.z() << std::endl;
-        for (const auto &it : tkhit) {
-            std::cout << "   " << it.ID << " eDeposit: " << it.eDeposit << std::endl;
-        }        
-    }
+    /// @brief Use GenFit to fit the track
+    void GenFitTrackFit();
+
+    /// @brief Dump the track information
+    void Dump() const;
 
     ClassDef(TTKTrack, 1)
 };

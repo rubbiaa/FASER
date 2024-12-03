@@ -148,6 +148,9 @@ public:
     /// @brief Reconstruct tracks based on precise tracker information
     void TrackReconstruct();
 
+    /// @brief Fit the tracks vertices using GenFit2
+    void FitTrackVertices();
+
     /// @brief Reconstruct all the tracks associated to the PORec (call this after Reconstruct)
     void TrackReconstructTruth();
 
