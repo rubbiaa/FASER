@@ -89,7 +89,7 @@ void convert_FASERMC(int run_number, TTree *tree, int min_event, int max_event,
   tree->SetBranchAddress("M", &M);
 
   int evt_to_dump = 0;
-  int iseq = 0;
+  size_t iseq = 0;
 
   for (size_t event = min_event; event < max_event; event++)
   {
@@ -166,6 +166,7 @@ void convert_FASERMC(int run_number, TTree *tree, int min_event, int max_event,
   std::cout << "Done saving..." << std::endl;
 
   fTPOEvent.dump_stats();
+  std::cout << "Total number of events written " << iseq << std::endl;
 
 }
 
