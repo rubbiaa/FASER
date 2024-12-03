@@ -1,24 +1,64 @@
-EXE = t.exe
-EXE2 = s.exe
+TOPDIR = $(shell pwd)
 
-SRC = t.C faserntuplib.o
-OBJ = $(SRC:.C=.o)
+PATCHFILE = $(TOPDIR)/genfit.patch
+FILETOAPPLY = $(TOPDIR)/GenFit/test/vertexingTest/main.cc
 
-SRC2 = s.C TKinFitter.cc TFitParticleESpher.cc TAbsFitParticle.cc TFitConstraintEp.cc TAbsFitConstraint.cc
-OBJ2 = s.o TKinFitter.o TFitParticleESpher.o TAbsFitParticle.o TFitConstraintEp.o TAbsFitConstraint.o
+.PHONY: clhep rave
 
-ROOTCFLAGS = -g $(shell root-config --cflags)
+clhep: clhep_git
+	if [ ! -d CLHEP-install ]; then \
+		mkdir -p CLHEP-build; \
+		mkdir -p CLHEP-install; \
+		cd CLHEP-build && cmake -DCMAKE_INSTALL_PREFIX=../CLHEP-install ../CLHEP; \
+		make -j; \
+		make install; \
+	fi
 
-all : $(EXE) $(EXE2)
+clhep_git:
+	if [ ! -f CLHEP/README.md ]; then \
+		git clone https://gitlab.cern.ch/CLHEP/CLHEP.git; \
+	fi
 
-$(EXE) : $(OBJ)
-	g++ $(ROOTCFLAGS) $(OBJ) `root-config --glibs` -lEG -o $(EXE)
+rave_tar: 
+	if [ ! -d rave-0.6.25 ]; then \
+		tar -xvf rave-0.6.25.tar.gz; \
+	fi
 
-$(EXE2) : $(OBJ2)
-	g++ $(ROOTCFLAGS) $(OBJ2) `root-config --glibs` -lEG -o $(EXE2)
+rave: rave_tar
+	if [ ! -d rave-install ]; then \
+		mkdir -p rave-install; \
+		cd rave-0.6.25 && ./configure --prefix=$(TOPDIR)/rave-install --disable-java \
+		--with-clhep=$(TOPDIR)/CLHEP-install; \
+		make CXXFLAGS="-g -std=c++11" -j; \
+		make install; \
+	fi
 
-# Compile source files to object files
-%.o: %.C
-	$(CXX) $(ROOTCFLAGS) -c $< -o $@
-%.o: %.cc
-	$(CXX) $(ROOTCFLAGS) -c $< -o $@
+genfit_git:
+	if [ ! -d GenFit ]; then \
+		git clone https://github.com/GenFit/GenFit.git; \
+	fi
+
+genfit: genfit_git
+	if [ ! -d GenFit-build ]; then \
+		mkdir -p GenFit-build; \
+		mkdir -p GenFit-install; \
+		cd GenFit-build && cmake \
+		-DCMAKE_INSTALL_PREFIX=$(TOPDIR)/GenFit-install \
+		-DRave_CFLAGS="-DRaveDllExport= -DWITH_FLAVORTAGGING -DWITH_KINEMATICS" \
+		-DRave_INCLUDE_DIRS=$(TOPDIR)/rave-install/include/ \
+		-DRave_LDFLAGS="-Wl,-rpath-link,$(TOPDIR)/rave-install/lib/ -L$(TOPDIR)/rave-install/lib/ -lRaveBase -L$(TOPDIR)/CLHEP-install/lib/ -lCLHEP" \
+		../GenFit; \
+		make -j; \
+		sh CMakeFiles/gtests.dir/link.txt; \
+		make -j; \
+		make install; \
+	fi
+	# if make fails, run sh CMakeFiles/gtests.dir/link.txt and then make again
+
+.PHONY clean:
+	rm -rf CLHEP-build CLHEP-install
+	rm -rf CLHEP
+	rm -rf rave-0.6.25 rave-install
+	rm -rf GenFit-build GenFit-install
+	rm -rf GenFit
+
