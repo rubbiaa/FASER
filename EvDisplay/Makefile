@@ -18,18 +18,21 @@ INCS = $(wildcard *.h)
 INCS += $(wildcard *.hh)
 INCS += $(wildcard $(COREUTILSDIR)/*.hh)
 
+GENFITINCDIR := $(GENFITINSTALL)/include
+GENFITLIBS := -L$(GENFITINSTALL)/lib -lgenfit2 -L$(RAVEINSTALL)/lib -lRaveBase -L$(CLHEPINSTALL)/lib -lCLHEP
+
 ROOTCFLAGS = -fPIC -g $(shell root-config --cflags) -fsanitize=address
 
-ROOTCFLAGS += -I$(COREUTILSDIR)
+ROOTCFLAGS += -I$(COREUTILSDIR) -I$(GENFITINCDIR)
 
 all : $(EXE)
 
 dict.cxx : $(INCS) $(SRC)
-	rootcling -f dict.cxx -c LinkDef.h -I$(COREUTILSDIR)
+	rootcling -f dict.cxx -c LinkDef.h -I$(COREUTILSDIR) -I$(GENFITINCDIR)
 
 $(EXE) : $(OBJ) Makefile
 #	g++ $(ROOTCFLAGS) $(OBJ) `root-config --glibs --evelibs` -lEG -lGeom -o $(EXE)
-	g++ $(ROOTCFLAGS) $(OBJ) `root-config --glibs` -lEG -lGeom -o $(EXE)
+	g++ $(ROOTCFLAGS) $(OBJ) `root-config --glibs` -lEG -lGeom $(GENFITLIBS) -o $(EXE)
 
 # Compile source files to object files
 %.o: %.C $(INCS)

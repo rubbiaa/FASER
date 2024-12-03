@@ -130,10 +130,13 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, bool pre, const TGW
     // Add the horizontal frame to the main frame
     fMain->AddFrame(hFrame3, new TGLayoutHints(kLHintsCenterX | kLHintsBottom, 5, 5, 3, 4));
 
-    fMain->SetWindowName("The FASERkine event display");
+    fMain->SetWindowName("The FASERCal event display");
     fMain->MapSubwindows();
     fMain->Resize(fMain->GetDefaultSize());
     fMain->MapWindow();
+
+    range_min[0] = 12.5; range_min[1] = 12.5; range_min[2] = -200.0;
+    range_max[0] = 25.0; range_max[1] = 25.0; range_max[2] = 200.0;
 
     // load event
     ievent = ieve;
@@ -194,6 +197,7 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
     std::cout << "Start reconstruction of tracks..." << std::endl;
     if(f_fullreco_CheckBox->IsOn() || true) {
         fPORecoEvent->TrackReconstruct();
+        fPORecoEvent->FitTrackVertices();
     }
     std::cout << "Start reconstruction of clusters..." << std::endl;
     fPORecoEvent -> Reconstruct2DViewsPS();
@@ -241,13 +245,13 @@ void MyMainFrame::Load_Recoevent(int run_number, int ievent) {
 
 void MyMainFrame::Draw_event() {
 
-    fCanvas->GetCanvas()->cd();
-    fCanvas->GetCanvas()->Clear();
+    TCanvas *canvas = fCanvas->GetCanvas();
+    canvas->cd();
+    canvas->Clear();
 
     // Draw the geometry
     gGeoManager->GetTopVolume()->Draw("gl");
     SideView();
- 
     double wdx, wdy, wdz;
     if (TGeoBBox *box = dynamic_cast<TGeoBBox*>(gGeoManager->GetTopVolume()->GetShape())) {
         wdx = box->GetDX();
@@ -632,10 +636,13 @@ void MyMainFrame::Draw_event_reco_voxel(TGeoShape *bigbox, TGeoMedium *air, TGeo
         TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, 
                 position.Y() / 10.0, position.Z() / 10.0);
         TGeoVolume *hitVolume = new TGeoVolume("HitVolume", box, air);
+        int color = kBlack;
+        if(ehit > 10.0) color = kGreen;
+        if(ehit > 100.0) color = kYellow;
         if(it.second.ghost) {
-            hitVolume->SetLineColor(toggle_color_fake_voxel ? kMagenta : kBlack); 
+            hitVolume->SetLineColor(toggle_color_fake_voxel ? kMagenta : color); 
         } else {
-            hitVolume->SetLineColor(kBlack); 
+            hitVolume->SetLineColor(color); 
         }
         ps_reco_voxel->AddNode(hitVolume, i++, trans);
     }
@@ -687,8 +694,6 @@ void MyMainFrame::Next_Event(int ievent) {
     toggle_reconstructed_tracks = true;
     toggle_reconstructed_ps_tracks = true;
     toggle_reco_voxel = true;
-
-    SideView();
 
     Draw_event();
     canvas->Modified();
@@ -862,7 +867,7 @@ void MyMainFrame::SideView() {
     TView *view = (TView *)canvas->GetView();
     if(view == nullptr) return;
     view->SetPsi(90);
-    view->SetRange(12.5,12.5,-200,25.,25.,200.);
+    view->SetRange(range_min, range_max);
     canvas->Modified();
     canvas->Update();
 }

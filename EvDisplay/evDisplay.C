@@ -22,6 +22,13 @@
 #include <TEveManager.h>
 #include <TEveGeoNode.h>
 
+// GENFIT
+#include <ConstField.h>
+#include <Exception.h>
+#include <FieldManager.h>
+#include <MaterialEffects.h>
+#include <TGeoMaterialInterface.h>
+
 // Function to recursively list volumes
 void ListVolumes(TGeoVolume* volume, int depth = 0) {
     // Print the volume name with indentation for hierarchy
@@ -114,6 +121,11 @@ int main(int argc, char** argv) {
     specificVolume->SetTransparency(50);       
     }
 #endif
+
+    // initialize genfit
+    genfit::MaterialEffects::getInstance()->init(new genfit::TGeoMaterialInterface());
+    genfit::FieldManager::getInstance()->init(new genfit::ConstField(0. ,1e-4, 0.)); 
+
     new MyMainFrame(run_number, 0, event_mask, pre, gClient->GetRoot(), 1200, 600);
 
     // Run the application

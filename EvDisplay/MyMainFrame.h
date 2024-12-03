@@ -111,4 +111,5 @@ private:
     TGCheckButton *f_fullreco_CheckBox;
     void on_fullreco_toggle(Bool_t state);
 
+    Double_t range_min[3], range_max[3];
 };
