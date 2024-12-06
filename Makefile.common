@@ -1,0 +1,11 @@
+
+COREUTILSDIR := ../CoreUtils
+
+GENFITINCDIR := $(GENFITINSTALL)/include
+GENFITLIBS := -L$(GENFITINSTALL)/lib -lgenfit2 -L$(RAVEINSTALL)/lib -lRaveBase -L$(CLHEPINSTALL)/lib -lCLHEP
+
+ROOTCFLAGS = -fPIC -g $(shell root-config --cflags)
+
+ROOTCFLAGS += -I$(COREUTILSDIR) -I$(GENFITINCDIR)
+
+

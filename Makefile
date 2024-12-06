@@ -43,12 +43,13 @@ genfit: genfit_git
 		mkdir -p GenFit-build; \
 		mkdir -p GenFit-install; \
 		cd GenFit-build && cmake \
+		-DCMAKE_BUILD_TYPE=Debug \
 		-DCMAKE_INSTALL_PREFIX=$(TOPDIR)/GenFit-install \
 		-DRave_CFLAGS="-DRaveDllExport= -DWITH_FLAVORTAGGING -DWITH_KINEMATICS" \
 		-DRave_INCLUDE_DIRS=$(TOPDIR)/rave-install/include/ \
 		-DRave_LDFLAGS="-Wl,-rpath-link,$(TOPDIR)/rave-install/lib/ -L$(TOPDIR)/rave-install/lib/ -lRaveBase -L$(TOPDIR)/CLHEP-install/lib/ -lCLHEP" \
 		../GenFit; \
-		make -j; \
+		make CXXFLAFS="-g" -j; \
 		sh CMakeFiles/gtests.dir/link.txt; \
 		make -j; \
 		make install; \
