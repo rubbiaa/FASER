@@ -19,6 +19,7 @@
 #include <TrackPoint.h>
 #include <PlanarMeasurement.h>
 #include <KalmanFitterRefTrack.h>
+#include <FitStatus.h>
 
 ClassImp(TTKTrack);
 
@@ -27,6 +28,9 @@ TTKTrack::TTKTrack(const TTKTrack &t) : fitTrack(0) {
     centroid = t.centroid;
     direction = t.direction;
     SSR = t.SSR;
+    if(t.fitTrack) {
+        fitTrack = new genfit::Track(*t.fitTrack);
+    }
 }
 
 double TTKTrack::pointLineDistance(const ROOT::Math::XYZVector& point, const TVector3& direction, const TVector3& centroid) {
@@ -121,7 +125,7 @@ void TTKTrack::GenFitTrackFit() {
     int planeId(0); // detector plane ID
     int hitId(0); // hit ID
 
-    double detectorResolution(0.1); // resolution of planar detectors
+    double detectorResolution(0.1); // 0.1); // resolution of planar detectors
     TMatrixDSym hitCov(2);
     hitCov.UnitMatrix();
     hitCov *= detectorResolution*detectorResolution;
@@ -138,26 +142,58 @@ void TTKTrack::GenFitTrackFit() {
 
     fitTrack->checkConsistency();
 
+#if 0
+    TVector3 posM(pos);
+    TVector3 momM(mom);
+    // set seed cov
+    TMatrixDSym covM(6);
+    double resolution = 1.0;
+    double resolutionp = 1.0;
+    for (int i = 0; i < 3; ++i)
+      covM(i,i) = resolution*resolution;
+    for (int i = 3; i < 6; ++i)
+      covM(i,i) = resolutionp*mom(i-3)*resolutionp*mom(i-3);
+// smeared start state
+    genfit::MeasuredStateOnPlane stateSmeared(rep);
+    stateSmeared.setPosMomCov(posM, momM, covM);
+    std::cout << "stateSmeared" << std::endl;
+    stateSmeared.Print();
+    covM.Print();
+#endif
+
      // init fitter
     genfit::AbsKalmanFitter* fitter = new genfit::KalmanFitterRefTrack();
 
     // do the fit
-    fitter->processTrack(fitTrack);
+    try {
+        fitter->processTrack(fitTrack);
+    }    
+    catch(genfit::Exception& e){
+        std::cerr << e.what();
+        std::cerr << "Exception when track fitting with GENFIT" << std::endl;
+      }
 
     // print fit result
-//    fitTrack.getFittedState().Print();
-//    fitTrack.Print();
+    fitTrack->getFittedState().Print();
+    // fitTrack->Print();
 }
 
-void TTKTrack::Dump() const {
+void TTKTrack::Dump(int verbose) const {
     std::cout << "TKTrack: " << tkhit.size() << " hits; SSR = " << SSR << std::endl;
     std::cout << "direction " << direction.x() << " " << direction.y() << " " << direction.z() << std::endl;
     for (const auto &it : tkhit) {
         std::cout << "   " << it.ID << " x:" << Form("%5.2f",it.point.x()) << 
         " y:" << Form("%5.2f",it.point.y()) << " z:" << Form("%5.2f",it.point.z())
         << " eDeposit: " << it.eDeposit << std::endl;
+        if(it.eDeposit==0) {
+            std::cout << "ERROR: zero energy deposit" << std::endl;
+        }
     }        
     if(fitTrack) {
-        fitTrack->Print();
+        if(verbose > 3) fitTrack->Print();
+        genfit::FitStatus* getFitStatus = fitTrack->getFitStatus();
+        if(getFitStatus) {
+            getFitStatus->Print();
+        }
     }
 }

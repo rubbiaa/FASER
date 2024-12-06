@@ -4,6 +4,10 @@
 #include <TObject.h>
 #include <vector>
 #include <TH2D.h>
+#include <Math/Vector3D.h>
+#include <TVector3.h>
+#include <TMatrixDSym.h>
+#include <Math/SMatrix.h>
 
 #include <TDatabasePDG.h>
 
@@ -122,6 +126,20 @@ public:
     /// @brief All reconstruced TKTracks in event
     std::vector<TTKTrack> fTKTracks;
 
+    struct TTKVertex {
+        ROOT::Math::XYZVector position;
+        TMatrixDSym covariance;
+        int ntracks;
+        int ndof;
+        double chi2;
+
+        // Constructor
+        TTKVertex()
+           : covariance(3), ntracks(0), ndof(0), chi2(0.0) {} // Initialize covariance with size 3
+    };
+
+    std::vector<TTKVertex> fTKVertices;
+
     /// @brief All reconstruced TPSTracks in event
     std::vector<TPSTrack> fPSTracks;
 
@@ -136,7 +154,7 @@ public:
     // @brief A copy of the geometry originally stored in TCalEvent
     struct TcalEvent::GEOM_DETECTOR geom_detector;
 
-    TPORecoEvent() : fTcalEvent(0), fTPOEvent(0) {};
+    TPORecoEvent();
     TPORecoEvent(TcalEvent* c, TPOEvent* p);
     virtual ~TPORecoEvent();
 

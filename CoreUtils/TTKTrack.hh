@@ -32,7 +32,7 @@ public:
     TVector3 direction;
     double SSR;
 
-    genfit::Track *fitTrack;
+    genfit::Track *fitTrack;                //! the genfit track
 
     /// @brief Function to sort hits by the Z coordinate of the hits
     void SortHitsByZ() {
@@ -43,7 +43,8 @@ public:
 
     TTKTrack() : fitTrack(0) {};
     TTKTrack(const TTKTrack &t);
-    virtual ~TTKTrack() { delete fitTrack; };
+    virtual ~TTKTrack() { // delete fitTrack; // FIXME: causes crash 
+    };
 
     /// @brief Compute the distance between a point and a line
     double pointLineDistance(const ROOT::Math::XYZVector& point, const TVector3& direction, const TVector3& centroid);
@@ -65,7 +66,7 @@ public:
     void GenFitTrackFit();
 
     /// @brief Dump the track information
-    void Dump() const;
+    void Dump(int verbose = 1) const;
 
     ClassDef(TTKTrack, 1)
 };
