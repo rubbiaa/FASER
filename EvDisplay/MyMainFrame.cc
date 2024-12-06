@@ -191,7 +191,7 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
     fTcalEvent -> fTPOEvent -> dump_event();
 
     fPORecoEvent = new TPORecoEvent(fTcalEvent, fTcalEvent->fTPOEvent);
-    fPORecoEvent->verbose = 4;
+    fPORecoEvent->verbose = 3;
     std::cout << "Start reconstruction of PORecs..." << std::endl;
     fPORecoEvent -> Reconstruct();
     std::cout << "Start reconstruction of tracks..." << std::endl;

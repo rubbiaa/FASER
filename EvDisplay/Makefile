@@ -1,6 +1,8 @@
 EXE = evDisplay.exe
 
-COREUTILSDIR := ../CoreUtils
+include ../Makefile.common
+
+ROOTCFLAGS +=  -fsanitize=address
 
 SRC = evDisplay.C MyMainFrame.cc 
 
@@ -17,13 +19,6 @@ OBJ += dict.o
 INCS = $(wildcard *.h)
 INCS += $(wildcard *.hh)
 INCS += $(wildcard $(COREUTILSDIR)/*.hh)
-
-GENFITINCDIR := $(GENFITINSTALL)/include
-GENFITLIBS := -L$(GENFITINSTALL)/lib -lgenfit2 -L$(RAVEINSTALL)/lib -lRaveBase -L$(CLHEPINSTALL)/lib -lCLHEP
-
-ROOTCFLAGS = -fPIC -g $(shell root-config --cflags) -fsanitize=address
-
-ROOTCFLAGS += -I$(COREUTILSDIR) -I$(GENFITINCDIR)
 
 all : $(EXE)
 
