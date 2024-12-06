@@ -39,4 +39,6 @@
 
 #pragma link C++ struct TPORecoEvent::REARCALS;
 
+#pragma link C++ struct TcalEvent::GEOM_DETECTOR;
+
 #endif

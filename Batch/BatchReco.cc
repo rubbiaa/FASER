@@ -205,6 +205,7 @@ int main(int argc, char** argv) {
         TPORecoEvent* fPORecoEvent = new TPORecoEvent(fTcalEvent, fTcalEvent->fTPOEvent);
         fPORecoEvent -> Reconstruct();
         fPORecoEvent->TrackReconstruct();
+        fPORecoEvent->FitTrackVertices();
         std::cout << "Start reconstruction of clusters..." << std::endl;
         fPORecoEvent -> Reconstruct2DViewsPS();
         fPORecoEvent -> ReconstructClusters(0);    // this is very slow
