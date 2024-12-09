@@ -2,6 +2,7 @@
 #include <cmath>
 
 #include "TTKTrack.hh"
+#include "TcalEvent.hh"
 
 #include <TVector3.h>
 #include "TCanvas.h"
@@ -23,7 +24,7 @@
 
 ClassImp(TTKTrack);
 
-TTKTrack::TTKTrack(const TTKTrack &t) : fitTrack(0) {
+TTKTrack::TTKTrack(const TTKTrack &t) : TTKTrack() {
     tkhit = t.tkhit;
     centroid = t.centroid;
     direction = t.direction;
@@ -114,8 +115,8 @@ void TTKTrack::GenFitTrackFit() {
 
     // start values for the fit, e.g. from pattern recognition
     // position of first hit of the track
-    TVector3 pos(tkhit[0].point.x(), tkhit[0].point.y(), tkhit[0].point.z());
-    double pmom = 100.0*1e3;  // in MeV
+    TVector3 pos(tkhit[0].point.x()/10.0, tkhit[0].point.y()/10.0, tkhit[0].point.z()/10.0);
+    double pmom = 1.0*1e0;  // in MeV
     TVector3 mom(pmom*direction.x(), pmom*direction.y(), pmom*direction.z());
 
     // create track
@@ -125,41 +126,30 @@ void TTKTrack::GenFitTrackFit() {
     int planeId(0); // detector plane ID
     int hitId(0); // hit ID
 
-    double detectorResolution(0.1); // 0.1); // resolution of planar detectors
+    // tracker resolution
+    double detectorResolution(0.01); // 0.1); // resolution of planar detectors in cm 
     TMatrixDSym hitCov(2);
     hitCov.UnitMatrix();
     hitCov *= detectorResolution*detectorResolution;
+    // scintillator resolution
+    double detectorResolutionPS = 1.0/sqrt(12); // should be voxel size in cm
+    TMatrixDSym hitCovPS(2);
+    hitCovPS.UnitMatrix();
+    hitCovPS *= detectorResolutionPS*detectorResolutionPS;
 
     for (const auto &hit : tkhit) {
         TVectorD hitCoords(2);
-        hitCoords[0] = hit.point.x();
-        hitCoords[1] = hit.point.y();
-        genfit::PlanarMeasurement* measurement = new genfit::PlanarMeasurement(hitCoords, hitCov, detId, ++hitId, nullptr);
-        measurement->setPlane(genfit::SharedPlanePtr(new genfit::DetPlane(TVector3(0,0,hit.point.z()),
+        hitCoords[0] = hit.point.x()/10.0;
+        hitCoords[1] = hit.point.y()/10.0;
+        genfit::PlanarMeasurement* measurement = new genfit::PlanarMeasurement(hitCoords, 
+            (hit.type == 0) ? hitCovPS  : hitCov, 
+            detId, ++hitId, nullptr);
+        measurement->setPlane(genfit::SharedPlanePtr(new genfit::DetPlane(TVector3(0,0,hit.point.z()/10.0),
                      TVector3(1,0,0), TVector3(0,1,0))), ++planeId);
         fitTrack->insertPoint(new genfit::TrackPoint(measurement, fitTrack));
     }
 
     fitTrack->checkConsistency();
-
-#if 0
-    TVector3 posM(pos);
-    TVector3 momM(mom);
-    // set seed cov
-    TMatrixDSym covM(6);
-    double resolution = 1.0;
-    double resolutionp = 1.0;
-    for (int i = 0; i < 3; ++i)
-      covM(i,i) = resolution*resolution;
-    for (int i = 3; i < 6; ++i)
-      covM(i,i) = resolutionp*mom(i-3)*resolutionp*mom(i-3);
-// smeared start state
-    genfit::MeasuredStateOnPlane stateSmeared(rep);
-    stateSmeared.setPosMomCov(posM, momM, covM);
-    std::cout << "stateSmeared" << std::endl;
-    stateSmeared.Print();
-    covM.Print();
-#endif
 
      // init fitter
     genfit::AbsKalmanFitter* fitter = new genfit::KalmanFitterRefTrack();
@@ -174,8 +164,78 @@ void TTKTrack::GenFitTrackFit() {
       }
 
     // print fit result
-    fitTrack->getFittedState().Print();
+    // fitTrack->getFittedState().Print();
     // fitTrack->Print();
+}
+
+TVector3 TTKTrack::extrapolateTracktoZ(double z, int &failed) {
+    failed = 0;
+    if(!fitTrack) {
+        std::cerr << "TTKTrack::extrapolateTracktoZ - no fitTrack" << std::endl;
+        failed = 1;
+        return TVector3(0,0,0);
+    }
+    // check that track is fitted
+    if(fitTrack->getFitStatus()->isFitted() == false) {
+        std::cerr << "TTKTrack::extrapolateTracktoZ - track is not fitted" << std::endl;
+        failed = 1;
+        return TVector3(0,0,0);
+    }
+
+    int planeId(0);
+
+    genfit::StateOnPlane state = fitTrack->getFittedState();
+    genfit::AbsTrackRep *rep = fitTrack->getCardinalRep();
+    if(!rep) {
+        std::cerr << "TTKTrack::extrapolateTracktoZ - no rep" << std::endl;
+        failed = 1;
+        return TVector3(0,0,0);
+    }
+    try {
+        double length = rep -> extrapolateToPlane(
+        state, genfit::SharedPlanePtr(new genfit::DetPlane(TVector3(0,0,z/10.0),
+                        TVector3(1,0,0), TVector3(0,1,0))));
+    } catch(genfit::Exception& e){
+        std::cerr << e.what();
+        std::cerr << "Exception when track extrapolation to z " << z << std::endl;
+        failed = 1;
+        return TVector3(0,0,0);
+    }
+/*    if(length < 0) {
+        std::cerr << "TTKTrack::extrapolateTracktoZ - extrapolation failed" << std::endl;
+        return TVector3(0,0,0);
+    }
+    */
+    TVector3 pos = state.getPos();
+    return TVector3(pos.x()*10.0, pos.y()*10.0, pos.z()*10.0);
+}
+
+void TTKTrack::GetMinMaxModule(int &minLayer, int &maxLayer) {
+    minLayer = 1000;
+    maxLayer = -1;
+    for (const auto &hit : tkhit) {
+        long ID = hit.ID;
+        long ilayer = TcalEvent::getChannelModulefromID(ID);
+        if(ilayer < minLayer) minLayer = ilayer;
+        if(ilayer > maxLayer) maxLayer = ilayer;
+    }
+}
+
+void TTKTrack::UpdateFittedPosition() {
+    if(!fitTrack) {
+        std::cerr << "TTKTrack::UpdateFittedPosition - no fitTrack" << std::endl;
+        return;
+    }
+    if(fitTrack->getFitStatus()->isFitted() == false) {
+        std::cerr << "TTKTrack::UpdateFittedPosition - track is not fitted" << std::endl;
+        return;
+    }
+    for (auto &hit : tkhit) {
+        int failed(0);
+        TVector3 pos = extrapolateTracktoZ(hit.point.z(), failed);
+        if(failed) continue;
+        hit.point.SetXYZ(pos.x(), pos.y(), pos.z());
+    }
 }
 
 void TTKTrack::Dump(int verbose) const {
