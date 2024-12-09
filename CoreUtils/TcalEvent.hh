@@ -98,6 +98,7 @@ public:
         Double_t energyDeposit;
     };
     std::vector<struct REARCALDEPOSIT> rearCalDeposit;    // energy deposited in rear calorimeter
+    std::vector<struct REARCALDEPOSIT> rearHCalDeposit;     // energy in the rear HCal scintillator
 
     double rearMuCalDeposit;     // energy in the rear MuCal scintillator
         
@@ -120,6 +121,11 @@ public:
         Double_t rearCalSizeY; // in mm
         Double_t rearCalLocZ;  // in mm
         Int_t rearCalNxy = 5;   // number of modules in x, and y
+        Double_t rearHCalSizeX; // in mm
+        Double_t rearHCalSizeY; // in mm
+        Double_t rearHCalSizeZ; // in mm
+        Double_t rearHCalLocZ;  // in mm
+        Int_t rearHCalNxy = 9;   // number of modules in z    
     };
 
     /// @brief The summary of the detector geometry
@@ -128,14 +134,14 @@ public:
     /// @brief Returns type ID of a hit
     /// @param ID The hit ID (see FASERG4 DetectorConstruction class)
     /// @return =0 if scintillator hit, =1 if silicon tracker hit
-    inline long getChannelTypefromID(long ID) const {
+    static inline long getChannelTypefromID(long ID) {
         return ID / 100000000000LL;
     }   
 
     /// @brief Returns the module number of a hit
     /// @param ID The hit ID (see FASERG4 DetectorConstruction class)
     /// @return The module of the hit
-    inline long getChannelModulefromID(long ID) const {
+    static inline long getChannelModulefromID(long ID) {
         long hittype = ID / 100000000000LL;
         if (hittype == 0)
         { // hit in scintillator
@@ -148,6 +154,11 @@ public:
             return ilayer;
         }
         return 0;
+    }
+
+    /// @brief Returns the "layer" within module
+    static inline int getChannelnzfromID(long ID) {
+        return (ID / 1000000) % 1000;
     }
 
     /// @brief Returns the precise tracker "layer" (or copy of volume)
@@ -170,6 +181,8 @@ public:
     ROOT::Math::XYZVector getChannelXYZfromID(long ID) const;
 
     ROOT::Math::XYZVector getChannelXYZRearCal(int moduleID) const;
+
+    ROOT::Math::XYZVector getChannelXYZRearHCal(int moduleID) const;
 
     ClassDef(TcalEvent, 3)
 };

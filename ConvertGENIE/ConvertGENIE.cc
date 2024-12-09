@@ -109,6 +109,8 @@ void convert_FASERMC(int run_number, TTree *tree, int min_event, int max_event,
 
     // SKIP VERTICES IN REAR CAL
     if(fTPOEvent.prim_vx.z() > 1533.0) continue;
+    // SKIP VERTICES IN FRONT TARGET
+    if(fTPOEvent.prim_vx.z() < -1533.0) continue;
 
     fTPOEvent.event_id = iseq++;
 

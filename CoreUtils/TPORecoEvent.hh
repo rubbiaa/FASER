@@ -145,9 +145,11 @@ public:
 
     /// @brief Structure to hold rear calorimeter and mutag deposited energies
     struct REARCALS {
-        double rearCalDeposit;   // in GeV
-        double rearMuCalDeposit; // in MeV
-        std::vector<struct TcalEvent::REARCALDEPOSIT> rearCalModule;
+        double rearCalDeposit;   // total energy in RearCal in GeV
+        double rearHCalDeposit;  // total energy in hCal in GeV
+        double rearMuCalDeposit; // total energy in muTag in MeV
+        std::vector<struct TcalEvent::REARCALDEPOSIT> rearCalModule; // individual module deposits
+        std::vector<struct TcalEvent::REARCALDEPOSIT> rearHCalModule; // individual module deposits
     };
     struct REARCALS rearCals;
 
@@ -165,6 +167,9 @@ public:
 
     /// @brief Reconstruct tracks based on precise tracker information
     void TrackReconstruct();
+
+    /// @brief Extend the tracks using voxels in the plastic scintillator
+    void ExtendTracks();
 
     /// @brief Fit the tracks vertices using GenFit2
     void FitTrackVertices();

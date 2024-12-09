@@ -4,10 +4,12 @@
 
 ClassImp(TcalEvent)
 
-TcalEvent::TcalEvent()
+TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fTPOEvent(nullptr), m_rootFile(nullptr)
 {
-    fTPOEvent = nullptr;
-    m_rootFile = nullptr;
+    geom_detector = {0};
+    rearCalDeposit = {};
+    rearHCalDeposit = {};
+    rearMuCalDeposit = {};
 }
 
 /// @brief Create a TcalEvent with a given event number for OUTPUT
@@ -36,6 +38,7 @@ TcalEvent::TcalEvent(int run_number, long event_number, int event_mask) : TcalEv
     m_calEventTree->Branch("event", &fTPOEvent);    // this should be labelled POEvent !
     m_calEventTree->Branch("geom", &geom_detector);
     m_calEventTree->Branch("rearcal", &rearCalDeposit);
+    m_calEventTree->Branch("rearhcal", &rearHCalDeposit);
     m_calEventTree->Branch("rearmucal", &rearMuCalDeposit);
 
     //    fTracks = new std::vector<DigitizedTrack*>;
@@ -117,6 +120,9 @@ int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
 
     std::vector<struct REARCALDEPOSIT> *g_r = &rearCalDeposit;
     event_tree ->SetBranchAddress("rearcal", &g_r);
+
+    std::vector<struct REARCALDEPOSIT> *g_h = &rearHCalDeposit;
+    event_tree -> SetBranchAddress("rearhcal", &g_h);
 
     event_tree -> SetBranchAddress("rearmucal", &rearMuCalDeposit);
 
@@ -207,6 +213,14 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZRearCal(int moduleID) const {
     double z = geom_detector.rearCalLocZ;
     return ROOT::Math::XYZVector(x, y, z);
 }
+
+ROOT::Math::XYZVector TcalEvent::getChannelXYZRearHCal(int moduleID) const {
+    double x = 0;
+    double y = 0;
+    double z = geom_detector.rearHCalLocZ + moduleID * geom_detector.rearHCalSizeZ + geom_detector.rearHCalSizeZ/2.0;
+    return ROOT::Math::XYZVector(x, y, z);
+}
+
 
 void TcalEvent::fillTree()
 {

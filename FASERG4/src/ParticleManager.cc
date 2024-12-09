@@ -35,6 +35,26 @@ void ParticleManager::processParticleHit(G4Track *track, XYZVector const& positi
 			fTcalEvent->rearCalDeposit.push_back(rearhit);
 		}
 		return;
+	} else if(VolumeName == "rearHCalscintillatorLogical") {
+//		std::cout << VolumeName << " copy=" << CopyNumber << " MotherCopy = " << MotherCopyNumber << std::endl;
+		auto it = std::find_if(fTcalEvent->rearHCalDeposit.begin(), fTcalEvent->rearHCalDeposit.end(),
+                       [CopyNumber](const TcalEvent::REARCALDEPOSIT& deposit) {
+                           return deposit.moduleID == CopyNumber;
+                       });
+		if (it != fTcalEvent->rearHCalDeposit.end()) {
+			it->energyDeposit += energydeposit;
+		} else {
+			struct TcalEvent::REARCALDEPOSIT rearhit = {CopyNumber, energydeposit};
+			fTcalEvent->rearHCalDeposit.push_back(rearhit);
+		}
+		#if 0
+		G4cout << "HcalScint: pdgid=" << pdg << " edepo=" << energydeposit << G4endl;
+		G4double kineticEnergy = track->GetKineticEnergy();
+	    G4ThreeVector momentum = track->GetMomentum();
+		G4cout << "  Kinetic Energy: " << kineticEnergy / MeV << " MeV" << G4endl;
+		G4cout << "  Momentum: " << momentum / MeV << " MeV/c" << G4endl;
+		#endif
+		return;
 	} else if(VolumeName == "muCalscintillatorLogical") {
 		fTcalEvent->rearMuCalDeposit += energydeposit;
 		#if 0
@@ -134,9 +154,15 @@ void ParticleManager::beginOfEvent()
 	fTcalEvent->geom_detector.rearCalSizeY = 121.2;
     fTcalEvent->geom_detector.rearCalLocZ = detector->fTotalLength/2.0; // when no magnet + 3500.0;
 	fTcalEvent->geom_detector.rearCalNxy = 5;
+	fTcalEvent->geom_detector.rearHCalSizeX = 600.0; // mm
+	fTcalEvent->geom_detector.rearHCalSizeY = 600.0; // mm
+	fTcalEvent->geom_detector.rearHCalSizeZ = 100.0; // mm
+	fTcalEvent->geom_detector.rearHCalLocZ =  fTcalEvent->geom_detector.rearCalLocZ + 66*6.0; 
 
 	// clear the rear calorimeter
 	fTcalEvent->rearCalDeposit.clear();
+	// clear the rear hcal scintillator
+	fTcalEvent->rearHCalDeposit.clear();
 	// clear the rear muCal scintillator
 	fTcalEvent->rearMuCalDeposit = 0;
 }

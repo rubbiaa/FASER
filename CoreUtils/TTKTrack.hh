@@ -23,6 +23,7 @@ public:
 
    struct TRACKHIT {
         long ID;
+        int type; // 0 - scintillator, 1 - tracker
         ROOT::Math::XYZVector point;
         float eDeposit;
     };
@@ -41,7 +42,7 @@ public:
         });
     }
 
-    TTKTrack() : fitTrack(0) {};
+    TTKTrack() : TObject(), fitTrack(0) {};
     TTKTrack(const TTKTrack &t);
     virtual ~TTKTrack() { // delete fitTrack; // FIXME: causes crash 
     };
@@ -64,6 +65,15 @@ public:
 
     /// @brief Use GenFit to fit the track
     void GenFitTrackFit();
+
+    /// @brief Extrapolate the track to a given Z coordinate
+    TVector3 extrapolateTracktoZ(double z, int &failed);
+
+    /// @brief Get the minimum and maximum module of the track
+    void GetMinMaxModule(int &minLayer, int &maxLayer);
+
+    /// @brief Update the position with the fitted values
+    void UpdateFittedPosition();
 
     /// @brief Dump the track information
     void Dump(int verbose = 1) const;
