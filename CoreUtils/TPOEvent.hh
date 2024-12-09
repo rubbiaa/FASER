@@ -23,7 +23,7 @@ public:
   double m_pz;                   // z momentum
   double m_energy;               // total energy
   double m_kinetic_energy;       // kinetic energy
-  double m_vx_decay, m_vy_decay, m_vz_decay; 
+  double m_vx_decay, m_vy_decay, m_vz_decay;    // this is mislabeled - it's actually vertex of particle
   int nparent;                   // number of parents
   int m_trackid_in_particle[MAXPARENT]; // list of parents
   int m_status;                  // MC status
@@ -33,9 +33,15 @@ public:
 #if 1
   /// @brief Compute mass of the PO
   /// @return mass
-  double m_mass() { 
+  double m_mass() const { 
     double mass2 = m_energy*m_energy-m_px*m_px-m_py*m_py-m_pz*m_pz;
     return sqrt(std::max(mass2,0.0));
+  };   //!
+  double m_charge() const {
+    TDatabasePDG *pdgDB = TDatabasePDG::Instance();
+    TParticlePDG *particle = pdgDB->GetParticle(m_pdg_id);
+    if(particle != nullptr) return particle->Charge();
+    return 0;
   };   //!
 #endif
 
@@ -45,8 +51,18 @@ public:
 
 /// @brief Particle Object Event to hold a full generator level (truth) event.
 /// Many entries of compute by calling kinematics_event().
-class TPOEvent : public TObject {
+class TPOEvent : public TObject
+{
 private:
+  struct stats
+  {
+    size_t nueCC;
+    size_t numuCC;
+    size_t nutauCC;
+    size_t NC;
+    size_t ES;
+  } stats;         //!
+
 public:
 
   // target constants (not saved in ROOT I/O)
@@ -62,10 +78,13 @@ public:
   int run_number;                   // run number
   int event_id;                     // event number
   ROOT::Math::PositionVector3D<ROOT::Math::Cartesian3D<double>> prim_vx;  // primary vertex in mm
+  bool use_GENIE_vtx = false;       // tell FASERG4 to use prim_vx (if true)
+  std::string GENIE_vtx_name = "";  // the name of the hit nucleus
   int vtx_target;                   // in which target did the interaction occur
   int event_mask = 0;               // if events are masked (see kMask_... constants)
   bool isCC;                        // event is a charged current
   bool isES() const { return jetpx==0 && jetpy == 0 && jetpz == 0;}; // event is elastic scattering on electron
+  bool isCharmed() const;
   bool istau;                       // incoming neutrino is a nutau
   int tau_decaymode;                // =1 e, =2 mu, =3 1-prong, =4 rho =5 3-prong, =6 other
   std::vector<struct PO> POs;       // vector of PO of the event
@@ -202,7 +221,14 @@ public:
     return "unkmask";
   }
 
-  ClassDef(TPOEvent, 2)
+  void clone(TPOEvent *src);
+
+  /// @brief Event statistics
+  void reset_stats();
+  void update_stats();
+  void dump_stats();
+
+  ClassDef(TPOEvent, 3)
 };
 
 #endif

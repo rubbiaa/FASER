@@ -13,6 +13,7 @@
 #include "TcalEvent.hh"
 #include "TPORecoEvent.hh"
 #include "TTauSearch.hh"
+#include "TParticleGun.hh"
 
 void load_geometry() {
     // Load the GDML geometry
@@ -22,8 +23,9 @@ void load_geometry() {
 int main(int argc, char** argv) {
 
 	if (argc < 2) {
-	std::cout << "Usage: " << argv[0] << " <run> [maxevent] [mask]" << std::endl;
+	std::cout << "Usage: " << argv[0] << " <run> [minevent] [maxevent] [mask]" << std::endl;
         std::cout << "   <run>                     Run number" << std::endl;
+        std::cout << "   minevent                  Minimum number of events to process (def=-1)" << std::endl;
         std::cout << "   maxevent                  Maximum number of events to process (def=-1)" << std::endl;
         std::cout << "   mask                      To process only specific events (def=none): ";
         std::cout << "  nueCC, numuCC, nutauCC, nuNC or nuES" << std::endl;
@@ -44,10 +46,10 @@ int main(int argc, char** argv) {
         exit(1);
     }
 
-    int max_event = -1;
+    int min_event = 0;
     if(argc>2) {
         try {
-            max_event = std::stoi(argv[2]);
+            min_event = std::stoi(argv[2]);
         } catch (const std::invalid_argument& e) {
             std::cerr << "Invalid argument for maxevent: " << e.what() << std::endl;
             exit(1);
@@ -57,13 +59,27 @@ int main(int argc, char** argv) {
         }
     }
 
-    int event_mask = 0;
+    int max_event = -1;
     if(argc>3) {
-        int mask = TPOEvent::EncodeEventMask(argv[3]);
+        try {
+            max_event = std::stoi(argv[3]);
+        } catch (const std::invalid_argument& e) {
+            std::cerr << "Invalid argument for maxevent: " << e.what() << std::endl;
+            exit(1);
+        } catch (const std::out_of_range& e) {
+            std::cerr << "Out of range for maxevent: " << e.what() << std::endl;
+            exit(1);
+        }
+    }
+    if(max_event == -1) max_event = 99999999;
+
+    int event_mask = 0;
+    if(argc>4) {
+        int mask = TPOEvent::EncodeEventMask(argv[4]);
         if(mask>0) {
             event_mask = mask;
         } else {
-            std::cerr << "Unknown mask " << argv[3] << std::endl;
+            std::cerr << "Unknown mask " << argv[4] << std::endl;
             exit(1);            
         }
     }
@@ -73,7 +89,7 @@ int main(int argc, char** argv) {
     std::string base_path = "input/";
 
     std::ostringstream filename;
-    filename << "Batch-TPORecevent_" << run_number;
+    filename << "Batch-TPORecevent_" << run_number << "_" << min_event << "_" << max_event;
     if(event_mask>0) {
         const char *mask = TPOEvent::DecodeEventMask(event_mask);
         filename << "_" << mask;
@@ -116,14 +132,22 @@ int main(int argc, char** argv) {
     TH1D h_fullevent_Evis = TH1D("h_fullevent_Evis", "Full event energy", 200, 0., 2000.);
     TH1D h_fullevent_ET = TH1D("h_fullevent_ET", "Full event transverse energy", 200, 0., 40.);
 
+    // charm
+    TH1D h_charm_Enuall = TH1D("h_charm_Enuall", "Neutrino energy", 50, 0, 4000.0);
+    TH1D h_charm_Enucharmed = TH1D("h_charm_Enucharmed", "Neutrino energy", 50, 0, 4000.0);
+    
     // TauSearches
     TTauSearch fTTauSearch_e;
     TTree *m_tausearch_e_Tree = new TTree("Tausearch_e", "Tausearch_e");
     fTTauSearch_e.Create_Sel_Tree(m_tausearch_e_Tree);
 
+    // TParticleGun
+    TParticleGun fTParticleGun;
+    TTree *m_particlegun_Tree = new TTree("ParticleGun","ParticleGun");
+    fTParticleGun.Create_Sel_Tree(m_particlegun_Tree);
+
     // process events
-    int ievent = 0;
-    if(max_event == -1) max_event = 99999999;
+    int ievent = min_event;
     int error = 0;
 
     while (error == 0 && ievent<max_event) {
@@ -140,6 +164,9 @@ int main(int argc, char** argv) {
         if(!dump_event_cout) fTcalEvent->SetVerbose(0);
         error = fTcalEvent -> Load_event(base_path, run_number, ievent++, event_mask, POevent);
         if(error != 0) break;
+
+        // skip empty events (can happen for example for particle guns G4 where no lepton or pion has been found (i.e. NC ES))
+        if(POevent -> POs.size() == 0) continue;
     
         if(dump_event_cout) {
             std::cout << "Transverse size " << fTcalEvent->geom_detector.fScintillatorSizeX << " mm " << std::endl;
@@ -150,12 +177,47 @@ int main(int argc, char** argv) {
             std::cout << " copied digitized tracks " << fTcalEvent->getfTracks().size() << std::endl;
         }
 
-        if(dump_event_cout) fTcalEvent -> fTPOEvent -> dump_event();
+        if(dump_event_cout) { POevent -> dump_event(); }
+        else POevent->dump_header();
 
+        // charm 
+        double enu = POevent -> POs[0].m_energy;
+        h_charm_Enuall.Fill(enu);
+        if(POevent -> isCharmed()) {
+            POevent -> dump_event();
+            h_charm_Enucharmed.Fill(enu);
+        }
+
+        // tau decay length
+        if(POevent -> istau) {
+           POevent -> dump_event();
+           struct PO aPO = POevent-> POs[4];    // first decay product
+           ROOT::Math::XYZVector decayvtx = ROOT::Math::XYZVector(aPO.m_vx_decay, aPO.m_vy_decay, aPO.m_vz_decay);   
+        }
+
+#if 0
+        //// 
+        delete POevent;
+        delete fTcalEvent;   
+        continue;
+        /////
+#endif
         TPORecoEvent* fPORecoEvent = new TPORecoEvent(fTcalEvent, fTcalEvent->fTPOEvent);
         fPORecoEvent -> Reconstruct();
-        if(dump_event_cout) fPORecoEvent -> Dump();
+        fPORecoEvent->TrackReconstruct();
+        fPORecoEvent->FitTrackVertices();
+        std::cout << "Start reconstruction of clusters..." << std::endl;
+        fPORecoEvent -> Reconstruct2DViewsPS();
+        fPORecoEvent -> ReconstructClusters(0);    // this is very slow
+        std::cout << "Start reconstruction of 3D voxels..." << std::endl;
+        fPORecoEvent -> Reconstruct3DPS_2();
+        fPORecoEvent -> ReconstructRearCals();
+        fPORecoEvent -> Reconstruct3DPS_Eflow();
 
+        if(dump_event_cout) { fPORecoEvent -> Dump(); }
+
+        fPORecoEvent -> Fill2DViewsPS();
+    
         TPORecoEvent *branch_TPORecoEvent = fPORecoEvent;
         if(m_POEventTree == nullptr) {
             m_rootFile->cd();
@@ -317,6 +379,32 @@ int main(int argc, char** argv) {
                         fTTauSearch_e.Fill_Sel_Tree(m_tausearch_e_Tree);
                 }
             }
+        }
+
+        // particle gun studies
+        bool particle_gun = true;
+        double emax_cluster = 0;
+        if(particle_gun){
+            if((fPORecoEvent->GetPORecs()).size() == 0) continue;
+            struct TPORec* aPORec = (fPORecoEvent->GetPORecs())[0]; 
+            int POID = aPORec->POID;
+            struct PO *aPO = &fTcalEvent->fTPOEvent->POs[POID];
+            fTParticleGun.features.m_pdg_id = aPO->m_pdg_id;
+            fTParticleGun.features.m_energy = aPO->m_energy;
+
+            // fill features of most energetic reconstructed cluster
+            if (fPORecoEvent->PSClustersX.size() > 0)
+            {
+                TPSCluster *c = &fPORecoEvent->PSClustersX[0]; // most energetic one
+                fTParticleGun.features.ep_chi2_per_ndf = c->longenergyprofile.chi2_per_ndf;
+                fTParticleGun.features.ep_E0 = c->longenergyprofile.E0;
+                fTParticleGun.features.ep_a = c->longenergyprofile.a;
+                fTParticleGun.features.ep_b = c->longenergyprofile.b;
+                fTParticleGun.features.ep_tmax = c->longenergyprofile.tmax;
+                fTParticleGun.features.ep_c = c->longenergyprofile.c;
+            }
+
+            fTParticleGun.Fill_Sel_Tree(m_particlegun_Tree);     
         }
 
         m_POEventTree -> Fill();

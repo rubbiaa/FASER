@@ -87,6 +87,7 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	G4double fSiTrackerPixelSize = 0.1 * mm;
 
 	G4int fNumberReplicas = 1;
+	G4int fNumberRep_SiTracker = 2;
 	G4double fTotalLength;      // of the full detector
 	G4double fSandwichLength;   // of the given sandwich of scint+W+Silicon
 	G4double fTotalMass;
@@ -97,7 +98,7 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	G4int getNumberReplicas() const {return fNumberReplicas ;}
 
 	// channel ID
-	G4long getChannelIDfromXYZ(std::string const& VolumeName, int CopyNumber, XYZVector const& position) const;
+	G4long getChannelIDfromXYZ(std::string const& VolumeName, int CopyNumber, int MotherCopyVolume, XYZVector const& position) const;
 
     private:
 	// methods
@@ -110,10 +111,30 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	// magnetic field messenger
 	// data members
 
-	/**
-	  @brief: This function sets up a box out of a given material.
-	  */
-	void CreateFaserNu(G4Material* material1, G4Material* material2, G4ThreeVector size1, G4ThreeVector size2, G4LogicalVolume* parent, G4int Nrep);
+	/// @brief Creates the FASERcal geometry
+	/// @param material1 = scintillator geometry
+	/// @param material2 = target geometry
+	/// @param size1 = thickness scintillator
+	/// @param size2 = thickness target
+	/// @param parent 
+	/// @param Nrep = number of layers
+	void CreateFaserCal(G4double zLocation, G4Material* material1, G4Material* material2, G4ThreeVector size1, G4ThreeVector size2, G4LogicalVolume* parent, G4int Nrep);
+
+	/// @brief Create the Magnet system
+	void CreateMagnetSystem(G4double zLocation, G4LogicalVolume* parent);
+
+	/// @brief Create the RearCalorimeter
+	void CreateRearCal(G4double zLocation, G4LogicalVolume* parent);
+
+	/// @brief Create the rear muon tagger
+	/// @param zLocation 
+	/// @param parent 
+	void CreateRearMuTag(G4double zLocation, G4LogicalVolume* parent);
+
+	/// @brief Create the front Pb target
+	/// @param zLocation 
+	/// @param parent 
+	void CreateFrontTarget(G4double zLocation, G4LogicalVolume *parent);
 
 	G4LogicalVolume* fLogicScintillator = nullptr;	///< Logical volume of the scintillator
 

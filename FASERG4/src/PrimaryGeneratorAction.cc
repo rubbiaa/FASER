@@ -39,6 +39,9 @@ PrimaryGeneratorAction::~PrimaryGeneratorAction()
 void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 {
 
+	// DEBUG : only primary lepton if CC otherwise random pion
+	bool want_particleGun = false; //  true;
+
 	const TPOEvent *branch_POEvent = GetTPOEvent();
 
 	if (m_ROOTInputFile == nullptr) {
@@ -56,7 +59,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 
 		m_POEventTree->SetBranchAddress("event", &branch_POEvent);
 
-		tree_ientry = 0;
+		tree_ientry = fNStartEvent;
 
 		valid_event = 0;
 
@@ -81,132 +84,99 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 
 	const DetectorConstruction* detector = static_cast<const DetectorConstruction*>(G4RunManager::GetRunManager()->GetUserDetectorConstruction());
 
-	// Generate primary vertex position
-	G4double theta = G4UniformRand() * 2 * M_PI;
-	G4double x = 50 * cos(theta);
-	G4double y = 50 * sin(theta);
-	G4double z = 0;
-	// uniformly distributed in the first 10 layers
-	G4int wanted_layer = floor(G4UniformRand() * 10);
 	XYZVector vtxpos;
-	// decide where the event is generated
-	if (G4UniformRand() < detector->fTotalWMass / detector->fTotalMass) {
-		// Generate an event in the tungsten
-		fTPOEvent.setVtxTarget(TPOEvent::kVtx_in_W);
-		G4double zfront = -detector->getNumberReplicas() * detector->fSandwichLength / 2.0;
-		z = zfront + wanted_layer * detector->fSandwichLength + detector->getScintillatorSizeZ() + 
-				G4UniformRand() * detector->gettargetWSizeZ();
+	if(fTPOEvent.use_GENIE_vtx) {
+		double x = fTPOEvent.prim_vx.x();
+		double y = fTPOEvent.prim_vx.y();
+		double z = fTPOEvent.prim_vx.z();
+		std::cout << " Using GENIE vtx:  x=" << x << " y=" << y << " z=" << z << " ";
+		vtxpos.SetX(x);
+		vtxpos.SetY(y);
+		vtxpos.SetZ(z);
+		fParticleManager->setVertexInformation(vtxpos);
+		std::cout << " Vertex target " << fTPOEvent.GENIE_vtx_name << std::endl;
 	} else {
-		// Generate an event in the tungsten
-		fTPOEvent.setVtxTarget(TPOEvent::kVtx_in_Scint);
-		G4double zfront = -detector->getNumberReplicas() * detector->fSandwichLength / 2.0;
-		z = zfront + wanted_layer * detector->fSandwichLength + G4UniformRand() * detector->getScintillatorSizeZ();
+		// Generate primary vertex position
+		G4double theta = G4UniformRand() * 2 * M_PI;
+		G4double x = 50 * cos(theta);
+		G4double y = 50 * sin(theta);
+		G4double z = 0;
+		// uniformly distributed in the first "n" layers
+		G4int maxlayer = 5;
+		G4int wanted_layer = floor(G4UniformRand() * maxlayer);
+		// decide where the event is generated
+		if (G4UniformRand() < detector->fTotalWMass / detector->fTotalMass) {
+			// Generate an event in the target
+			fTPOEvent.setVtxTarget(TPOEvent::kVtx_in_W);
+			G4double zfront = -detector->getNumberReplicas() * detector->fSandwichLength / 2.0;
+			z = zfront + wanted_layer * detector->fSandwichLength + detector->getScintillatorSizeZ() + 
+					G4UniformRand() * detector->gettargetWSizeZ();
+		} else {
+			// Generate an event in the scintillator
+			fTPOEvent.setVtxTarget(TPOEvent::kVtx_in_Scint);
+			G4double zfront = -detector->getNumberReplicas() * detector->fSandwichLength / 2.0;
+			z = zfront + wanted_layer * detector->fSandwichLength + G4UniformRand() * detector->getScintillatorSizeZ();
+		}
+		vtxpos.SetX(x);
+		vtxpos.SetY(y);
+		vtxpos.SetZ(z);
+		fParticleManager->setVertexInformation(vtxpos);
+		fTPOEvent.setPrimaryVtx(x,y,z);
 	}
-	vtxpos.SetX(x);
-	vtxpos.SetY(y);
-	vtxpos.SetZ(z);
-	fParticleManager->setVertexInformation(vtxpos);
-	fTPOEvent.setPrimaryVtx(x,y,z);
+
+	int ipo_maxhadron = -1;
+	if(want_particleGun) {
+		// shift run number to big number
+		fTPOEvent.run_number += 1000000000;
+		// find most energetic pion
+		for (G4int i = 0; i < fTPOEvent.n_particles(); ++i)
+		{
+			struct PO aPO = fTPOEvent.POs[i];
+			if (abs(aPO.m_pdg_id) != 211 && aPO.m_pdg_id != 111)
+				continue;
+			if(ipo_maxhadron == -1 || aPO.m_energy > fTPOEvent.POs[ipo_maxhadron].m_energy) {
+				ipo_maxhadron = i;
+			}			
+		}
+	}
+	bool got_pion = false;
 
 	fTPOEvent.dump_event();	
-
-#if 0
-	std::vector<XYZVector> ParticlePosition;
-	std::vector<XYZVector> ParticleMomentum;
-	std::vector<double> ParticleTime;
-	std::vector<int> ParticlePDGCode;
-	std::vector<double> ParticleEnergy;
-	std::vector<double> ParticleKinEnergy;
-	std::vector<int> ParticleTrackID;
-	std::vector<int> DecayModeFlag;
-
-	ParticlePosition.clear();
-	ParticleMomentum.clear();
-	ParticleTime.clear();
-	ParticlePDGCode.clear();
-	ParticleEnergy.clear();
-	ParticleKinEnergy.clear();
-	ParticleTrackID.clear();
-	DecayModeFlag.clear();
-#endif
 
 	valid_event++;
 	for (G4int i = 0; i < fTPOEvent.n_particles(); ++i)
 	{
 		struct PO aPO = fTPOEvent.POs[i];
+
+		// run in particle gun mode keeping only one relevant track from event
+		if(want_particleGun) {
+			if(got_pion) continue;
+			if(fTPOEvent.isCC) {
+				if(!fTPOEvent.is_lepton(aPO.m_pdg_id)) continue;
+			} else {
+				if(i != ipo_maxhadron) continue;				
+				got_pion = true;
+			}
+		}
+
 		G4ParticleDefinition *particle = particleTable->FindParticle(aPO.m_pdg_id);
 
 		if (particle != nullptr && aPO.m_status == 1)
 		{
-//			if(aPO.m_pdg_id != 15) continue;  // TODO/FIXME remove
+//			if(aPO.m_pdg_id != 15) continue;  // TODO/FIXME debug to process only taus
 			G4ParticleGun *particleGun = new G4ParticleGun(1);
 
 //			ParticlePDGCode.push_back(aPO.m_pdg_id);
 
 			particleGun->SetParticleDefinition(particle);
 
-			particleGun->SetParticlePosition(G4ThreeVector(x * mm, y * mm, z * mm));
+			particleGun->SetParticlePosition(G4ThreeVector(vtxpos.x() * mm, vtxpos.y() * mm, vtxpos.z() * mm));
 			G4ThreeVector StartMomentum(aPO.m_px * GeV, aPO.m_py * GeV, aPO.m_pz * GeV);
-
-#if 0
-
-			ParticlePosition.push_back(XYZVector(x * mm, y * mm, z * mm));
-
-			ParticleMomentum.push_back(XYZVector(aPO.m_px * GeV, aPO.m_py * GeV, aPO.m_pz * GeV));
-
-			ParticleTime.push_back(0);
-			ParticleEnergy.push_back(aPO.m_energy);
-			ParticleKinEnergy.push_back(aPO.m_kinetic_energy);
-			ParticleTrackID.push_back(aPO.m_track_id);
-			DecayModeFlag.push_back(0);
-#endif
 
 			particleGun->SetParticleMomentum(StartMomentum);
 			fParticleGuns.push_back(particleGun);
 		}
 	}
-
-#if 0
-	// still need to add tau decay products if any present
-	if (fTPOEvent.n_taudecay() > 0)
-	{
-		G4cout << "Found a tau lepton..." << G4endl;
-		fTPOEvent.dump_event();
-		std::cout << "Tau decay mode : " << fTPOEvent.tau_decaymode << std::endl;
-
-		for (size_t i = 0; i < fTPOEvent.n_taudecay(); i++)
-		{
-			struct PO aPO = fTPOEvent.taudecay[i];
-			if (aPO.m_status == 1)
-			{
-				G4ParticleGun *particleGun = new G4ParticleGun(1);
-
-				G4ParticleDefinition *particle = particleTable->FindParticle(aPO.m_pdg_id);
-				ParticlePDGCode.push_back(aPO.m_pdg_id);
-				G4cout << "Particle found: " << particle->GetParticleName()
-					   << ", mass: " << particle->GetPDGMass() / GeV << " GeV"
-					   << ", charge: " << particle->GetPDGCharge() << G4endl;
-
-				particleGun->SetParticleDefinition(particle);
-
-				particleGun->SetParticlePosition(G4ThreeVector((x + aPO.m_vx_decay) * mm, (y + aPO.m_vy_decay) * mm, (z + aPO.m_vz_decay) * mm));
-				ParticlePosition.push_back(XYZVector((x + aPO.m_vx_decay) * mm, (y + aPO.m_vy_decay) * mm, (z + aPO.m_vz_decay) * mm));
-
-				G4ThreeVector StartMomentum(aPO.m_px * GeV, aPO.m_py * GeV, aPO.m_pz * GeV);
-				ParticleMomentum.push_back(XYZVector(aPO.m_px * GeV, aPO.m_py * GeV, aPO.m_pz * GeV));
-
-				ParticleTime.push_back(0);
-				ParticleEnergy.push_back(aPO.m_energy);
-				ParticleKinEnergy.push_back(aPO.m_kinetic_energy);
-				ParticleTrackID.push_back(aPO.m_track_id);
-				DecayModeFlag.push_back(1);
-
-				particleGun->SetParticleMomentum(StartMomentum);
-				fParticleGuns.push_back(particleGun);
-			}
-		}
-	}
-#endif
 
 	int NParticlesIF = fParticleGuns.size();
 
@@ -231,4 +201,3 @@ void PrimaryGeneratorAction::SetROOTInputFileName(G4String value) { fROOTInputFi
 
 void PrimaryGeneratorAction::SetFileNumber(G4int value) { fFileNumber = value; }
 
-void PrimaryGeneratorAction::SetNEventsPerFile(G4int value) { fNEventsPerFile = value; }

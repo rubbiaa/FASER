@@ -18,20 +18,69 @@ ParticleManager::ParticleManager(int number) : m_rootFile(nullptr)
 
 ParticleManager::~ParticleManager() {}
 
-void ParticleManager::processParticleHit(int trackID, XYZVector const& position, XYZVector const& direction, double const& time,
+void ParticleManager::processParticleHit(G4Track *track, XYZVector const& position, XYZVector const& direction, double const& time,
 					 double const& energydeposit, int const& parentID, int const& pdg,
-					 std::string const& VolumeName, int CopyNumber)
+					 std::string const& VolumeName, int CopyNumber, int MotherCopyNumber)
 {
+	if(VolumeName == "rearCalscintillatorLogical") {
+//		std::cout << VolumeName << " copy=" << CopyNumber << " MotherCopy = " << MotherCopyNumber << std::endl;
+		auto it = std::find_if(fTcalEvent->rearCalDeposit.begin(), fTcalEvent->rearCalDeposit.end(),
+                       [MotherCopyNumber](const TcalEvent::REARCALDEPOSIT& deposit) {
+                           return deposit.moduleID == MotherCopyNumber;
+                       });
+		if (it != fTcalEvent->rearCalDeposit.end()) {
+			it->energyDeposit += energydeposit;
+		} else {
+			struct TcalEvent::REARCALDEPOSIT rearhit = {MotherCopyNumber, energydeposit};
+			fTcalEvent->rearCalDeposit.push_back(rearhit);
+		}
+		return;
+	} else if(VolumeName == "muCalscintillatorLogical") {
+		fTcalEvent->rearMuCalDeposit += energydeposit;
+		#if 0
+		G4cout << "MucalScint: pdgid=" << pdg << " edepo=" << energydeposit << G4endl;
+        G4double kineticEnergy = track->GetKineticEnergy();
+	    G4ThreeVector momentum = track->GetMomentum();
+		G4cout << "  Kinetic Energy: " << kineticEnergy / MeV << " MeV" << G4endl;
+        G4cout << "  Momentum: " << momentum / MeV << " MeV/c" << G4endl;
+		#endif
+		return;
+	}
+	if(VolumeName == "ShortCylLogical" || VolumeName == "LongCylLogical") {
+		const G4ParticleDefinition *particledef = track->GetParticleDefinition();
+		if(particledef->GetPDGCharge() == 0) return;
+
+		int trackID = track->GetTrackID();
+		auto it = m_magnetTrackMap.find(trackID);
+		if (it != m_magnetTrackMap.end())
+		{
+			ROOT::Math::XYZVector pos;
+			pos.SetXYZ(position.x(), position.y(), position.z());
+			it->second->pos.push_back(pos);
+		}
+		else
+		{
+			// If the track does not exist, create a new one
+			MagnetTrack *newT = new MagnetTrack(trackID);
+			newT->fPDG = pdg;
+			ROOT::Math::XYZVector pos;
+			pos.SetXYZ(position.x(), position.y(), position.z());
+			newT->pos.push_back(pos);
+			m_magnetTrackMap[trackID] = newT;
+		}
+		return;
+	}
+	int trackID = track->GetTrackID();
 	if(energydeposit>0 || parentID == 0) { 					// or some energy or is primary
 		auto it = m_particleMap.find(trackID);
 		if (it != m_particleMap.end()) {
 			it->second->addTotalEnergyDeposit(energydeposit);
-			it->second->update(position, direction, time, energydeposit, VolumeName, CopyNumber);
+			it->second->update(position, direction, time, energydeposit, VolumeName, CopyNumber, MotherCopyNumber);
 		}
 		else {
 			// If the track does not exist, create a new one
 			Track* newParticle = new Track(trackID, parentID, pdg, position, direction, time, 
-			energydeposit, VolumeName, CopyNumber);
+			energydeposit, VolumeName, CopyNumber, MotherCopyNumber);
 			m_particleMap[trackID] = newParticle;
 		}
 	}
@@ -52,12 +101,13 @@ void ParticleManager::beginOfEvent()
 {
 	// Clear the track map
 	m_particleMap.clear();
+	m_magnetTrackMap.clear();
 	fPrimaries.clear();
 
 	PrimaryGeneratorAction* prim = dynamic_cast<PrimaryGeneratorAction*>
 		(const_cast<G4VUserPrimaryGeneratorAction*>(G4RunManager::GetRunManager()->GetUserPrimaryGeneratorAction()));
 	int mask_event = const_cast<TPOEvent*>(prim->GetTPOEvent())->event_mask;
-	fTcalEvent = new TcalEvent(prim->GetTPOEvent()->run_number, fTcalEvent_number, mask_event);
+	fTcalEvent = new TcalEvent(prim->GetTPOEvent()->run_number, prim->GetTPOEvent()->event_id, mask_event);
 
 	// set the link to the primary event information
 //	PrimaryGeneratorAction* prim = dynamic_cast<PrimaryGeneratorAction*>
@@ -73,12 +123,22 @@ void ParticleManager::beginOfEvent()
 	fTcalEvent->geom_detector.fScintillatorVoxelSize = detector->fScintillatorVoxelSize;
 	fTcalEvent->geom_detector.fSiTrackerSizeZ = detector->fSiTrackerSizeZ;
 	fTcalEvent->geom_detector.fSiTrackerPixelSize = detector->fSiTrackerPixelSize;
+	fTcalEvent->geom_detector.fTargetSizeZ = detector->ftargetWSizeZ;
 	fTcalEvent->geom_detector.fSandwichLength = detector->fSandwichLength;
 	fTcalEvent->geom_detector.fTotalLength = detector->fTotalLength;
 	fTcalEvent->geom_detector.NRep = detector->getNumberReplicas();
 	fTcalEvent->geom_detector.fTotalMass = detector->fTotalMass;
 	fTcalEvent->geom_detector.fTotalWmass = detector->fTotalWMass;
 	fTcalEvent->geom_detector.fTotalScintmass = detector->fTotalScintMass;
+	fTcalEvent->geom_detector.rearCalSizeX = 121.2;
+	fTcalEvent->geom_detector.rearCalSizeY = 121.2;
+    fTcalEvent->geom_detector.rearCalLocZ = detector->fTotalLength/2.0; // when no magnet + 3500.0;
+	fTcalEvent->geom_detector.rearCalNxy = 5;
+
+	// clear the rear calorimeter
+	fTcalEvent->rearCalDeposit.clear();
+	// clear the rear muCal scintillator
+	fTcalEvent->rearMuCalDeposit = 0;
 }
 
 void ParticleManager::endOfEvent(G4Event const* event)
@@ -114,8 +174,24 @@ void ParticleManager::endOfEvent(G4Event const* event)
 				t->fEnergyDeposits.push_back(hit.second);
 			}
 		}
+
+		// Fill magnet tracks
+		for (const auto& it : m_magnetTrackMap) {
+			MagnetTrack* magnettrk = it.second;
+			fTcalEvent->fMagnetTracks.push_back(magnettrk);
+		}
+	
+		// dump RearCal
+		#if 0
+		for (const auto &it : fTcalEvent->rearCalDeposit) {
+			G4cout << " Module " << it.moduleID << " deposit: " << it.energyDeposit << G4endl;
+		}
+		// dump rear muCal
+		G4cout << " Rear Mu Scintillator: " << fTcalEvent->rearMuCalDeposit << G4endl;
+		#endif
+		
 		fTcalEvent->fillTree();
-		fTcalEvent_number++;
+	//	fTcalEvent_number++;
 	}
 	delete fTcalEvent;
 	fTcalEvent = nullptr;
@@ -193,7 +269,7 @@ void ParticleManager::RecordTrack(const G4Track* track) {
 					double energydeposit = 0;
 
 					Track *newParticle = new Track(trackID, parentID, pdg,
-												   position, direction, Time, energydeposit, "", 0);
+												   position, direction, Time, energydeposit, "", 0,0);
 					m_particleMap[trackID] = newParticle;
 				}
 			}

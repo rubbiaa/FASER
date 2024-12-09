@@ -32,8 +32,11 @@ TcalEvent::TcalEvent(int run_number, long event_number, int event_mask) : TcalEv
 
     m_calEventTree = new TTree("calEvent", "calEvent");
     m_calEventTree->Branch("tracks", &fTracks);
+    m_calEventTree->Branch("magnetracks", &fMagnetTracks);
     m_calEventTree->Branch("event", &fTPOEvent);    // this should be labelled POEvent !
     m_calEventTree->Branch("geom", &geom_detector);
+    m_calEventTree->Branch("rearcal", &rearCalDeposit);
+    m_calEventTree->Branch("rearmucal", &rearMuCalDeposit);
 
     //    fTracks = new std::vector<DigitizedTrack*>;
 }
@@ -52,6 +55,14 @@ TcalEvent::~TcalEvent()
         delete track;
     }
     fTracks.clear();
+
+    // Delete all magnet tracks
+    for (auto track : fMagnetTracks)
+    {
+        delete track;
+    }
+    fMagnetTracks.clear();
+
     //    delete fTracks;
 }
 
@@ -93,6 +104,9 @@ int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
     std::vector<DigitizedTrack*> *t = &fTracks;
     event_tree->SetBranchAddress("tracks", &t);
 
+    std::vector<MagnetTrack*> *mt = &fMagnetTracks;
+    event_tree->SetBranchAddress("magnetracks", &mt);
+
 //    const TPOEvent *POevent = new TPOEvent();
     event_tree -> SetBranchAddress("event", &POevent);
 //    fTPOEvent = const_cast<TPOEvent*>(POevent);
@@ -100,6 +114,11 @@ int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
 
     struct TcalEvent::GEOM_DETECTOR *g_d = &geom_detector;
     event_tree -> SetBranchAddress("geom", &g_d);
+
+    std::vector<struct REARCALDEPOSIT> *g_r = &rearCalDeposit;
+    event_tree ->SetBranchAddress("rearcal", &g_r);
+
+    event_tree -> SetBranchAddress("rearmucal", &rearMuCalDeposit);
 
     // Read the first entry
     event_tree->GetEntry(0);
@@ -139,23 +158,11 @@ void TcalEvent::AssignGEANTTrackID(int G4TrackID, int PDGcode, double px, double
     }
 }
 
-/// @brief Return the type of the hit
-/// @param ID The hit ID
-/// @return =0 for scintillator, = 1 for silicon tracker hit
-long TcalEvent::getChannelTypefromID(long ID) const {
-    return ID / 100000000000LL;
-}
-
-long TcalEvent::getChannelLayerfromID(long ID) const {
-    long hittype = ID / 100000000000LL;
-    if(hittype == 0) {        // hit in scintillator
-        long ilayer = (ID / 1000000000);
-        return ilayer;
-    } else if (hittype == 1) {
-        long ilayer = (ID / 100000000) % 1000;
-        return ilayer;
-    }
-    return 0;
+inline double TcalEvent::getZofLayer(long ilayer, long iz) const {
+    double z = ilayer * geom_detector.fSandwichLength + iz * geom_detector.fScintillatorVoxelSize
+            - (geom_detector.NRep * geom_detector.fSandwichLength) / 2.0
+            + geom_detector.fScintillatorVoxelSize/2.0;
+    return z;
 }
 
 ROOT::Math::XYZVector TcalEvent::getChannelXYZfromID(long ID) const
@@ -167,26 +174,38 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZfromID(long ID) const
         long iz = (ID / 1000000) % 1000;
         long ilayer = (ID / 1000000000);
 
-        double x = ix * geom_detector.fScintillatorVoxelSize - geom_detector.fScintillatorSizeX / 2.0;
-        double y = iy * geom_detector.fScintillatorVoxelSize - geom_detector.fScintillatorSizeY / 2.0;
-        double z = ilayer * geom_detector.fSandwichLength + iz * geom_detector.fScintillatorVoxelSize
-            - (geom_detector.NRep * geom_detector.fSandwichLength) / 2.0;
-            + geom_detector.fScintillatorVoxelSize*2;
+        double x = ix * geom_detector.fScintillatorVoxelSize - geom_detector.fScintillatorSizeX / 2.0
+            + geom_detector.fScintillatorVoxelSize/2.0;
+        double y = iy * geom_detector.fScintillatorVoxelSize - geom_detector.fScintillatorSizeY / 2.0
+            + geom_detector.fScintillatorVoxelSize/2.0;
+//        double z = ilayer * geom_detector.fSandwichLength + iz * geom_detector.fScintillatorVoxelSize
+//            - (geom_detector.NRep * geom_detector.fSandwichLength) / 2.0
+//            + geom_detector.fScintillatorVoxelSize/2.0;
+        double z = getZofLayer(ilayer, iz);
         return ROOT::Math::XYZVector(x, y, z);
     } else if (hittype == 1) {
 
         long ix = ID % 10000;
         long iy = (ID / 10000) % 10000;
-        long ilayer = (ID / 100000000) % 1000;
+        long ilayer = (ID / 100000000) % 100;
+        long icopy = (ID / 10000000000LL) % 10;
         double x = ix * geom_detector.fSiTrackerPixelSize - geom_detector.fScintillatorSizeX / 2.0;
         double y = iy * geom_detector.fSiTrackerPixelSize - geom_detector.fScintillatorSizeY / 2.0;
         double z = ilayer * geom_detector.fSandwichLength + geom_detector.fSandwichLength
             - (geom_detector.NRep * geom_detector.fSandwichLength) / 2.0;
+        if(icopy == 1) z -= geom_detector.fTargetSizeZ;
         return ROOT::Math::XYZVector(x, y, z);
     } else {
         std::cerr << " TcalEvent::getChannelXYZfromID - hit of unknown type" << hittype << std::endl;
         return ROOT::Math::XYZVector(0,0,0);
     }
+}
+
+ROOT::Math::XYZVector TcalEvent::getChannelXYZRearCal(int moduleID) const {
+    double x = (moduleID%geom_detector.rearCalNxy - geom_detector.rearCalNxy/2.0 + 0.5)*geom_detector.rearCalSizeX;
+    double y = (moduleID/geom_detector.rearCalNxy - geom_detector.rearCalNxy/2.0 + 0.5)*geom_detector.rearCalSizeY;
+    double z = geom_detector.rearCalLocZ;
+    return ROOT::Math::XYZVector(x, y, z);
 }
 
 void TcalEvent::fillTree()
@@ -204,6 +223,5 @@ DigitizedTrack *TcalEvent::addTrack(int trackID)
     fTracks.push_back(digitizedTrack);
     return digitizedTrack;
 }
-
 
 

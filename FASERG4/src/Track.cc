@@ -18,24 +18,26 @@ Track::Track() {
 
 Track::Track(int TrackID, int ParentID, int PDG, XYZVector Position, XYZVector Momentum, 
 						double Time, double EnergyDeposit,
-						std::string Volume, int CopyVolume) : Track()
+						std::string Volume, int CopyVolume, int MotherCopyVolume) : Track()
 {
     fTotalEDep = EnergyDeposit;
 	fTrackID = TrackID;
 	fParentID = ParentID;
 	fPDG = PDG;
 
+/* IS THIS NEEDED ??
 	fPosition.push_back(Position);
 	fMomentum.push_back(Momentum);
 	fTime.push_back(Time);
 	fEnergyDeposit.push_back(EnergyDeposit);
 //	fProcess.push_back(Process);
 	fVolume.push_back(Volume);
+*/
 
 	if(EnergyDeposit > 0) {
 		const DetectorConstruction *detector = static_cast<const DetectorConstruction *>(G4RunManager::GetRunManager()->GetUserDetectorConstruction());
 		const XYZVector pos = Position;
-		G4long chanID = detector->getChannelIDfromXYZ(Volume, CopyVolume, pos);
+		G4long chanID = detector->getChannelIDfromXYZ(Volume, CopyVolume, MotherCopyVolume, pos);
 
 		auto it = m_hitIDMap.find(chanID);
 		if (it != m_hitIDMap.end())
@@ -281,7 +283,7 @@ void Track::addProcess(Geant4Process process) { fProcess.push_back(process); }
 void Track::addVolume(std::string volume) { fVolume.push_back(volume); }
 
 void Track::update(XYZVector position, XYZVector momentum, double time, double energyDeposit, 
-	std::string volume, int CopyVolume)
+	std::string volume, int CopyVolume, int MotherCopyVolume)
 {
 	//addPosition(position);
 	//addMomentum(momentum);
@@ -292,7 +294,7 @@ void Track::update(XYZVector position, XYZVector momentum, double time, double e
 
 	const DetectorConstruction* detector = static_cast<const DetectorConstruction*>(G4RunManager::GetRunManager()->GetUserDetectorConstruction());
 	const XYZVector pos = position;
-	G4long chanID = detector->getChannelIDfromXYZ(volume, CopyVolume, pos);
+	G4long chanID = detector->getChannelIDfromXYZ(volume, CopyVolume, MotherCopyVolume, pos);
 
 	auto it = m_hitIDMap.find(chanID);
 	if (it != m_hitIDMap.end()) {

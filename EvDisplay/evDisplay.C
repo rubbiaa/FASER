@@ -22,10 +22,35 @@
 #include <TEveManager.h>
 #include <TEveGeoNode.h>
 
+// Function to recursively list volumes
+void ListVolumes(TGeoVolume* volume, int depth = 0) {
+    // Print the volume name with indentation for hierarchy
+    for (int i = 0; i < depth; ++i) std::cout << "  "; // Indent based on depth
+    std::cout << volume->GetName() << std::endl;
+
+    // Loop through the list of daughter volumes
+    int nDaughters = volume->GetNdaughters();
+    for (int i = 0; i < nDaughters; ++i) {
+        TGeoVolume* daughter = volume->GetNode(i)->GetVolume();
+        ListVolumes(daughter, depth + 1);  // Recursive call with increased depth
+    }
+}
+
 void load_geometry() {
     // Load the GDML geometry
     TGeoManager::Import("../GeomGDML/geometry.gdml");
 
+    TGeoVolume* topVolume = gGeoManager->GetTopVolume();
+    topVolume->SetTransparency(50);  // Value from 0 (opaque) to 100 (fully transparent)
+
+    // List all volumes in the geometry
+    std::cout << "Listing all volumes in the geometry:" << std::endl;
+    ListVolumes(topVolume);
+
+    TGeoVolume *volume1 = gGeoManager->FindVolumeFast("ShortCylLogical");
+//    volume1->SetLineColor(kRed);      // Set color (optional)
+//    volume1->SetVisibility(kTRUE);    // Ensure it is visible
+//    volume1->SetDrawOption("wireframe");
 #if 0
     TEveManager::Create();
 
@@ -41,14 +66,23 @@ int main(int argc, char** argv) {
 
     // get the run number as the first argument
 	if (argc < 2) {
-		std::cout << "Usage: " << argv[0] << " <run> [mask]" << std::endl;
+		std::cout << "Usage: " << argv[0] << " [-r] <run> [mask]" << std::endl;
+        std::cout << "   -r                        Open reconstructed files" << std::endl;
         std::cout << "   <run>                     Run number" << std::endl;
         std::cout << "   mask                      To process only specific events (def=none): ";
         std::cout << "  nueCC, numuCC, nutauCC, nuNC or nuES" << std::endl;
 		return 1;
 	}
 
-    std::string runString = argv[1];
+    bool pre = false;
+    int idx = 1;
+
+    if(strcmp(argv[idx], "-r")==0) {
+        pre = true;
+        idx++;
+    }
+
+    std::string runString = argv[idx];
     int run_number;
 
     try {
@@ -60,12 +94,12 @@ int main(int argc, char** argv) {
     }
 
     int event_mask = 0;
-    if(argc>2) {
-        int mask = TPOEvent::EncodeEventMask(argv[2]);
+    if(argc>idx+1) {
+        int mask = TPOEvent::EncodeEventMask(argv[idx]);
         if(mask>0) {
             event_mask = mask;
         } else {
-            std::cerr << "Unknown mask " << argv[2] << std::endl;
+            std::cerr << "Unknown mask " << argv[idx] << std::endl;
             exit(1);            
         }
     }
@@ -73,8 +107,15 @@ int main(int argc, char** argv) {
     TApplication app("app", &argc, argv);
 
     load_geometry();
+#if 0
+    TGeoVolume *specificVolume = gGeoManager->FindVolumeFast("rearCalmoduleLogical");
+    if (specificVolume) {
+    specificVolume->SetLineColor(kRed);      
+    specificVolume->SetTransparency(50);       
+    }
+#endif
 
-    new MyMainFrame(run_number, 0, event_mask, gClient->GetRoot(), 1200, 600);
+    new MyMainFrame(run_number, 0, event_mask, pre, gClient->GetRoot(), 1200, 600);
 
     // Run the application
     app.Run();

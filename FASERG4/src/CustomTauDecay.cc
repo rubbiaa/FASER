@@ -48,10 +48,15 @@ G4DecayProducts* CustomTauDecay::ImportDecayProducts(const G4Track& track)
 
    // create & fill up decay products
     dproducts = new G4DecayProducts(*(track.GetDynamicParticle()));
+    G4ThreeVector decay_position = track.GetPosition();
     
     // get decay products from the POEvent - assume the particle hasn't lost too much energy in dE/dx
     for (size_t i=0; i<TPOevent->n_taudecay(); i++) {
         struct PO aPO = TPOevent->taudecay[i];
+        // insert decay position
+        aPO.m_vx_decay = decay_position.x();
+        aPO.m_vy_decay = decay_position.y();
+        aPO.m_vz_decay = decay_position.z();
         if(TPOevent->is_neutrino(aPO.m_pdg_id))continue;
         G4ParticleDefinition* pddec = 
             G4ParticleTable::GetParticleTable()->FindParticle(aPO.m_pdg_id);

@@ -1,7 +1,7 @@
 EXE = batchreco.exe
 EXE2 = dumphits.exe
 
-COREUTILSDIR := ../CoreUtils
+include ../Makefile.common
 
 SRC = BatchReco.cc
 SRC2 = DumpHits.cc
@@ -25,21 +25,17 @@ INCS = $(wildcard *.h)
 INCS += $(wildcard *.hh)
 INCS += $(wildcard $(COREUTILSDIR)/*.hh)
 
-ROOTCFLAGS = -fPIC -g $(shell root-config --cflags) 
-
-ROOTCFLAGS += -I$(COREUTILSDIR)
-
 all : $(EXE) $(EXE2)
 
 dict.cxx : $(INCS) $(SRC)
-	rootcling -f dict.cxx -c LinkDef.h -I$(COREUTILSDIR)
+	rootcling -f dict.cxx -c LinkDef.h -I$(COREUTILSDIR) -I$(GENFITINCDIR)
 
 $(EXE) : $(OBJ) Makefile
-	g++ $(ROOTCFLAGS) $(OBJ) `root-config --glibs` -lEG -lGeom -o $@
+	g++ $(ROOTCFLAGS) $(OBJ) `root-config --glibs` -lEG -lGeom $(GENFITLIBS) -o $@
 	g++ -shared -o libTPORec.so dict.o $(OBJCORE) -L$(ROOTSYS)/lib `root-config --glibs`
 
 $(EXE2) : $(OBJ2) Makefile
-	g++ $(ROOTCFLAGS) $(OBJ2) `root-config --glibs` -lEG -lGeom -o $@
+	g++ $(ROOTCFLAGS) $(OBJ2) `root-config --glibs` -lEG -lGeom $(GENFITLIBS) -o $@
 	g++ -shared -o libTPORec.so dict.o $(OBJCORE) -L$(ROOTSYS)/lib `root-config --glibs`
 
 # Compile source files to object files

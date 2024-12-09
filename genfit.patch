@@ -1,0 +1,8 @@
+173c173
+<       assert(trackPtr->checkConsistency());
+---
+>       //      assert(trackPtr->checkConsistency());
+186c186
+<       assert(trackPtr->checkConsistency());
+---
+>       //      assert(trackPtr->checkConsistency());

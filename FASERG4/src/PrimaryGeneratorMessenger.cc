@@ -18,10 +18,10 @@ PrimaryGeneratorMessenger::PrimaryGeneratorMessenger(PrimaryGeneratorAction* Gun
 	fFileNumberCmd->SetParameterName("FileNumber", false);
 	fFileNumberCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
-	fNEventsPerFileCmd = new G4UIcmdWithAnInteger("/generator/neventsperfile", this);
-	fNEventsPerFileCmd->SetGuidance("Select number of events per file.");
-	fNEventsPerFileCmd->SetParameterName("NEventsPerFile", false);
-	fNEventsPerFileCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+	fNStartEvent = new G4UIcmdWithAnInteger("/generator/startevent", this);
+	fNStartEvent->SetGuidance("Select start event.");
+	fNStartEvent->SetParameterName("StartEvent", false);
+	fNStartEvent->AvailableForStates(G4State_PreInit, G4State_Idle);
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -30,7 +30,7 @@ PrimaryGeneratorMessenger::~PrimaryGeneratorMessenger()
 {
 	delete fROOTInputFileNameCmd;
 	delete fFileNumberCmd;
-	delete fNEventsPerFileCmd;
+	delete fNStartEvent;
 	delete fGunDir;
 }
 
@@ -46,7 +46,7 @@ void PrimaryGeneratorMessenger::SetNewValue(G4UIcommand* command, G4String newVa
 		fAction->SetFileNumber(fFileNumberCmd->GetNewIntValue(newValue));
 	}
 
-	if (command == fNEventsPerFileCmd) {
-		fAction->SetNEventsPerFile(fNEventsPerFileCmd->GetNewIntValue(newValue));
+	if (command == fNStartEvent) {
+		fAction->SetfNStartEvent(fNStartEvent->GetNewIntValue(newValue));
 	}
 }

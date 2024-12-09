@@ -24,6 +24,9 @@
 class ParticleManager {
     private:
 	std::map<int, Track*> m_particleMap;  ///< Map to store track ID and corresponding Track object
+
+	std::map<int, MagnetTrack*> m_magnetTrackMap;   // map to store MC tracks in the magnet
+
 	TFile* m_rootFile;		     ///< ROOT file to store the rays
 
 	std::string m_rootOutputFileName;  ///< Name of the ROOT output file, set by the user using the CLI when calling the program
@@ -41,7 +44,7 @@ class ParticleManager {
 	std::string m_material2;
 	int m_nrep;
 
-	long fTcalEvent_number = 0;
+//	long fTcalEvent_number = 0;
 	TcalEvent *fTcalEvent;
 
 	XYZVector primary_vertex_position;
@@ -77,8 +80,8 @@ class ParticleManager {
 	 * @param VolumeName Name of the volume where the hit occurred
 	 * @param CopyNumber The replica number of the volume
 	 */
-	void processParticleHit(int trackID, XYZVector const& position, XYZVector const& direction, double const& time, double const& energydeposit,
-				int const& parentID, int const& pdg, std::string const& VolumeName, G4int CopyNumber);
+	void processParticleHit(G4Track *track, XYZVector const& position, XYZVector const& direction, double const& time, double const& energydeposit,
+				int const& parentID, int const& pdg, std::string const& VolumeName, G4int CopyNumber, int MotherCopyNumber);
 
 	/**
 	 * @brief Get the Information about the primary Vertex from the Primary Generator Action

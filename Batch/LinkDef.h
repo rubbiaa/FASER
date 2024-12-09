@@ -2,6 +2,9 @@
 
 #include "TPORecoEvent.hh"
 #include "TTauSearch.hh"
+#include "TParticleGun.hh"
+#include "TPSCluster.hh"
+#include "TTKTrack.hh"
 
 #ifdef __CLING__
 
@@ -24,5 +27,18 @@
 
 #pragma link C++ class TTauSearch;
 #pragma link C++ struct TTauSearch::KINEMATICS;
+
+#pragma link C++ class TParticleGun;
+#pragma link C++ struct TParticleGun::FEATURES;
+
+#pragma link C++ class TPSCluster;
+#pragma link C++ struct TPSCluster::PSCLUSTERLONGPROFILE;
+
+#pragma link C++ class TTKTrack;
+#pragma link C++ class TPSTrack;
+
+#pragma link C++ struct TPORecoEvent::REARCALS;
+
+#pragma link C++ struct TcalEvent::GEOM_DETECTOR;
 
 #endif

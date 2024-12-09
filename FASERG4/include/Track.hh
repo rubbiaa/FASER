@@ -55,7 +55,7 @@ class Track : public TObject {
 	 * @param CopyVolume volume replica number (if any)
 	 */
 	Track(int TrackID, int ParentID, int PDG, XYZVector Position, XYZVector Momentum, double Time, double EnergyDeposit,
-	      std::string Volume, int CopyVolume);
+	      std::string Volume, int CopyVolume, int MotherCopyVolume);
 
 	~Track();  ///< Default destructor
 
@@ -317,7 +317,7 @@ legit process. Prints warning to cout
 	 * @param CopyVolume volume replica number (if any)
 	 */
 	void update(XYZVector position, XYZVector momentum, double time, double energyDeposit, 
-			std::string volume, int CopyVolume);
+			std::string volume, int CopyVolume, int MotherCopyVolume);
 
 	/**
 	 * @brief Add to the total energy deposit of the particle

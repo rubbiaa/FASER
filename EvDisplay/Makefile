@@ -1,6 +1,8 @@
 EXE = evDisplay.exe
 
-COREUTILSDIR := ../CoreUtils
+include ../Makefile.common
+
+ROOTCFLAGS +=  -fsanitize=address
 
 SRC = evDisplay.C MyMainFrame.cc 
 
@@ -18,18 +20,14 @@ INCS = $(wildcard *.h)
 INCS += $(wildcard *.hh)
 INCS += $(wildcard $(COREUTILSDIR)/*.hh)
 
-ROOTCFLAGS = -fPIC -g $(shell root-config --cflags)
-
-ROOTCFLAGS += -I$(COREUTILSDIR)
-
 all : $(EXE)
 
 dict.cxx : $(INCS) $(SRC)
-	rootcling -f dict.cxx -c LinkDef.h -I$(COREUTILSDIR)
+	rootcling -f dict.cxx -c LinkDef.h -I$(COREUTILSDIR) -I$(GENFITINCDIR)
 
 $(EXE) : $(OBJ) Makefile
 #	g++ $(ROOTCFLAGS) $(OBJ) `root-config --glibs --evelibs` -lEG -lGeom -o $(EXE)
-	g++ $(ROOTCFLAGS) $(OBJ) `root-config --glibs` -lEG -lGeom -o $(EXE)
+	g++ $(ROOTCFLAGS) $(OBJ) `root-config --glibs` -lEG -lGeom $(GENFITLIBS) -o $(EXE)
 
 # Compile source files to object files
 %.o: %.C $(INCS)

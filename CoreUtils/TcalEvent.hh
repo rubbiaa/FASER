@@ -39,6 +39,19 @@ class DigitizedTrack : public TObject {
     ClassDef(DigitizedTrack, 1)
 };
 
+class MagnetTrack : public TObject {
+    public:
+
+    MagnetTrack() { };
+    MagnetTrack(int trackID) { ftrackID = trackID; pos.clear(); };
+
+    int ftrackID;           // the GEANT4 track id
+    int fPDG;               // the PDG id of this track
+    std::vector<ROOT::Math::XYZVector> pos;
+
+    ClassDef(MagnetTrack,1)
+};
+
 class TcalEvent : public TObject {
 
 private:
@@ -46,10 +59,12 @@ private:
     TTree* m_calEventTree;
     /// @brief The digitized tracks associated to this event
     std::vector<DigitizedTrack*> fTracks;
-    
+
     int verbose = 1;
 
 public:
+    TPOEvent* fTPOEvent;
+
     TcalEvent();
     TcalEvent(int run_number, long event_number, int event_mask);
     virtual ~TcalEvent();
@@ -67,14 +82,25 @@ public:
     /// @return 
     int Load_event(std::string base_path, int run_number, int ievent, int event_mask, TPOEvent *POevent);
 
-    TPOEvent* fTPOEvent;
     void AssignGEANTTrackID(int G4TrackID, int PDGcode, double px, double py, double pz);
 
     std::vector<DigitizedTrack*> getfTracks() { return fTracks;};
 
     DigitizedTrack* addTrack(int trackID);
+    
+    /// @brief The truth tracks in the magnet to provide nice event display of MC
+    std::vector<MagnetTrack*> fMagnetTracks;
+
     void fillTree();
 
+    struct REARCALDEPOSIT {
+        Int_t moduleID;
+        Double_t energyDeposit;
+    };
+    std::vector<struct REARCALDEPOSIT> rearCalDeposit;    // energy deposited in rear calorimeter
+
+    double rearMuCalDeposit;     // energy in the rear MuCal scintillator
+        
     /// @brief Structure contains all basic geometry parameters (see FASERG4 DetectorConstruction class)
     struct GEOM_DETECTOR {
         Double_t fScintillatorSizeX;  // in mm
@@ -82,12 +108,18 @@ public:
         Double_t fScintillatorVoxelSize; // in mm
         Double_t fSiTrackerSizeZ; // in mm
         Double_t fSiTrackerPixelSize; // in mm
+        Double_t fTargetSizeZ; // in mm
+        Int_t NRep_SiTracker;     // number of Si layers
         Double_t fSandwichLength; // in mm
         Double_t fTotalLength; // in mm
         Int_t NRep;
         Double_t fTotalMass;  // in kg
         Double_t fTotalWmass; // in kg
         Double_t fTotalScintmass; // in kg
+        Double_t rearCalSizeX; // in mm
+        Double_t rearCalSizeY; // in mm
+        Double_t rearCalLocZ;  // in mm
+        Int_t rearCalNxy = 5;   // number of modules in x, and y
     };
 
     /// @brief The summary of the detector geometry
@@ -96,19 +128,50 @@ public:
     /// @brief Returns type ID of a hit
     /// @param ID The hit ID (see FASERG4 DetectorConstruction class)
     /// @return =0 if scintillator hit, =1 if silicon tracker hit
-    long getChannelTypefromID(long ID) const;
+    inline long getChannelTypefromID(long ID) const {
+        return ID / 100000000000LL;
+    }   
 
-    /// @brief Returns the layer number of a hit
+    /// @brief Returns the module number of a hit
     /// @param ID The hit ID (see FASERG4 DetectorConstruction class)
-    /// @return The hit layer
-    long getChannelLayerfromID(long ID) const;
+    /// @return The module of the hit
+    inline long getChannelModulefromID(long ID) const {
+        long hittype = ID / 100000000000LL;
+        if (hittype == 0)
+        { // hit in scintillator
+            long ilayer = (ID / 1000000000);
+            return ilayer;
+        }
+        else if (hittype == 1)
+        {
+            long ilayer = (ID / 100000000) % 100;
+            return ilayer;
+        }
+        return 0;
+    }
 
-    /// @brief Returns (x,y,z) absolute position for a given hit ID
+    /// @brief Returns the precise tracker "layer" (or copy of volume)
+    /// @param ID The hit ID (see FASERG4 DetectorConstruction class)
+    /// @return The precise tracker layer 
+    inline long getChannelCopyfromID(long ID) const {
+        long icopy = (ID / 10000000000LL) % 10;
+        return icopy;
+    }
+
+    /// @brief Returns z coordinate of layer
+    /// @param layer the layer index
+    /// @param iz the z position index within the layer
+    /// @return z coordinate
+    inline double getZofLayer(long ilayer, long iz) const;
+
+    /// @brief Returns (x,y,z) absolute position for a given hit ID (the center of the hit/voxel)
     /// @param ID The hit ID
     /// @return The (x,y,z) absolute position of the hit
     ROOT::Math::XYZVector getChannelXYZfromID(long ID) const;
 
-    ClassDef(TcalEvent, 1)
+    ROOT::Math::XYZVector getChannelXYZRearCal(int moduleID) const;
+
+    ClassDef(TcalEvent, 3)
 };
 
 #endif

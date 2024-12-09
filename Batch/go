@@ -1,0 +1,7 @@
+./batchreco.exe 1 0 1999 &
+./batchreco.exe 1 2000 3999 &
+./batchreco.exe 1 4000 5999 &
+./batchreco.exe 1 6000 7999 &
+./batchreco.exe 1 8000 9999 &
+./batchreco.exe 1 10000 10999 &
+
