@@ -126,10 +126,10 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	/// @brief Create the RearCalorimeter
 	void CreateRearCal(G4double zLocation, G4LogicalVolume* parent);
 
-	/// @brief Create the rear muon tagger
+	/// @brief Create the rear HCAL and rear muon tagger
 	/// @param zLocation 
 	/// @param parent 
-	void CreateRearMuTag(G4double zLocation, G4LogicalVolume* parent);
+	void CreateRearHCalMuTag(G4double zLocation, G4LogicalVolume* parent);
 
 	/// @brief Create the front Pb target
 	/// @param zLocation 

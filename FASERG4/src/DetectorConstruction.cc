@@ -202,7 +202,7 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	CreateRearCal(zLocation, worldLV);
 
 	G4double sizeZmu = zLocation + 66*6*mm;
-	CreateRearMuTag(sizeZmu, worldLV);
+	CreateRearHCalMuTag(sizeZmu, worldLV);
 
 	// Save the geometry of the detector
 	G4GDMLParser parser;
@@ -222,6 +222,7 @@ void DetectorConstruction::ConstructSDandField()
 	SetSensitiveDetector("ScintillatorLogical", aTrackerSD, true);
 	SetSensitiveDetector("trackerSiLogical", aTrackerSD, false);
 	SetSensitiveDetector("rearCalscintillatorLogical", aTrackerSD, false);
+	SetSensitiveDetector("rearHCalscintillatorLogical", aTrackerSD, false);
 	SetSensitiveDetector("muCalscintillatorLogical", aTrackerSD, false);
 
 #if magnet
@@ -515,18 +516,26 @@ void DetectorConstruction::CreateRearCal(G4double zLocation, G4LogicalVolume* pa
 	}
 }
 
-void DetectorConstruction::CreateRearMuTag(G4double zLocation, G4LogicalVolume* parent) {
+void DetectorConstruction::CreateRearHCalMuTag(G4double zLocation, G4LogicalVolume* parent) {
+	// dimensions of the rear HCal
+	G4double sizeZ_Pb = 9*cm;
+	G4double sizeZ_PS = 1*cm;
+	G4int nlayer = 9;
+	// dimensions of the neutron absorber
+	G4double sizeZ_nabs = 10*cm;  /// polyethylene slab
+	// dimensions of the rear MuTag
 	G4double sizeX = 60*cm;
 	G4double sizeY = 60*cm;
 	G4double sizeZ = 4*cm;
-	G4double sizeZ_Pb = 90*cm;
-	G4double sizeZ_nabs = 10*cm;  /// neutron absorber
 
 	G4Material * G4_Pb = G4NistManager::Instance()->FindOrBuildMaterial("G4_Pb");
 	G4Material* polyethylene = G4NistManager::Instance()->FindOrBuildMaterial("G4_POLYETHYLENE");
 	G4Material* plasticScintillator = G4NistManager::Instance()->FindOrBuildMaterial("G4_PLASTIC_SC_VINYLTOLUENE");
 
-	double Pb_mass = sizeX*sizeY*sizeZ_Pb*(G4_Pb->GetDensity()/(kg/cm3));
+	double sizeZ_HCalmodule = sizeZ_Pb + sizeZ_PS;
+	double total_sizeZ = nlayer*sizeZ_HCalmodule;
+
+	double Pb_mass = nlayer*sizeX*sizeY*sizeZ_Pb*(G4_Pb->GetDensity()/(kg/cm3));
 	G4cout << "Total mass of RearMuCal absorber " << Pb_mass << " kg " << G4endl;
 
 	G4Box* absorberSolid = new G4Box("PbSlab", sizeX / 2, sizeY / 2, sizeZ_Pb / 2);
@@ -535,16 +544,24 @@ void DetectorConstruction::CreateRearMuTag(G4double zLocation, G4LogicalVolume* 
 	G4Box* nabsorberSolid = new G4Box("NeutronAbsSlab", sizeX / 2, sizeY / 2, sizeZ_nabs / 2);
 	G4LogicalVolume* nabsorberLogic = new G4LogicalVolume(nabsorberSolid, polyethylene, "neutabsorberLogical");
 
+	G4Box* HscintillatorSolid = new G4Box("HCALPSSlab", sizeX / 2, sizeY / 2, sizeZ_PS / 2);
+	G4LogicalVolume* HscintillatorLogic = new G4LogicalVolume(HscintillatorSolid, plasticScintillator, "rearHCalscintillatorLogical");
+
 	G4Box* scintillatorSolid = new G4Box("PSSlab", sizeX / 2, sizeY / 2, sizeZ / 2);
 	G4LogicalVolume* scintillatorLogic = new G4LogicalVolume(scintillatorSolid, plasticScintillator, "muCalscintillatorLogical");
 
-	double z = zLocation + sizeZ_Pb/2.0;
-	new G4PVPlacement(0, G4ThreeVector(0,0,z), absorberLogic, "rearMuCalAbs", parent, false, 0, true);
+	for(int i = 0; i < nlayer; i++) {
+		double z = zLocation + i*sizeZ_HCalmodule + sizeZ_Pb/2.0;
+		new G4PVPlacement(0, G4ThreeVector(0,0,z), absorberLogic, "rearHCalAbs", parent, false, i, true);
+		z += sizeZ_Pb/2.0 + sizeZ_PS/2.0;
+		new G4PVPlacement(0, G4ThreeVector(0,0,z), HscintillatorLogic, "rearHCalScint", parent, false, i, true);
+	}
+//	new G4PVPlacement(0, G4ThreeVector(0,0,z), absorberLogic, "rearMuCalAbs", parent, false, 0, true);
 
-	z = zLocation + sizeZ_Pb + sizeZ_nabs/2.0;
+	double z = zLocation + total_sizeZ + sizeZ_nabs/2.0;
 	new G4PVPlacement(0, G4ThreeVector(0,0,z), nabsorberLogic, "rearMuCalNAbs", parent, false, 0, true);
 
-	z = zLocation + sizeZ_Pb + sizeZ_nabs + sizeZ/2.0;
+	z = zLocation + total_sizeZ + sizeZ_nabs + sizeZ/2.0;
 	new G4PVPlacement(0, G4ThreeVector(0,0,z), scintillatorLogic, "rearMuCalScint", parent, false, 0, true);
 }
 
