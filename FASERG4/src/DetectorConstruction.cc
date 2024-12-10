@@ -388,6 +388,8 @@ void DetectorConstruction::CreateFaserCal(G4double zLocation, G4Material* materi
     new G4PVPlacement(0, G4ThreeVector(0,0,zLocation), containerLogic, "ContainerPlacement", parent,  false, 0, true);
 }
 
+static int getchannelIDerrorcount = 0;
+
 G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, int CopyNumber, int MotherCopyNumber, XYZVector const& position) const {
 
 	G4double dx = position.X()+fScintillatorSizeX/2.0;
@@ -397,7 +399,10 @@ G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, 
 
 	// sanity check
 	if((dx < 0 || dx > fScintillatorSizeX) || (dy < 0 || dy > fScintillatorSizeY) || (dz < 0 || dz > fTotalLength)) {
-		G4cerr << "ERROR : getCHannelIDfromXYZ problem dx:" << dx << " dy:" << dy << " dz:" << dz << G4endl;
+		getchannelIDerrorcount++;
+		if(getchannelIDerrorcount < 1000) {
+			G4cerr << "ERROR : getCHannelIDfromXYZ problem dx:" << dx << " dy:" << dy << " dz:" << dz << G4endl;
+		}
 		return 0;
 	}
 

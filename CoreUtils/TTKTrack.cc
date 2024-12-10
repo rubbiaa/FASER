@@ -116,7 +116,7 @@ void TTKTrack::GenFitTrackFit() {
     // start values for the fit, e.g. from pattern recognition
     // position of first hit of the track
     TVector3 pos(tkhit[0].point.x()/10.0, tkhit[0].point.y()/10.0, tkhit[0].point.z()/10.0);
-    double pmom = 1.0*1e0;  // in MeV
+    double pmom = 10.0*1e0;  // in MeV??
     TVector3 mom(pmom*direction.x(), pmom*direction.y(), pmom*direction.z());
 
     // create track
@@ -163,7 +163,6 @@ void TTKTrack::GenFitTrackFit() {
         std::cerr << "Exception when track fitting with GENFIT" << std::endl;
       }
 
-    // print fit result
     // fitTrack->getFittedState().Print();
     // fitTrack->Print();
 }
@@ -230,11 +229,16 @@ void TTKTrack::UpdateFittedPosition() {
         std::cerr << "TTKTrack::UpdateFittedPosition - track is not fitted" << std::endl;
         return;
     }
+    // try to refit the complete track
+    int failed(0);
     for (auto &hit : tkhit) {
-        int failed(0);
         TVector3 pos = extrapolateTracktoZ(hit.point.z(), failed);
-        if(failed) continue;
-        hit.point.SetXYZ(pos.x(), pos.y(), pos.z());
+        if(!failed) {
+            hit.point.SetXYZ(pos.x(), pos.y(), pos.z());
+        } else {
+            std::cerr << "TTKTrack::UpdateFittedPosition - extrapolation failed" << std::endl;
+            break;
+        }
     }
 }
 

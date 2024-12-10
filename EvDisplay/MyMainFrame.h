@@ -7,9 +7,10 @@
 #include <TText.h>
 #include <TGTextEntry.h>
 #include <TPolyLine3D.h>
+#include <TPolyMarker3D.h>
 #include <TGButton.h>
 #include <TChain.h>
-
+#include <TGListTree.h>
 
 #include <TcalEvent.hh>
 #include "TPORecoEvent.hh"
@@ -22,6 +23,7 @@ public:
 
     void Load_event(int run_number, int ievent, int mask);
     void Load_Recoevent(int run_number, int ievent);
+    void Update_ListTree();
     void Draw_event();
     void Draw_event_reco_tracks();
     void Draw_event_reco_voxel(TGeoShape *bigbox, TGeoMedium *air, TGeoShape *box);
@@ -55,6 +57,7 @@ private:
     TGMainFrame *fMain;
     TGTextButton *fButton;
     TRootEmbeddedCanvas *fCanvas;
+    TGListTree *listTree;
     TRootEmbeddedCanvas *fCanvas_2DPSview;
     TRootEmbeddedCanvas *fCanvas_2DPSviewZ;
     TRootEmbeddedCanvas *fCanvas_2DPSview_emhad;
@@ -70,6 +73,8 @@ private:
     std::vector<TPolyLine3D*> polylineTracks;
 
     std::vector<TPolyLine3D*> polylineMagnetTracks;
+
+    std::vector<TPolyMarker3D*> polylineVertices;
 
     int ievent;
     int event_mask;
@@ -89,8 +94,9 @@ private:
     TGeoVolume *secondary_em;
     TGeoVolume *secondary_had;
  
-    // reconstructed tracks
+    // reconstructed tracks and vertices
     TGeoVolume *si_tracker;
+    TGeoVolume *si_vertices;
 
     // reconstructed 3D voxel
     TGeoVolume *ps_reco_voxel;
@@ -98,6 +104,8 @@ private:
 
     // rear calorimeters
     TGeoVolume *rearcal;
+    TGeoVolume *rearHcal;
+    TGeoVolume *rearMucal;
 
     bool toggle_primary_em;
     bool toggle_primary_had;

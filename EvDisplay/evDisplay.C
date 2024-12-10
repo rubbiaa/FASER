@@ -115,7 +115,7 @@ int main(int argc, char** argv) {
     }
 #endif
 
-    new MyMainFrame(run_number, 0, event_mask, pre, gClient->GetRoot(), 1200, 600);
+    new MyMainFrame(run_number, 0, event_mask, pre, gClient->GetRoot(), 1700, 800);
 
     // Run the application
     app.Run();

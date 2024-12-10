@@ -1,7 +1,6 @@
 #include <TCanvas.h>
 #include <TGeoManager.h>
 #include "TGeoVolume.h"
-#include <TPolyMarker3D.h>
 #include "TGeoSphere.h"
 #include "TGeoBBox.h"
 #include "TGeoMedium.h"
@@ -13,6 +12,8 @@
 #include <TControlBar.h>
 #include <TButton.h>
 #include <TGTab.h>
+#include <TGListTree.h>
+#include <TGClient.h>
 
 #include "MyMainFrame.h"
 #include "TPORecoEvent.hh"
@@ -32,9 +33,19 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, bool pre, const TGW
     TGCompositeFrame *tab4 = tab->AddTab("eldepo");
     fMain->AddFrame(tab, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY));
 
+    // Create a horizontal frame to contain the canvas and tree
+    TGHorizontalFrame *hFrameMain = new TGHorizontalFrame(tab1, 1600, 600);
+    tab1->AddFrame(hFrameMain, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY));
+
+    // Create a TGListTree on the left
+    TGCanvas *listCanvas = new TGCanvas(hFrameMain, 300, 600);
+    listTree = new TGListTree(listCanvas->GetViewPort(), kHorizontalFrame);
+    listCanvas->SetContainer(listTree);
+    hFrameMain->AddFrame(listCanvas, new TGLayoutHints(kLHintsLeft | kLHintsExpandY));
+
     // Create an embedded canvas
-    fCanvas = new TRootEmbeddedCanvas("EmbeddedCanvas", tab1, 1200, 600);
-    tab1->AddFrame(fCanvas, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY));
+    fCanvas = new TRootEmbeddedCanvas("EmbeddedCanvas", tab1, 1300, 600);
+    hFrameMain->AddFrame(fCanvas, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY));
 
     // Create a horizontal frame to contain the toggle buttons
     TGHorizontalFrame *hFrame = new TGHorizontalFrame(tab1);
@@ -151,6 +162,7 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, bool pre, const TGW
     canvas->cd();
     // Draw the geometry
     Draw_event();
+    Update_ListTree();
 
     toggle_primary_em=
     toggle_primary_had=
@@ -194,20 +206,21 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
     fPORecoEvent->verbose = 3;
     std::cout << "Start reconstruction of PORecs..." << std::endl;
     fPORecoEvent -> Reconstruct();
-    std::cout << "Start reconstruction of tracks..." << std::endl;
-    if(f_fullreco_CheckBox->IsOn() || true) {
-        fPORecoEvent->TrackReconstruct();
-        fPORecoEvent->FitTrackVertices();
-    }
     std::cout << "Start reconstruction of clusters..." << std::endl;
     fPORecoEvent -> Reconstruct2DViewsPS();
     if(f_fullreco_CheckBox->IsOn() || true) {
         fPORecoEvent->Reconstruct3DPS_2();
-        fPORecoEvent->PSVoxelParticleFilter();
     }
     fPORecoEvent -> ReconstructRearCals();
     fPORecoEvent -> ReconstructClusters(0);    // this is very slow
     fPORecoEvent -> Reconstruct3DPS_Eflow();
+    std::cout << "Start reconstruction of tracks..." << std::endl;
+    if(f_fullreco_CheckBox->IsOn() || true) {
+        fPORecoEvent->TrackReconstruct();
+        fPORecoEvent->FitTrackVertices();
+        fPORecoEvent->ExtendTracks();
+    }
+    fPORecoEvent->PSVoxelParticleFilter();
     fPORecoEvent -> Dump();
 
     // fill 2D maps
@@ -243,6 +256,50 @@ void MyMainFrame::Load_Recoevent(int run_number, int ievent) {
    fTcalEvent -> fTPOEvent = POevent;
 }
 
+void MyMainFrame::Update_ListTree() {
+    // loop over all children and delete them
+    TGListTreeItem *child = listTree->GetFirstItem();
+    while (child) {
+        listTree->DeleteItem(child);
+        child = listTree->GetFirstItem();
+    }
+
+    // Populate the tree with some items
+    TGListTreeItem *root = listTree->AddItem(nullptr, "FASERCal Event");
+    TGListTreeItem *item1 = listTree->AddItem(root, "Tracks");
+    TGListTreeItem *item2 = listTree->AddItem(root, "Vertices");
+    listTree->OpenItem(root); // Expand the root node
+    
+    // Add the tracks from TPORecoEvent
+    int trkid = 0;
+    for (const auto &track : fPORecoEvent->fTKTracks) {
+        std::ostringstream trackname;
+        trackname << "Track " << trkid++;
+        // print fit status, chi2 and pval
+        if(track.fitTrack != nullptr) {
+            trackname << "(p=" << track.fitTrack->getFittedState().getMom().Mag();
+            trackname << ",chi2=" << track.fitTrack->getFitStatus()->getChi2() << ", pval=" << track.fitTrack->getFitStatus()->getPVal() << ")";
+        }
+        TGListTreeItem *trackitem = listTree->AddItem(item1, trackname.str().c_str());
+        for (const auto &hit : track.tkhit) {
+            std::ostringstream hitname;
+            hitname << "Hit " << hit.ID;
+            listTree->AddItem(trackitem, hitname.str().c_str());
+        }
+    }
+
+    // Add the vertices from TPORecoEvent
+    int vtxid = 0;
+    for (const auto &vertex : fPORecoEvent->fTKVertices) {
+        std::ostringstream vtxname;
+        vtxname << "Vertex " << vtxid++;
+        // add position and chi2 to the name
+        vtxname << " (" << vertex.position.X() << ", " << vertex.position.Y() << ", " << vertex.position.Z() << ") ";
+        vtxname << "chi2=" << vertex.chi2;
+        TGListTreeItem *vtxitem = listTree->AddItem(item2, vtxname.str().c_str());
+    }
+}
+
 void MyMainFrame::Draw_event() {
 
     TCanvas *canvas = fCanvas->GetCanvas();
@@ -269,7 +326,10 @@ void MyMainFrame::Draw_event() {
     secondary_em = new TGeoVolume("secondary_em", bigbox, air);
     secondary_had = new TGeoVolume("secondary_had", bigbox, air);
     si_tracker = new TGeoVolume("si_tracker", bigbox, air);
+    si_vertices = new TGeoVolume("si_vertices", bigbox, air);
     rearcal = new TGeoVolume("rearcal", bigbox, air);
+    rearHcal = new TGeoVolume("rearHcal", bigbox, air);
+    rearMucal = new TGeoVolume("rearMucal", bigbox, air);
 
     TGeoMaterial *matAluminum = new TGeoMaterial("Aluminum", 26.98, 13, 2.7);
     TGeoMedium *aluminum = new TGeoMedium("Aluminum", 2, matAluminum);
@@ -356,6 +416,7 @@ void MyMainFrame::Draw_event() {
             }
         }
     }
+
     // draw magnet MC tracks
     polylineMagnetTracks.clear();
     for (const auto &it : fTcalEvent->fMagnetTracks)
@@ -386,6 +447,7 @@ void MyMainFrame::Draw_event() {
         polylineTracks.push_back(trackpoly);
     }
 
+    // draw rear Ecal hits
     for (const auto &it : fTcalEvent->rearCalDeposit)
     {
         ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZRearCal(it.moduleID);
@@ -397,6 +459,35 @@ void MyMainFrame::Draw_event() {
         TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0,
                                                      position.Y() / 10.0, (position.Z() + zBox / 2.0) / 10.0);
         rearcal->AddNode(hitVolume, it.moduleID, trans);
+    }
+
+    // draw rear Hcal hits
+    for (const auto &it : fTcalEvent->rearHCalDeposit)
+    {
+        ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZRearHCal(it.moduleID);
+        double zBox = it.energyDeposit*10.0; // 1mm is 100 MeV
+        TGeoShape *box = new TGeoBBox("rearhcalbox", fTcalEvent->geom_detector.rearHCalSizeX / 20.0,
+                                      zBox / 20.0, 
+                                      fTcalEvent->geom_detector.rearHCalSizeZ / 20.0);
+        TGeoVolume *hitVolume = new TGeoVolume("RearHCalVolume", box, air);
+        hitVolume->SetLineColor(kRed);
+        TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0,
+                                                     (position.Y() + zBox / 2.0) / 10.0, position.Z() / 10.0);
+        rearHcal->AddNode(hitVolume, it.moduleID, trans);
+    }
+
+    // draw rear Muon Cal hits
+    if(true) {
+        ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZRearHCal(10);
+        double zBox = fTcalEvent->rearMuCalDeposit; // 1mm is 1 GeV
+        TGeoShape *box = new TGeoBBox("rearhcalbox", fTcalEvent->geom_detector.rearHCalSizeX / 20.0,
+                                      zBox / 20.0, 
+                                      fTcalEvent->geom_detector.rearHCalSizeZ / 20.0);
+        TGeoVolume *hitVolume = new TGeoVolume("RearMuCalVolume", box, air);
+        hitVolume->SetLineColor(kGreen);
+        TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0,
+                                                position.Y() / 10.0, position.Z() / 10.0);
+        rearMucal->AddNode(hitVolume, 0, trans);
     }
 
     fCanvas->GetCanvas()->cd();
@@ -454,6 +545,7 @@ void MyMainFrame::Draw_event() {
         energies << Form("  ET:%6.2f GeV", fPORecoEvent->GetPOFullRecoEvent()->TotalET());
     }
     energies << Form("  RearCal:%6.2f GeV", fPORecoEvent->rearCals.rearCalDeposit);
+    energies << Form("  RearHCal:%6.2f GeV", fPORecoEvent->rearCals.rearHCalDeposit);
     energies << Form("  RearMuCal:%6.2f MeV", fPORecoEvent->rearCals.rearMuCalDeposit);
     energyText = new TText(0.05, 0.85, energies.str().c_str());
     energyText->SetNDC();
@@ -461,7 +553,7 @@ void MyMainFrame::Draw_event() {
     energyText->Draw();
 
     Draw_event_reco_tracks();
-
+    
     // Draw reconstructed voxels
     Draw_event_reco_voxel(bigbox, air, box);
     gGeoManager->GetTopVolume()->AddNode(ps_reco_voxel,1);
@@ -494,8 +586,11 @@ void MyMainFrame::Draw_event() {
         gGeoManager->GetTopVolume()->AddNode(primary_had,1);
 
     gGeoManager->GetTopVolume()->AddNode(si_tracker,1);
+    gGeoManager->GetTopVolume()->AddNode(si_vertices,1);
     gGeoManager->GetTopVolume()->AddNode(ps_tracks,1);
     gGeoManager->GetTopVolume()->AddNode(rearcal,1);
+    gGeoManager->GetTopVolume()->AddNode(rearHcal,1);
+    gGeoManager->GetTopVolume()->AddNode(rearMucal,1);
 
     TCanvas *c1 = fCanvas_2DPSview->GetCanvas();
     c1->Clear();
@@ -586,6 +681,8 @@ void MyMainFrame::Draw_event_reco_tracks() {
     }
     #endif
     polylineTracks.clear();
+    polylineVertices.clear();
+
     if(toggle_reconstructed_tracks) {
 #if 0
         for (auto &it : fPORecoEvent->GetPORecs())
@@ -619,6 +716,24 @@ void MyMainFrame::Draw_event_reco_tracks() {
 #if 0
         }
 #endif
+    }
+
+    if(toggle_reconstructed_tracks) {
+        // draw all vertices
+        for (auto &it : fPORecoEvent->fTKVertices)
+        {
+            double x = it.position.x() / 10.0;
+            double y = it.position.y() / 10.0;
+            double z = it.position.z() / 10.0;
+            TPolyMarker3D *polyMarker = new TPolyMarker3D(1);
+            polyMarker->SetPoint(0, x, y, z);
+            // Set marker properties
+            polyMarker->SetMarkerColor(kRed);
+            polyMarker->SetMarkerStyle(20); // Full circle
+            polyMarker->SetMarkerSize(1.5);
+            polyMarker->Draw("same");
+            polylineVertices.push_back(polyMarker);
+        }
     }
 }
 
@@ -664,6 +779,8 @@ void MyMainFrame::Next_Event(int ievent) {
  
     TGeoNode *nodeToRemove5 = gGeoManager->GetTopVolume()->FindNode("si_tracker_1");
     gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove5);
+    TGeoNode *nodeToRemove11 = gGeoManager->GetTopVolume()->FindNode("si_vertices_1");
+    gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove11);
 
     TGeoNode *nodeToRemove6 = gGeoManager->GetTopVolume()->FindNode("ps_reco_voxel_1");
     gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove6);
@@ -672,6 +789,10 @@ void MyMainFrame::Next_Event(int ievent) {
 
     TGeoNode *nodeToRemove7 = gGeoManager->GetTopVolume()->FindNode("rearcal_1");
     gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove7);
+    TGeoNode *nodeToRemove9 = gGeoManager->GetTopVolume()->FindNode("rearHcal_1");
+    gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove9);
+    TGeoNode *nodeToRemove10 = gGeoManager->GetTopVolume()->FindNode("rearMucal_1");
+    gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove10);
 
     int run_number = fTcalEvent->fTPOEvent->run_number;
     if(!process_reco_event) {
@@ -696,6 +817,7 @@ void MyMainFrame::Next_Event(int ievent) {
     toggle_reco_voxel = true;
 
     Draw_event();
+    Update_ListTree();
     canvas->Modified();
     canvas->Update();
 }
@@ -790,6 +912,11 @@ void MyMainFrame::toggle_reco_track() {
     for(auto &it : polylineTracks) {
         delete it;
     }
+    for(auto &it : polylineVertices) {
+        delete it;
+    }
+    polylineTracks.clear();
+    polylineVertices.clear();
     Draw_event_reco_tracks();
     if(toggle_reconstructed_tracks) {
         fPORecoEvent->DumpReconstructedTracks();
