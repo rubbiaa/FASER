@@ -29,7 +29,7 @@ rave: rave_tar
 		mkdir -p rave-install; \
 		cd rave-0.6.25 && ./configure --prefix=$(TOPDIR)/rave-install --disable-java \
 		--with-clhep=$(TOPDIR)/CLHEP-install; \
-		make CXXFLAGS="-g -std=c++11" -j; \
+		make CXXFLAGS="-g -std=c++11" LGEPINCPATH=. -j; \
 		make install; \
 	fi
 
