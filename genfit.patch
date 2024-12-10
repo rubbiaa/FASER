@@ -1,8 +1,20 @@
-173c173
-<       assert(trackPtr->checkConsistency());
----
->       //      assert(trackPtr->checkConsistency());
-186c186
-<       assert(trackPtr->checkConsistency());
----
->       //      assert(trackPtr->checkConsistency());
+--- test/vertexingTest/main.cc.orig	2024-12-10 11:35:31.811396158 +0100
++++ test/vertexingTest/main.cc	2024-12-10 11:35:50.287019212 +0100
+@@ -170,7 +170,7 @@
+       }
+ 
+       //check
+-      assert(trackPtr->checkConsistency());
++      // assert(trackPtr->checkConsistency());
+ 
+       // do the fit
+       try{
+@@ -183,7 +183,7 @@
+       }
+ 
+       //check
+-      assert(trackPtr->checkConsistency());
++      // assert(trackPtr->checkConsistency());
+ 
+     } // end loop over tracks
+ 
