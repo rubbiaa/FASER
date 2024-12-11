@@ -217,8 +217,8 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
     std::cout << "Start reconstruction of tracks..." << std::endl;
     if(f_fullreco_CheckBox->IsOn() || true) {
         fPORecoEvent->TrackReconstruct();
-        fPORecoEvent->FitTrackVertices();
         fPORecoEvent->ExtendTracks();
+        fPORecoEvent->FitTrackVertices();
     }
     fPORecoEvent->PSVoxelParticleFilter();
     fPORecoEvent -> Dump();
@@ -263,6 +263,8 @@ void MyMainFrame::Update_ListTree() {
         listTree->DeleteItem(child);
         child = listTree->GetFirstItem();
     }
+    trackMap.clear();
+    vertexMap.clear();
 
     // Populate the tree with some items
     TGListTreeItem *root = listTree->AddItem(nullptr, "FASERCal Event");
@@ -271,16 +273,16 @@ void MyMainFrame::Update_ListTree() {
     listTree->OpenItem(root); // Expand the root node
     
     // Add the tracks from TPORecoEvent
-    int trkid = 0;
     for (const auto &track : fPORecoEvent->fTKTracks) {
         std::ostringstream trackname;
-        trackname << "Track " << trkid++;
+        trackname << "Track " << track.trackID;
         // print fit status, chi2 and pval
         if(track.fitTrack != nullptr) {
             trackname << "(p=" << track.fitTrack->getFittedState().getMom().Mag();
             trackname << ",chi2=" << track.fitTrack->getFitStatus()->getChi2() << ", pval=" << track.fitTrack->getFitStatus()->getPVal() << ")";
         }
         TGListTreeItem *trackitem = listTree->AddItem(item1, trackname.str().c_str());
+        trackMap[trackname.str()] = track.trackID;
         for (const auto &hit : track.tkhit) {
             std::ostringstream hitname;
             hitname << "Hit " << hit.ID;
@@ -289,14 +291,41 @@ void MyMainFrame::Update_ListTree() {
     }
 
     // Add the vertices from TPORecoEvent
-    int vtxid = 0;
     for (const auto &vertex : fPORecoEvent->fTKVertices) {
         std::ostringstream vtxname;
-        vtxname << "Vertex " << vtxid++;
+        vtxname << "Vertex " << vertex.vertexID;
         // add position and chi2 to the name
         vtxname << " (" << vertex.position.X() << ", " << vertex.position.Y() << ", " << vertex.position.Z() << ") ";
         vtxname << "chi2=" << vertex.chi2;
         TGListTreeItem *vtxitem = listTree->AddItem(item2, vtxname.str().c_str());
+        vertexMap[vtxname.str()] = vertex.vertexID;
+        for (const auto &trackid : vertex.trackIDs) {
+            std::ostringstream trackname;
+            trackname << "Track " << trackid;
+            listTree->AddItem(vtxitem, trackname.str().c_str());
+        }
+    }
+
+    listTree->Connect("Clicked(TGListTreeItem*,Int_t)", "MyMainFrame", this, "OnTrackSelected(TGListTreeItem*,Int_t)");
+}
+
+void MyMainFrame::OnTrackSelected(TGListTreeItem *entry, Int_t btn) {
+    if (entry) {
+        std::string name = entry->GetText();
+        if (trackMap.find(name) != trackMap.end()) {
+            selectedTrackID = trackMap[name];
+            std::cout << "Selected track " << selectedTrackID << std::endl;
+        } else 
+            selectedTrackID = -1;
+        if (vertexMap.find(name) != vertexMap.end()) {
+            selectedVertexID = vertexMap[name];
+            std::cout << "Selected vertex " << selectedVertexID << std::endl;
+        } else
+            selectedVertexID = -1;
+
+        // Redraw the event
+        toggle_reconstructed_tracks = false;
+        toggle_reco_track();
     }
 }
 
@@ -352,7 +381,8 @@ void MyMainFrame::Draw_event() {
             // apply energy cut on scintillator voxel
             if (hittype == 0 && track->fEnergyDeposits[i] < 0.5)
                 continue;
-            //            if(hittype == 0 && track->fEnergyDeposits[i] < 1e-3)continue;
+            // apply cut on pixel hit
+            if(hittype == 1 && track->fEnergyDeposits[i] < 1e-3)continue;
 
             ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(track->fhitIDs[i]);
             // Create a translation matrix for the hit position
@@ -479,8 +509,8 @@ void MyMainFrame::Draw_event() {
     // draw rear Muon Cal hits
     if(true) {
         ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZRearHCal(10);
-        double zBox = fTcalEvent->rearMuCalDeposit; // 1mm is 1 GeV
-        TGeoShape *box = new TGeoBBox("rearhcalbox", fTcalEvent->geom_detector.rearHCalSizeX / 20.0,
+        double zBox = fTcalEvent->rearMuCalDeposit*100.0; // 1mm is 10 MeV
+        TGeoShape *box = new TGeoBBox("rearmucalbox", fTcalEvent->geom_detector.rearHCalSizeX / 20.0,
                                       zBox / 20.0, 
                                       fTcalEvent->geom_detector.rearHCalSizeZ / 20.0);
         TGeoVolume *hitVolume = new TGeoVolume("RearMuCalVolume", box, air);
@@ -710,6 +740,10 @@ void MyMainFrame::Draw_event_reco_tracks() {
                 TPolyLine3D *trackpoly = new TPolyLine3D(nhits, x, y, z);
                 trackpoly->SetLineColor(kBlack);
                 trackpoly->SetLineWidth(2);
+                if(itrk.trackID == selectedTrackID) {
+                    trackpoly->SetLineColor(kRed);
+                    trackpoly->SetLineWidth(4);
+                }
                 trackpoly->Draw("same");
                 polylineTracks.push_back(trackpoly);
             }
@@ -731,6 +765,10 @@ void MyMainFrame::Draw_event_reco_tracks() {
             polyMarker->SetMarkerColor(kRed);
             polyMarker->SetMarkerStyle(20); // Full circle
             polyMarker->SetMarkerSize(1.5);
+            if(it.vertexID == selectedVertexID) {
+                polyMarker->SetMarkerColor(kBlue);
+                polyMarker->SetMarkerSize(3.0);
+            }
             polyMarker->Draw("same");
             polylineVertices.push_back(polyMarker);
         }

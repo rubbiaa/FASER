@@ -24,6 +24,7 @@ public:
     void Load_event(int run_number, int ievent, int mask);
     void Load_Recoevent(int run_number, int ievent);
     void Update_ListTree();
+    void OnTrackSelected(TGListTreeItem *entry, int id);
     void Draw_event();
     void Draw_event_reco_tracks();
     void Draw_event_reco_voxel(TGeoShape *bigbox, TGeoMedium *air, TGeoShape *box);
@@ -63,6 +64,12 @@ private:
     TRootEmbeddedCanvas *fCanvas_2DPSview_emhad;
     TRootEmbeddedCanvas *fCanvas_eldepo;
     TGTextEntry *textNextEventEntry;
+
+    std::map<std::string, int> trackMap; // Maps track item names to their IDs
+    int selectedTrackID = -1;            // Stores the selected track ID
+    std::map<std::string, int> vertexMap; 
+    int selectedVertexID = -1;            
+
 
     TText *runText = nullptr;
     TText *eventypeText = nullptr;
