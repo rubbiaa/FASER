@@ -1,7 +1,7 @@
 EXE = AnalyReco.exe
 EXE2 = plots.exe
 
-COREUTILSDIR := ../CoreUtils
+include ../Makefile.common
 
 SRC = AnalyReco.cc
 SRC2 = plots.C
@@ -21,18 +21,14 @@ INCS = $(wildcard *.h)
 INCS += $(wildcard *.hh)
 INCS += $(wildcard $(COREUTILSDIR)/*.hh)
 
-ROOTCFLAGS = -fPIC -g $(shell root-config --cflags) 
-
-ROOTCFLAGS += -I$(COREUTILSDIR)
-
 all : $(EXE) $(EXE2)
 
 dict.cxx : $(INCS) $(SRC)
-	rootcling -f dict.cxx -c LinkDef.h -I$(COREUTILSDIR)
+	rootcling -f dict.cxx -c LinkDef.h -I$(COREUTILSDIR) -I$(GENFITINCDIR)
 
 $(EXE) : $(OBJ) Makefile
-	g++ $(ROOTCFLAGS) $(OBJ) `root-config --glibs` -lEG -lGeom -o $@
-	g++ -shared -o libTPORec.so dict.o $(OBJCORE) -L$(ROOTSYS)/lib `root-config --glibs`
+	g++ $(ROOTCFLAGS) $(OBJ) `root-config --glibs` -lEG -lGeom $(GENFITLIBS) -o $@
+	g++ -shared -o libTPORec.so dict.o $(OBJCORE) -L$(ROOTSYS)/lib `root-config --glibs` $(GENFITLIBS) 
 
 $(EXE2): $(OBJ2) Makefile
 	g++ -o $(EXE2) $(OBJ2) `root-config --glibs` -lRooFit -lRooFitCore

@@ -20,14 +20,22 @@ struct EVENT {
     // Truth variables
     Int_t t_reaction; // reaction 1=nue, 2=numu, 3=nutau, +10 if NC, 20=ES (truth)
     Float_t t_Eneutrino; // true incoming neutrino energy
+    Float_t t_primvx, t_primvy, t_primvz; // true primary vertex
     // reconstructed quantities
+    Int_t n_vertices;
+    Float_t v_x[100], v_y[100], v_z[100];
+    Int_t n_tktracks;
+    Int_t n_pstracks;
     Int_t n_clusters;
     Float_t c_E1;    // energy most energetic cluster
     Float_t c_chi2_1;
     Float_t c_a_1;
     Float_t c_b_1;
     Float_t c_E2;    // energy 2nd most energetic cluster
+    Float_t eflow_E;
+    Float_t eflow_Et;
     Float_t rear_Cal; // energy deposit in rear Cal
+    Float_t rear_HCal; // total energy deposit in rear hCal
     Float_t rear_MuCal; // energy deposit in rear muCal
 };
 
@@ -104,14 +112,25 @@ int main(int argc, char** argv) {
     TTree *t = new TTree("Event", "Event");
     t->Branch("t_reaction",&event.t_reaction);
     t->Branch("t_Eneutrino",&event.t_Eneutrino);
+    t->Branch("t_primvx",&event.t_primvx);
+    t->Branch("t_primvy",&event.t_primvy);
+    t->Branch("t_primvz",&event.t_primvz);
+    t->Branch("n_vertices",&event.n_vertices);
+    t->Branch("v_x", &event.v_x, "v_x[n_vertices]/F");
+    t->Branch("v_y", &event.v_y, "v_y[n_vertices]/F");
+    t->Branch("v_z", &event.v_z, "v_z[n_vertices]/F");
+    t->Branch("n_tktracks",&event.n_tktracks);
+    t->Branch("n_pstracks",&event.n_pstracks);
     t->Branch("n_clusters",&event.n_clusters);
     t->Branch("c_E1", &event.c_E1);
     t->Branch("c_chi2_1", &event.c_chi2_1);
     t->Branch("c_a_1", &event.c_a_1);
     t->Branch("c_b_1", &event.c_b_1);
-
     t->Branch("c_E2", &event.c_E2);
+    t->Branch("eflow_E", &event.eflow_E);
+    t->Branch("eflow_Et", &event.eflow_Et);
     t->Branch("rear_Cal", &event.rear_Cal);
+    t->Branch("rear_HCal", &event.rear_HCal);
     t->Branch("rear_MuCal", &event.rear_MuCal);
 
     // charm
@@ -164,13 +183,14 @@ int main(int argc, char** argv) {
         myPOevent.update_stats();
  
         // fill event ntuple
+        // t_reaction = 1=nue, 2=numu, 3=nutau, +10 if NC, 20=ES (truth)
         event.t_Eneutrino = fTPORecoEvent -> GetPOEvent()->in_neutrino.m_energy;
         if(fTPORecoEvent -> GetPOEvent()->isES()) {
             event.t_reaction = 20;
         } else {
             event.t_reaction = fTPORecoEvent -> GetPOEvent()->isCC ? 0 : 10;
-            int m_pdg = abs(fTPORecoEvent -> GetPOEvent()->in_neutrino.m_pdg_id);
-            switch(m_pdg){
+            int m_pdg = fTPORecoEvent -> GetPOEvent()->in_neutrino.m_pdg_id;
+            switch(abs(m_pdg)){
                 case 12:
                     event.t_reaction += 1;
                     break;
@@ -183,7 +203,27 @@ int main(int argc, char** argv) {
                 default:
                 break;
             }
+            if(m_pdg<0) event.t_reaction = -event.t_reaction;
         }
+
+        event.t_primvx = fTPORecoEvent -> GetPOEvent()->prim_vx.x();
+        event.t_primvy = fTPORecoEvent -> GetPOEvent()->prim_vx.y();
+        event.t_primvz = fTPORecoEvent -> GetPOEvent()->prim_vx.z();
+
+        // store vertices
+        event.n_vertices = fTPORecoEvent->fTKVertices.size();
+        for(int i=0; i<event.n_vertices; i++) {
+            event.v_x[i] = fTPORecoEvent->fTKVertices[i].position.x();
+            event.v_y[i] = fTPORecoEvent->fTKVertices[i].position.y();
+            event.v_z[i] = fTPORecoEvent->fTKVertices[i].position.z();
+        }
+
+        // store number of tracks
+        event.n_tktracks = fTPORecoEvent->fTKTracks.size();
+        // store number of PS tracks
+        event.n_pstracks = fTPORecoEvent->fTKTracks.size();
+
+        // store number of PS clusters
         event.n_clusters = fTPORecoEvent->n_psclustersX();
         if(event.n_clusters>0) {
             event.c_E1 = fTPORecoEvent->PSClustersX[0].rawenergy/1e3;   // convert to GeV
@@ -201,8 +241,13 @@ int main(int argc, char** argv) {
             event.c_E2 = 0;
         }
 
+        // store eflow
+        event.eflow_E = fTPORecoEvent->GetPOFullRecoEvent()->TotalEvis();
+        event.eflow_Et = fTPORecoEvent->GetPOFullRecoEvent()->TotalET();
+
         // store energies in rear calorimeters
         event.rear_Cal = fTPORecoEvent->rearCals.rearCalDeposit;
+        event.rear_HCal = fTPORecoEvent->rearCals.rearHCalDeposit;
         event.rear_MuCal = fTPORecoEvent->rearCals.rearMuCalDeposit;
     
         // charm 
