@@ -1,0 +1,14 @@
+--- ../rave-0.6.25/src/RecoVertex/VertexTools/src/SequentialVertexFitter.cc	2015-08-14 17:05:48.749219356 +0200
++++ rave-0.6.25/src/RecoVertex/VertexTools/src/SequentialVertexFitter.cc	2024-12-04 02:57:12.701204440 +0100
+@@ -13,7 +13,8 @@
+   static const float TrackerBoundsRadius = 112;
+   static const float TrackerBoundsHalfLength = 273.5;
+   bool insideTrackerBounds(const GlobalPoint& point) {
+-    return ((point.transverse() < TrackerBoundsRadius)
+-        && (abs(point.z()) < TrackerBoundsHalfLength));
++    return true;
++    /* return ((point.transverse() < TrackerBoundsRadius)
++        && (abs(point.z()) < TrackerBoundsHalfLength)); */
+   }
+ }
+
