@@ -400,7 +400,7 @@ G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, 
 	// sanity check
 	if((dx < 0 || dx > fScintillatorSizeX) || (dy < 0 || dy > fScintillatorSizeY) || (dz < 0 || dz > fTotalLength)) {
 		getchannelIDerrorcount++;
-		if(getchannelIDerrorcount < 1000) {
+		if(getchannelIDerrorcount < 100) {
 			G4cerr << "ERROR : getCHannelIDfromXYZ problem dx:" << dx << " dy:" << dy << " dz:" << dz << G4endl;
 		}
 		return 0;
