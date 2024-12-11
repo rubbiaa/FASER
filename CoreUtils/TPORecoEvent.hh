@@ -127,15 +127,17 @@ public:
     std::vector<TTKTrack> fTKTracks;
 
     struct TTKVertex {
+        int vertexID;
         ROOT::Math::XYZVector position;
         TMatrixDSym covariance;
         int ntracks;
         int ndof;
         double chi2;
+        std::vector<int> trackIDs;  // the track IDs associated to this vertex
 
         // Constructor
         TTKVertex()
-           : covariance(3), ntracks(0), ndof(0), chi2(0.0) {} // Initialize covariance with size 3
+           : vertexID(-1), covariance(3), ntracks(0), ndof(0), chi2(0.0) {} // Initialize covariance with size 3
     };
 
     std::vector<TTKVertex> fTKVertices;
@@ -161,6 +163,7 @@ public:
     virtual ~TPORecoEvent();
 
     int verbose = 0;                            //! controls amount of debug information
+    bool multiThread = true;                   //! controls if multi-threading is used
 
     /// @brief Reconstruct the FASERG4 simulated event to the PORec
     void Reconstruct();

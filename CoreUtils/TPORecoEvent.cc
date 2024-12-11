@@ -392,9 +392,10 @@ void TPORecoEvent::TrackReconstruct() {
     }
 
     int max_hit_layers = 1000;
-    double dist_min_cut = 10.0;             // FIXME: define cut
+    double dist_min_cut = 15.0;             // FIXME: define cut
 
-    fTKTracks.clear();
+    std::vector<TTKTrack*> tempTracks;
+
     // now match doublets in each layer
     for(auto &it : hitMap) {
         int ilayer = it.first;
@@ -420,16 +421,18 @@ void TPORecoEvent::TrackReconstruct() {
                 }
             }
 
+            if(verbose > 4)
+                std::cout << "Layer: " << ilayer << " Hit1: " << hit1.ID << " Hit2: " << hitmin.ID << " Dist: " << sqrt(distmin) << std::endl;
             if(distmin>dist_min_cut) continue;
 
             // now create a TKTrack with the doublet if hits are close
-            TTKTrack trk;
-            trk.tkhit.push_back(hit1);
-            trk.tkhit.push_back(hitmin);
-            trk.direction = trk.direction2Hits();
+            TTKTrack *trk = new TTKTrack();
+            trk->tkhit.push_back(hit1);
+            trk->tkhit.push_back(hitmin);
+            trk->direction = trk->direction2Hits();
             ROOT::Math::XYZVector centroid = (hit1.point + hitmin.point) * 0.5;
-            trk.centroid.SetXYZ(centroid.X(), centroid.Y(), centroid.Z());
-            fTKTracks.push_back(trk);
+            trk->centroid.SetXYZ(centroid.X(), centroid.Y(), centroid.Z());
+            tempTracks.push_back(trk);
             // remove hit min from the list of hits
             it.second.erase(std::remove_if(it.second.begin(), it.second.end(),
                                            [&hitmin](const TTKTrack::TRACKHIT &hit)
@@ -442,33 +445,40 @@ void TPORecoEvent::TrackReconstruct() {
     }
 
     // now sort doublets by z coordinate
-    std::sort(fTKTracks.begin(), fTKTracks.end(), [](const TTKTrack &a, const TTKTrack &b)
-              { return a.centroid.Z() < b.centroid.Z(); });
+    std::sort(tempTracks.begin(), tempTracks.end(), [](const TTKTrack *a, const TTKTrack *b)
+              { return a->centroid.Z() < b->centroid.Z(); });
 
     // now loop over tracks and merge segments
-    for (auto &trk : fTKTracks) {
-        trk.SortHitsByZ();
+    for (auto trk : tempTracks) {
+        trk->SortHitsByZ();
+    }
+
+    // dump temp tracks
+    if(verbose > 4) {
+        for (auto trk : tempTracks) {
+            trk->Dump();
+        }
     }
 
     double parallel_cut = 0.01; // FIXME: adjust value
     double mindZcut = fTcalEvent->geom_detector.fTargetSizeZ*1.1;
 
-    for (size_t i = 0; i < fTKTracks.size(); i++) {
-        TTKTrack &track1 = fTKTracks[i];
+    for (size_t i = 0; i < tempTracks.size(); i++) {
+        TTKTrack *track1 = tempTracks[i];
         // for subsequent iterations, consider only tracks with more than 2 hits
         size_t besttrk = -1;
         double mindZ = 1e9;
-        for( size_t j = 0; j < fTKTracks.size(); j++) {
+        for( size_t j = 0; j < tempTracks.size(); j++) {
             if (i==j) continue;
-            TTKTrack &track2 = fTKTracks[j];
+            TTKTrack *track2 = tempTracks[j];
             // check if segments are parallel
-            TVector3 normDir1 = track1.direction.Unit();
-            TVector3 normDir2 = track2.direction.Unit();
+            TVector3 normDir1 = track1->direction.Unit();
+            TVector3 normDir2 = track2->direction.Unit();
             double dotProduct = normDir1.Dot(normDir2);
             if (std::abs(std::abs(dotProduct) - 1.0) > parallel_cut) continue;
             // ensure that segments belong to different planes
-            struct TTKTrack::TRACKHIT hit1 = track1.tkhit.back();
-            struct TTKTrack::TRACKHIT hit2 = track2.tkhit.front();
+            struct TTKTrack::TRACKHIT hit1 = track1->tkhit.back();
+            struct TTKTrack::TRACKHIT hit2 = track2->tkhit.front();
             double dz = std::abs(hit1.point.z()-hit2.point.z());
             if(dz < mindZcut) continue;
 /*            // ensure that segments don't start in the same plane
@@ -489,11 +499,13 @@ void TPORecoEvent::TrackReconstruct() {
         // if match found, then merge the tracks
         if(besttrk != -1) {
             // add hits from track2 to track1
-            for (const auto& h : fTKTracks[besttrk].tkhit) {
-                track1.tkhit.push_back(h);
+            for (const auto& h : tempTracks[besttrk]->tkhit) {
+                track1->tkhit.push_back(h);
             }
-            track1.direction = track1.fitLineThroughHits(track1.centroid);
-            fTKTracks.erase(fTKTracks.begin() + besttrk);
+            track1->direction = track1->fitLineThroughHits(track1->centroid);
+            // erase best track
+            delete tempTracks[besttrk];
+            tempTracks.erase(tempTracks.begin() + besttrk);
             if(besttrk < i) i--;
         }
     }
@@ -509,40 +521,48 @@ void TPORecoEvent::TrackReconstruct() {
     #endif
 
     // always order hits in the track by increasing "z"
-    for (auto &trk : fTKTracks) {
-        trk.SortHitsByZ();
+    for (auto trk : tempTracks) {
+        trk->SortHitsByZ();
     }
 
-    std::cout << "Total number of tracks before merging: " << fTKTracks.size() << std::endl;
+    if(verbose > 0)
+        std::cout << "Total number of tracks before merging: " << tempTracks.size() << std::endl;
+    // dump temp tracks
+    if(verbose > 4) {
+        for (auto trk : tempTracks) {
+            trk->Dump();
+        }
+    }
 
     // merge broken tracks
     double cut_SSR_merge = 10; // FIXME: adjust value
     double cut_parallel_merge = 0.01; // FIXME: adjust value
-    for (size_t i = 0; i < fTKTracks.size(); i++) {
-        TTKTrack &track1 = fTKTracks[i];
-        for( size_t j = 0; j < fTKTracks.size(); j++) {
+    for (size_t i = 0; i < tempTracks.size(); i++) {
+        TTKTrack *track1 = tempTracks[i];
+        for( size_t j = 0; j < tempTracks.size(); j++) {
             if (i==j) continue;
-            TTKTrack &track2 = fTKTracks[j];
+            TTKTrack *track2 = tempTracks[j];
 
             // check if segments are parallel
-            TVector3 normDir1 = track1.direction.Unit();
-            TVector3 normDir2 = track2.direction.Unit();
+            TVector3 normDir1 = track1->direction.Unit();
+            TVector3 normDir2 = track2->direction.Unit();
             double dotProduct = normDir1.Dot(normDir2);
             if (std::abs(std::abs(dotProduct) - 1.0) > cut_parallel_merge) continue;
 
-            TTKTrack *tempTrack = new TTKTrack(track1);
-            tempTrack->MergeTracks(track2);
+            TTKTrack *tempTrack = new TTKTrack(*track1);
+            tempTrack->MergeTracks(*track2);
             // fit line through hits
             tempTrack->direction = tempTrack->fitLineThroughHits(tempTrack->centroid);
             if(verbose > 5) {
                 std::cout << "Merging tracks: " << i << " " << j << std::endl;
-                track1.Dump();
-                track2.Dump();
+                track1->Dump();
+                track2->Dump();
                 tempTrack->Dump();
             }
             if(tempTrack->SSR < cut_SSR_merge) {
-                fTKTracks[i] = *tempTrack;
-                fTKTracks.erase(fTKTracks.begin() + j);
+                tempTracks[i] = tempTrack;
+                tempTracks.erase(tempTracks.begin() + j);
+                delete track2;
                 if(j < i) i--;
                 break;
             }
@@ -551,40 +571,61 @@ void TPORecoEvent::TrackReconstruct() {
     }
 
     // order tracks by increasing "z"
-    std::sort(fTKTracks.begin(), fTKTracks.end(), [](const TTKTrack &a, const TTKTrack &b)
-              { return a.centroid.Z() < b.centroid.Z(); });
+    std::sort(tempTracks.begin(), tempTracks.end(), [](const TTKTrack *a, const TTKTrack *b)
+              { return a->centroid.Z() < b->centroid.Z(); });
 
-    std::cout << "Total number of tracks before fitting: " << fTKTracks.size() << std::endl;
+    if(verbose > 0)
+        std::cout << "Total number of tracks before fitting: " << tempTracks.size() << std::endl;
     // always order hits in the track by increasing "z"
-    for (auto &trk : fTKTracks) {
-        trk.SortHitsByZ();
+    for (auto trk : tempTracks) {
+        trk->SortHitsByZ();
     }
 
     // now fit tracks with GENFIT2
-    for (auto &trk : fTKTracks) {
-        trk.GenFitTrackFit();
+    for (auto trk : tempTracks) {
+        trk->GenFitTrackFit();
         // print fit result
         if(verbose > 0) {
             std::cout << "Fitted track - ";
-            TVector3 momf = trk.fitTrack->getFittedState().getMom();
+            TVector3 momf = trk->fitTrack->getFittedState().getMom();
             std::cout << "Momentum: " << momf.Mag() << std::endl;
         }
         if(verbose > 3) {
-            trk.fitTrack->Print();
+            trk->fitTrack->Print();
+        }
+    }
+
+    std::cout << "Total number of tracks after fitting: " << tempTracks.size() << std::endl;
+
+    // dump temp tracks
+    if(verbose > 3) {
+        for (auto trk : tempTracks) {
+            trk->Dump();
         }
     }
 
     // remove tracks with bad fitted pval (pval < 0.01) or low momentum
-    fTKTracks.erase(std::remove_if(fTKTracks.begin(), fTKTracks.end(),
-                                   [](const TTKTrack &track)
-                                   {
-                                       return !track.fitTrack->getFitStatus()->isFitConverged() ||
-                                                track.fitTrack->getFitStatus()->getPVal() < 0.01 ||
-                                                track.fitTrack->getFittedState().getMom().Mag() < 1e-3;
-                                   }),
-                    fTKTracks.end());
+    for (size_t i = 0; i < tempTracks.size(); i++) {
+        TTKTrack *track = tempTracks[i];
+        if(!track->fitTrack->getFitStatus()->isFitConverged() ||
+           (track->fitTrack->getFitStatus()->getChi2() > 0 && track->fitTrack->getFitStatus()->getPVal() < 0.01) ||
+           track->fitTrack->getFittedState().getMom().Mag() < 1e-3) {
+            track->Dump(verbose);
+            delete track;
+            tempTracks.erase(tempTracks.begin() + i);
+            i--;
+        }
+    }
 
-    if(verbose > 4) {
+    // now copy temporary tracks to fTKTracks
+    fTKTracks.clear();
+    int trackID = 0;
+    for (auto trk : tempTracks) {
+        trk->trackID = trackID++;
+        fTKTracks.push_back(*trk);
+        delete trk;
+    }
+    if(verbose > 2) {
         DumpReconstructedTracks();
     }
 }
@@ -620,15 +661,24 @@ void TPORecoEvent::ExtendTracks() {
         int min, max;
         trk.GetMinMaxModule(min, max);
         int module = min;
-        while(module <= max) {
+        int nmodules = fTcalEvent->geom_detector.NRep;
+        bool stop_extend = false;
+        while(module < nmodules && !stop_extend) {
             // loop over all layers in module
             for (int iz = 0; iz < nzlayer; iz++) {
                 // get the closest voxel to the track
                 struct PSVOXEL3D closestVoxel;
                 int failed(0);
                 double z = fTcalEvent->getZofLayer(module, iz);
+                std::cout << "Module: " << module << " Layer: " << iz << " Z: " << z << " ";
+                std::cout << "Track: fittrak: " << trk.fitTrack << std::endl;
                 TVector3 pos = trk.extrapolateTracktoZ(z, failed);
                 if(failed) continue;
+                std::cout << "Successfully extrapolated to Z: " << z << " Position: " << pos.X() << " " << pos.Y() << " " << pos.Z() << std::endl;
+                // cut on the fiducial volume
+                if(std::abs(pos.X()) > fTcalEvent->geom_detector.fScintillatorSizeX) stop_extend = true;
+                if(std::abs(pos.Y()) > fTcalEvent->geom_detector.fScintillatorSizeY) stop_extend = true;
+                if(stop_extend) continue;
                 for (const auto &voxel : PSvoxelmapModule[module]) {
                     if(iz != fTcalEvent->getChannelnzfromID(voxel.ID)) 
                         continue;
@@ -646,10 +696,23 @@ void TPORecoEvent::ExtendTracks() {
         }
         // sort hits by z
         trk.SortHitsByZ();
+        std::cout << "Before refit" << std::endl;
+        trk.Dump();
         trk.GenFitTrackFit();
+        std::cout << "After refit" << std::endl;
+        trk.Dump();
 //        trk.fitTrack->Print();
         trk.UpdateFittedPosition();
     }
+
+    // dump temp tracks
+    if(verbose > 3) {
+        std::cout << "Extended tracks: " << fTKTracks.size() << std::endl;
+        for (auto &trk : fTKTracks) {
+            trk.Dump();
+        }
+    }
+
 }
 
 void TPORecoEvent::DumpReconstructedTracks() {
@@ -673,16 +736,35 @@ void TPORecoEvent::FitTrackVertices() {
     vertexFactory.setMethod("kalman-smoothing:1");
 
     fTKVertices.clear();
+    // reset all tracks vertexID
+    for (auto &trk : fTKTracks) {
+        trk.vertexID = -1;
+    }
+
+    std::vector<TTKTrack*> tempTracks;
+    for (auto &trk : fTKTracks) {
+        if(trk.tkhit.size() < 3) continue;
+        // reject tracks with bad chi2
+        if(trk.fitTrack->getFitStatus()->getChi2() > 0 && trk.fitTrack->getFitStatus()->getPVal() < 0.01) continue;
+        tempTracks.push_back(&trk);
+    }
+    std::cout << "Total number of tracks: " << tempTracks.size() << " retained out of " << fTKTracks.size() << std::endl;
+
+    // order tracks by increasing "z"
+    std::sort(tempTracks.begin(), tempTracks.end(), [](const TTKTrack *a, const TTKTrack *b)
+              { return a->centroid.Z() < b->centroid.Z(); });
 
     // if there are less than 2 tracks, then no vertexing
-    if(fTKTracks.size() < 3) return;
+    if(tempTracks.size() < 3) return;
 
-    size_t ntracks = fTKTracks.size();
+    size_t ntracks = tempTracks.size();
+#if 0
     size_t cut_max_trk = 20;
     if(ntracks > cut_max_trk) {
         ntracks = cut_max_trk;
         if(verbose>0) std::cout << "Number of tracks cut to: " << ntracks << std::endl;
     }
+#endif
 
     struct TUPLET {
         std::set<int> tracks;
@@ -693,6 +775,76 @@ void TPORecoEvent::FitTrackVertices() {
 
     double vtx_chi2ndf_cut = 10000;  // FIXME: tune value
 
+#if 1
+    // pick two tracks and fit a vertex
+    for (int i = 0; i < ntracks-1; i++) {
+        // skip if track is already used in a vertex
+        if(tempTracks[i]->vertexID != -1) continue;
+        for (int j = i+1; j < ntracks; j++) {
+            if(tempTracks[j]->vertexID != -1) continue;
+            // prepare tracks for vertexing    
+            std::vector<genfit::Track*> tracks;
+            std::vector<genfit::GFRaveVertex*> vertices;
+            tempTracks[i]->fitTrack->checkConsistency();
+            tempTracks[j]->fitTrack->checkConsistency();
+            tracks.push_back(tempTracks[i]->fitTrack);
+            tracks.push_back(tempTracks[j]->fitTrack);
+            // vertexing
+            vertexFactory.findVertices(&vertices, tracks);
+            if(verbose > 3) {
+                // print reconstructed vertices
+                for (auto &vertex : vertices) {
+                    std::cout << "GFRaveVertex of two tracks\n";
+                    std::cout << "Position: "; vertex->getPos().Print();
+                    std::cout << "Covariance: "; vertex->getCov().Print();
+                    std::cout << "Ndf: " << vertex->getNdf() << ", Chi2: " << vertex->getChi2() << ", Id: " << vertex->getId() << "\n";
+                    std::cout << "Number of tracks: " << vertex->getNTracks() << "\n";
+                }
+            }
+            // apply quality cuts
+            bool good_vertex = true;
+            if(vertices.size() == 0) 
+                good_vertex = false;
+            else {
+                if(vertices[0]->getChi2()/vertices[0]->getNdf() > vtx_chi2ndf_cut) good_vertex = false;
+                // if position is outside of the detector then break
+                if(std::abs(vertices[0]->getPos().X())*10.0 > fTcalEvent->geom_detector.fScintillatorSizeX) good_vertex = false;
+                if(std::abs(vertices[0]->getPos().Y())*10.0 > fTcalEvent->geom_detector.fScintillatorSizeY) good_vertex = false;
+            }
+
+            if(good_vertex) {
+                // add vertex to the list of doublets
+                TUPLET aTuplet = {{i, j}, vertices[0]->getPos(), vertices[0]->getChi2()};
+                tuplets.push_back(aTuplet);
+                // mark tracks as used
+                tempTracks[i]->vertexID = vertices[0]->getId();
+                tempTracks[j]->vertexID = vertices[0]->getId();
+                break;            
+            }
+            // delete vertices
+            for (auto &vertex : vertices) {
+                delete vertex;
+            }
+        }
+    }
+#endif
+
+    // dump all elements of set in tuplets
+    if(verbose>0){
+        for (auto &tuplet : tuplets)
+        {
+            std::cout << "Tuplet: ";
+            for (auto &track : tuplet.tracks)
+            {
+                std::cout << track << " ";
+            }
+            std::cout << "Chi2: " << tuplet.chi2 << std::endl;
+            std::cout << "Position: " << tuplet.position.X() << " " << tuplet.position.Y() << " " << tuplet.position.Z() << std::endl;
+            std::cout << std::endl;
+        }
+    }
+
+#if 0
     // loop over all possible combinations of 3 tracks
     for (int i = 0; i < ntracks-2; i++) {
         for (int j = i+1; j < ntracks-1; j++) {
@@ -701,6 +853,8 @@ void TPORecoEvent::FitTrackVertices() {
             // prepare tracks for vertexing    
             std::vector<genfit::Track*> tracks;
             std::vector<genfit::GFRaveVertex*> vertices;
+            fTKTracks[i].fitTrack->checkConsistency();
+            fTKTracks[j].fitTrack->checkConsistency();
             tracks.push_back(fTKTracks[i].fitTrack);
             tracks.push_back(fTKTracks[j].fitTrack);
             // vertexing
@@ -729,6 +883,9 @@ void TPORecoEvent::FitTrackVertices() {
                 tracks.push_back(fTKTracks[i].fitTrack);
                 tracks.push_back(fTKTracks[j].fitTrack);
                 tracks.push_back(fTKTracks[k].fitTrack);
+                fTKTracks[i].fitTrack->checkConsistency();
+                fTKTracks[j].fitTrack->checkConsistency();
+                fTKTracks[k].fitTrack->checkConsistency();
                 // vertexing
                 vertexFactory.findVertices(&vertices, tracks);
                 if(verbose > 3) {
@@ -850,19 +1007,22 @@ void TPORecoEvent::FitTrackVertices() {
         std::cout << "Position: " << tuplet.position.X() << " " << tuplet.position.Y() << " " << tuplet.position.Z() << std::endl;
         std::cout << std::endl;
     }
+#endif
 
     // now fill the list of vertices
+    int vertexID = 0;
     for (auto &tuplet : tuplets) {
         // refit last time and add vertex to the list
         std::vector<genfit::Track*> tracks;
         std::vector<genfit::GFRaveVertex*> vertices;
-        for(auto &track : tuplet.tracks) 
-            tracks.push_back(fTKTracks[track].fitTrack);
+        for(auto &trackID : tuplet.tracks) 
+            tracks.push_back(tempTracks[trackID]->fitTrack);
         // vertexing
         vertexFactory.findVertices(&vertices, tracks);
 
         struct TTKVertex aVertex;
         // convert position to mm
+        aVertex.vertexID = vertexID++;
         aVertex.position = ROOT::Math::XYZVector(vertices[0]->getPos().X()*10.0, 
             vertices[0]->getPos().Y()*10.0, vertices[0]->getPos().Z()*10.0);
         // covariance matrix
@@ -876,7 +1036,25 @@ void TPORecoEvent::FitTrackVertices() {
         aVertex.ndof = vertices[0]->getNdf();
         aVertex.chi2 = vertices[0]->getChi2();
         aVertex.ntracks = vertices[0]->getNTracks();
+        // add tracks to the vertex
+        for(auto &trackID : tuplet.tracks) 
+            aVertex.trackIDs.push_back(tempTracks[trackID]->trackID);
         fTKVertices.push_back(aVertex);
+
+        // delete vertices
+        for (auto &vertex : vertices) {
+            delete vertex;
+        }
+    }
+
+    // now loop over tracks and assign vertexID
+    for (auto &trk : fTKTracks) {
+        for (auto &tk : tempTracks) {
+            if(trk.trackID == tk->trackID) {
+                trk.vertexID = tk->vertexID;
+                break;
+            }
+        }
     }
 }
 
@@ -2166,18 +2344,25 @@ void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
 
     std::vector<int> nvox_per_layer(nztot);
 
-    std::vector<std::thread> threads;
-    for (int imodule = 0; imodule < nrep; imodule++)
-    {
- //       reconstruct3DPS_module(maxIter, imodule, V, XZ, YZ, XY, nvox_per_layer, nvox_per_layer_max);
-        threads.emplace_back(&TPORecoEvent::reconstruct3DPS_module, this, maxIter, imodule, 
-            std::ref(V), std::ref(XZ), std::ref(YZ), std::ref(XY),
-            std::ref(nvox_per_layer), nvox_per_layer_max);
-    }
+    if(multiThread) {
+        std::vector<std::thread> threads;
+        for (int imodule = 0; imodule < nrep; imodule++)
+        {
+    //       reconstruct3DPS_module(maxIter, imodule, V, XZ, YZ, XY, nvox_per_layer, nvox_per_layer_max);
+            threads.emplace_back(&TPORecoEvent::reconstruct3DPS_module, this, maxIter, imodule, 
+                std::ref(V), std::ref(XZ), std::ref(YZ), std::ref(XY),
+                std::ref(nvox_per_layer), nvox_per_layer_max);
+        }
 
-    for (auto& th : threads)
-    {
-        th.join();
+        for (auto& th : threads)
+        {
+            th.join();
+        }
+    } else {
+        for (int imodule = 0; imodule < nrep; imodule++)
+        {
+            reconstruct3DPS_module(maxIter, imodule, V, XZ, YZ, XY, nvox_per_layer, nvox_per_layer_max);
+        }
     }
 
     PSvoxelmap.clear();

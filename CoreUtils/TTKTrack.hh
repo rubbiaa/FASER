@@ -32,6 +32,8 @@ public:
     TVector3 centroid;
     TVector3 direction;
     double SSR;
+    int trackID;                         // the unique track ID (<0 if not yet assigned)
+    int vertexID;                        //the vertex ID the track belongs to (<0 if not associated to a vertex)
 
     genfit::Track *fitTrack;                //! the genfit track
 
@@ -42,9 +44,13 @@ public:
         });
     }
 
-    TTKTrack() : TObject(), fitTrack(0) {};
+    TTKTrack() : TObject(), fitTrack(0), vertexID(-1), trackID(-1) { 
+        //std::cout << "TTKTrack::TTKTrack - constructor . " << this << std::endl; 
+        };
     TTKTrack(const TTKTrack &t);
-    virtual ~TTKTrack() { // delete fitTrack; // FIXME: causes crash 
+    virtual ~TTKTrack() { 
+//        std::cout << "TTKTrack::~TTKTrack - destructor . " << this << std::endl;
+        if(fitTrack!=nullptr) delete fitTrack;
     };
 
     /// @brief Compute the distance between a point and a line

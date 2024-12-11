@@ -29,8 +29,11 @@ TTKTrack::TTKTrack(const TTKTrack &t) : TTKTrack() {
     centroid = t.centroid;
     direction = t.direction;
     SSR = t.SSR;
+    trackID = t.trackID;
+    vertexID = t.vertexID;
     if(t.fitTrack) {
         fitTrack = new genfit::Track(*t.fitTrack);
+//        std::cout << "TTKTrack::TTKTrack - copy constructor fitrack" << fitTrack << std::endl;
     }
 }
 
@@ -254,7 +257,9 @@ void TTKTrack::Dump(int verbose) const {
         }
     }        
     if(fitTrack) {
-        if(verbose > 3) fitTrack->Print();
+        std::cout << "track " << this << "GenFit track: " << fitTrack;
+        std::cout << "cardinal rep : " << fitTrack->getCardinalRep() << std::endl;
+        if(verbose > 4) fitTrack->Print();
         genfit::FitStatus* getFitStatus = fitTrack->getFitStatus();
         if(getFitStatus) {
             getFitStatus->Print();
