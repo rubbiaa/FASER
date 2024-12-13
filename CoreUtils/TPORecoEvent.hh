@@ -168,14 +168,17 @@ public:
     /// @brief Reconstruct the FASERG4 simulated event to the PORec
     void Reconstruct();
 
-    /// @brief Reconstruct tracks based on precise tracker information
+    /// @brief Full track reconstruction based on pixel and scintillator hits
     void TrackReconstruct();
+
+    /// @brief Pattern recognition for the tracker
+    void FindPatternTracks();
 
     /// @brief Extend the tracks using voxels in the plastic scintillator
     void ExtendTracks();
 
-    /// @brief Fit the tracks vertices using GenFit2
-    void FitTrackVertices();
+    /// @brief Find the tracks vertices using GenFit2
+    void FindTrackVertices();
 
     /// @brief Reconstruct all the tracks associated to the PORec (call this after Reconstruct)
     void TrackReconstructTruth();

@@ -246,7 +246,7 @@ void TTKTrack::UpdateFittedPosition() {
 }
 
 void TTKTrack::Dump(int verbose) const {
-    std::cout << "TKTrack: " << tkhit.size() << " hits; SSR = " << SSR << std::endl;
+    std::cout << "TKTrack " << trackID << ": " << tkhit.size() << " hits; SSR = " << SSR << std::endl;
     std::cout << "direction " << direction.x() << " " << direction.y() << " " << direction.z() << std::endl;
     for (const auto &it : tkhit) {
         std::cout << "   " << it.ID << " x:" << Form("%5.2f",it.point.x()) << 
@@ -257,8 +257,8 @@ void TTKTrack::Dump(int verbose) const {
         }
     }        
     if(fitTrack) {
-        std::cout << "track " << this << "GenFit track: " << fitTrack;
-        std::cout << "cardinal rep : " << fitTrack->getCardinalRep() << std::endl;
+//        std::cout << "track " << this << "GenFit track: " << fitTrack;
+//        std::cout << "cardinal rep : " << fitTrack->getCardinalRep() << std::endl;
         if(verbose > 4) fitTrack->Print();
         genfit::FitStatus* getFitStatus = fitTrack->getFitStatus();
         if(getFitStatus) {
