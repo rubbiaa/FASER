@@ -16,6 +16,7 @@
 #include "TTauSearch.hh"
 #include "TParticleGun.hh"
 
+#define EVENT_MAX_VERTICES 100
 struct EVENT {
     // Truth variables
     Int_t t_reaction; // reaction 1=nue, 2=numu, 3=nutau, +10 if NC, 20=ES (truth)
@@ -23,7 +24,7 @@ struct EVENT {
     Float_t t_primvx, t_primvy, t_primvz; // true primary vertex
     // reconstructed quantities
     Int_t n_vertices;
-    Float_t v_x[100], v_y[100], v_z[100];
+    Float_t v_x[EVENT_MAX_VERTICES], v_y[EVENT_MAX_VERTICES], v_z[EVENT_MAX_VERTICES];
     Int_t n_tktracks;
     Int_t n_pstracks;
     Int_t n_clusters;
@@ -212,7 +213,7 @@ int main(int argc, char** argv) {
 
         // store vertices
         event.n_vertices = fTPORecoEvent->fTKVertices.size();
-        for(int i=0; i<event.n_vertices; i++) {
+        for(int i=0; i<std::min(EVENT_MAX_VERTICES, event.n_vertices); i++) {
             event.v_x[i] = fTPORecoEvent->fTKVertices[i].position.x();
             event.v_y[i] = fTPORecoEvent->fTKVertices[i].position.y();
             event.v_z[i] = fTPORecoEvent->fTKVertices[i].position.z();

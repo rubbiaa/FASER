@@ -1024,7 +1024,8 @@ void TPORecoEvent::FindTrackVertices() {
                 // FIXME: replace distance cut by cut on distance/uncertainty
                 // uncertainty on diffrence is given by sum of covariance matrices
                 if(intersection.size() > 1 && distance < 10) {
-                    std::cout << "Merge i: " << i << " j: " << j << " - Distance between vertices: " << distance << std::endl;
+                    if(verbose > 0)
+                        std::cout << "Merge i: " << i << " j: " << j << " - Distance between vertices: " << distance << std::endl;
                     // merge two tuplets
                     std::set<int> merged;
                     std::set_union(tuplets[i].tracks.begin(), tuplets[i].tracks.end(),
@@ -1090,7 +1091,8 @@ void TPORecoEvent::FindTrackVertices() {
             // if chi2 is bad then skip
             if(!good_vertex) {
                 // erase tuplet that failed
-                std::cout << "Erasing tuplet that failed to refit: " << i << std::endl;
+                if(verbose > 0)
+                    std::cout << "Erasing tuplet that failed to refit: " << i << std::endl;
                 tuplets.erase(tuplets.begin() + i);
                 i--;
                 continue;
