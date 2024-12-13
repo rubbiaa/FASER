@@ -217,8 +217,6 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
     std::cout << "Start reconstruction of tracks..." << std::endl;
     if(f_fullreco_CheckBox->IsOn() || true) {
         fPORecoEvent->TrackReconstruct();
-        fPORecoEvent->ExtendTracks();
-        fPORecoEvent->FitTrackVertices();
     }
     fPORecoEvent->PSVoxelParticleFilter();
     fPORecoEvent -> Dump();
@@ -315,6 +313,13 @@ void MyMainFrame::OnTrackSelected(TGListTreeItem *entry, Int_t btn) {
         if (trackMap.find(name) != trackMap.end()) {
             selectedTrackID = trackMap[name];
             std::cout << "Selected track " << selectedTrackID << std::endl;
+            // dump track
+            for (const auto &track : fPORecoEvent->fTKTracks) {
+                if (track.trackID == selectedTrackID) {
+                    track.Dump();
+                    break;
+                }
+            }
         } else 
             selectedTrackID = -1;
         if (vertexMap.find(name) != vertexMap.end()) {
@@ -509,14 +514,14 @@ void MyMainFrame::Draw_event() {
     // draw rear Muon Cal hits
     if(true) {
         ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZRearHCal(10);
-        double zBox = fTcalEvent->rearMuCalDeposit*100.0; // 1mm is 10 MeV
+        double zBox = fTcalEvent->rearMuCalDeposit*10.0; // 1mm is 100 MeV
         TGeoShape *box = new TGeoBBox("rearmucalbox", fTcalEvent->geom_detector.rearHCalSizeX / 20.0,
                                       zBox / 20.0, 
                                       fTcalEvent->geom_detector.rearHCalSizeZ / 20.0);
         TGeoVolume *hitVolume = new TGeoVolume("RearMuCalVolume", box, air);
-        hitVolume->SetLineColor(kGreen);
+        hitVolume->SetLineColor(kMagenta);
         TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0,
-                                                position.Y() / 10.0, position.Z() / 10.0);
+                                                (position.Y()+zBox/2.0) / 10.0, position.Z() / 10.0);
         rearMucal->AddNode(hitVolume, 0, trans);
     }
 
@@ -854,6 +859,10 @@ void MyMainFrame::Next_Event(int ievent) {
     toggle_reconstructed_ps_tracks = true;
     toggle_reco_voxel = true;
 
+    // remove selected track and vertex
+    selectedTrackID = -1;
+    selectedVertexID = -1;
+
     Draw_event();
     Update_ListTree();
     canvas->Modified();
@@ -956,9 +965,6 @@ void MyMainFrame::toggle_reco_track() {
     polylineTracks.clear();
     polylineVertices.clear();
     Draw_event_reco_tracks();
-    if(toggle_reconstructed_tracks) {
-        fPORecoEvent->DumpReconstructedTracks();
-    }
     canvas->Modified();
     canvas->Update();
 }
