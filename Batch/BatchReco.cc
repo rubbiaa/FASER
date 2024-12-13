@@ -4,6 +4,8 @@
 //
 
 #include <string>
+#include <csignal>
+#include <atomic>
 
 #include "TFile.h"
 #include "TH1.h"
@@ -14,6 +16,18 @@
 #include "TPORecoEvent.hh"
 #include "TTauSearch.hh"
 #include "TParticleGun.hh"
+
+
+// Global atomic flag to indicate whether the program should continue running
+std::atomic<bool> keepRunning(true);
+
+// Signal handler function
+void handleSignal(int signal) {
+    if (signal == SIGINT) {
+        std::cout << "\nCaught Ctrl+C (SIGINT). Exiting cleanly...\n";
+        keepRunning = false; // Update the flag to stop the program loop
+    }
+}
 
 void load_geometry() {
     // Load the GDML geometry
@@ -150,7 +164,10 @@ int main(int argc, char** argv) {
     int ievent = min_event;
     int error = 0;
 
-    while (error == 0 && ievent<max_event) {
+    // Register the signal handler for SIGINT (Ctrl+C)
+    std::signal(SIGINT, handleSignal);
+
+    while (keepRunning && error == 0 && ievent<max_event) {
 
         if(ievent % 1000 == 0) {
             std::cout << "Processing event " << ievent << std::endl;
@@ -203,9 +220,10 @@ int main(int argc, char** argv) {
         /////
 #endif
         TPORecoEvent* fPORecoEvent = new TPORecoEvent(fTcalEvent, fTcalEvent->fTPOEvent);
+        fPORecoEvent -> verbose = 0;   // 0: no output, 1: some output, 2: more output, 3: full output;
+        if(!dump_event_cout) fPORecoEvent -> verbose = 0;
+        fPORecoEvent -> multiThread = false;
         fPORecoEvent -> Reconstruct();
-        fPORecoEvent->TrackReconstruct();
-        fPORecoEvent->FitTrackVertices();
         std::cout << "Start reconstruction of clusters..." << std::endl;
         fPORecoEvent -> Reconstruct2DViewsPS();
         fPORecoEvent -> ReconstructClusters(0);    // this is very slow
@@ -213,6 +231,8 @@ int main(int argc, char** argv) {
         fPORecoEvent -> Reconstruct3DPS_2();
         fPORecoEvent -> ReconstructRearCals();
         fPORecoEvent -> Reconstruct3DPS_Eflow();
+
+        fPORecoEvent->TrackReconstruct();
 
         if(dump_event_cout) { fPORecoEvent -> Dump(); }
 
