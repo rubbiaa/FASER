@@ -17,6 +17,7 @@
 #include "TTauSearch.hh"
 #include "TParticleGun.hh"
 
+#include <chrono>
 
 // Global atomic flag to indicate whether the program should continue running
 std::atomic<bool> keepRunning(true);
@@ -167,7 +168,13 @@ int main(int argc, char** argv) {
     // Register the signal handler for SIGINT (Ctrl+C)
     std::signal(SIGINT, handleSignal);
 
+    // Total elapsed time to process job
+    long long total_time = 0;
+    size_t n_events = 0;
+
     while (keepRunning && error == 0 && ievent<max_event) {
+
+        auto start = std::chrono::high_resolution_clock::now();
 
         if(ievent % 1000 == 0) {
             std::cout << "Processing event " << ievent << std::endl;
@@ -432,11 +439,27 @@ int main(int argc, char** argv) {
         delete fPORecoEvent;
         delete POevent;
         delete fTcalEvent;       
+
+        // Record the end time
+        auto end = std::chrono::high_resolution_clock::now();
+
+        // Calculate the elapsed time in milliseconds
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+
+        std::cerr << "+++++ Event processed " << n_events << " - Elapsed time: " << elapsed.count() << " ms\n";
+
+        total_time += elapsed.count();
+        n_events++;
+
     }
 
     m_rootFile->Write();
     m_rootFile->Close();
 
+    std::cerr << "Total elapsed time: " << total_time << " ms\n";
+    double average_time = static_cast<double>(total_time) / n_events;
+
+    std::cerr << "Average time per event: " << average_time << " ms\n";
     std::cout << "I'm done." << std::endl;
 
     return 0;
