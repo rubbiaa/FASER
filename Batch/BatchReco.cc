@@ -24,8 +24,8 @@ std::atomic<bool> keepRunning(true);
 
 // Signal handler function
 void handleSignal(int signal) {
-    if (signal == SIGINT) {
-        std::cout << "\nCaught Ctrl+C (SIGINT). Exiting cleanly...\n";
+    if (signal == SIGINT || signal == SIGTERM) {
+        std::cout << "\nCaught Ctrl+C (SIGINT) or SIGTERM. Exiting cleanly...\n";
         keepRunning = false; // Update the flag to stop the program loop
     }
 }
@@ -167,6 +167,7 @@ int main(int argc, char** argv) {
 
     // Register the signal handler for SIGINT (Ctrl+C)
     std::signal(SIGINT, handleSignal);
+    std::signal(SIGTERM, handleSignal);
 
     // Total elapsed time to process job
     long long total_time = 0;
