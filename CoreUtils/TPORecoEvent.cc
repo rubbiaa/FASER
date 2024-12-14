@@ -834,23 +834,21 @@ void TPORecoEvent::FindTrackVertices() {
         if(trk.fitTrack->getFitStatus()->getChi2() > 0 && trk.fitTrack->getFitStatus()->getPVal() < 0.01) continue;
         tempTracks.push_back(&trk);
     }
-    std::cout << "Total number of tracks: " << tempTracks.size() << " retained out of " << fTKTracks.size() << std::endl;
+    std::cout << "+V+V+ Total number of tracks: " << tempTracks.size() << " retained out of " << fTKTracks.size() << std::endl;
 
-    #if 0
-    // order tracks by increasing "z"
+    // order tracks by increasing "z" of the first hit of the track
     std::sort(tempTracks.begin(), tempTracks.end(), [](const TTKTrack *a, const TTKTrack *b)
-              { return a->centroid.Z() < b->centroid.Z(); });
-    #endif
+                { return a->tkhit.front().point.z() < b->tkhit.front().point.z(); });
 
     // if there are less than 2 tracks, then no vertexing
     if(tempTracks.size() < 3) return;
 
     size_t ntracks = tempTracks.size();
-#if 0
-    size_t cut_max_trk = 20;
+#if 1
+    size_t cut_max_trk = 100;
     if(ntracks > cut_max_trk) {
         ntracks = cut_max_trk;
-        if(verbose>0) std::cout << "Number of tracks cut to: " << ntracks << std::endl;
+        std::cerr << "+V+V+ Number of tracks considered for vertexing cut to: " << ntracks << std::endl;
     }
 #endif
 
