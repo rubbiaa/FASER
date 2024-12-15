@@ -46,7 +46,7 @@ void load_geometry() {
 int main(int argc, char** argv) {
 
 	if (argc < 2) {
-	std::cout << "Usage: " << argv[0] << " <run> [minevent] [maxevent] [mask]" << std::endl;
+	std::cout << "Usage: " << argv[0] << " [-mt] <run> [minevent] [maxevent] [mask]" << std::endl;
         std::cout << "   <run>                     Run number" << std::endl;
         std::cout << "   minevent                  Minimum number of events to process (def=-1)" << std::endl;
         std::cout << "   maxevent                  Maximum number of events to process (def=-1)" << std::endl;
@@ -55,8 +55,17 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
+    int argv_index = 1;
+    bool multiThread_option = false;
+    if(argc>argv_index) {
+        if(std::string(argv[argv_index]) == "-mt") {
+            multiThread_option = true;
+            argv_index++;
+        }
+    }
+
    // get the run number as the first argument
-    std::string runString = argv[1];
+    std::string runString = argv[argv_index++];
     int run_number;
 
     try {
@@ -70,9 +79,9 @@ int main(int argc, char** argv) {
     }
 
     int min_event = 0;
-    if(argc>2) {
+    if(argc>argv_index) {
         try {
-            min_event = std::stoi(argv[2]);
+            min_event = std::stoi(argv[argv_index++]);
         } catch (const std::invalid_argument& e) {
             std::cerr << "Invalid argument for maxevent: " << e.what() << std::endl;
             exit(1);
@@ -83,9 +92,9 @@ int main(int argc, char** argv) {
     }
 
     int max_event = -1;
-    if(argc>3) {
+    if(argc>argv_index) {
         try {
-            max_event = std::stoi(argv[3]);
+            max_event = std::stoi(argv[argv_index++]);
         } catch (const std::invalid_argument& e) {
             std::cerr << "Invalid argument for maxevent: " << e.what() << std::endl;
             exit(1);
@@ -97,12 +106,12 @@ int main(int argc, char** argv) {
     if(max_event == -1) max_event = 99999999;
 
     int event_mask = 0;
-    if(argc>4) {
-        int mask = TPOEvent::EncodeEventMask(argv[4]);
+    if(argc>argv_index) {
+        int mask = TPOEvent::EncodeEventMask(argv[argv_index]);
         if(mask>0) {
             event_mask = mask;
         } else {
-            std::cerr << "Unknown mask " << argv[4] << std::endl;
+            std::cerr << "Unknown mask " << argv[argv_index] << std::endl;
             exit(1);            
         }
     }
@@ -238,7 +247,7 @@ int main(int argc, char** argv) {
         TPORecoEvent* fPORecoEvent = new TPORecoEvent(fTcalEvent, fTcalEvent->fTPOEvent);
         fPORecoEvent -> verbose = 0;   // 0: no output, 1: some output, 2: more output, 3: full output;
         if(!dump_event_cout) fPORecoEvent -> verbose = 0;
-        fPORecoEvent -> multiThread = false;
+        fPORecoEvent -> multiThread = multiThread_option;
         fPORecoEvent -> Reconstruct();
         std::cout << "Start reconstruction of clusters..." << std::endl;
         fPORecoEvent -> Reconstruct2DViewsPS();
