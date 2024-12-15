@@ -172,6 +172,51 @@ public:
     int verbose = 0;                            //! controls amount of debug information
     bool multiThread = true;                   //! controls if multi-threading is used
 
+    struct RECOCONFIG {
+        // resolution fudge factor used in TTKTrack Genfit fitting for PS voxel hits
+        double psvoxel_fudge_factor;
+
+        // energy compensation factors for the PS voxel hits
+        double alpha;
+        double beta;
+
+        double findpattern_max_hit_layers;
+        double findpattern_dist_min_cut;
+        double findpattern_parallel_cut;
+        double findpattern_mindZ_fudge;
+    //    double findpattern_cut_SSR_merge;
+        double findpattern_parallel_cut_merge;
+
+        double extendtracks_closest_voxel_cut;
+        double extendtracks_dist2_perp_voxel_cut;
+
+        // genfit track minimum pVal 
+        double genfit_min_pVal;
+        double genfit_min_pMom;
+
+        size_t findvtx_cut_max_trk;
+        double findvtx_chi2ndf_cut;
+        double findvtx_trk_dist_cut;
+        double findvtx_merge_dist_cut;
+
+        double clusters_threshold_2dhit;
+        double clusters_eps;
+        double clusters_minPts;
+        double clusters_threshold_cluster;
+
+        double PS3D_nvox_max_after_iteration;
+        double PS3D_total_score_min_break;
+        double PS3D_ehit_threshold;
+        double PS3D_evox_threshold;
+        int    PS3D_nvox_per_layer_max;
+
+        int PSFilter_max_number_track_seeds;
+        double PSFilter_closest_voxel_cut;
+        double PSFilter_parallel_cut;
+        double PSFilter_mindZcut;
+
+    } recoConfig;
+
     /// @brief Reconstruct the FASERG4 simulated event to the PORec
     void Reconstruct();
 

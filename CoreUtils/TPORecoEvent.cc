@@ -29,9 +29,53 @@ ClassImp(TPORec);
 ClassImp(TPORecoEvent);
 
 static int TPORecoEvent_initGenfit = 0;
+static int TPORecoEvent_configPrinted = 0;
 
-// resolution fudge factor used in TTKTrack Genfit fitting for PS voxel hits
-static double psvoxel_fudge_factor = 1.25/sqrt(12);
+// Function to print a table of RECOCONFIG values
+static void printRecoConfig(const struct TPORecoEvent::RECOCONFIG& config) {
+    std::cout << std::left << std::setw(40) << "Variable" 
+              << std::setw(20) << "Value" << std::endl;
+    std::cout << std::string(60, '-') << std::endl;
+
+    // Print each variable and its value
+    std::cout << std::setw(40) << "psvoxel_fudge_factor" << config.psvoxel_fudge_factor << std::endl;
+    std::cout << std::setw(40) << "alpha" << config.alpha << std::endl;
+    std::cout << std::setw(40) << "beta" << config.beta << std::endl;
+
+    std::cout << std::setw(40) << "findpattern_max_hit_layers" << config.findpattern_max_hit_layers << std::endl;
+    std::cout << std::setw(40) << "findpattern_dist_min_cut" << config.findpattern_dist_min_cut << std::endl;
+    std::cout << std::setw(40) << "findpattern_parallel_cut" << config.findpattern_parallel_cut << std::endl;
+    std::cout << std::setw(40) << "findpattern_mindZ_fudge" << config.findpattern_mindZ_fudge << std::endl;
+    std::cout << std::setw(40) << "findpattern_parallel_cut_merge" << config.findpattern_parallel_cut_merge << std::endl;
+
+    std::cout << std::setw(40) << "extendtracks_closest_voxel_cut" << config.extendtracks_closest_voxel_cut << std::endl;
+    std::cout << std::setw(40) << "extendtracks_dist2_perp_voxel_cut" << config.extendtracks_dist2_perp_voxel_cut << std::endl;
+
+    std::cout << std::setw(40) << "genfit_min_pVal" << config.genfit_min_pVal << std::endl;
+    std::cout << std::setw(40) << "genfit_min_pMom" << config.genfit_min_pMom << std::endl;
+
+    std::cout << std::setw(40) << "findvtx_cut_max_trk" << config.findvtx_cut_max_trk << std::endl;
+    std::cout << std::setw(40) << "findvtx_chi2ndf_cut" << config.findvtx_chi2ndf_cut << std::endl;
+    std::cout << std::setw(40) << "findvtx_trk_dist_cut" << config.findvtx_trk_dist_cut << std::endl;
+    std::cout << std::setw(40) << "findvtx_merge_dist_cut" << config.findvtx_merge_dist_cut << std::endl;
+
+    std::cout << std::setw(40) << "clusters_threshold_2dhit" << config.clusters_threshold_2dhit << std::endl;
+    std::cout << std::setw(40) << "clusters_eps" << config.clusters_eps << std::endl;
+    std::cout << std::setw(40) << "clusters_minPts" << config.clusters_minPts << std::endl;
+    std::cout << std::setw(40) << "clusters_threshold_cluster" << config.clusters_threshold_cluster << std::endl;
+
+    std::cout << std::setw(40) << "PS3D_nvox_max_after_iteration" << config.PS3D_nvox_max_after_iteration << std::endl;
+    std::cout << std::setw(40) << "PS3D_total_score_min_break" << config.PS3D_total_score_min_break << std::endl;
+    std::cout << std::setw(40) << "PS3D_ehit_threshold" << config.PS3D_ehit_threshold << std::endl;
+    std::cout << std::setw(40) << "PS3D_evox_threshold" << config.PS3D_evox_threshold << std::endl;
+    std::cout << std::setw(40) << "PS3D_nvox_per_layer_max" << config.PS3D_nvox_per_layer_max << std::endl;
+
+    std::cout << std::setw(40) << "PSFilter_max_number_track_seeds" << config.PSFilter_max_number_track_seeds << std::endl;
+    std::cout << std::setw(40) << "PSFilter_closest_voxel_cut" << config.PSFilter_closest_voxel_cut << std::endl;
+    std::cout << std::setw(40) << "PSFilter_parallel_cut" << config.PSFilter_parallel_cut << std::endl;
+    std::cout << std::setw(40) << "PSFilter_mindZcut" << config.PSFilter_mindZcut << std::endl;
+    std::cout << std::string(60, '-') << std::endl;
+}
 
 TPORecoEvent:: TPORecoEvent() : TObject(), fTcalEvent(0), fTPOEvent(0), fPOFullEvent(0), fPOFullRecoEvent(0) {
     // initialize genfit
@@ -53,6 +97,52 @@ TPORecoEvent::TPORecoEvent(TcalEvent* c, TPOEvent* p) : TPORecoEvent() {
 	for(int i =0; i < 50; i++){
 		zviewPS.push_back(nullptr);
 	}
+
+        // set default values for the recoConfig
+    recoConfig.psvoxel_fudge_factor = 1.25/sqrt(12);  // fudge factor for voxel size
+
+    recoConfig.alpha = 1.0/(1.0-0.341)*0.98;
+    recoConfig.beta = 3.0;
+
+    recoConfig.findpattern_max_hit_layers = 1000;
+    recoConfig.findpattern_dist_min_cut = 15.0;
+    recoConfig.findpattern_parallel_cut = 0.01;
+    recoConfig.findpattern_mindZ_fudge = 1.1;
+//    recoConfig.findpattern_cut_SSR_merge = 10.0;
+    recoConfig.findpattern_parallel_cut_merge = 0.01;
+
+    recoConfig.extendtracks_closest_voxel_cut = fTcalEvent->geom_detector.fScintillatorVoxelSize*2.0;
+    recoConfig.extendtracks_dist2_perp_voxel_cut = fTcalEvent->geom_detector.fScintillatorVoxelSize*fTcalEvent->geom_detector.fScintillatorVoxelSize; 
+
+    recoConfig.genfit_min_pVal = 0.01;
+    recoConfig.genfit_min_pMom = 1e-3;
+
+    recoConfig.findvtx_cut_max_trk = 100;
+    recoConfig.findvtx_chi2ndf_cut = 10000;  // FIXME: tune value
+    recoConfig.findvtx_trk_dist_cut = 1000.0; // in millimeters - FIXME: tune value
+    recoConfig.findvtx_merge_dist_cut = 10;  // in centimeters - FIXME: tune value
+
+    recoConfig.clusters_threshold_2dhit = 2.0; // MeV
+    recoConfig.clusters_eps = 5; // in mm
+    recoConfig.clusters_minPts = 10; // minimum number of points to form a cluster
+    recoConfig.clusters_threshold_cluster = 10*1e3; // MeV
+
+    recoConfig.PS3D_nvox_max_after_iteration = 25; // after this iteration limit the number of voxels in module
+    recoConfig.PS3D_total_score_min_break = 10.0;
+    recoConfig.PS3D_ehit_threshold = 0.5; // MeV
+    recoConfig.PS3D_evox_threshold = 0.5; // MeV
+    recoConfig.PS3D_nvox_per_layer_max = 3000; // maximum number of voxels per module
+
+    recoConfig.PSFilter_max_number_track_seeds = 1000;
+    recoConfig.PSFilter_closest_voxel_cut = fTcalEvent->geom_detector.fScintillatorVoxelSize*2.0;
+
+    recoConfig.PSFilter_parallel_cut = 0.01;
+    recoConfig.PSFilter_mindZcut = fTcalEvent->geom_detector.fSandwichLength;
+
+    if(!TPORecoEvent_configPrinted) {
+        printRecoConfig(recoConfig);
+        TPORecoEvent_configPrinted = 1;
+    }
 };
 
 TPORecoEvent::~TPORecoEvent() {
@@ -66,6 +156,12 @@ TPORecoEvent::~TPORecoEvent() {
 
 
 void TPORecoEvent::Reconstruct() {
+
+    if(!TPORecoEvent_configPrinted) {
+        std::cerr << "TPORecoEvent::Reconstruct - configuration not initialized!" << std::endl;
+        exit(1);
+    }
+
     fPORecs.clear();
 
     std::cout << "Starting reconstruction... " << fTcalEvent->getfTracks().size() << " G4 tracks to process" << std::endl;
@@ -139,8 +235,6 @@ void TPORecoEvent::Reconstruct() {
     }
 
     // now sum all quantities belowing to a given primary applying compensation
-    double alpha = 1.0/(1.0-0.341)*0.98;
-    double beta = 3.0;
     for(auto it : fPORecs) {
         int ntracks = it->fGEANTTrackIDs.size();
         it->fTotal.em = 0;
@@ -159,7 +253,7 @@ void TPORecoEvent::Reconstruct() {
             it->fTotal.cog /= Eraw;
         }
         // apply compensation
-        it->fTotal.Ecompensated = it->fTotal.em*alpha+it->fTotal.had*beta;
+        it->fTotal.Ecompensated = it->fTotal.em*recoConfig.alpha+it->fTotal.had*recoConfig.beta;
 
         // if the energy is less than 2 GeV then we should go for the integration of dE/dx
         double Threshold_for_dEdx = 2.0;
@@ -356,6 +450,12 @@ static double calculateSSR(const struct TPORec::TRACK &track, const TVector3& di
 }
 
 void TPORecoEvent::TrackReconstruct() {
+
+    if(!TPORecoEvent_configPrinted) {
+        std::cerr << "TPORecoEvent::TrackReconstruct - configuration not initialized!" << std::endl;
+        exit(1);
+    }
+
     if(verbose > 0) {
         std::cout << "TPORecoEvent::TrackReconstruct - start" << std::endl;
     }
@@ -370,7 +470,7 @@ void TPORecoEvent::TrackReconstruct() {
     for (auto &trk : fTKTracks) {
         if(trk.tkhit.size() < 3) continue;
         // reject tracks with bad chi2
-        if(trk.fitTrack->getFitStatus()->getChi2() > 0 && trk.fitTrack->getFitStatus()->getPVal() < 0.01) continue;
+        if(trk.fitTrack->getFitStatus()->getChi2() > 0 && trk.fitTrack->getFitStatus()->getPVal() < recoConfig.genfit_min_pVal) continue;
         tempTracks.push_back(trk);
     }
     fTKTracks.clear();
@@ -420,9 +520,6 @@ void TPORecoEvent::FindPatternTracks() {
         }
     }
 
-    int max_hit_layers = 1000;
-    double dist_min_cut = 15.0;             // FIXME: define cut
-
     std::vector<TTKTrack*> tempTracks;
 
     // now match doublets in each layer
@@ -430,7 +527,7 @@ void TPORecoEvent::FindPatternTracks() {
         int ilayer = it.first;
 
         // skip layers with too many hits
-        if(hitMap[ilayer].size() > max_hit_layers) continue;
+        if(hitMap[ilayer].size() > recoConfig.findpattern_max_hit_layers) continue;
 
         for (const auto &hit1 : it.second) {
             int icopy1 = fTcalEvent->getChannelCopyfromID(hit1.ID);
@@ -452,7 +549,7 @@ void TPORecoEvent::FindPatternTracks() {
 
             if(verbose > 4)
                 std::cout << "Layer: " << ilayer << " Hit1: " << hit1.ID << " Hit2: " << hitmin.ID << " Dist: " << sqrt(distmin) << std::endl;
-            if(distmin>dist_min_cut) continue;
+            if(distmin>recoConfig.findpattern_dist_min_cut) continue;
 
             // now create a TKTrack with the doublet if hits are close
             TTKTrack *trk = new TTKTrack();
@@ -489,8 +586,7 @@ void TPORecoEvent::FindPatternTracks() {
         }
     }
 
-    double parallel_cut = 0.01; // FIXME: adjust value
-    double mindZcut = fTcalEvent->geom_detector.fTargetSizeZ*1.1;
+    double mindZcut = fTcalEvent->geom_detector.fTargetSizeZ*recoConfig.findpattern_mindZ_fudge;
 
     for (size_t i = 0; i < tempTracks.size(); i++) {
         TTKTrack *track1 = tempTracks[i];
@@ -504,7 +600,7 @@ void TPORecoEvent::FindPatternTracks() {
             TVector3 normDir1 = track1->direction.Unit();
             TVector3 normDir2 = track2->direction.Unit();
             double dotProduct = normDir1.Dot(normDir2);
-            if (std::abs(std::abs(dotProduct) - 1.0) > parallel_cut) continue;
+            if (std::abs(std::abs(dotProduct) - 1.0) > recoConfig.findpattern_parallel_cut) continue;
             // ensure that segments belong to different planes
             struct TTKTrack::TRACKHIT hit1 = track1->tkhit.back();
             struct TTKTrack::TRACKHIT hit2 = track2->tkhit.front();
@@ -519,7 +615,7 @@ void TPORecoEvent::FindPatternTracks() {
             // ensure that segments are parallel to main line joining hits
             ROOT::Math::XYZVector normDir = (hit2.point - hit1.point).Unit();
             dotProduct = std::min(std::abs(normDir.Dot(normDir1)), std::abs(normDir.Dot(normDir2)));
-            if (std::abs(dotProduct - 1.0) > parallel_cut) continue;
+            if (std::abs(dotProduct - 1.0) > recoConfig.findpattern_parallel_cut) continue;
             if(dz < mindZ) {
                 mindZ = dz;
                 besttrk = j;
@@ -617,7 +713,7 @@ void TPORecoEvent::FindPatternTracks() {
 
     // now fit tracks with GENFIT2
     for (auto trk : tempTracks) {
-        trk->GenFitTrackFit(fTcalEvent->geom_detector.fScintillatorVoxelSize*psvoxel_fudge_factor);
+        trk->GenFitTrackFit(fTcalEvent->geom_detector.fScintillatorVoxelSize*recoConfig.psvoxel_fudge_factor);
         // print fit result
         if(verbose > 0) {
             std::cout << "Fitted track - ";
@@ -636,8 +732,8 @@ void TPORecoEvent::FindPatternTracks() {
     for (size_t i = 0; i < tempTracks.size(); i++) {
         TTKTrack *track = tempTracks[i];
         if(!track->fitTrack->getFitStatus()->isFitConverged() ||
-           (track->fitTrack->getFitStatus()->getChi2() > 0 && track->fitTrack->getFitStatus()->getPVal() < 0.01) ||
-           track->fitTrack->getFittedState().getMom().Mag() < 1e-3) {
+           (track->fitTrack->getFitStatus()->getChi2() > 0 && track->fitTrack->getFitStatus()->getPVal() < recoConfig.genfit_min_pVal) ||
+           track->fitTrack->getFittedState().getMom().Mag() < recoConfig.genfit_min_pMom) {
             if(verbose > 0) {
                 std::cout << "Removing track with bad fit: " << i << std::endl;
                 track->Dump(verbose);
@@ -659,9 +755,7 @@ void TPORecoEvent::FindPatternTracks() {
 
 
     // now merge broken tracks
-    double cut_SSR_merge = 10; // FIXME: adjust value
-    double cut_parallel_merge = 0.01; // FIXME: adjust value
-    double cut_merge_mindZ = fTcalEvent->geom_detector.fTargetSizeZ*1.1;
+    double cut_merge_mindZ = fTcalEvent->geom_detector.fTargetSizeZ*recoConfig.findpattern_mindZ_fudge;
     for (size_t i = 0; i < tempTracks.size(); i++) {
         for( size_t j = 0; j < tempTracks.size(); j++) {
             if (i==j) continue;
@@ -678,11 +772,11 @@ void TPORecoEvent::FindPatternTracks() {
             TVector3 normDir1 = track1->direction.Unit();
             TVector3 normDir2 = track2->direction.Unit();
             double dotProduct = normDir1.Dot(normDir2);
-            if (std::abs(std::abs(dotProduct) - 1.0) > cut_parallel_merge) continue;
+            if (std::abs(std::abs(dotProduct) - 1.0) > recoConfig.findpattern_parallel_cut_merge) continue;
 
             TTKTrack *tempTrack = new TTKTrack(*track1);
             tempTrack->MergeTracks(*track2);
-            tempTrack->GenFitTrackFit(fTcalEvent->geom_detector.fScintillatorVoxelSize*psvoxel_fudge_factor);
+            tempTrack->GenFitTrackFit(fTcalEvent->geom_detector.fScintillatorVoxelSize*recoConfig.psvoxel_fudge_factor);
             if(verbose > 0) {
                 std::cout << "MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM"<<std::endl;
                 std::cout << "Trying to merge tracks: " << i << " " << j << std::endl;
@@ -691,8 +785,8 @@ void TPORecoEvent::FindPatternTracks() {
                 tempTrack->Dump();
             }
             if(tempTrack->fitTrack->getFitStatus()->isFitConverged() &&
-               (tempTrack->fitTrack->getFitStatus()->getChi2() > 0 && tempTrack->fitTrack->getFitStatus()->getPVal() > 0.01) &&
-               tempTrack->fitTrack->getFittedState().getMom().Mag() > 1e-3) {
+               (tempTrack->fitTrack->getFitStatus()->getChi2() > 0 && tempTrack->fitTrack->getFitStatus()->getPVal() > recoConfig.genfit_min_pVal) &&
+               tempTrack->fitTrack->getFittedState().getMom().Mag() > recoConfig.genfit_min_pMom) {
                 if(verbose > 0)
                     std::cout << "---- MERGED" << std::endl;
                 tempTrack->direction = tempTrack->fitLineThroughHits(tempTrack->centroid);
@@ -727,8 +821,7 @@ void TPORecoEvent::ExtendTracks() {
     int nmodules = fTcalEvent->geom_detector.NRep;
     int nzlayer = fTcalEvent->geom_detector.fSandwichLength / fTcalEvent->geom_detector.fScintillatorVoxelSize;
 
-    double closest_voxel_cut = fTcalEvent->geom_detector.fScintillatorVoxelSize*2.0;
-    closest_voxel_cut = closest_voxel_cut*closest_voxel_cut;
+    double closest_voxel_cut = recoConfig.extendtracks_closest_voxel_cut*recoConfig.extendtracks_closest_voxel_cut;
 
     std::map<int, std::vector<struct PSVOXEL3D>> PSvoxelmapModule;
     // organize voxels by module number
@@ -746,7 +839,6 @@ void TPORecoEvent::ExtendTracks() {
     }
 
     // loop over all tracks
-    double dist2_perp_voxel_cut = fTcalEvent->geom_detector.fScintillatorVoxelSize*fTcalEvent->geom_detector.fScintillatorVoxelSize; 
     for (auto &trk : fTKTracks) {
         int min, max;
         trk.GetMinMaxModule(min, max);
@@ -778,7 +870,7 @@ void TPORecoEvent::ExtendTracks() {
                     // get position of voxel
                     ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(voxel.ID);
                     double dist2 = (pos.X()-position.X())*(pos.X()-position.X()) + (pos.Y()-position.Y())*(pos.Y()-position.Y());
-                    if(dist2 > dist2_perp_voxel_cut) 
+                    if(dist2 > recoConfig.extendtracks_dist2_perp_voxel_cut) 
                         continue;
                     if(verbose > 1)
                         std::cout << "Trying to add closest voxel: " << voxel.ID << " Dist: " << sqrt(dist2) << std::endl;
@@ -841,7 +933,7 @@ void TPORecoEvent::ExtendTracks() {
             trk.Dump();
         }
         delete trk.fitTrack;
-        trk.GenFitTrackFit(fTcalEvent->geom_detector.fScintillatorVoxelSize*psvoxel_fudge_factor);
+        trk.GenFitTrackFit(fTcalEvent->geom_detector.fScintillatorVoxelSize*recoConfig.psvoxel_fudge_factor);
         if(verbose > 1){
             std::cout << "Track " << trk.trackID << "After refit" << std::endl;
             trk.Dump();
@@ -890,7 +982,7 @@ void TPORecoEvent::FindTrackVertices() {
     for (auto &trk : fTKTracks) {
         if(trk.tkhit.size() < 3) continue;
         // reject tracks with bad chi2
-        if(trk.fitTrack->getFitStatus()->getChi2() > 0 && trk.fitTrack->getFitStatus()->getPVal() < 0.01) continue;
+        if(trk.fitTrack->getFitStatus()->getChi2() > 0 && trk.fitTrack->getFitStatus()->getPVal() < recoConfig.genfit_min_pVal) continue;
         tempTracks.push_back(&trk);
     }
     std::cout << "+V+V+ Total number of tracks: " << tempTracks.size() << " retained out of " << fTKTracks.size() << std::endl;
@@ -904,9 +996,8 @@ void TPORecoEvent::FindTrackVertices() {
 
     size_t ntracks = tempTracks.size();
 #if 1
-    size_t cut_max_trk = 100;
-    if(ntracks > cut_max_trk) {
-        ntracks = cut_max_trk;
+    if(ntracks > recoConfig.findvtx_cut_max_trk) {
+        ntracks = recoConfig.findvtx_cut_max_trk;
         std::cerr << "+V+V+ Number of tracks considered for vertexing cut to: " << ntracks << std::endl;
     }
 #endif
@@ -924,9 +1015,6 @@ void TPORecoEvent::FindTrackVertices() {
            : covariance(3), chi2(0.0) {} // Initialize covariance with size 3
     };
     std::vector <TUPLET> tuplets;
-
-    double vtx_chi2ndf_cut = 10000;  // FIXME: tune value
-    double vtx_trk_dist_cut = 200.0; // in millimeters - FIXME: tune value
 
     // loop over all possible combinations of 3 tracks
     for (int i = 0; i < ntracks-2; i++) {
@@ -964,7 +1052,7 @@ void TPORecoEvent::FindTrackVertices() {
             else {
                 // negative chi2 means that vertexing failed due to numerical reasons
                 if(vertices[0]->getChi2() < 0) good_vertex = false;
-                if(vertices[0]->getChi2()/vertices[0]->getNdf() > vtx_chi2ndf_cut) good_vertex = false;
+                if(vertices[0]->getChi2()/vertices[0]->getNdf() > recoConfig.findvtx_chi2ndf_cut) good_vertex = false;
                 // if position is outside of the detector then break
                 if(std::abs(vertices[0]->getPos().X())*10.0 > fTcalEvent->geom_detector.fScintillatorSizeX/2.0) good_vertex = false;
                 if(std::abs(vertices[0]->getPos().Y())*10.0 > fTcalEvent->geom_detector.fScintillatorSizeY/2.0) good_vertex = false;
@@ -1016,7 +1104,7 @@ void TPORecoEvent::FindTrackVertices() {
                 else {
                 // negative chi2 means that vertexing failed due to numerical reasons
                     if(vertices[0]->getChi2() < 0) good_vertex = false;
-                    if(vertices[0]->getChi2()/vertices[0]->getNdf() > vtx_chi2ndf_cut) good_vertex = false;
+                    if(vertices[0]->getChi2()/vertices[0]->getNdf() > recoConfig.findvtx_chi2ndf_cut) good_vertex = false;
                     // if position is outside of the detector then break
                     if(std::abs(vertices[0]->getPos().X())*10.0 > fTcalEvent->geom_detector.fScintillatorSizeX/2.0) good_vertex = false;
                     if(std::abs(vertices[0]->getPos().Y())*10.0 > fTcalEvent->geom_detector.fScintillatorSizeY/2.0) good_vertex = false;
@@ -1029,8 +1117,11 @@ void TPORecoEvent::FindTrackVertices() {
                     ROOT::Math::XYZVector dist1 = vtxpos - tempTracks[i]->tkhit[0].point;
                     ROOT::Math::XYZVector dist2 = vtxpos - tempTracks[j]->tkhit[0].point;
                     ROOT::Math::XYZVector dist3 = vtxpos - tempTracks[k]->tkhit[0].point;
-//                    std::cout << "Distances: " << dist1.R() << " " << dist2.R() << " " << dist3.R() << std::endl;
-//                    if(dist1.R() > vtx_trk_dist_cut || dist2.R() > vtx_trk_dist_cut || dist3.R() > vtx_trk_dist_cut) good_vertex = false;
+                    if(verbose > 3)
+                        std::cout << "Distances: " << dist1.R() << " " << dist2.R() << " " << dist3.R() << std::endl;
+                    if(dist1.R() > recoConfig.findvtx_trk_dist_cut || 
+                        dist2.R() > recoConfig.findvtx_trk_dist_cut || 
+                        dist3.R() > recoConfig.findvtx_trk_dist_cut) good_vertex = false;
                 }
                 if(good_vertex) {
                     // add vertex to the list of triplets
@@ -1089,7 +1180,7 @@ void TPORecoEvent::FindTrackVertices() {
                 double distance = dist.Mag();
                 // FIXME: replace distance cut by cut on distance/uncertainty
                 // uncertainty on diffrence is given by sum of covariance matrices
-                if(intersection.size() > 1 && distance < 10) {
+                if(intersection.size() > 1 && distance < recoConfig.findvtx_merge_dist_cut) {
                     if(verbose > 0)
                         std::cout << "Merge i: " << i << " j: " << j << " - Distance between vertices: " << distance << std::endl;
                     // merge two tuplets
@@ -1150,7 +1241,7 @@ void TPORecoEvent::FindTrackVertices() {
             else {
                 // negative chi2 means that vertexing failed due to numerical reasons
                 if(vertices[0]->getChi2() < 0) good_vertex = false;
-                if(vertices[0]->getChi2()/vertices[0]->getNdf() > vtx_chi2ndf_cut) good_vertex = false;
+                if(vertices[0]->getChi2()/vertices[0]->getNdf() > recoConfig.findvtx_chi2ndf_cut) good_vertex = false;
                 // if position is outside of the detector then break
                 if(std::abs(vertices[0]->getPos().X())*10.0 > fTcalEvent->geom_detector.fScintillatorSizeX/2.0) good_vertex = false;
                 if(std::abs(vertices[0]->getPos().Y())*10.0 > fTcalEvent->geom_detector.fScintillatorSizeY/2.0
@@ -1561,10 +1652,6 @@ void TPORecoEvent::pshit2d_position(long ID, double &fix, double &fiy, double &f
 /// @param view = 0 for XZ, and .ne.0 for YZ
 void TPORecoEvent::ReconstructClusters(int view) {
 
-    double threshold_2dhit = 2.0; // MeV
-    double eps = 5; // mm
-    int minPts = 10; // minimum number of points
-
     DBScan dbscan;
 
     std::map<int, class TPSCluster> PSClustersMap;
@@ -1576,13 +1663,13 @@ void TPORecoEvent::ReconstructClusters(int view) {
     {
         long ID = it.first;
         double ehit = it.second.Edeposited;
-        if(ehit < threshold_2dhit) continue;
+        if(ehit < recoConfig.clusters_threshold_2dhit) continue;
         double fix, fiy, fiz;
         pshit2d_position(ID, fix, fiy, fiz);
         DBScan::Point p = {ID, ehit, (view==0) ? fix : fiy, fiz};
         points.push_back(p);
     }
-    dbscan.scan(points, eps, minPts);
+    dbscan.scan(points, recoConfig.clusters_eps, recoConfig.clusters_minPts);
     for (const auto& point : points) {
         if(point.clusterID == 0)continue;
 
@@ -1610,7 +1697,7 @@ void TPORecoEvent::ReconstructClusters(int view) {
     std::vector<TPSCluster> *PSClusters = (view==0) ? &PSClustersX : &PSClustersY;
     PSClusters->clear();
     for (auto& c : PSClustersMap) {
-        if (c.second.rawenergy < 10 * 1e3)
+        if (c.second.rawenergy < recoConfig.clusters_threshold_cluster)
             continue;
         PSClusters->push_back(c.second);
     }
@@ -1638,6 +1725,8 @@ void TPORecoEvent::ReconstructClusters(int view) {
 }
 
 void TPORecoEvent::Reconstruct3DPS(int maxIter) {
+
+///// OBSOLETE - use Reconstruct3DPS_2
 
     std::random_device rd;  // Seed for the random number generator
     std::mt19937 gen(rd());  // Mersenne Twister random number generator
@@ -2288,8 +2377,6 @@ void TPORecoEvent::reconstruct3DPS_module(int maxIter, int imodule, std::vector<
     std::vector<std::vector<float>> &XZ, std::vector<std::vector<float>> &YZ, std::vector<std::vector<std::vector<float>>> &XY,
     std::vector<int>& nvox_per_layer, int nvox_per_layer_max) {
 
-    int nvox_max_after_iteration = 25;  // after this iteration limit the number of voxels in module
-
     int nx = fTcalEvent->geom_detector.fScintillatorSizeX / fTcalEvent->geom_detector.fScintillatorVoxelSize;
     int ny = fTcalEvent->geom_detector.fScintillatorSizeY / fTcalEvent->geom_detector.fScintillatorVoxelSize;
     int nzlayer = fTcalEvent->geom_detector.fSandwichLength / fTcalEvent->geom_detector.fScintillatorVoxelSize;
@@ -2300,8 +2387,6 @@ void TPORecoEvent::reconstruct3DPS_module(int maxIter, int imodule, std::vector<
     std::mt19937 gen(rd());  // Mersenne Twister random number generator
     std::uniform_int_distribution<> rnd_nx(0, nx-1);
     std::uniform_int_distribution<> rnd_ny(0, ny-1);
-
-    double total_score_min_break = 10;
 
     double total_score = 0;
     for (int iter = 0; iter < maxIter; ++iter)
@@ -2330,7 +2415,7 @@ void TPORecoEvent::reconstruct3DPS_module(int maxIter, int imodule, std::vector<
             int izz = imodule * nzlayer + z;
             sum_nvox += nvox_per_layer[izz];
         }
-        if (iter > nvox_max_after_iteration && sum_nvox > nvox_per_layer_max)
+        if (iter > recoConfig.PS3D_nvox_max_after_iteration && sum_nvox > nvox_per_layer_max)
             continue;
 
         double module_score = 0;
@@ -2419,7 +2504,7 @@ void TPORecoEvent::reconstruct3DPS_module(int maxIter, int imodule, std::vector<
             std::cout << " module " << imodule << " has " << sum_nvox << " voxels " << " score " << module_score << std::endl;
             std::cout << "Module " << imodule << " - Iteration " << iter << ": " << adjusted << " voxels adjusted. Score = " << total_score << std::endl;
         }
-        if (adjusted == 0 || total_score < total_score_min_break)
+        if (adjusted == 0 || total_score < recoConfig.PS3D_total_score_min_break)
             break;
     }
     if (verbose > 1)
@@ -2432,11 +2517,6 @@ void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
 
     unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
     std::default_random_engine rng(seed);
-
-    double ehit_threshold = 0.5; // MeV
-    double evox_threshold = 0.5; // MeV
-
-    int nvox_per_layer_max = 3000;      // maximum number of voxels in module
 
     int nx = fTcalEvent->geom_detector.fScintillatorSizeX / fTcalEvent->geom_detector.fScintillatorVoxelSize;
     int ny = fTcalEvent->geom_detector.fScintillatorSizeY / fTcalEvent->geom_detector.fScintillatorVoxelSize;
@@ -2462,7 +2542,7 @@ void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
     {
         long ID = it.first;
         double ehit = it.second.Edeposited;
-        if(ehit < ehit_threshold) continue;
+        if(ehit < recoConfig.PS3D_ehit_threshold) continue;
         long ix = ID % 1000;
         long iz = (ID / 1000000) % 1000;
         long ilayer = (ID / 1000000000);
@@ -2476,7 +2556,7 @@ void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
     {
         long ID = it.first;
         double ehit = it.second.Edeposited;
-        if(ehit < ehit_threshold) continue;
+        if(ehit < recoConfig.PS3D_ehit_threshold) continue;
         long iy = (ID / 1000) % 1000;
         long iz = (ID / 1000000) % 1000;
         long ilayer = (ID / 1000000000);
@@ -2490,7 +2570,7 @@ void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
         for (auto it: itm.second) {
             long ID = it.first;
             double ehit = it.second.Edeposited;
-            if (ehit < ehit_threshold)
+            if (ehit < recoConfig.PS3D_ehit_threshold)
                 continue;
             long ix = ID % 1000;
             long iy = (ID / 1000) % 1000;
@@ -2522,7 +2602,7 @@ void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
     //       reconstruct3DPS_module(maxIter, imodule, V, XZ, YZ, XY, nvox_per_layer, nvox_per_layer_max);
             threads.emplace_back(&TPORecoEvent::reconstruct3DPS_module, this, maxIter, imodule, 
                 std::ref(V), std::ref(XZ), std::ref(YZ), std::ref(XY),
-                std::ref(nvox_per_layer), nvox_per_layer_max);
+                std::ref(nvox_per_layer), recoConfig.PS3D_nvox_per_layer_max);
         }
 
         for (auto& th : threads)
@@ -2532,21 +2612,21 @@ void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
     } else {
         for (int imodule = 0; imodule < nrep; imodule++)
         {
-            reconstruct3DPS_module(maxIter, imodule, V, XZ, YZ, XY, nvox_per_layer, nvox_per_layer_max);
+            reconstruct3DPS_module(maxIter, imodule, V, XZ, YZ, XY, nvox_per_layer, recoConfig.PS3D_nvox_per_layer_max);
         }
     }
 
     PSvoxelmap.clear();
     for (int z = 0; z < nztot; ++z) {
         //
-        if(nvox_per_layer[z] > nvox_per_layer_max) continue;
+        if(nvox_per_layer[z] > recoConfig.PS3D_nvox_per_layer_max) continue;
         //
         for (int y = 0; y < ny; ++y) {
             for (int x = 0; x < nx; ++x) {
                 float ehit = V[x][y][z].value;
 
                 // cut on minimum energy
-                if(ehit<evox_threshold)
+                if(ehit<recoConfig.PS3D_evox_threshold)
                     continue;
 
                 // remove totally isolated hits
@@ -2684,15 +2764,12 @@ void TPORecoEvent::Reconstruct3DPS_Eflow() {
 
 void TPORecoEvent::PSVoxelParticleFilter() {
 
-    int max_number_track_seeds = 1000;
-
     if(verbose>0) std::cout << "Start PS voxel particle filter..." << std::endl;
 
     int nmodules = fTcalEvent->geom_detector.NRep;
     int nzlayer = fTcalEvent->geom_detector.fSandwichLength / fTcalEvent->geom_detector.fScintillatorVoxelSize;
 
-    double closest_voxel_cut = fTcalEvent->geom_detector.fScintillatorVoxelSize*2.0;
-    closest_voxel_cut = closest_voxel_cut*closest_voxel_cut;
+    double closest_voxel_cut2 = recoConfig.PSFilter_closest_voxel_cut*recoConfig.PSFilter_closest_voxel_cut;
 
     std::map<int, std::vector<struct PSVOXEL3D>> PSvoxelmapModule;
     // organize voxels by module number and skip voxels that belong to a TK track
@@ -2724,7 +2801,7 @@ void TPORecoEvent::PSVoxelParticleFilter() {
     for (int i = 0; i < nmodules; i++) {
         if(verbose>1) std::cout << " ------------------- Module " << i << " - track seeds: " << track_seeds.size() << std::endl;
         //
-        if(track_seeds.size() > max_number_track_seeds)
+        if(track_seeds.size() > recoConfig.PSFilter_max_number_track_seeds)
             continue;
         //
         auto module = PSvoxelmapModule.find(i);
@@ -2773,7 +2850,7 @@ void TPORecoEvent::PSVoxelParticleFilter() {
 
                 int prev_layer = layer - 1;
                 // find closest voxel in previous layer
-                double transv_dist = 1e9;
+                double transv_dist2 = 1e9;
                 struct PSVOXEL3D *closest_vox = nullptr;
                 for (auto &prev_hit : module->second)
                 {
@@ -2783,9 +2860,9 @@ void TPORecoEvent::PSVoxelParticleFilter() {
                     ROOT::Math::XYZVector prev_position = fTcalEvent->getChannelXYZfromID(prev_hit.ID);
                     ROOT::Math::XYZVector diff = position - prev_position;
                     double d2 = diff.x() * diff.x() + diff.y() * diff.y();
-                    if (d2 < transv_dist)
+                    if (d2 < transv_dist2)
                     {
-                        transv_dist = d2;
+                        transv_dist2 = d2;
                         closest_vox = &prev_hit;
                     }
                 }
@@ -2795,7 +2872,7 @@ void TPORecoEvent::PSVoxelParticleFilter() {
 //                std::cout << rt << std::endl;
                 double tanangle = sqrt(rt) / (std::max(track->direction.z(),1e-3));
 //                std::cout << tanangle << std::endl;
-                double cut = closest_voxel_cut*std::max(1.0,tanangle);
+                double cut2 = closest_voxel_cut2*std::max(1.0,tanangle*tanangle);
 //                std::cout << cut << std::endl;
 #if 0
                 if(rt>0) {
@@ -2803,7 +2880,7 @@ void TPORecoEvent::PSVoxelParticleFilter() {
                     track->Dump();
                 }
 #endif
-                if (transv_dist < cut)
+                if (transv_dist2 < cut2)
                 {
                     ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(closest_vox->ID);
                     struct TPSTrack::TRACKHIT vox2 = {closest_vox->ID, position, closest_vox->RawEnergy};
@@ -2831,9 +2908,6 @@ void TPORecoEvent::PSVoxelParticleFilter() {
         }
 
         // now loop over tracks and merge segments
-        double parallel_cut = 0.01; // FIXME: adjust value
-        double mindZcut = fTcalEvent->geom_detector.fSandwichLength;
-
         for (size_t i = 0; i < track_seeds.size(); i++)
         {
             TPSTrack &track1 = track_seeds[i];
@@ -2848,18 +2922,18 @@ void TPORecoEvent::PSVoxelParticleFilter() {
                 TVector3 normDir1 = track1.direction.Unit();
                 TVector3 normDir2 = track2.direction.Unit();
                 double dotProduct = normDir1.Dot(normDir2);
-                if (std::abs(std::abs(dotProduct) - 1.0) > parallel_cut)
+                if (std::abs(std::abs(dotProduct) - 1.0) > recoConfig.PSFilter_parallel_cut)
                     continue;
                 // ensure that segments belong to different planes
                 struct TPSTrack::TRACKHIT hit1 = track1.tkhit.back();
                 struct TPSTrack::TRACKHIT hit2 = track2.tkhit.front();
                 double dz = std::abs(hit1.point.z() - hit2.point.z());
-                if (dz < mindZcut)
+                if (dz < recoConfig.PSFilter_mindZcut)
                     continue;
                 // ensure that segments are parallel to main line joining hits
                 ROOT::Math::XYZVector normDir = (hit2.point - hit1.point).Unit();
                 dotProduct = std::min(std::abs(normDir.Dot(normDir1)), std::abs(normDir.Dot(normDir2)));
-                if (std::abs(dotProduct - 1.0) > parallel_cut)
+                if (std::abs(dotProduct - 1.0) > recoConfig.PSFilter_parallel_cut)
                     continue;
                 if (dz < mindZ)
                 {
