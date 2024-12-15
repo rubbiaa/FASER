@@ -112,8 +112,9 @@ public:
 
     struct PSVOXEL3D {
         long ID;
-        float RawEnergy;  // MeV
+        float RawEnergy;            // MeV
         bool ghost;
+        bool member_of_TKtrack;       // is this voxel part of a TKtrack
     };
 
     struct Voxel {
@@ -144,6 +145,12 @@ public:
 
     /// @brief All reconstruced TPSTracks in event
     std::vector<TPSTrack> fPSTracks;
+
+    struct FASERCAL {
+        int ModuleID;
+        double EDeposit;   // total energy in FaserCal module in GeV
+    };
+    std::vector<struct FASERCAL> faserCals;
 
     /// @brief Structure to hold rear calorimeter and mutag deposited energies
     struct REARCALS {
@@ -200,7 +207,7 @@ public:
     /// @brief Recontruct particle tracks from 3D PS voxels
     void PSVoxelParticleFilter();
 
-    /// @brief Reconstruct rear calorimeter and rear mu tag
+    /// @brief Reconstruct FASERCAL and rear calorimeters and rear mu tag
     void ReconstructRearCals();
 
     /// @brief Dump PORecs to the screen
@@ -240,7 +247,7 @@ public:
     TH2D* Get2DViewXPS() { return xviewPS; };
     TH2D* Get2DViewYPS() { return yviewPS; };
 
-    ClassDef(TPORecoEvent,1)
+    ClassDef(TPORecoEvent,3)
 };
 
 #endif

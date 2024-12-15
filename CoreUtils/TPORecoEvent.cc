@@ -30,6 +30,9 @@ ClassImp(TPORecoEvent);
 
 static int TPORecoEvent_initGenfit = 0;
 
+// resolution fudge factor used in TTKTrack Genfit fitting for PS voxel hits
+static double psvoxel_fudge_factor = 1.25/sqrt(12);
+
 TPORecoEvent:: TPORecoEvent() : TObject(), fTcalEvent(0), fTPOEvent(0), fPOFullEvent(0), fPOFullRecoEvent(0) {
     // initialize genfit
     if(!TPORecoEvent_initGenfit) {
@@ -362,6 +365,18 @@ void TPORecoEvent::TrackReconstruct() {
     }
     FindTrackVertices();
     ExtendTracks();
+
+    std::vector<TTKTrack> tempTracks;
+    for (auto &trk : fTKTracks) {
+        if(trk.tkhit.size() < 3) continue;
+        // reject tracks with bad chi2
+        if(trk.fitTrack->getFitStatus()->getChi2() > 0 && trk.fitTrack->getFitStatus()->getPVal() < 0.01) continue;
+        tempTracks.push_back(trk);
+    }
+    fTKTracks.clear();
+    for (auto &trk : tempTracks) {
+        fTKTracks.push_back(trk);
+    }
 }
 
 void TPORecoEvent::FindPatternTracks() {
@@ -602,7 +617,7 @@ void TPORecoEvent::FindPatternTracks() {
 
     // now fit tracks with GENFIT2
     for (auto trk : tempTracks) {
-        trk->GenFitTrackFit();
+        trk->GenFitTrackFit(fTcalEvent->geom_detector.fScintillatorVoxelSize*psvoxel_fudge_factor);
         // print fit result
         if(verbose > 0) {
             std::cout << "Fitted track - ";
@@ -667,7 +682,7 @@ void TPORecoEvent::FindPatternTracks() {
 
             TTKTrack *tempTrack = new TTKTrack(*track1);
             tempTrack->MergeTracks(*track2);
-            tempTrack->GenFitTrackFit();
+            tempTrack->GenFitTrackFit(fTcalEvent->geom_detector.fScintillatorVoxelSize*psvoxel_fudge_factor);
             if(verbose > 0) {
                 std::cout << "MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM"<<std::endl;
                 std::cout << "Trying to merge tracks: " << i << " " << j << std::endl;
@@ -731,7 +746,7 @@ void TPORecoEvent::ExtendTracks() {
     }
 
     // loop over all tracks
-    double dist_voxel_cut = 10.0; // in mm 
+    double dist2_perp_voxel_cut = fTcalEvent->geom_detector.fScintillatorVoxelSize*fTcalEvent->geom_detector.fScintillatorVoxelSize; 
     for (auto &trk : fTKTracks) {
         int min, max;
         trk.GetMinMaxModule(min, max);
@@ -754,36 +769,80 @@ void TPORecoEvent::ExtendTracks() {
                 if(verbose>3)
                     std::cout << "Successfully extrapolated to Z: " << z << " Position: " << pos.X() << " " << pos.Y() << " " << pos.Z() << std::endl;
                 // cut on the fiducial volume
-                if(std::abs(pos.X()) > fTcalEvent->geom_detector.fScintillatorSizeX) stop_extend = true;
-                if(std::abs(pos.Y()) > fTcalEvent->geom_detector.fScintillatorSizeY) stop_extend = true;
+                if(std::abs(pos.X()) > fTcalEvent->geom_detector.fScintillatorSizeX/2.0) stop_extend = true;
+                if(std::abs(pos.Y()) > fTcalEvent->geom_detector.fScintillatorSizeY/2.0) stop_extend = true;
                 if(stop_extend) continue;
                 for (const auto &voxel : PSvoxelmapModule[module]) {
                     if(iz != fTcalEvent->getChannelnzfromID(voxel.ID)) 
                         continue;
                     // get position of voxel
                     ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(voxel.ID);
-                    double dist = (pos.X()-position.X())*(pos.X()-position.X()) + (pos.Y()-position.Y())*(pos.Y()-position.Y());
-                    if(dist > dist_voxel_cut) 
+                    double dist2 = (pos.X()-position.X())*(pos.X()-position.X()) + (pos.Y()-position.Y())*(pos.Y()-position.Y());
+                    if(dist2 > dist2_perp_voxel_cut) 
                         continue;
                     if(verbose > 1)
-                        std::cout << "Adding closest voxel: " << voxel.ID << " Dist: " << sqrt(dist) << std::endl;
+                        std::cout << "Trying to add closest voxel: " << voxel.ID << " Dist: " << sqrt(dist2) << std::endl;
                     float ehit = -1; // FIXME: get energy from voxel
                     struct TTKTrack::TRACKHIT hit = {voxel.ID, (int)TcalEvent::getChannelTypefromID(voxel.ID), position, ehit};
+
+                    // check if track already has a voxel in this layer
+                    if(verbose>1)
+                        std::cout << "Checking if another at the same layer is already in track" << std::endl;
+                    bool found = false;
+                    double dist2existing = 1e9;
+                    long IDexisting = -1;
+                    for (const auto &hit : trk.tkhit) {
+                        // check if this hit is in the same module
+                        if(fTcalEvent->getChannelModulefromID(hit.ID) != module) continue;
+                        if(fTcalEvent->getChannelnzfromID(hit.ID) == iz) {
+                            // get position of voxel
+                            ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(hit.ID);
+                            dist2existing = (pos.X()-position.X())*(pos.X()-position.X()) + (pos.Y()-position.Y())*(pos.Y()-position.Y());
+                            IDexisting = hit.ID;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if(found) {
+                        if(verbose > 1)
+                            std::cout << "Found existing hit in the same layer: " << IDexisting << " Dist: " << sqrt(dist2existing) << std::endl;
+                        if(dist2 < dist2existing) {
+                            if(verbose > 1)
+                                std::cout << "Replacing hit in the same layer: " << IDexisting << " Dist: " << sqrt(dist2existing) << 
+                                    " with new one " << hit.ID << " Dist: " << sqrt(dist2) << std::endl;
+                            trk.tkhit.erase(std::remove_if(trk.tkhit.begin(), trk.tkhit.end(),
+                                                           [IDexisting](const TTKTrack::TRACKHIT &hit2)
+                                                           {
+                                                               return IDexisting == hit2.ID;
+                                                           }),
+                                           trk.tkhit.end());
+                            found = false; // force adding the new hit
+                        }
+                    }
+                    if(found) continue;
+                    if(verbose > 1)
+                        std::cout << "Adding hit " << hit.ID << " to track" << std::endl;
                     trk.tkhit.push_back(hit);
+                    // now mark voxel as used by track
+                    // find voxel in PSvoxelmap
+                    auto it = PSvoxelmap.find(voxel.ID);
+                    if(it != PSvoxelmap.end()) {
+                        it->second.member_of_TKtrack = true;
+                    }
                 }
             }
         module++;
         }
         // sort hits by z
         trk.SortHitsByZ();
-        if(verbose > 3){
+        if(verbose > 1){
             std::cout << "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB" << std::endl;
             std::cout << "Track " << trk.trackID << " - Before refit" << std::endl;
             trk.Dump();
         }
         delete trk.fitTrack;
-        trk.GenFitTrackFit();
-        if(verbose > 3){
+        trk.GenFitTrackFit(fTcalEvent->geom_detector.fScintillatorVoxelSize*psvoxel_fudge_factor);
+        if(verbose > 1){
             std::cout << "Track " << trk.trackID << "After refit" << std::endl;
             trk.Dump();
             // trk.fitTrack->Print();
@@ -792,7 +851,7 @@ void TPORecoEvent::ExtendTracks() {
     }
 
     // dump temp tracks
-    if(verbose > 3) {
+    if(verbose > 1) {
         std::cout << "Extended tracks: " << fTKTracks.size() << std::endl;
         for (auto &trk : fTKTracks) {
             trk.Dump();
@@ -896,7 +955,6 @@ void TPORecoEvent::FindTrackVertices() {
                     std::cout << "Position: "; vertex->getPos().Print();
 //                    std::cout << "Covariance: "; vertex->getCov().Print();
                     std::cout << "Ndf: " << vertex->getNdf() << ", Chi2: " << vertex->getChi2() << ", Id: " << vertex->getId() << "\n";
-                    std::cout << "Number of tracks: " << vertex->getNTracks() << "\n";
                 }
             }
             // apply quality cuts
@@ -904,10 +962,15 @@ void TPORecoEvent::FindTrackVertices() {
             if(vertices.size() == 0) 
                 good_vertex = false;
             else {
+                // negative chi2 means that vertexing failed due to numerical reasons
+                if(vertices[0]->getChi2() < 0) good_vertex = false;
                 if(vertices[0]->getChi2()/vertices[0]->getNdf() > vtx_chi2ndf_cut) good_vertex = false;
                 // if position is outside of the detector then break
-                if(std::abs(vertices[0]->getPos().X())*10.0 > fTcalEvent->geom_detector.fScintillatorSizeX) good_vertex = false;
-                if(std::abs(vertices[0]->getPos().Y())*10.0 > fTcalEvent->geom_detector.fScintillatorSizeY) good_vertex = false;
+                if(std::abs(vertices[0]->getPos().X())*10.0 > fTcalEvent->geom_detector.fScintillatorSizeX/2.0) good_vertex = false;
+                if(std::abs(vertices[0]->getPos().Y())*10.0 > fTcalEvent->geom_detector.fScintillatorSizeY/2.0) good_vertex = false;
+                // check z position of the vertex witihn the detector
+                if(vertices[0]->getPos().Z()*10.0 > fTcalEvent->geom_detector.rearCalLocZ) good_vertex = false;
+                if(vertices[0]->getPos().Z()*10.0 < -fTcalEvent->geom_detector.fTotalLength/2.0) good_vertex = false;
             }
             if(!good_vertex) {
                 // delete vertices
@@ -931,13 +994,13 @@ void TPORecoEvent::FindTrackVertices() {
                 tempTracks[j]->fitTrack->checkConsistency();
                 tempTracks[k]->fitTrack->checkConsistency();
                 // vertexing
-                if(verbose > 0) {
+                if(verbose > 4) {
                     std::cout << "+++++++++++++++++++++++++++++++ 33333333333 +++++++++++++++++++++++++++++++" << std::endl;
                     std::cout << "Calling findVertices with three tracks: " << tempTracks[i]->trackID << " " << 
                         tempTracks[j]->trackID << " " << tempTracks[k]->trackID << std::endl;
                 }
                 vertexFactory.findVertices(&vertices, tracks);
-                if(verbose > 0) {
+                if(verbose > 4) {
                     std::cout << "number of vertices: " << vertices.size() << std::endl;
                     // print reconstructed vertices
                     for (auto &vertex : vertices) {
@@ -945,17 +1008,22 @@ void TPORecoEvent::FindTrackVertices() {
                         std::cout << "Position: "; vertex->getPos().Print();
 //                        std::cout << "Covariance: "; vertex->getCov().Print();
                         std::cout << "Ndf: " << vertex->getNdf() << ", Chi2: " << vertex->getChi2() << ", Id: " << vertex->getId() << "\n";
-                        std::cout << "Number of tracks: " << vertex->getNTracks() << "\n";
                     }
                 }
                 good_vertex = true;
                 if(vertices.size() == 0) 
                     good_vertex = false;
                 else {
+                // negative chi2 means that vertexing failed due to numerical reasons
+                    if(vertices[0]->getChi2() < 0) good_vertex = false;
                     if(vertices[0]->getChi2()/vertices[0]->getNdf() > vtx_chi2ndf_cut) good_vertex = false;
                     // if position is outside of the detector then break
-                    if(std::abs(vertices[0]->getPos().X())*10.0 > fTcalEvent->geom_detector.fScintillatorSizeX) good_vertex = false;
-                    if(std::abs(vertices[0]->getPos().Y())*10.0 > fTcalEvent->geom_detector.fScintillatorSizeY) good_vertex = false;
+                    if(std::abs(vertices[0]->getPos().X())*10.0 > fTcalEvent->geom_detector.fScintillatorSizeX/2.0) good_vertex = false;
+                    if(std::abs(vertices[0]->getPos().Y())*10.0 > fTcalEvent->geom_detector.fScintillatorSizeY/2.0) good_vertex = false;
+                    // check z position of the vertex witihn the detector
+                    if(vertices[0]->getPos().Z()*10.0 > fTcalEvent->geom_detector.rearCalLocZ) good_vertex = false;
+                    if(vertices[0]->getPos().Z()*10.0 < -fTcalEvent->geom_detector.fTotalLength/2.0) good_vertex = false;
+
                     // check that vertex is close to the three tracks
                     ROOT::Math::XYZVector vtxpos(vertices[0]->getPos().X()*10.0, vertices[0]->getPos().Y()*10.0, vertices[0]->getPos().Z()*10.0);
                     ROOT::Math::XYZVector dist1 = vtxpos - tempTracks[i]->tkhit[0].point;
@@ -1080,10 +1148,16 @@ void TPORecoEvent::FindTrackVertices() {
             if(vertices.size() == 0) 
                 good_vertex = false;
             else {
+                // negative chi2 means that vertexing failed due to numerical reasons
+                if(vertices[0]->getChi2() < 0) good_vertex = false;
                 if(vertices[0]->getChi2()/vertices[0]->getNdf() > vtx_chi2ndf_cut) good_vertex = false;
                 // if position is outside of the detector then break
-                if(std::abs(vertices[0]->getPos().X())*10.0 > fTcalEvent->geom_detector.fScintillatorSizeX) good_vertex = false;
-                if(std::abs(vertices[0]->getPos().Y())*10.0 > fTcalEvent->geom_detector.fScintillatorSizeY) good_vertex = false;
+                if(std::abs(vertices[0]->getPos().X())*10.0 > fTcalEvent->geom_detector.fScintillatorSizeX/2.0) good_vertex = false;
+                if(std::abs(vertices[0]->getPos().Y())*10.0 > fTcalEvent->geom_detector.fScintillatorSizeY/2.0
+                ) good_vertex = false;
+                // check z position of the vertex witihn the detector
+                if(vertices[0]->getPos().Z()*10.0 > fTcalEvent->geom_detector.rearCalLocZ) good_vertex = false;
+                if(vertices[0]->getPos().Z()*10.0 < -fTcalEvent->geom_detector.fTotalLength/2.0) good_vertex = false;
             }
 
             // if chi2 is bad then skip
@@ -2134,7 +2208,7 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
 #endif
                 long iz = z % nzlayer;
                 long ID = x + y * 1000 + iz * 1000000 + ilayer * 1000000000;
-                struct PSVOXEL3D v = {ID, ehit, true};
+                struct PSVOXEL3D v = {ID, ehit, true, false};
                 PSvoxelmap[ID] = v;
             }
         }
@@ -2621,9 +2695,17 @@ void TPORecoEvent::PSVoxelParticleFilter() {
     closest_voxel_cut = closest_voxel_cut*closest_voxel_cut;
 
     std::map<int, std::vector<struct PSVOXEL3D>> PSvoxelmapModule;
-    // organize voxels by module number
+    // organize voxels by module number and skip voxels that belong to a TK track
     for (const auto &it : PSvoxelmap) {
         long ID = it.first;
+
+        // check if this voxel already belong to a TK track
+        if(it.second.member_of_TKtrack) {
+            if(verbose>3)
+                std::cout << "Voxel " << ID << " already belongs to a track." << std::endl;
+            continue;
+        }
+
         long module = fTcalEvent->getChannelModulefromID(ID);
         auto lay = PSvoxelmapModule.find(module);
         if(lay != PSvoxelmapModule.end()) {
@@ -2819,6 +2901,34 @@ void TPORecoEvent::PSVoxelParticleFilter() {
 }
 
 void TPORecoEvent::ReconstructRearCals() {
+
+    // number of modules; loop over all modules and collect deposited energy
+    int nmodules = fTcalEvent->geom_detector.NRep;
+    faserCals.clear();
+    for(int im = 0; im < nmodules; im++) {
+        double eDeposit = 0;
+        for (const auto it : fPORecs) {
+            int ntracks = it->fGEANTTrackIDs.size();
+            for (size_t i = 0; i< ntracks; i++) {
+                DigitizedTrack *dt = it->DTs[i];
+                size_t nhits = dt->fhitIDs.size();
+                for (size_t j = 0; j < nhits; j++) {
+                    long ID = dt->fhitIDs[j];
+                    long hittype = TcalEvent::getChannelTypefromID(ID);
+                    if(hittype != 0) continue; // only scintillator hits
+                    long module = fTcalEvent->getChannelModulefromID(ID);
+                    if(module == im) {
+                        eDeposit += dt->fEnergyDeposits[j];
+                    }
+                }
+            }
+        }
+        struct FASERCAL faserCal;
+        faserCal.ModuleID = im;
+        faserCal.EDeposit = eDeposit;
+        faserCals.push_back(faserCal);
+    }
+
     double eDeposit = 0;
     double eDepositHCal = 0;
     rearCals.rearCalModule.clear();
@@ -2837,6 +2947,9 @@ void TPORecoEvent::ReconstructRearCals() {
     rearCals.rearHCalDeposit = eDepositHCal/1e3;  // convert to GeV
     rearCals.rearMuCalDeposit = fTcalEvent->rearMuCalDeposit; // in MeV
     if(verbose>0){
+        for (const auto &it : faserCals) {
+            std::cout << "Module " << it.ModuleID << " - EDeposit " << it.EDeposit << std::endl;
+        }
         std::cout << "Rear CalDeposit " << rearCals.rearCalDeposit << std::endl;
         std::cout << "Rear HCalDeposit " << rearCals.rearHCalDeposit << " - ";
         for(auto &it : rearCals.rearHCalModule) {

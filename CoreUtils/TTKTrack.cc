@@ -110,7 +110,7 @@ TVector3 TTKTrack::fitLineThroughHits(TVector3& centroid) {
     return direction;
 }
 
-void TTKTrack::GenFitTrackFit() {
+void TTKTrack::GenFitTrackFit(double detectorResolutionPSmm) {
 
     const int pdg = 13;       
 // trackrep
@@ -135,7 +135,7 @@ void TTKTrack::GenFitTrackFit() {
     hitCov.UnitMatrix();
     hitCov *= detectorResolution*detectorResolution;
     // scintillator resolution
-    double detectorResolutionPS = 1.0/sqrt(12); // should be voxel size in cm
+    double detectorResolutionPS = detectorResolutionPSmm/10.0; // resolution of planar detectors in cm
     TMatrixDSym hitCovPS(2);
     hitCovPS.UnitMatrix();
     hitCovPS *= detectorResolutionPS*detectorResolutionPS;

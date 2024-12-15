@@ -70,7 +70,7 @@ public:
     TVector3 fitLineThroughHits(TVector3& centroid);
 
     /// @brief Use GenFit to fit the track
-    void GenFitTrackFit();
+    void GenFitTrackFit(double detectorResolutionPSmm);
 
     /// @brief Extrapolate the track to a given Z coordinate
     TVector3 extrapolateTracktoZ(double z, int &failed);
