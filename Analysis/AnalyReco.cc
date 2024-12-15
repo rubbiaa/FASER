@@ -229,6 +229,9 @@ int main(int argc, char** argv) {
         if(event.n_clusters>0) {
             event.c_E1 = fTPORecoEvent->PSClustersX[0].rawenergy/1e3;   // convert to GeV
             event.c_chi2_1 = fTPORecoEvent->PSClustersX[0].longenergyprofile.chi2_per_ndf;
+            if (std::isnan(event.c_chi2_1)) {
+                event.c_chi2_1 = -1.0;
+            }
             event.c_a_1 = fTPORecoEvent->PSClustersX[0].longenergyprofile.a;
             event.c_b_1 = fTPORecoEvent->PSClustersX[0].longenergyprofile.b;
         } else {
