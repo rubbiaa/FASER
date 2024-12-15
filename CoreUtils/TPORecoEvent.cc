@@ -146,6 +146,7 @@ TPORecoEvent::TPORecoEvent(TcalEvent* c, TPOEvent* p) : TPORecoEvent() {
 };
 
 TPORecoEvent::~TPORecoEvent() {
+    // delete all TPORecs
     for(auto it : fPORecs) {
         delete it;
     }
@@ -792,7 +793,7 @@ void TPORecoEvent::FindPatternTracks() {
                 tempTrack->direction = tempTrack->fitLineThroughHits(tempTrack->centroid);
                 tempTracks[i] = tempTrack;
                 tempTracks.erase(tempTracks.begin() + j);
-//                delete track1;  // CRASHES
+                delete track1;  // CRASHES??
                 delete track2;
                 if(j < i) i--;
             } else {
@@ -1060,11 +1061,11 @@ void TPORecoEvent::FindTrackVertices() {
                 if(vertices[0]->getPos().Z()*10.0 > fTcalEvent->geom_detector.rearCalLocZ) good_vertex = false;
                 if(vertices[0]->getPos().Z()*10.0 < -fTcalEvent->geom_detector.fTotalLength/2.0) good_vertex = false;
             }
+            // delete vertices
+            for (auto &vertex : vertices) {
+                delete vertex;
+            }
             if(!good_vertex) {
-                // delete vertices
-                for (auto &vertex : vertices) {
-                    delete vertex;
-                }
                 continue;
             }
     
@@ -1258,6 +1259,10 @@ void TPORecoEvent::FindTrackVertices() {
                     std::cout << "Erasing tuplet that failed to refit: " << i << std::endl;
                 tuplets.erase(tuplets.begin() + i);
                 i--;
+                // delete vertices
+                for (auto &vertex : vertices) {
+                    delete vertex;
+                }
                 continue;
             }
 

@@ -37,6 +37,18 @@ TTKTrack::TTKTrack(const TTKTrack &t) : TTKTrack() {
     }
 }
 
+TTKTrack::~TTKTrack() { 
+//        std::cout << "TTKTrack::~TTKTrack - destructor . " << this << std::endl;
+    if(fitTrack!=nullptr) {
+        fitTrack->deleteFitterInfo();
+        // delete track represemntations
+        for (int i=0; i<fitTrack->getNumReps(); ++i) {
+            fitTrack->deleteTrackRep(i);
+        }
+        delete fitTrack;
+    }
+};
+
 double TTKTrack::pointLineDistance(const ROOT::Math::XYZVector& point, const TVector3& direction, const TVector3& centroid) {
     TVector3 pointVec(point.x(), point.y(), point.z());
     TVector3 pointToCentroid = pointVec - centroid;
@@ -168,6 +180,7 @@ void TTKTrack::GenFitTrackFit(double detectorResolutionPSmm) {
 
     // fitTrack->getFittedState().Print();
     // fitTrack->Print();
+    delete fitter;
 }
 
 TVector3 TTKTrack::extrapolateTracktoZ(double z, int &failed) {
