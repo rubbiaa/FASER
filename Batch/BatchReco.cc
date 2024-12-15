@@ -8,6 +8,7 @@
 #include <atomic>
 #include <iostream>
 #include <fstream>
+#include <sys/resource.h>
 
 #include "TFile.h"
 #include "TH1.h"
@@ -454,6 +455,15 @@ int main(int argc, char** argv) {
 
         m_POEventTree -> Fill();
 
+
+        struct rusage usage;
+        double mem_usage = -1;
+        if (getrusage(RUSAGE_SELF, &usage) == 0) {
+            mem_usage = usage.ru_maxrss;
+        } else {
+            perror("getrusage failed");
+        }
+
         delete fPORecoEvent;
         delete POevent;
         delete fTcalEvent;       
@@ -464,7 +474,8 @@ int main(int argc, char** argv) {
         // Calculate the elapsed time in milliseconds
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-        std::cerr << "+++++ Event processed " << n_events << " - Elapsed time: " << elapsed.count() << " ms\n";
+        std::cerr << "+++++ Event processed " << n_events << " - Elapsed time: " << elapsed.count() << " ms  ";
+        std::cerr << "Memory usage: " << usage.ru_maxrss << " KB" << std::endl;
 
         total_time += elapsed.count();
         n_events++;
@@ -479,7 +490,7 @@ int main(int argc, char** argv) {
         }
         // write down the heartbeat file
         std::ofstream heartbeat(heartbeat_file);
-        heartbeat << "Event " << ievent << " processed - elasped time " << elapsed.count() << " ms\n";
+        heartbeat << "Event " << ievent << " processed - elasped time " << elapsed.count() << " ms - memory usage " << mem_usage << " KB" << std::endl;
         heartbeat.close();
 
     }

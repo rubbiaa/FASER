@@ -25,6 +25,8 @@ INCS = $(wildcard *.h)
 INCS += $(wildcard *.hh)
 INCS += $(wildcard $(COREUTILSDIR)/*.hh)
 
+# ROOTCFLAGS += -fsanitize=address 
+
 all : $(EXE) $(EXE2)
 
 dict.cxx : $(INCS) $(SRC)
@@ -48,7 +50,7 @@ $(EXE2) : $(OBJ2) Makefile
 
 # Clean target
 clean:
-	rm -f $(OBJ) $(EXE) dict.cxx dict_rdict.pcm libTPORec.so
+	rm -f $(OBJ) $(EXE) $(EXE2) $(OBJ2) dict.cxx dict_rdict.pcm libTPORec.so
 
 .PHONY : all clean
 

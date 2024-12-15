@@ -64,7 +64,7 @@ ROOT_GENERATE_DICTIONARY(G__PS ${EXTERNAL_SOURCE_DIR}/TPOEvent.hh ${EXTERNAL_SOU
 # Add the executable, and link it to the Geant4 libraries
 #
 add_executable(faserps ${SOURCES} ${os_headers} G__PS.cxx)
-target_link_libraries(faserps ${Geant4_LIBRARIES} ${ROOT_LIBRARIES} EG)
+target_link_libraries(faserps ${Geant4_LIBRARIES} ${ROOT_LIBRARIES} EG ROOTDataFrame ROOTNTuple)
 
 #----------------------------------------------------------------------------
 # Build the shared library for the classes mentioned in the LinkDef.h file

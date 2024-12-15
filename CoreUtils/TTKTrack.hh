@@ -48,10 +48,7 @@ public:
         //std::cout << "TTKTrack::TTKTrack - constructor . " << this << std::endl; 
         };
     TTKTrack(const TTKTrack &t);
-    virtual ~TTKTrack() { 
-//        std::cout << "TTKTrack::~TTKTrack - destructor . " << this << std::endl;
-        if(fitTrack!=nullptr) delete fitTrack;
-    };
+    ~TTKTrack();
 
     /// @brief Compute the distance between a point and a line
     double pointLineDistance(const ROOT::Math::XYZVector& point, const TVector3& direction, const TVector3& centroid);

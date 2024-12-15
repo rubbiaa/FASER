@@ -7,7 +7,10 @@ PYTHIA8_LIBRARY = $(PYTHIA8_DIR)/lib/libpythia8.a
 OPENGL = /usr/include/GL
 OPEN_gl_LIBRARY=/usr/
 
-.PHONY: root pythia8 clhep rave genfit
+.PHONY: hello
+
+hello:
+	@echo "Hello World - please select a target"
 
 root_src:
 	if [ ! -d root-6.32.02 ]; then \
