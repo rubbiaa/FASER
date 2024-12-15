@@ -6,6 +6,8 @@
 #include <string>
 #include <csignal>
 #include <atomic>
+#include <iostream>
+#include <fstream>
 
 #include "TFile.h"
 #include "TH1.h"
@@ -21,12 +23,18 @@
 
 // Global atomic flag to indicate whether the program should continue running
 std::atomic<bool> keepRunning(true);
+static int n_sigint = 0;
 
 // Signal handler function
 void handleSignal(int signal) {
     if (signal == SIGINT || signal == SIGTERM) {
-        std::cout << "\nCaught Ctrl+C (SIGINT) or SIGTERM. Exiting cleanly...\n";
-        keepRunning = false; // Update the flag to stop the program loop
+        if(++n_sigint<3){
+            std::cout << "\nCaught Ctrl+C (SIGINT) or SIGTERM. Exiting cleanly...\n";
+            keepRunning = false; // Update the flag to stop the program loop
+        } else {
+            std::cout << "\nCaught Ctrl+C (SIGINT) or SIGTERM. Exiting now...\n";
+            exit(1);
+        }
     }
 }
 
@@ -451,6 +459,19 @@ int main(int argc, char** argv) {
 
         total_time += elapsed.count();
         n_events++;
+
+        // chekc if environment variable is set
+        const char *heartbeat_file;
+        char *env = std::getenv("HEARTBEAT_FILE");
+        if(env) {
+            heartbeat_file = env;
+        } else {
+            heartbeat_file = "heartbeat.txt";
+        }
+        // write down the heartbeat file
+        std::ofstream heartbeat(heartbeat_file);
+        heartbeat << "Event " << ievent << " processed - elasped time " << elapsed.count() << " ms\n";
+        heartbeat.close();
 
     }
 
