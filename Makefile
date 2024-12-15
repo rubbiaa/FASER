@@ -10,7 +10,10 @@ OPEN_gl_LIBRARY=/usr/
 PATCHFILE = $(TOPDIR)/genfit.patch
 FILETOAPPLY = $(TOPDIR)/GenFit/test/vertexingTest/main.cc
 
-.PHONY: root pythia8 clhep rave genfit
+.PHONY: hello
+
+hello:
+	@echo "Hello World - please select a target"
 
 root_src:
 	if [ ! -d root-6.32.02 ]; then \
