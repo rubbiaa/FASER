@@ -7,9 +7,6 @@ PYTHIA8_LIBRARY = $(PYTHIA8_DIR)/lib/libpythia8.a
 OPENGL = /usr/include/GL
 OPEN_gl_LIBRARY=/usr/
 
-PATCHFILE = $(TOPDIR)/genfit.patch
-FILETOAPPLY = $(TOPDIR)/GenFit/test/vertexingTest/main.cc
-
 .PHONY: root pythia8 clhep rave genfit
 
 root_src:
@@ -81,7 +78,7 @@ rave: rave_tar
 		mkdir -p rave-install; \
 		cd rave-0.6.25 && ./configure --prefix=$(TOPDIR)/rave-install --disable-java \
 		--with-clhep=$(TOPDIR)/CLHEP-install; \
-		make CXXFLAGS="-g -std=c++11" LGEPINCPATH=. -j; \
+		make CXXFLAGS="-g -std=c++11" LHEPINCPATH=. -j; \
 		make install; \
 	fi
 
