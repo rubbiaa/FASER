@@ -249,16 +249,13 @@ int main(int argc, char** argv) {
         fPORecoEvent -> verbose = 0;   // 0: no output, 1: some output, 2: more output, 3: full output;
         if(!dump_event_cout) fPORecoEvent -> verbose = 0;
         fPORecoEvent -> multiThread = multiThread_option;
-        fPORecoEvent -> Reconstruct();
-        std::cout << "Start reconstruction of clusters..." << std::endl;
+        fPORecoEvent -> ReconstructTruth();
         fPORecoEvent -> Reconstruct2DViewsPS();
-        fPORecoEvent -> ReconstructClusters(0);    // this is very slow
-        std::cout << "Start reconstruction of 3D voxels..." << std::endl;
+        fPORecoEvent -> ReconstructClusters(0);
         fPORecoEvent -> Reconstruct3DPS_2();
         fPORecoEvent -> ReconstructRearCals();
         fPORecoEvent -> Reconstruct3DPS_Eflow();
-
-        fPORecoEvent->TrackReconstruct();
+        fPORecoEvent -> TrackReconstruct();
 
         if(dump_event_cout) { fPORecoEvent -> Dump(); }
 

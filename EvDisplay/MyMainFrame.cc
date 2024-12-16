@@ -205,7 +205,7 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
     fPORecoEvent = new TPORecoEvent(fTcalEvent, fTcalEvent->fTPOEvent);
     fPORecoEvent->verbose = 3;
     std::cout << "Start reconstruction of PORecs..." << std::endl;
-    fPORecoEvent -> Reconstruct();
+    fPORecoEvent -> ReconstructTruth();
     std::cout << "Start reconstruction of clusters..." << std::endl;
     fPORecoEvent -> Reconstruct2DViewsPS();
     if(f_fullreco_CheckBox->IsOn() || true) {
