@@ -15,6 +15,13 @@
 #pragma link C++ nestedclasses;
 
 #pragma link C++ class TPORecoEvent+;
+#pragma link C++ struct TPORecoEvent::REARCALS;
+#pragma link C++ struct TPORecoEvent::FASERCAL;
+#pragma link C++ struct TPORecoEvent::TTKVertex;
+#pragma link C++ struct TPORecoEvent::PSVOXEL3D;
+#pragma link C++ struct TPORecoEvent::Voxel;
+#pragma link C++ class TPORecoEvent::RecConfig;
+
 #pragma link C++ class TPORec+;
 #pragma link C++ struct TPORec::CALENERGIES+; 
 #pragma link C++ function TPORec::TotalEvis+;
@@ -36,8 +43,6 @@
 
 #pragma link C++ class TTKTrack;
 #pragma link C++ class TPSTrack;
-
-#pragma link C++ struct TPORecoEvent::REARCALS;
 
 #pragma link C++ struct TcalEvent::GEOM_DETECTOR;
 
