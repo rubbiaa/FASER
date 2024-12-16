@@ -128,7 +128,7 @@ int main(int argc, char **argv)
             fTcalEvent->fTPOEvent->dump_event();
 
         TPORecoEvent *fPORecoEvent = new TPORecoEvent(fTcalEvent, fTcalEvent->fTPOEvent);
-        fPORecoEvent->Reconstruct();
+        fPORecoEvent->ReconstructTruth();
         if (dump_event_cout)
             fPORecoEvent->Dump();
 
