@@ -218,7 +218,7 @@ public:
     } recoConfig;
 
     /// @brief Reconstruct the FASERG4 simulated event to the PORec
-    void Reconstruct();
+    void ReconstructTruth();
 
     /// @brief Full track reconstruction based on pixel and scintillator hits
     void TrackReconstruct();

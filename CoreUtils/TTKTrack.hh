@@ -44,9 +44,7 @@ public:
         });
     }
 
-    TTKTrack() : TObject(), fitTrack(0), vertexID(-1), trackID(-1) { 
-        //std::cout << "TTKTrack::TTKTrack - constructor . " << this << std::endl; 
-        };
+    TTKTrack();
     TTKTrack(const TTKTrack &t);
     ~TTKTrack();
 

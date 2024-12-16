@@ -24,6 +24,13 @@
 
 ClassImp(TTKTrack);
 
+int TTKTrackRefenceID = 0;
+
+TTKTrack::TTKTrack() : TObject(), fitTrack(0), vertexID(-1), trackID(-1) { 
+    TTKTrackRefenceID++;
+        //std::cout << "TTKTrack::TTKTrack - constructor . " << this << std::endl; 
+};
+
 TTKTrack::TTKTrack(const TTKTrack &t) : TTKTrack() {
     tkhit = t.tkhit;
     centroid = t.centroid;
@@ -32,7 +39,7 @@ TTKTrack::TTKTrack(const TTKTrack &t) : TTKTrack() {
     trackID = t.trackID;
     vertexID = t.vertexID;
     if(t.fitTrack) {
-        fitTrack = new genfit::Track(*t.fitTrack);
+        fitTrack = new genfit::Track(*t.fitTrack); // FIXME: this creates leaks; should use clone???
 //        std::cout << "TTKTrack::TTKTrack - copy constructor fitrack" << fitTrack << std::endl;
     }
 }
@@ -47,6 +54,8 @@ TTKTrack::~TTKTrack() {
         }
         delete fitTrack;
     }
+    TTKTrackRefenceID--;
+//    std::cout << "TTKTrack::~TTKTrack - destructor . " << this << " " << TTKTrackRefenceID << std::endl;
 };
 
 double TTKTrack::pointLineDistance(const ROOT::Math::XYZVector& point, const TVector3& direction, const TVector3& centroid) {

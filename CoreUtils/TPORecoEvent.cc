@@ -117,7 +117,7 @@ TPORecoEvent::TPORecoEvent(TcalEvent* c, TPOEvent* p) : TPORecoEvent() {
     recoConfig.genfit_min_pVal = 0.01;
     recoConfig.genfit_min_pMom = 1e-3;
 
-    recoConfig.findvtx_cut_max_trk = 100;
+    recoConfig.findvtx_cut_max_trk = 50; // 100;
     recoConfig.findvtx_chi2ndf_cut = 10000;  // FIXME: tune value
     recoConfig.findvtx_trk_dist_cut = 1000.0; // in millimeters - FIXME: tune value
     recoConfig.findvtx_merge_dist_cut = 10;  // in centimeters - FIXME: tune value
@@ -125,7 +125,7 @@ TPORecoEvent::TPORecoEvent(TcalEvent* c, TPOEvent* p) : TPORecoEvent() {
     recoConfig.clusters_threshold_2dhit = 2.0; // MeV
     recoConfig.clusters_eps = 5; // in mm
     recoConfig.clusters_minPts = 10; // minimum number of points to form a cluster
-    recoConfig.clusters_threshold_cluster = 10*1e3; // MeV
+    recoConfig.clusters_threshold_cluster = 1*1e3; // MeV
 
     recoConfig.PS3D_nvox_max_after_iteration = 25; // after this iteration limit the number of voxels in module
     recoConfig.PS3D_total_score_min_break = 10.0;
@@ -156,7 +156,7 @@ TPORecoEvent::~TPORecoEvent() {
 }
 
 
-void TPORecoEvent::Reconstruct() {
+void TPORecoEvent::ReconstructTruth() {
 
     if(!TPORecoEvent_configPrinted) {
         std::cerr << "TPORecoEvent::Reconstruct - configuration not initialized!" << std::endl;
@@ -775,7 +775,8 @@ void TPORecoEvent::FindPatternTracks() {
             double dotProduct = normDir1.Dot(normDir2);
             if (std::abs(std::abs(dotProduct) - 1.0) > recoConfig.findpattern_parallel_cut_merge) continue;
 
-            TTKTrack *tempTrack = new TTKTrack(*track1);
+            TTKTrack *tempTrack = new TTKTrack();
+            tempTrack->MergeTracks(*track1);
             tempTrack->MergeTracks(*track2);
             tempTrack->GenFitTrackFit(fTcalEvent->geom_detector.fScintillatorVoxelSize*recoConfig.psvoxel_fudge_factor);
             if(verbose > 0) {
@@ -1657,6 +1658,9 @@ void TPORecoEvent::pshit2d_position(long ID, double &fix, double &fiy, double &f
 /// @param view = 0 for XZ, and .ne.0 for YZ
 void TPORecoEvent::ReconstructClusters(int view) {
 
+    if(verbose > 0)
+        std::cout << "Start ReconstructClusters: view=" << view << " ..." << std::endl;
+
     DBScan dbscan;
 
     std::map<int, class TPSCluster> PSClustersMap;
@@ -2517,6 +2521,9 @@ void TPORecoEvent::reconstruct3DPS_module(int maxIter, int imodule, std::vector<
 }
 
 void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
+
+    if(verbose>0)
+        std::cout << "Start reconstruction of 3D voxels..." << std::endl;
 
     maxIter = 150; // 300;
 
