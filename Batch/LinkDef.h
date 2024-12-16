@@ -20,7 +20,7 @@
 #pragma link C++ struct TPORecoEvent::TTKVertex;
 #pragma link C++ struct TPORecoEvent::PSVOXEL3D;
 #pragma link C++ struct TPORecoEvent::Voxel;
-#pragma link C++ class TPORecoEvent::RecConfig;
+#pragma link C++ class TPORecoEvent::RecoConfig;
 
 #pragma link C++ class TPORec+;
 #pragma link C++ struct TPORec::CALENERGIES+; 
