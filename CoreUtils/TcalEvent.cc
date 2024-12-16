@@ -164,13 +164,6 @@ void TcalEvent::AssignGEANTTrackID(int G4TrackID, int PDGcode, double px, double
     }
 }
 
-inline double TcalEvent::getZofLayer(long ilayer, long iz) const {
-    double z = ilayer * geom_detector.fSandwichLength + iz * geom_detector.fScintillatorVoxelSize
-            - (geom_detector.NRep * geom_detector.fSandwichLength) / 2.0
-            + geom_detector.fScintillatorVoxelSize/2.0;
-    return z;
-}
-
 ROOT::Math::XYZVector TcalEvent::getChannelXYZfromID(long ID) const
 {
     long hittype = ID / 100000000000LL;

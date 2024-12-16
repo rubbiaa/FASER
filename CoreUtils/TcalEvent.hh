@@ -164,7 +164,7 @@ public:
     /// @brief Returns the precise tracker "layer" (or copy of volume)
     /// @param ID The hit ID (see FASERG4 DetectorConstruction class)
     /// @return The precise tracker layer 
-    inline long getChannelCopyfromID(long ID) const {
+    static inline long getChannelCopyfromID(long ID) {
         long icopy = (ID / 10000000000LL) % 10;
         return icopy;
     }
@@ -173,7 +173,12 @@ public:
     /// @param layer the layer index
     /// @param iz the z position index within the layer
     /// @return z coordinate
-    inline double getZofLayer(long ilayer, long iz) const;
+    inline double getZofLayer(long ilayer, long iz) const {
+        double z = ilayer * geom_detector.fSandwichLength + iz * geom_detector.fScintillatorVoxelSize
+        - (geom_detector.NRep * geom_detector.fSandwichLength) / 2.0
+        + geom_detector.fScintillatorVoxelSize/2.0;
+        return z;
+    }
 
     /// @brief Returns (x,y,z) absolute position for a given hit ID (the center of the hit/voxel)
     /// @param ID The hit ID

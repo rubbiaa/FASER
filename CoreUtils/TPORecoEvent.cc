@@ -531,12 +531,12 @@ void TPORecoEvent::FindPatternTracks() {
         if(hitMap[ilayer].size() > recoConfig.findpattern_max_hit_layers) continue;
 
         for (const auto &hit1 : it.second) {
-            int icopy1 = fTcalEvent->getChannelCopyfromID(hit1.ID);
+            int icopy1 = TcalEvent::getChannelCopyfromID(hit1.ID);
             if(icopy1 != 1) continue;
             double distmin = 1e9;
             struct TTKTrack::TRACKHIT hitmin;
             for (const auto &hit2 : it.second) {
-                int icopy2 = fTcalEvent->getChannelCopyfromID(hit2.ID);
+                int icopy2 = TcalEvent::getChannelCopyfromID(hit2.ID);
                 if(icopy2 != 2) continue;
                 ROOT::Math::XYZVector distV = (hit2.point - hit1.point);
                 // check if hits are close in XY plane
