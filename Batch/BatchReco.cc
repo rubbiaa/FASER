@@ -471,7 +471,7 @@ int main(int argc, char** argv) {
         // Calculate the elapsed time in milliseconds
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-        std::cerr << "+++++ Event processed " << n_events << " - Elapsed time: " << elapsed.count() << " ms  ";
+        std::cerr << "+++++ Run " << run_number << " Event processed " << n_events << " - Elapsed time: " << elapsed.count() << " ms  ";
         std::cerr << "Memory usage: " << usage.ru_maxrss << " KB" << std::endl;
 
         total_time += elapsed.count();
@@ -487,7 +487,7 @@ int main(int argc, char** argv) {
         }
         // write down the heartbeat file
         std::ofstream heartbeat(heartbeat_file);
-        heartbeat << "Event " << ievent << " processed - elasped time " << elapsed.count() << " ms - memory usage " << mem_usage << " KB" << std::endl;
+        heartbeat << "Run " << run_number << " Event " << ievent << " processed - elasped time " << elapsed.count() << " ms - memory usage " << mem_usage << " KB" << std::endl;
         heartbeat.close();
 
     }
