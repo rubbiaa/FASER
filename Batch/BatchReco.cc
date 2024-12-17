@@ -475,7 +475,6 @@ int main(int argc, char** argv) {
         std::cerr << "Memory usage: " << usage.ru_maxrss << " KB" << std::endl;
 
         total_time += elapsed.count();
-        n_events++;
 
         // chekc if environment variable is set
         const char *heartbeat_file;
@@ -489,6 +488,8 @@ int main(int argc, char** argv) {
         std::ofstream heartbeat(heartbeat_file);
         heartbeat << "Run " << run_number << " Event " << ievent << " processed - elasped time " << elapsed.count() << " ms - memory usage " << mem_usage << " KB" << std::endl;
         heartbeat.close();
+
+        n_events++;
 
     }
 
