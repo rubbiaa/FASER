@@ -565,9 +565,33 @@ void MyMainFrame::Draw_event() {
     } else {
         eventtype << " NC ";
     }
+    if(POevent->istau) {
+        switch(POevent->tau_decaymode) {
+            case 1:
+                eventtype << "  tau->e  ";
+                break;
+            case 2:
+                eventtype << "  tau->mu  ";
+                break;
+            case 3:
+                eventtype << "  tau->1-prong  ";
+                break;
+            case 4:
+                eventtype << "  tau->rho  ";
+                break;
+            case 5:
+                eventtype << "  tau->3-prong  ";
+                break;
+            default:
+                eventtype << "  tau->??  ";
+        }
+    }
     eventtype << "    Vtx: x=" << POevent->prim_vx.x() << " y=" << POevent->prim_vx.y() << " z=" << POevent->prim_vx.z() << "  ";
     eventtype << " Target " << POevent->GENIE_vtx_name;
     eventtype << " " << Form("       Etrue:%6.2f GeV", POevent->in_neutrino.m_energy);
+    if(POevent->isCharmed()) {
+        eventtype << "  Charmed";
+    }
     eventypeText = new TText(0.05, 0.9, eventtype.str().c_str());
     eventypeText->SetNDC();
     eventypeText->SetTextSize(0.03);
