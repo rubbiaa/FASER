@@ -77,7 +77,7 @@ int main(int argc, char** argv) {
         if(fTPORecoEvent -> GetPOEvent() -> isCharmed()) {
             charm_fileMask.addEvent(event);
         }
-        if(fTPORecoEvent -> GetPOEvent() -> istau) {
+        if(fTPORecoEvent -> GetPOEvent() -> istau && fTPORecoEvent -> GetPOEvent() -> isCC) {
             tau_fileMask.addEvent(event);
         }
 
