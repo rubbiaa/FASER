@@ -779,7 +779,7 @@ void TPORecoEvent::FindPatternTracks() {
             tempTrack->MergeTracks(*track1);
             tempTrack->MergeTracks(*track2);
             tempTrack->GenFitTrackFit(fTcalEvent->geom_detector.fScintillatorVoxelSize*recoConfig.psvoxel_fudge_factor);
-            if(verbose > 0) {
+            if(verbose > 3) {
                 std::cout << "MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM"<<std::endl;
                 std::cout << "Trying to merge tracks: " << i << " " << j << std::endl;
                 track1->Dump();
@@ -789,7 +789,7 @@ void TPORecoEvent::FindPatternTracks() {
             if(tempTrack->fitTrack->getFitStatus()->isFitConverged() &&
                (tempTrack->fitTrack->getFitStatus()->getChi2() > 0 && tempTrack->fitTrack->getFitStatus()->getPVal() > recoConfig.genfit_min_pVal) &&
                tempTrack->fitTrack->getFittedState().getMom().Mag() > recoConfig.genfit_min_pMom) {
-                if(verbose > 0)
+                if(verbose > 3)
                     std::cout << "---- MERGED" << std::endl;
                 tempTrack->direction = tempTrack->fitLineThroughHits(tempTrack->centroid);
                 tempTracks[i] = tempTrack;
@@ -799,7 +799,7 @@ void TPORecoEvent::FindPatternTracks() {
                 if(j < i) i--;
             } else {
                 delete tempTrack;
-                if(verbose > 0)
+                if(verbose > 3)
                     std::cout << "FAILED" << std::endl;
             }
         }
