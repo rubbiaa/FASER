@@ -229,6 +229,24 @@ void TPOEvent::kinematics_event() {
   ptmiss = sqrt(vis_spx*vis_spx + vis_spy*vis_spy);
 }
 
+double TPOEvent::tauDecaylength() {
+  if(!istau || !isCC) return -1;
+  double xdecay = taudecay[0].m_vx_decay;
+  double ydecay = taudecay[0].m_vy_decay;
+  double zdecay = taudecay[0].m_vz_decay;
+  double xprim = prim_vx.x();
+  double yprim = prim_vx.y();
+  double zprim = prim_vx.z();
+  return sqrt((xdecay-xprim)*(xdecay-xprim) + (ydecay-yprim)*(ydecay-yprim) + (zdecay-zprim)*(zdecay-zprim));
+}
+
+double TPOEvent::tauKinkAngle() {
+  if(!istau) return -1;
+  double tauvis_p = sqrt(tauvis_px*tauvis_px + tauvis_py*tauvis_py + tauvis_pz*tauvis_pz);
+  double tau_p = sqrt(out_lepton.m_px*out_lepton.m_px + out_lepton.m_py*out_lepton.m_py + out_lepton.m_pz*out_lepton.m_pz);
+  double cosangle = (tauvis_px*out_lepton.m_px + tauvis_py*out_lepton.m_py + tauvis_pz*out_lepton.m_pz)/(tauvis_p*tau_p);
+  return acos(cosangle);
+}
 
 void TPOEvent::dump_PO(struct PO aPO,  TDatabasePDG *pdgDB, std::ostream& out) const {
   TParticlePDG *particle = pdgDB->GetParticle(aPO.m_pdg_id);

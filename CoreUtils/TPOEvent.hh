@@ -89,7 +89,8 @@ public:
   int tau_decaymode;                // =1 e, =2 mu, =3 1-prong, =4 rho =5 3-prong, =6 other
   std::vector<struct PO> POs;       // vector of PO of the event
   std::vector<struct PO> taudecay;  // vector of the tau decay products
-  double tautracklength;            // tau track length (in mm)
+  double tauDecaylength();            // tau track length (in mm)
+  double tauKinkAngle();            // Kink angle of tau decay products
 
   // Kinematics of the event
   struct PO in_neutrino;            // PO of incoming neutrino
@@ -228,7 +229,7 @@ public:
   void update_stats();
   void dump_stats();
 
-  ClassDef(TPOEvent, 3)
+  ClassDef(TPOEvent, 4)
 };
 
 #endif
