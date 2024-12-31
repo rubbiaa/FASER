@@ -1,6 +1,6 @@
 EXE = FileMask.exe
 
-COREUTILSDIR := ../CoreUtils
+include ../Makefile.common
 
 SRC = FileMask.cc
 
@@ -17,18 +17,13 @@ INCS = $(wildcard *.h)
 INCS += $(wildcard *.hh)
 INCS += $(wildcard $(COREUTILSDIR)/*.hh)
 
-ROOTCFLAGS = -fPIC -g $(shell root-config --cflags) 
-
-ROOTCFLAGS += -I$(COREUTILSDIR)
-
 all : $(EXE)
 
 dict.cxx : $(INCS) $(SRC)
-	rootcling -f dict.cxx -c LinkDef.h -I$(COREUTILSDIR)
+	rootcling -f dict.cxx -c LinkDef.h -I$(COREUTILSDIR) -I$(GENFITINCDIR)
 
 $(EXE) : $(OBJ) Makefile
-	g++ $(ROOTCFLAGS) $(OBJ) `root-config --glibs` -lEG -lGeom -o $@
-	g++ -shared -o libTPORec.so dict.o $(OBJCORE) -L$(ROOTSYS)/lib `root-config --glibs`
+	g++ $(ROOTCFLAGS) $(OBJ) `root-config --glibs` -lEG -lGeom $(GENFITLIBS) -o $@
 
 # Compile source files to object files
 %.o: %.C $(INCS)
@@ -40,7 +35,7 @@ $(EXE) : $(OBJ) Makefile
 
 # Clean target
 clean:
-	rm -f $(OBJ) $(EXE) dict.cxx dict_rdict.pcm libTPORec.so
+	rm -f $(OBJ) $(EXE) dict.cxx dict_rdict.pcm 
 
 .PHONY : all clean
 
