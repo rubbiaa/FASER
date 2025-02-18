@@ -142,9 +142,8 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	G4double sizeX = std::max(sizetargetWX, sizeScintillatorX);
 	G4double sizeY = std::max(sizetargetWY, sizeScintillatorY);
 
-
-	G4double WorldSizeX = 1.5* sizeX;
-	G4double WorldSizeY = 1.5* sizeY;
+	G4double WorldSizeX = 2.5* sizeX;
+	G4double WorldSizeY = 2.5* sizeY;
 	G4double WorldSizeZ = 6*m; // 1.2* NRep*(sizetargetWZ + sizeScintillatorZ);
 
 	G4cout << "Size of the world " << WorldSizeX << " " << WorldSizeY << " " << WorldSizeZ << " mm" << G4endl;
@@ -179,7 +178,7 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	G4Material * G4_graphite = G4NistManager::Instance()->FindOrBuildMaterial("G4_GRAPHITE");
 	G4Material * G4_Pb = G4NistManager::Instance()->FindOrBuildMaterial("G4_Pb");
 
-	G4Material * G4_Target = fWorldMaterial; // G4_graphite; // G4_Cu; // fWorldMaterial;
+	G4Material * G4_Target = G4_W;
 
 	G4double zLocation = 0*cm;
 	CreateFaserCal(zLocation, fPolyvinyltoluene, G4_Target, G4ThreeVector(sizeScintillatorX, sizeScintillatorY, 
@@ -188,9 +187,10 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	XYZVector(sizeScintillatorX, sizeScintillatorY, sizeScintillatorZ), G4_Target->GetName(),  
 	XYZVector(sizetargetWX, sizetargetWY, sizetargetWZ), NRep);
 
-	G4double sizeZ = (sizeScintillatorZ + sizetargetWZ + fNumberRep_SiTracker*fSiTrackerSizeZ)*NRep;
+//	G4double sizeZ = (sizeScintillatorZ + sizetargetWZ + fNumberRep_SiTracker*fSiTrackerSizeZ)*NRep;
+	G4double sizeZ = fTotalLength;
 
-	CreateFrontTarget(-sizeZ/2.0-20.0*cm, worldLV);
+//	CreateFrontTarget(-sizeZ/2.0-20.0*cm, worldLV);
 
 	zLocation += sizeZ/2.0;
 
@@ -304,6 +304,8 @@ void DetectorConstruction::SetScintillatorMaterial(G4String materialName)
 void DetectorConstruction::CreateFaserCal(G4double zLocation, G4Material* material1, G4Material* material2, G4ThreeVector size1, 
 		G4ThreeVector size2, G4LogicalVolume* parent, G4int NRep){
 
+	G4Material * G4_Al = G4NistManager::Instance()->FindOrBuildMaterial("G4_Al");
+
 	// add precision tracker of composed of Si
 	G4Material * G4_Si = G4NistManager::Instance()->FindOrBuildMaterial("G4_Si");
 	G4cout << "Thickness of a single Silicon tracker layer" << fSiTrackerSizeZ << " mm " << G4endl;
@@ -313,13 +315,13 @@ void DetectorConstruction::CreateFaserCal(G4double zLocation, G4Material* materi
 	G4double sizeY = std::max(size1.getY(), size2.getY());
 	G4double sizeZ = size1.getZ() + size2.getZ() + 	fNumberRep_SiTracker*fSiTrackerSizeZ;
 
-	fSandwichLength = sizeZ;
+	fSandwichLength = fAlPlateThickness + size1.getZ() + size2.getZ() + fAlPlateThickness + fAirGap;
 
-	G4cout << "Total size of one sandwich layer " << sizeZ*mm << " mm " << G4endl;
+	G4cout << "Total size of one sandwich layer " << fSandwichLength*mm << " mm " << G4endl;
 
 	G4cout << "Number of layers " << NRep << G4endl;
 
-	fTotalLength = NRep*sizeZ;
+	fTotalLength = NRep*fSandwichLength;
 	G4cout << "Total length " << fTotalLength << " mm" << G4endl;
 
 	G4double density = material2->GetDensity()/(g/cm3);  // Density in g/cm^3
@@ -350,50 +352,70 @@ void DetectorConstruction::CreateFaserCal(G4double zLocation, G4Material* materi
 	G4UserLimits* userLimits_targetW = new G4UserLimits();
 //	userLimits_targetW->SetMaxAllowedStep(1*mm);   // is this really necessary??
 
-	// In this replica solid we place the two actual materials. This replica solid is then replicated NRep times.
-    G4Box * replicaSolid = new G4Box("ReplicaSolid" , sizeX/2, sizeY/2, sizeZ/2);
+	// In this replica solid we place the actual materials. This replica solid is then replicated NRep times.
+    G4Box * replicaSolid = new G4Box("ReplicaSolid" , sizeX/2, sizeY/2, fSandwichLength/2);
 
     G4Box* scintillatorSolid = new G4Box("ScintillatorSlab", size1.getX() / 2, size1.getY() / 2, size1.getZ() / 2);
-    G4Box* targetWSolid = new G4Box("targetWSlab", size2.getX() / 2, size2.getY() / 2, size2.getZ() / 2);
+	G4Box* targetWSolid = nullptr;
+	if(size2.getZ() > 0)
+	    targetWSolid = new G4Box("targetWSlab", size2.getX() / 2, size2.getY() / 2, size2.getZ() / 2);
     G4Box* trackerSiSolid = new G4Box("trackerSiSlab", size2.getX() / 2, size2.getY() / 2, fSiTrackerSizeZ / 2);
+    G4Box* AlPlateSolid = new G4Box("AlPlateSlab", size2.getX() / 2, size2.getY() / 2, fAlPlateThickness / 2);
 
 	G4LogicalVolume* replicaLogic = new G4LogicalVolume(replicaSolid, fWorldMaterial, "replicaLogical");
 
 	G4LogicalVolume* scintillatorLogic = new G4LogicalVolume(scintillatorSolid, material1, "ScintillatorLogical");
 	scintillatorLogic->SetUserLimits(userLimits_Scint);
-	G4LogicalVolume* targetWLogic = new G4LogicalVolume(targetWSolid, material2, "targetWLogical");
-	targetWLogic->SetUserLimits(userLimits_targetW);
+	G4LogicalVolume* targetWLogic = nullptr;
+	if(size2.getZ() > 0) {
+		targetWLogic = new G4LogicalVolume(targetWSolid, material2, "targetWLogical");
+		targetWLogic->SetUserLimits(userLimits_targetW);
+	}
 	G4LogicalVolume* trackerSiLogic = new G4LogicalVolume(trackerSiSolid, G4_Si, "trackerSiLogical");
+	G4LogicalVolume* AlPlateLogic = new G4LogicalVolume(AlPlateSolid, G4_Al, "AlPlateLogical");
 
 
     //We place the scinitllator and targetW into the replica
-    new G4PVPlacement(0, G4ThreeVector(0,0,-sizeZ/2 + size1.getZ()/2), scintillatorLogic, "Scintillator", replicaLogic, false, 1, true);
-    new G4PVPlacement(0, G4ThreeVector(0,0,sizeZ/2 - size2.getZ()/2 - fSiTrackerSizeZ), targetWLogic, "targetW", replicaLogic, false, 1, true);
-    new G4PVPlacement(0, G4ThreeVector(0,0,sizeZ/2 - fSiTrackerSizeZ - size2.getZ() - fSiTrackerSizeZ/2), 
+	double zShift = -fSandwichLength/2.0 + fAlPlateThickness/2.0;
+	new G4PVPlacement(0, G4ThreeVector(0,0,zShift), AlPlateLogic, "AlPlate", replicaLogic, false, 0, true);
+	zShift += fAlPlateThickness/2.0 + size2.getZ()/2.0;
+	if(size2.getZ() > 0)
+	    new G4PVPlacement(0, G4ThreeVector(0,0,zShift), targetWLogic, "targetW", replicaLogic, false, 1, true);
+	zShift += size2.getZ()/2.0 + size1.getZ()/2.0;
+    new G4PVPlacement(0, G4ThreeVector(0,0,zShift), scintillatorLogic, "Scintillator", replicaLogic, false, 1, true);
+	zShift += size1.getZ()/2.0 + fAlPlateThickness/2.0;
+	new G4PVPlacement(0, G4ThreeVector(0,0,zShift), AlPlateLogic, "AlPlate", replicaLogic, false, 1, true);
+
+	zShift = fSandwichLength/2.0;
+	#if 0
+    new G4PVPlacement(0, G4ThreeVector(0,0,zShift - fSiTrackerGap - fSiTrackerSizeZ/2), 
 					trackerSiLogic, "trackerSi", replicaLogic, false, 1, true);
-    new G4PVPlacement(0, G4ThreeVector(0,0,sizeZ/2 - fSiTrackerSizeZ/2), trackerSiLogic, "trackerSi", replicaLogic, false, 2, true);
+    new G4PVPlacement(0, G4ThreeVector(0,0,zShift - fSiTrackerSizeZ/2), trackerSiLogic, "trackerSi", replicaLogic, false, 2, true);
+	#endif
 
     // Create container, which hosts Nrep replicas of our layer. This container then is set inside the world volume
-    G4Box* containerSolid = new G4Box("ContainerBox", sizeX/2, sizeY / 2, NRep*sizeZ / 2);
+    G4Box* containerSolid = new G4Box("ContainerBox", sizeX/2, sizeY / 2, NRep*fSandwichLength / 2);
 
     G4LogicalVolume* containerLogic = new G4LogicalVolume(containerSolid, fWorldMaterial, "ContainerLogical");
 //    new G4PVReplica("replica", replicaLogic, containerLogic, kZAxis, NRep, sizeZ, 0);
 //    new G4PVPlacement(0, G4ThreeVector(0,0,NRep*sizeZ/2), containerLogic, "ContainerPlacement", parent,  false, 0, true);
 	// make nRep copies
 	for(int i = 0; i < NRep; i++) {
-		double zshift = i*sizeZ-sizeZ*NRep/2.0+sizeZ/2.0;
+		double zshift = i*fSandwichLength-fSandwichLength*NRep/2.0+fSandwichLength/2.0;
 		std::cout << "Placing first replica at " << zshift << std::endl;
 		new G4PVPlacement(0, G4ThreeVector(0,0,zshift), replicaLogic, "replica", containerLogic, false, i, true);
 	}
-    new G4PVPlacement(0, G4ThreeVector(0,0,zLocation), containerLogic, "ContainerPlacement", parent,  false, 0, true);
+    new G4PVPlacement(0, G4ThreeVector(
+		fFASERCal_LOS_shiftX,fFASERCal_LOS_shiftY,zLocation), 
+		containerLogic, "ContainerPlacement", parent,  false, 0, true);
 }
 
 static int getchannelIDerrorcount = 0;
 
 G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, int CopyNumber, int MotherCopyNumber, XYZVector const& position) const {
 
-	G4double dx = position.X()+fScintillatorSizeX/2.0;
-	G4double dy = position.Y()+fScintillatorSizeY/2.0;
+	G4double dx = position.X()-fFASERCal_LOS_shiftX+fScintillatorSizeX/2.0;
+	G4double dy = position.Y()-fFASERCal_LOS_shiftY+fScintillatorSizeY/2.0;
 	G4double epsilon = 1e-4;   // avoid rounding errors at volume boundary
 	G4double dz = position.Z()+fTotalLength/2.0+epsilon;
 
@@ -418,7 +440,7 @@ G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, 
 
 		G4long ix = floor(dx / fScintillatorVoxelSize);
 		G4long iy = floor(dy / fScintillatorVoxelSize);
-		G4long iz = floor((dz-ilayer*fSandwichLength)/ fScintillatorVoxelSize);
+		G4long iz = floor((dz-ilayer*fSandwichLength-fAlPlateThickness-ftargetWSizeZ)/ fScintillatorVoxelSize);
 		// sanity check
 		if (ix < 0 || ix > 999 || iy < 0 || iy > 999 || iz < 0 || iz > 999 || ilayer < 0) {
 			if(iz>1000)
@@ -515,8 +537,8 @@ void DetectorConstruction::CreateRearCal(G4double zLocation, G4LogicalVolume* pa
 
 	// now place 5x5 matrix
 	for (int i = 0; i<25; i++) {
-		double x = (i%5)*sizeX - 2.5*sizeX + sizeX/2.0;
-		double y = (i/5)*sizeY - 2.5*sizeY + sizeY/2.0;
+		double x = (i%5)*sizeX - 2.5*sizeX + sizeX/2.0 + fFASERCal_LOS_shiftX;
+		double y = (i/5)*sizeY - 2.5*sizeY + sizeY/2.0 + fFASERCal_LOS_shiftY;
 		new G4PVPlacement(0, G4ThreeVector(x,y,zLocation+sizeZ_module/2.0), rearCal_moduleLogic, "rearCal", parent, false, i, true);
 	}
 }
@@ -555,19 +577,21 @@ void DetectorConstruction::CreateRearHCalMuTag(G4double zLocation, G4LogicalVolu
 	G4Box* scintillatorSolid = new G4Box("PSSlab", sizeX / 2, sizeY / 2, sizeZ / 2);
 	G4LogicalVolume* scintillatorLogic = new G4LogicalVolume(scintillatorSolid, plasticScintillator, "muCalscintillatorLogical");
 
+	double x = fFASERCal_LOS_shiftX;
+	double y = fFASERCal_LOS_shiftY;
 	for(int i = 0; i < nlayer; i++) {
 		double z = zLocation + i*sizeZ_HCalmodule + sizeZ_Pb/2.0;
-		new G4PVPlacement(0, G4ThreeVector(0,0,z), absorberLogic, "rearHCalAbs", parent, false, i, true);
+		new G4PVPlacement(0, G4ThreeVector(x,y,z), absorberLogic, "rearHCalAbs", parent, false, i, true);
 		z += sizeZ_Pb/2.0 + sizeZ_PS/2.0;
-		new G4PVPlacement(0, G4ThreeVector(0,0,z), HscintillatorLogic, "rearHCalScint", parent, false, i, true);
+		new G4PVPlacement(0, G4ThreeVector(x,y,z), HscintillatorLogic, "rearHCalScint", parent, false, i, true);
 	}
 //	new G4PVPlacement(0, G4ThreeVector(0,0,z), absorberLogic, "rearMuCalAbs", parent, false, 0, true);
 
 	double z = zLocation + total_sizeZ + sizeZ_nabs/2.0;
-	new G4PVPlacement(0, G4ThreeVector(0,0,z), nabsorberLogic, "rearMuCalNAbs", parent, false, 0, true);
+	new G4PVPlacement(0, G4ThreeVector(x,y,z), nabsorberLogic, "rearMuCalNAbs", parent, false, 0, true);
 
 	z = zLocation + total_sizeZ + sizeZ_nabs + sizeZ/2.0;
-	new G4PVPlacement(0, G4ThreeVector(0,0,z), scintillatorLogic, "rearMuCalScint", parent, false, 0, true);
+	new G4PVPlacement(0, G4ThreeVector(x,y,z), scintillatorLogic, "rearMuCalScint", parent, false, 0, true);
 }
 
 void DetectorConstruction::CreateFrontTarget(G4double zLocation, G4LogicalVolume *parent) {
