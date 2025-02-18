@@ -89,6 +89,22 @@ void TauDecayPhysics::ConstructProcess()
       }              
    }
 
+  // dump all charmed particles decay
+  particleIterator=GetParticleIterator();
+  particleIterator->reset();
+   while ((*particleIterator)())
+   {    
+      G4ParticleDefinition* particle = particleIterator->value();
+      int pdg = std::abs(particle->GetPDGEncoding());
+      if(pdg == 411 || pdg == 421 || pdg == 431 || pdg == 433 || pdg == 4122){
+        if ( particle->GetDecayTable() )
+        {
+          particle->DumpTable();
+
+      }
+   }
+   }
+   
    return;
 }
 

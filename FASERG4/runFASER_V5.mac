@@ -1,4 +1,5 @@
 # Macro example
+# V4 geometry
 /FASER/scint/material PVT
 /FASER/scint/lightYield 12000.
 /FASER/scint/sizeX 48 cm
@@ -7,18 +8,21 @@
 /FASER/scint/voxel 10 mm
 /FASER/targetW/sizeX 48 cm
 /FASER/targetW/sizeY 48 cm
-/FASER/targetW/sizeZ 4 mm
-/FASER/layers 15
+/FASER/targetW/sizeZ 1 mm
+/FASER/layers 10
+/FASER/LOS/shiftX 0 cm
+/FASER/LOS/shiftY 0 cm
 #
 /tracking/verbose 0
 #/process/optical/processActivation Cerenkov false
 /run/numberOfThreads 1
 /run/initialize
-/generator/rootinputfilename ../ConvertGENIE/FASERMC-PO-Run40-0_1192106.root
+/generator/rootinputfilename ../ConvertGENIE/FASERMC-PO-Run120-0_101830.root
 /generator/startevent 0
-#/run/beamOn 64078
+/run/beamOn 800
 #/run/beamOn 175313
-/run/beamOn 1
+#/run/beamOn 74064
+
 
 
 
