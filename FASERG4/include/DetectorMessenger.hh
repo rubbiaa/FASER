@@ -68,6 +68,9 @@ class DetectorMessenger : public G4UImessenger {
 	G4UIcmdWithADoubleAndUnit* ftargetWSizeYCmd = nullptr;	
 	G4UIcmdWithADoubleAndUnit* ftargetWSizeZCmd = nullptr;	
 
+	G4UIcmdWithADoubleAndUnit* fLOSShiftXCmd = nullptr;	
+	G4UIcmdWithADoubleAndUnit* fLOSShiftYCmd = nullptr;	
+
 	G4UIcmdWithAnInteger * fNumberReplicasCmd = nullptr;
 
 

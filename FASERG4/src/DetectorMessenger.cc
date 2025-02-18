@@ -82,7 +82,19 @@ DetectorMessenger::DetectorMessenger(DetectorConstruction* det) : fDetectorConst
 	fNumberReplicasCmd->SetParameterName("size", false);
 	fNumberReplicasCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
+	fLOSShiftXCmd = new G4UIcmdWithADoubleAndUnit("/FASER/LOS/shiftX", this);
+	fLOSShiftXCmd->SetGuidance("Set LOS sjhift X");
+	fLOSShiftXCmd->SetParameterName("shift", false);
+	fLOSShiftXCmd->SetUnitCategory("Length");
+	fLOSShiftXCmd->SetDefaultUnit("cm");
+	fLOSShiftXCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
+	fLOSShiftYCmd = new G4UIcmdWithADoubleAndUnit("/FASER/LOS/shiftY", this);
+	fLOSShiftYCmd->SetGuidance("Set LOS sjhift Y");
+	fLOSShiftYCmd->SetParameterName("shift", false);
+	fLOSShiftYCmd->SetUnitCategory("Length");
+	fLOSShiftYCmd->SetDefaultUnit("cm");
+	fLOSShiftYCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
 }
 
@@ -104,6 +116,8 @@ DetectorMessenger::~DetectorMessenger()
 	delete fNumberReplicasCmd;
 	delete fDirectory;
 	delete fDetDirectory;
+	delete fLOSShiftXCmd;
+	delete fLOSShiftYCmd;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -158,8 +172,13 @@ void DetectorMessenger::SetNewValue(G4UIcommand* command, G4String newValue)
 		fDetectorConstruction->SetNumberReplicas(fNumberReplicasCmd->GetNewIntValue(newValue));
 	}
 
+	if (command == fLOSShiftXCmd) {
+		fDetectorConstruction->fFASERCal_LOS_shiftX = fLOSShiftXCmd->GetNewDoubleValue(newValue);
+	}
 
-
+	if (command == fLOSShiftYCmd) {
+		fDetectorConstruction->fFASERCal_LOS_shiftY = fLOSShiftYCmd->GetNewDoubleValue(newValue);
+	}
 
 }
 
