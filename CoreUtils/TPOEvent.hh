@@ -89,6 +89,7 @@ public:
   int tau_decaymode;                // =1 e, =2 mu, =3 1-prong, =4 rho =5 3-prong, =6 other
   std::vector<struct PO> POs;       // vector of PO of the event
   std::vector<struct PO> taudecay;  // vector of the tau decay products
+  std::vector<struct PO> charmdecay; // vector of the charm hadrons decay products
   double tauDecaylength();            // tau track length (in mm)
   double tauKinkAngle();            // Kink angle of tau decay products
 
@@ -135,6 +136,12 @@ public:
   /// @param tauPO - the PO of the tau to be decayed
 #ifdef _INCLUDE_PYTHIA_
   void perform_taulepton_decay(struct PO tauPO);
+#endif
+
+  /// @brief Perform the decay of the charmed hadron and store decay products
+  /// @param tauPO - the PO of the charm hadron to be decayed - if PO is not a charmed hadron, return doing nothing.
+#ifdef _INCLUDE_PYTHIA_
+  void perform_charmhadron_decay(struct PO PO);
 #endif
 
   /// @brief Return number of tau decay products
@@ -229,7 +236,7 @@ public:
   void update_stats();
   void dump_stats();
 
-  ClassDef(TPOEvent, 4)
+  ClassDef(TPOEvent, 5)
 };
 
 #endif
