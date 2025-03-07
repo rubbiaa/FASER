@@ -252,13 +252,19 @@ void TPOEvent::kinematics_event() {
       spz += aPO.m_pz;
     }
   }
-  jetpx = spx-out_lepton.m_px;
-  jetpy = spy-out_lepton.m_py;
-  jetpz = spz-out_lepton.m_pz;
+  isCC = !(in_neutrino.m_pdg_id == out_lepton.m_pdg_id);
+  if(isCC) {
+    jetpx = spx-out_lepton.m_px;
+    jetpy = spy-out_lepton.m_py;
+    jetpz = spz-out_lepton.m_pz;
+  } else {
+    jetpx = spx;
+    jetpy = spy;
+    jetpz = spz;
+  }
   vis_spx = spx;
   vis_spy = spy;
   vis_spz = spz;
-  isCC = !(in_neutrino.m_pdg_id == out_lepton.m_pdg_id);
 
   // additiona processing in case of tau decay
   if(istau && isCC){
