@@ -95,9 +95,9 @@ public:
     /// @brief Return the x,y,z position of a 2D hit (one coordinate x, or y should always be ignored)
     void pshit2d_position(long ID, double &fix, double &fiy, double &fiz);
 
-    TH2D* xviewPS = nullptr;                          //! 2Dview scintillator X-Z
-    TH2D* yviewPS = nullptr;                          //! 2Dview scintillator Y-Z
-    std::vector<TH2D*> zviewPS;                                //! 2Dview scintillator X-Z view for 50 planes
+    TH2D* xviewPS = nullptr;                          // 2Dview scintillator X-Z
+    TH2D* yviewPS = nullptr;                          // 2Dview scintillator Y-Z
+    std::vector<TH2D*> zviewPS;                                // 2Dview scintillator X-Z view for all planes
     TH2D* xviewPS_em = nullptr;                          //! 2Dview scintillator X-Z
     TH2D* yviewPS_em = nullptr;                          //! 2Dview scintillator Y-Z
     TH2D* xviewPS_had = nullptr;                          //! 2Dview scintillator X-Z
