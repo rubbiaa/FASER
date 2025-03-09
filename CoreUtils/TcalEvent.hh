@@ -52,6 +52,21 @@ class MagnetTrack : public TObject {
     ClassDef(MagnetTrack,1)
 };
 
+class MuTagTrack : public TObject {
+    public:
+
+    MuTagTrack() { };
+    MuTagTrack(int trackID) { ftrackID = trackID; pos.clear(); };
+    ~MuTagTrack() {};
+
+    int ftrackID;           // the GEANT4 track id
+    int fPDG;               // the PDG id of this track
+    std::vector<ROOT::Math::XYZVector> pos;
+    std::vector<ROOT::Math::XYZVector> mom;
+    
+    ClassDef(MuTagTrack,1)
+};
+
 class TcalEvent : public TObject {
 
 private:
@@ -90,6 +105,9 @@ public:
     
     /// @brief The truth tracks in the magnet to provide nice event display of MC
     std::vector<MagnetTrack*> fMagnetTracks;
+
+    /// @Brief The truch tracks in the muTag
+    std::vector<MuTagTrack*> fMuTagTracks;
 
     void fillTree();
 

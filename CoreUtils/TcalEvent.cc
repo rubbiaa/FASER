@@ -4,7 +4,7 @@
 
 ClassImp(TcalEvent)
 
-TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fTPOEvent(nullptr), m_rootFile(nullptr)
+TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fMuTagTracks() , fTPOEvent(nullptr), m_rootFile(nullptr)
 {
     geom_detector = {0};
     rearCalDeposit = {};
@@ -35,6 +35,7 @@ TcalEvent::TcalEvent(int run_number, long event_number, int event_mask) : TcalEv
     m_calEventTree = new TTree("calEvent", "calEvent");
     m_calEventTree->Branch("tracks", &fTracks);
     m_calEventTree->Branch("magnetracks", &fMagnetTracks);
+    m_calEventTree->Branch("mutagtracks", &fMuTagTracks);
     m_calEventTree->Branch("event", &fTPOEvent);    // this should be labelled POEvent !
     m_calEventTree->Branch("geom", &geom_detector);
     m_calEventTree->Branch("rearcal", &rearCalDeposit);
@@ -66,6 +67,12 @@ TcalEvent::~TcalEvent()
     }
     fMagnetTracks.clear();
 
+    // Delete all magnet tracks
+    for (auto track : fMuTagTracks)
+    {
+        delete track;
+    }
+    fMuTagTracks.clear();
     //    delete fTracks;
 }
 
@@ -109,6 +116,9 @@ int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
 
     std::vector<MagnetTrack*> *mt = &fMagnetTracks;
     event_tree->SetBranchAddress("magnetracks", &mt);
+
+    std::vector<MuTagTrack*> *mut = &fMuTagTracks;
+    event_tree->SetBranchAddress("mutagtracks", &mut);
 
 //    const TPOEvent *POevent = new TPOEvent();
     event_tree -> SetBranchAddress("event", &POevent);
