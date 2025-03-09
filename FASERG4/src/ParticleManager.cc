@@ -64,6 +64,31 @@ void ParticleManager::processParticleHit(G4Track *track, XYZVector const& positi
 		G4cout << "  Kinetic Energy: " << kineticEnergy / MeV << " MeV" << G4endl;
         G4cout << "  Momentum: " << momentum / MeV << " MeV/c" << G4endl;
 		#endif
+		int trackID = track->GetTrackID();
+		G4ThreeVector momentum = track->GetMomentum();
+		auto it = m_MuTagTrackMap.find(trackID);
+		if (it != m_MuTagTrackMap.end())
+		{
+			ROOT::Math::XYZVector pos;
+			pos.SetXYZ(position.x(), position.y(), position.z());
+			it->second->pos.push_back(pos);
+			ROOT::Math::XYZVector mom;
+			mom.SetXYZ(momentum.x()/MeV, momentum.y()/MeV, momentum.z()/MeV);
+			it->second->mom.push_back(mom);
+		}
+		else
+		{
+			// If the track does not exist, create a new one
+			MuTagTrack *newT = new MuTagTrack(trackID);
+			newT->fPDG = pdg;
+			ROOT::Math::XYZVector pos;
+			pos.SetXYZ(position.x(), position.y(), position.z());
+			newT->pos.push_back(pos);
+			ROOT::Math::XYZVector mom;
+			mom.SetXYZ(momentum.x()/MeV, momentum.y()/MeV, momentum.z()/MeV);
+			newT->mom.push_back(mom);
+			m_MuTagTrackMap[trackID] = newT;
+		}
 		return;
 	}
 	if(VolumeName == "ShortCylLogical" || VolumeName == "LongCylLogical") {
@@ -122,6 +147,7 @@ void ParticleManager::beginOfEvent()
 	// Clear the track map
 	m_particleMap.clear();
 	m_magnetTrackMap.clear();
+	m_MuTagTrackMap.clear();
 	fPrimaries.clear();
 
 	PrimaryGeneratorAction* prim = dynamic_cast<PrimaryGeneratorAction*>
@@ -212,6 +238,12 @@ void ParticleManager::endOfEvent(G4Event const* event)
 			fTcalEvent->fMagnetTracks.push_back(magnettrk);
 		}
 	
+		// Fill mutag tracks
+		for (const auto& it : m_MuTagTrackMap) {
+			MuTagTrack* mutagtrk = it.second;
+			fTcalEvent->fMuTagTracks.push_back(mutagtrk);
+		}
+
 		// dump RearCal
 		#if 0
 		for (const auto &it : fTcalEvent->rearCalDeposit) {

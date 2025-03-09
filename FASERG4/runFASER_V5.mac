@@ -17,9 +17,9 @@
 #/process/optical/processActivation Cerenkov false
 /run/numberOfThreads 1
 /run/initialize
-/generator/rootinputfilename ../ConvertGENIE/FASERMC-PO-Run120-0_101830.root
+/generator/rootinputfilename ../ConvertGENIE/FASERMC-PO-Run130-0_1128453.root
 /generator/startevent 0
-/run/beamOn 800
+/run/beamOn 10000
 #/run/beamOn 175313
 #/run/beamOn 74064
 

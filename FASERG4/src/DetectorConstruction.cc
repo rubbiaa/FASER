@@ -387,7 +387,7 @@ void DetectorConstruction::CreateFaserCal(G4double zLocation, G4Material* materi
 	new G4PVPlacement(0, G4ThreeVector(0,0,zShift), AlPlateLogic, "AlPlate", replicaLogic, false, 1, true);
 
 	zShift = fSandwichLength/2.0;
-	#if 0
+	#if 1
     new G4PVPlacement(0, G4ThreeVector(0,0,zShift - fSiTrackerGap - fSiTrackerSizeZ/2), 
 					trackerSiLogic, "trackerSi", replicaLogic, false, 1, true);
     new G4PVPlacement(0, G4ThreeVector(0,0,zShift - fSiTrackerSizeZ/2), trackerSiLogic, "trackerSi", replicaLogic, false, 2, true);
