@@ -14,6 +14,8 @@
 
 #include "TPOEvent.hh"
 
+bool charm_only = false;
+
 void convert_FASERMC(int run_number, TTree *tree, int min_event, int max_event,
                      std::string ROOTOutputFile, int mask)
 {
@@ -108,13 +110,14 @@ void convert_FASERMC(int run_number, TTree *tree, int min_event, int max_event,
     fTPOEvent.use_GENIE_vtx = true;     // tell FASERG4 to use this vtx
 
     // SKIP VERTICES IN REAR CAL
-    if(fTPOEvent.prim_vx.z() > 1533.0) continue;
+//    if(fTPOEvent.prim_vx.z() > 1533.0) continue;
+    if(fTPOEvent.prim_vx.z() > 511.0) continue;
     // identify IN FRONT TARGET
     int front_target = 0;
     if(fTPOEvent.prim_vx.z() < -1533.0) front_target = 1;
-  //    if(front_target) continue;
+//    if(front_target) continue;
 
-    fTPOEvent.event_id = iseq++;
+    fTPOEvent.event_id = iseq;
 
     bool found_tau_lepton = false;
 
@@ -145,6 +148,8 @@ void convert_FASERMC(int run_number, TTree *tree, int min_event, int max_event,
       if (aPO.m_status == 1 || aPO.m_status == 4)
       {
         fTPOEvent.POs.push_back(aPO);
+        // decay charm hadron if necessary
+        fTPOEvent.perform_charmhadron_decay(aPO);
       }
 
       if (!found_tau_lepton && abs(aPO.m_pdg_id) == 15)
@@ -154,15 +159,21 @@ void convert_FASERMC(int run_number, TTree *tree, int min_event, int max_event,
         fTPOEvent.perform_taulepton_decay(aPO);
 #endif
       }
+
     }
 
     fTPOEvent.kinematics_event();
+
+    // skip events with no charm 
+    if(charm_only && !fTPOEvent.isCharmed()) continue;
+
     if (evt_to_dump++ < 20)
     {
       fTPOEvent.dump_event();
     };
     fTPOEvent.update_stats();
     m_POEventTree->Fill();
+    iseq++;
   }
 
   m_POEventTree->Write();
@@ -179,20 +190,23 @@ int main(int argc, char **argv)
   // get the output file name as the first argument
   if (argc < 3)
   {
-    std::cout << "Usage: " << argv[0] << " <genieroot> <run>" << std::endl;
+    std::cout << "Usage: " << argv[0] << " [-charmonly] <genieroot> <run>" << std::endl;
     std::cout << std::endl;
     std::cout << "  <genieroot>                The input FASER GENIE root files" << std::endl;
     std::cout << "  <run>                      The output run number" << std::endl;
-#if 0
     std::cout << "Options:" << std::endl;
-    std::cout << "   mask                      To process only specific events (def=none): ";
-    std::cout << "  nueCC, numuCC, nutauCC, nuNC or nuES" << std::endl;
-#endif
+    std::cout << "  -charmonly                      To process only charm events " << std::endl;
     return 1;
   }
 
-  std::string rootinputString = argv[1];
-  std::string runString = argv[2];
+  int iarg = 1;
+  charm_only = false;
+  if(strcmp(argv[iarg],"-charmonly") == 0) {
+    charm_only = true;
+    iarg++;
+  }
+  std::string rootinputString = argv[iarg++];
+  std::string runString = argv[iarg++];
 
   int run_number;
   try

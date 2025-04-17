@@ -67,6 +67,9 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	G4double fScintillatorSizeZ = 1000 * mm;  // The size of the detector in mm, default 1000 mm, set by macro
 	G4double fScintillatorVoxelSize = 5 * mm;
 
+	G4double fFASERCal_LOS_shiftX = 0 * cm;
+	G4double fFASERCal_LOS_shiftY = 0 * cm;
+
 	double getScintillatorSizeX() const { return fScintillatorSizeX; }
 	double getScintillatorSizeY() const { return fScintillatorSizeY; }
 	double getScintillatorSizeZ() const { return fScintillatorSizeZ; }
@@ -85,9 +88,13 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 
 	G4double fSiTrackerSizeZ = 0.2 * mm;
 	G4double fSiTrackerPixelSize = 0.1 * mm;
-
+	G4double fSiTrackerGap = 4 * mm;
 	G4int fNumberReplicas = 1;
 	G4int fNumberRep_SiTracker = 2;
+
+	G4double fAirGap = 3*cm;
+	G4double fAlPlateThickness = 0.5*cm;
+
 	G4double fTotalLength;      // of the full detector
 	G4double fSandwichLength;   // of the given sandwich of scint+W+Silicon
 	G4double fTotalMass;

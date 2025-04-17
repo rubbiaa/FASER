@@ -27,6 +27,8 @@ class ParticleManager {
 
 	std::map<int, MagnetTrack*> m_magnetTrackMap;   // map to store MC tracks in the magnet
 
+	std::map<int, MuTagTrack*> m_MuTagTrackMap;   // map to store MC tracks in the muon tagger
+
 	TFile* m_rootFile;		     ///< ROOT file to store the rays
 
 	std::string m_rootOutputFileName;  ///< Name of the ROOT output file, set by the user using the CLI when calling the program

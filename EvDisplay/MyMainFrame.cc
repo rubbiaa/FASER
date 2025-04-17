@@ -730,6 +730,13 @@ void MyMainFrame::Draw_event() {
     }
     c4->Modified();
     c4->Update();
+
+    // print tracks in mutag
+    std::cout << " ------------ MUTAG truth tracks" << std::endl;
+    for (const auto &it : fTcalEvent->fMuTagTracks) {
+        std::cout << it->ftrackID << " " << it->fPDG << " Mom:" << it->mom[0].x() << " " << it->mom[0].y() << " " << it->mom[0].z() << std::endl;
+    }
+
 }
 
 void MyMainFrame::Draw_event_reco_tracks() {

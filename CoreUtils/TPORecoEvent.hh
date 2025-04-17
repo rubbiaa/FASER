@@ -106,9 +106,9 @@ public:
     /// @brief Return the x,y,z position of a 2D hit (one coordinate x, or y should always be ignored)
     void pshit2d_position(long ID, double &fix, double &fiy, double &fiz);
 
-    TH2D* xviewPS = nullptr;                          //! 2Dview scintillator X-Z
-    TH2D* yviewPS = nullptr;                          //! 2Dview scintillator Y-Z
-    std::vector<TH2D*> zviewPS;                                //! 2Dview scintillator X-Z view for 50 planes
+    TH2D* xviewPS = nullptr;                          // 2Dview scintillator X-Z
+    TH2D* yviewPS = nullptr;                          // 2Dview scintillator Y-Z
+    std::vector<TH2D*> zviewPS;                                // 2Dview scintillator X-Z view for all planes
     TH2D* xviewPS_em = nullptr;                          //! 2Dview scintillator X-Z
     TH2D* yviewPS_em = nullptr;                          //! 2Dview scintillator Y-Z
     TH2D* xviewPS_had = nullptr;                          //! 2Dview scintillator X-Z
@@ -263,7 +263,7 @@ public:
     void Reconstruct3DPS_2(int maxIter = 150);
     void reconstruct3DPS_module(int maxIter, int imodule, std::vector<std::vector<std::vector<Voxel>>> &V,
         std::vector<std::vector<float>> &XZ, std::vector<std::vector<float>> &YZ, std::vector<std::vector<std::vector<float>>> &XY,
-        std::vector<int>& nvox_per_layer, int nvox_per_layer_max);
+        std::vector<int>& nvox_per_layer, int nvox_per_layer_max, int nzlayer);
     void Reconstruct3DPS_Eflow();
 
     /// @brief Recontruct particle tracks from 3D PS voxels

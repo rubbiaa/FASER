@@ -786,7 +786,7 @@ void TPORecoEvent::FindPatternTracks() {
             tempTrack->MergeTracks(*track1);
             tempTrack->MergeTracks(*track2);
             tempTrack->GenFitTrackFit(fTcalEvent->geom_detector.fScintillatorVoxelSize*recoConfig.psvoxel_fudge_factor);
-            if(verbose > 0) {
+            if(verbose > 3) {
                 std::cout << "MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM"<<std::endl;
                 std::cout << "Trying to merge tracks: " << i << " " << j << std::endl;
                 track1->Dump();
@@ -796,7 +796,7 @@ void TPORecoEvent::FindPatternTracks() {
             if(tempTrack->fitTrack->getFitStatus()->isFitConverged() &&
                (tempTrack->fitTrack->getFitStatus()->getChi2() > 0 && tempTrack->fitTrack->getFitStatus()->getPVal() > recoConfig.genfit_min_pVal) &&
                tempTrack->fitTrack->getFittedState().getMom().Mag() > recoConfig.genfit_min_pMom) {
-                if(verbose > 0)
+                if(verbose > 3)
                     std::cout << "---- MERGED" << std::endl;
                 tempTrack->direction = tempTrack->fitLineThroughHits(tempTrack->centroid);
                 tempTracks[i] = tempTrack;
@@ -806,7 +806,7 @@ void TPORecoEvent::FindPatternTracks() {
                 if(j < i) i--;
             } else {
                 delete tempTrack;
-                if(verbose > 0)
+                if(verbose > 3)
                     std::cout << "FAILED" << std::endl;
             }
         }
@@ -2391,11 +2391,10 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
 
 void TPORecoEvent::reconstruct3DPS_module(int maxIter, int imodule, std::vector<std::vector<std::vector<Voxel>>> &V,
     std::vector<std::vector<float>> &XZ, std::vector<std::vector<float>> &YZ, std::vector<std::vector<std::vector<float>>> &XY,
-    std::vector<int>& nvox_per_layer, int nvox_per_layer_max) {
+    std::vector<int>& nvox_per_layer, int nvox_per_layer_max, int nzlayer) {
 
     int nx = fTcalEvent->geom_detector.fScintillatorSizeX / fTcalEvent->geom_detector.fScintillatorVoxelSize;
     int ny = fTcalEvent->geom_detector.fScintillatorSizeY / fTcalEvent->geom_detector.fScintillatorVoxelSize;
-    int nzlayer = fTcalEvent->geom_detector.fSandwichLength / fTcalEvent->geom_detector.fScintillatorVoxelSize;
     int nrep = fTcalEvent->geom_detector.NRep;
     int nztot =  nrep * nzlayer;
 
@@ -2539,7 +2538,9 @@ void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
 
     int nx = fTcalEvent->geom_detector.fScintillatorSizeX / fTcalEvent->geom_detector.fScintillatorVoxelSize;
     int ny = fTcalEvent->geom_detector.fScintillatorSizeY / fTcalEvent->geom_detector.fScintillatorVoxelSize;
-    int nzlayer = fTcalEvent->geom_detector.fSandwichLength / fTcalEvent->geom_detector.fScintillatorVoxelSize;
+    double scintZ = fTcalEvent->geom_detector.fSandwichLength- 2.0*fTcalEvent->geom_detector.fAlPlateThickness
+        - fTcalEvent->geom_detector.fAirGap - fTcalEvent->geom_detector.fTargetSizeZ;
+    int nzlayer = scintZ / fTcalEvent->geom_detector.fScintillatorVoxelSize;
     int nrep = fTcalEvent->geom_detector.NRep;
     int nztot =  nrep * nzlayer;
 
@@ -2621,7 +2622,7 @@ void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
     //       reconstruct3DPS_module(maxIter, imodule, V, XZ, YZ, XY, nvox_per_layer, nvox_per_layer_max);
             threads.emplace_back(&TPORecoEvent::reconstruct3DPS_module, this, maxIter, imodule, 
                 std::ref(V), std::ref(XZ), std::ref(YZ), std::ref(XY),
-                std::ref(nvox_per_layer), recoConfig.PS3D_nvox_per_layer_max);
+                std::ref(nvox_per_layer), recoConfig.PS3D_nvox_per_layer_max, nzlayer);
         }
 
         for (auto& th : threads)
@@ -2631,7 +2632,7 @@ void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
     } else {
         for (int imodule = 0; imodule < nrep; imodule++)
         {
-            reconstruct3DPS_module(maxIter, imodule, V, XZ, YZ, XY, nvox_per_layer, recoConfig.PS3D_nvox_per_layer_max);
+            reconstruct3DPS_module(maxIter, imodule, V, XZ, YZ, XY, nvox_per_layer, recoConfig.PS3D_nvox_per_layer_max, nzlayer);
         }
     }
 

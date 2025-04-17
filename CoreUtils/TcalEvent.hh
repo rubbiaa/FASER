@@ -52,6 +52,21 @@ class MagnetTrack : public TObject {
     ClassDef(MagnetTrack,1)
 };
 
+class MuTagTrack : public TObject {
+    public:
+
+    MuTagTrack() { };
+    MuTagTrack(int trackID) { ftrackID = trackID; pos.clear(); };
+    ~MuTagTrack() {};
+
+    int ftrackID;           // the GEANT4 track id
+    int fPDG;               // the PDG id of this track
+    std::vector<ROOT::Math::XYZVector> pos;
+    std::vector<ROOT::Math::XYZVector> mom;
+    
+    ClassDef(MuTagTrack,1)
+};
+
 class TcalEvent : public TObject {
 
 private:
@@ -91,6 +106,9 @@ public:
     /// @brief The truth tracks in the magnet to provide nice event display of MC
     std::vector<MagnetTrack*> fMagnetTracks;
 
+    /// @Brief The truch tracks in the muTag
+    std::vector<MuTagTrack*> fMuTagTracks;
+
     void fillTree();
 
     struct REARCALDEPOSIT {
@@ -125,7 +143,12 @@ public:
         Double_t rearHCalSizeY; // in mm
         Double_t rearHCalSizeZ; // in mm
         Double_t rearHCalLocZ;  // in mm
-        Int_t rearHCalNxy = 9;   // number of modules in z    
+        Int_t rearHCalNxy = 9;   // number of modules in z   
+        Double_t fFASERCal_LOS_shiftX; // in mm
+        Double_t fFASERCal_LOS_shiftY; // in mm 
+        Double_t fAirGap; // in mm
+        Double_t fAlPlateThickness; // in mm
+        Double_t fSiTrackerGap; // in mm
     };
 
     /// @brief The summary of the detector geometry
@@ -169,7 +192,7 @@ public:
         return icopy;
     }
 
-    /// @brief Returns z coordinate of layer
+    /// @brief Returns z coordinate of layer in the scintillator cubes
     /// @param layer the layer index
     /// @param iz the z position index within the layer
     /// @return z coordinate
@@ -177,6 +200,7 @@ public:
         double z = ilayer * geom_detector.fSandwichLength + iz * geom_detector.fScintillatorVoxelSize
         - (geom_detector.NRep * geom_detector.fSandwichLength) / 2.0
         + geom_detector.fScintillatorVoxelSize/2.0;
+        z += geom_detector.fAlPlateThickness + geom_detector.fTargetSizeZ;
         return z;
     }
 
@@ -189,7 +213,7 @@ public:
 
     ROOT::Math::XYZVector getChannelXYZRearHCal(int moduleID) const;
 
-    ClassDef(TcalEvent, 3)
+    ClassDef(TcalEvent, 4)
 };
 
 #endif

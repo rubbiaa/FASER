@@ -4,7 +4,7 @@
 
 ClassImp(TcalEvent)
 
-TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fTPOEvent(nullptr), m_rootFile(nullptr)
+TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fMuTagTracks() , fTPOEvent(nullptr), m_rootFile(nullptr)
 {
     geom_detector = {0};
     rearCalDeposit = {};
@@ -35,6 +35,7 @@ TcalEvent::TcalEvent(int run_number, long event_number, int event_mask) : TcalEv
     m_calEventTree = new TTree("calEvent", "calEvent");
     m_calEventTree->Branch("tracks", &fTracks);
     m_calEventTree->Branch("magnetracks", &fMagnetTracks);
+    m_calEventTree->Branch("mutagtracks", &fMuTagTracks);
     m_calEventTree->Branch("event", &fTPOEvent);    // this should be labelled POEvent !
     m_calEventTree->Branch("geom", &geom_detector);
     m_calEventTree->Branch("rearcal", &rearCalDeposit);
@@ -66,6 +67,12 @@ TcalEvent::~TcalEvent()
     }
     fMagnetTracks.clear();
 
+    // Delete all magnet tracks
+    for (auto track : fMuTagTracks)
+    {
+        delete track;
+    }
+    fMuTagTracks.clear();
     //    delete fTracks;
 }
 
@@ -109,6 +116,9 @@ int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
 
     std::vector<MagnetTrack*> *mt = &fMagnetTracks;
     event_tree->SetBranchAddress("magnetracks", &mt);
+
+    std::vector<MuTagTrack*> *mut = &fMuTagTracks;
+    event_tree->SetBranchAddress("mutagtracks", &mut);
 
 //    const TPOEvent *POevent = new TPOEvent();
     event_tree -> SetBranchAddress("event", &POevent);
@@ -177,9 +187,8 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZfromID(long ID) const
             + geom_detector.fScintillatorVoxelSize/2.0;
         double y = iy * geom_detector.fScintillatorVoxelSize - geom_detector.fScintillatorSizeY / 2.0
             + geom_detector.fScintillatorVoxelSize/2.0;
-//        double z = ilayer * geom_detector.fSandwichLength + iz * geom_detector.fScintillatorVoxelSize
-//            - (geom_detector.NRep * geom_detector.fSandwichLength) / 2.0
-//            + geom_detector.fScintillatorVoxelSize/2.0;
+        x += geom_detector.fFASERCal_LOS_shiftX;
+        y += geom_detector.fFASERCal_LOS_shiftY;
         double z = getZofLayer(ilayer, iz);
         return ROOT::Math::XYZVector(x, y, z);
     } else if (hittype == 1) {
@@ -190,9 +199,11 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZfromID(long ID) const
         long icopy = (ID / 10000000000LL) % 10;
         double x = ix * geom_detector.fSiTrackerPixelSize - geom_detector.fScintillatorSizeX / 2.0;
         double y = iy * geom_detector.fSiTrackerPixelSize - geom_detector.fScintillatorSizeY / 2.0;
+        x += geom_detector.fFASERCal_LOS_shiftX;
+        y += geom_detector.fFASERCal_LOS_shiftY;
         double z = ilayer * geom_detector.fSandwichLength + geom_detector.fSandwichLength
             - (geom_detector.NRep * geom_detector.fSandwichLength) / 2.0;
-        if(icopy == 1) z -= geom_detector.fTargetSizeZ;
+        if(icopy == 1) z -= geom_detector.fAirGap;
         return ROOT::Math::XYZVector(x, y, z);
     } else {
         std::cerr << " TcalEvent::getChannelXYZfromID - hit of unknown type" << hittype << std::endl;
@@ -203,13 +214,15 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZfromID(long ID) const
 ROOT::Math::XYZVector TcalEvent::getChannelXYZRearCal(int moduleID) const {
     double x = (moduleID%geom_detector.rearCalNxy - geom_detector.rearCalNxy/2.0 + 0.5)*geom_detector.rearCalSizeX;
     double y = (moduleID/geom_detector.rearCalNxy - geom_detector.rearCalNxy/2.0 + 0.5)*geom_detector.rearCalSizeY;
+    x += geom_detector.fFASERCal_LOS_shiftX;
+    y += geom_detector.fFASERCal_LOS_shiftY;
     double z = geom_detector.rearCalLocZ;
     return ROOT::Math::XYZVector(x, y, z);
 }
 
 ROOT::Math::XYZVector TcalEvent::getChannelXYZRearHCal(int moduleID) const {
-    double x = 0;
-    double y = 0;
+    double x = geom_detector.fFASERCal_LOS_shiftX;
+    double y = geom_detector.fFASERCal_LOS_shiftY;
     double z = geom_detector.rearHCalLocZ + moduleID * geom_detector.rearHCalSizeZ + geom_detector.rearHCalSizeZ/2.0;
     return ROOT::Math::XYZVector(x, y, z);
 }

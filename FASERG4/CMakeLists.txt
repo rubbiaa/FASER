@@ -49,7 +49,9 @@ set(SOURCES
     src/RunAction.cc
     src/TrackerSD.cc
     src/TauDecayPhysics.cc
+    src/CharmDecayPhysics.cc
     src/CustomTauDecay.cc
+    src/CustomCharmDecay.cc
     ${EXTERNAL_SOURCE_DIR}/TcalEvent.cc
     ${EXTERNAL_SOURCE_DIR}/TPOEvent.cc
     faserps.cc
