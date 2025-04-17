@@ -9,7 +9,6 @@
 #include "TObject.h"
 
 #include "TcalEvent.hh"
-
 /// @brief A 2D cluster generated from one view (XZ or YZ) in the plastic scintillator
 class TPSCluster : public TObject
 {

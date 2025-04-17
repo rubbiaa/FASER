@@ -17,6 +17,9 @@
 #include "TTKTrack.hh"
 #include "TPSTrack.hh"
 
+#include "fastjet/ClusterSequence.hh"
+
+
 /// @brief TPORec holds a reconstructed particle object
 class TPORec : public TObject {
 public:
@@ -78,8 +81,16 @@ private:
     TcalEvent* fTcalEvent;                            //! Reference to the TCAL event
     TPOEvent* fTPOEvent;                              // Reference to the TPOEvent
 
+    //Fastjet
+    std::vector<fastjet::PseudoJet> fJets;
+
 // static    TVector3 fitLineThroughPoints(const struct TPORec::TRACK &track, TVector3& centroid);
 public:
+
+    //fastjet 
+    void ReconstructJets(double R = 0.4, double ptMin = 10.0);
+    const std::vector<fastjet::PseudoJet>& GetJets() const { return fJets; }
+
 
    /// @brief A hit in a two dimension plastic scintillator view
     struct PSHIT2D {
@@ -107,8 +118,12 @@ public:
 
     std::vector<TPSCluster> PSClustersX;                // 2Dview clusters XZ
     std::vector<TPSCluster> PSClustersY;                // 2Dview clusters YZ
+ 
+    
     size_t n_psclustersX() { return PSClustersX.size(); };    // number of reconstructed cluster in XZ view
     size_t n_psclustersY() { return PSClustersY.size(); };    // number of reconstructed cluster in YZ view
+
+ 
 
     struct PSVOXEL3D {
         long ID;
@@ -168,6 +183,8 @@ public:
     TPORecoEvent();
     TPORecoEvent(TcalEvent* c, TPOEvent* p);
     virtual ~TPORecoEvent();
+
+
 
     int verbose = 0;                            //! controls amount of debug information
     bool multiThread = true;                   //! controls if multi-threading is used

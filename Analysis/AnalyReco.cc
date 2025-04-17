@@ -59,88 +59,88 @@ struct EVENT {
 
 int main(int argc, char** argv) {
 
-    struct EVENT event;
-
-	if (argc < 2) {
-	std::cout << "Usage: " << argv[0] << " <run> [maxevent] [mask]" << std::endl;
-        std::cout << "   <run>                     Run number" << std::endl;
-        std::cout << "   maxevent                  Maximum number of events to process (def=-1)" << std::endl;
-        std::cout << "   mask                      To process only specific events (def=none): ";
-        std::cout << "  nueCC, numuCC, nutauCC, nuNC or nuES" << std::endl;
-		return 1;
-	}
-
-   // get the run number as the first argument
-    std::string runString = argv[1];
-    int run_number;
-
+  struct EVENT event;
+  
+  if (argc < 2) {
+    std::cout << "Usage: " << argv[0] << " <run> [maxevent] [mask]" << std::endl;
+    std::cout << "   <run>                     Run number" << std::endl;
+    std::cout << "   maxevent                  Maximum number of events to process (def=-1)" << std::endl;
+    std::cout << "   mask                      To process only specific events (def=none): ";
+    std::cout << "  nueCC, numuCC, nutauCC, nuNC or nuES" << std::endl;
+    return 1;
+  }
+  
+  // get the run number as the first argument
+  std::string runString = argv[1];
+  int run_number;
+  
+  try {
+    run_number = std::stoi(runString);
+  } catch (const std::invalid_argument& e) {
+    std::cerr << "Invalid argument for run: " << e.what() << std::endl;
+    exit(1);
+  } catch (const std::out_of_range& e) {
+    std::cerr << "Out of range for run: " << e.what() << std::endl;
+    exit(1);
+  }
+  
+  int max_event = -1;
+  if(argc>2) {
     try {
-        run_number = std::stoi(runString);
+      max_event = std::stoi(argv[2]);
     } catch (const std::invalid_argument& e) {
-        std::cerr << "Invalid argument for run: " << e.what() << std::endl;
-        exit(1);
+      std::cerr << "Invalid argument for maxevent: " << e.what() << std::endl;
+      exit(1);
     } catch (const std::out_of_range& e) {
-        std::cerr << "Out of range for run: " << e.what() << std::endl;
-        exit(1);
+      std::cerr << "Out of range for maxevent: " << e.what() << std::endl;
+      exit(1);
     }
-
-    int max_event = -1;
-    if(argc>2) {
-        try {
-            max_event = std::stoi(argv[2]);
-        } catch (const std::invalid_argument& e) {
-            std::cerr << "Invalid argument for maxevent: " << e.what() << std::endl;
-            exit(1);
-        } catch (const std::out_of_range& e) {
-            std::cerr << "Out of range for maxevent: " << e.what() << std::endl;
-            exit(1);
-        }
+  }
+  
+  int event_mask = 0;
+  if(argc>3) {
+    int mask = TPOEvent::EncodeEventMask(argv[3]);
+    if(mask>0) {
+      event_mask = mask;
+    } else {
+      std::cerr << "Unknown mask " << argv[3] << std::endl;
+      exit(1);            
     }
-
-    int event_mask = 0;
-    if(argc>3) {
-        int mask = TPOEvent::EncodeEventMask(argv[3]);
-        if(mask>0) {
-            event_mask = mask;
-        } else {
-            std::cerr << "Unknown mask " << argv[3] << std::endl;
-            exit(1);            
-        }
-    }
-
-    std::string base_path = "input/";
-
-    std::ostringstream filename;
-    filename << "Analysis_" << run_number;
-    if(event_mask>0) {
-        const char *mask = TPOEvent::DecodeEventMask(event_mask);
-        filename << "_" << mask;
-    }
-    filename << ".root";
-
-    // Print the filename to verify
-    std::cout << "Writing TPORecEvent and histograms into file: " << filename.str() << " ..... " << std::endl;
-
-    TFile *m_rootFile = new TFile(filename.str().c_str(), "RECREATE", "", 0); // last is the compression level
-    if (!m_rootFile || !m_rootFile->IsOpen())
+  }
+  
+  std::string base_path = "input/";
+  
+  std::ostringstream filename;
+  filename << "Analysis_" << run_number;
+  if(event_mask>0) {
+    const char *mask = TPOEvent::DecodeEventMask(event_mask);
+    filename << "_" << mask;
+  }
+  filename << ".root";
+  
+  // Print the filename to verify
+  std::cout << "Writing TPORecEvent and histograms into file: " << filename.str() << " ..... " << std::endl;
+  
+  TFile *m_rootFile = new TFile(filename.str().c_str(), "RECREATE", "", 0); // last is the compression level
+  if (!m_rootFile || !m_rootFile->IsOpen())
     {
-        throw std::runtime_error("Could not create ROOT file");
+      throw std::runtime_error("Could not create ROOT file");
     }
-    m_rootFile->cd();
-    TTree *t = new TTree("Event", "Event");
-    t->Branch("event_number",&event.event_number);
-    t->Branch("t_reaction",&event.t_reaction);
-    t->Branch("t_Eneutrino",&event.t_Eneutrino);
-    t->Branch("t_outlepton",&event.t_outlepton);
-    t->Branch("t_jetE",&event.t_jetE);
-    t->Branch("t_jetPt",&event.t_jetPt);
-    t->Branch("t_Evis",&event.t_Evis);
-    t->Branch("t_ptmiss",&event.t_ptmiss);
-    t->Branch("t_primvx",&event.t_primvx);
-    t->Branch("t_primvy",&event.t_primvy);
-    t->Branch("t_primvz",&event.t_primvz);
-    t->Branch("t_ischarmed",&event.t_ischarmed);
-    t->Branch("t_tau_decaymode",&event.t_tau_decaymode);
+  m_rootFile->cd();
+  TTree *t = new TTree("Event", "Event");
+  t->Branch("event_number",&event.event_number);
+  t->Branch("t_reaction",&event.t_reaction);
+  t->Branch("t_Eneutrino",&event.t_Eneutrino);
+  t->Branch("t_outlepton",&event.t_outlepton);
+  t->Branch("t_jetE",&event.t_jetE);
+  t->Branch("t_jetPt",&event.t_jetPt);
+  t->Branch("t_Evis",&event.t_Evis);
+  t->Branch("t_ptmiss",&event.t_ptmiss);
+  t->Branch("t_primvx",&event.t_primvx);
+  t->Branch("t_primvy",&event.t_primvy);
+  t->Branch("t_primvz",&event.t_primvz);
+  t->Branch("t_ischarmed",&event.t_ischarmed);
+  t->Branch("t_tau_decaymode",&event.t_tau_decaymode);
     t->Branch("t_tautracklength",&event.t_tautracklength);
     t->Branch("t_tauKinAngle",&event.t_tauKinAngle);
     t->Branch("n_vertices",&event.n_vertices);
@@ -189,6 +189,10 @@ int main(int argc, char** argv) {
 
     Long_t nentries = event_tree->GetEntries();
     std::cout << "Number of entries " << nentries << std::endl;
+
+
+
+
 
     // TPORecoEvent class and histograms
     TPORecoEvent *fTPORecoEvent = nullptr; // &fTPORecoEvent;
@@ -282,6 +286,9 @@ int main(int argc, char** argv) {
 
         // store number of tracks
         event.n_tktracks = fTPORecoEvent->fTKTracks.size();
+
+	std::cout << "number of recotracks "  << event.n_tktracks << std::endl;
+
         // store number of PS tracks
         event.n_pstracks = fTPORecoEvent->fTKTracks.size();
 

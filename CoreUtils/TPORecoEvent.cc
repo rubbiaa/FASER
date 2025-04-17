@@ -8,7 +8,10 @@
 #include <TDecompSVD.h>
 #include <TVector3.h>
 #include <TCanvas.h>
-
+#include <TPolyMarker3D.h>
+#include <TGraph2D.h>
+#include <TLegend.h>
+#include <TH3F.h>
 // GENFIT
 #include <GFRaveVertexFactory.h>
 #include <GFRaveVertex.h>
@@ -24,6 +27,9 @@
 #include <set>
 
 #include <signal.h>
+
+#include <fstream>
+
 
 ClassImp(TPORec);
 ClassImp(TPORecoEvent);
@@ -153,6 +159,7 @@ TPORecoEvent::~TPORecoEvent() {
     delete fPOFullEvent;
     delete fPOFullRecoEvent;
     fPORecs.clear();
+
 }
 
 
@@ -3044,4 +3051,111 @@ void TPORecoEvent::ReconstructRearCals() {
         std::cout << std::endl;   
         std::cout << "Rear MuCalDeposit " << rearCals.rearMuCalDeposit << std::endl;
     }
+}
+
+// FastJet clustering
+/*
+void TPORecoEvent::ReconstructJets(double R, double ptMin) {
+    std::vector<fastjet::PseudoJet> input_particles;
+        
+    for (const auto& v : PSvoxelmap) {
+        long ID = v.first;
+        ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(ID);
+        double energy = v.second.RawEnergy;  // Use reconstructed energy
+
+        fastjet::PseudoJet p(position.X(), position.Y(), position.Z(), energy);
+        p.set_user_index(ID);
+        input_particles.push_back(p);
+    }
+
+    // Define the jet algorithm and cluster sequence
+    fastjet::JetDefinition jet_def(fastjet::antikt_algorithm, R);
+    fastjet::ClusterSequence cs(input_particles, jet_def);
+
+    // Store the jets with pt above ptMin threshold
+    fJets = cs.inclusive_jets(ptMin);
+
+    // Debug output
+    for (const auto& jet : fJets) {
+        std::cout << "Jet pt: " << jet.pt() 
+                  << ", eta: " << jet.eta() 
+                  << ", phi: " << jet.phi() 
+                  << ", mass: " << jet.m() 
+                  << ", rap[y]: " << jet.rap() 
+
+		  << std::endl;
+    }
+
+
+    // Extract jets above ptMin
+    std::vector<fastjet::PseudoJet> jets = cs.inclusive_jets(ptMin);
+    
+
+    std::ofstream jetFile("jets_with_hits.txt"); // Open file
+    if (!jetFile) {
+        std::cerr << "Error opening file!" << std::endl;
+        return;
+    }
+
+    // Store jet data
+    std::map<int, TPolyMarker3D*> jetMarkers;
+    std::vector<int> colors = {2, 4, 6, 8, 9, 11, 28, 46, 49}; // ROOT predefined colors
+    int colorIndex = 0;
+
+    int jet_id = 0;
+    for (const auto& jet : jets) { // Loop over jets
+      jetFile << "JET " << jet_id << " " << jet.pt() << " " << jet.eta() << " " << jet.phi() << "\n";
+      jetMarkers[jet_id] = new TPolyMarker3D();
+      jetMarkers[jet_id]->SetMarkerStyle(20);
+      jetMarkers[jet_id]->SetMarkerColor(colors[colorIndex % colors.size()]);
+      colorIndex++;
+      for (const auto& constituent : jet.constituents()) { // Loop over hits inside the jet
+        jetFile << jet_id << " " << constituent.pt() << " " << constituent.eta() << " " << constituent.phi() << "\n";
+	jetMarkers[jet_id]->SetNextPoint(constituent.eta(), constituent.phi(), constituent.pt());
+     }
+      jetFile << "END\n"; // Mark end of jet
+      jet_id++;
+    }
+    jetFile.close();
+
+    // Create canvas
+    TCanvas* c1 = new TCanvas("c1", "3D Jet Visualization", 800, 600);
+    c1->cd();
+    
+    // Create a 3D frame
+    TH3F* frame = new TH3F("frame", "Jets in (eta, phi, pT);#eta;#phi;pT", 10, -5, 5, 10, -3.14, 3.14, 10, 0, 15000);
+    frame->Draw();
+
+    // Draw all jet points
+    TLegend* legend = new TLegend(0.8, 0.7, 0.9, 0.9);
+    for (const auto& [jet, marker] : jetMarkers) {
+        marker->Draw("same");
+        legend->AddEntry(marker, Form("Jet %d", jet), "p");
+    }
+
+    legend->Draw();
+    c1->Update();
+
+}
+*/
+
+void TPORecoEvent::ReconstructJets(double R, double ptMin) {
+
+/*
+    // Add the tracks from TPORecoEvent
+    for (const auto &track : fPORecoEvent->fTKTracks) {
+        if(track.fitTrack != nullptr) {
+            trackname << "(p=" << track.fitTrack->getFittedState().getMom().Mag();
+            trackname << ",chi2=" << track.fitTrack->getFitStatus()->getChi2() << ", pval=" << track.fitTrack->getFitStatus()->getPVal() << ")";
+        }
+        TGListTreeItem *trackitem = listTree->AddItem(item1, trackname.str().c_str());
+        trackMap[trackname.str()] = track.trackID;
+        for (const auto &hit : track.tkhit) {
+            std::ostringstream hitname;
+            hitname << "Hit " << hit.ID;
+            listTree->AddItem(trackitem, hitname.str().c_str());
+        }
+    }
+
+*/
 }

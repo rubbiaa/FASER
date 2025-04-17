@@ -1,3 +1,6 @@
+/////////////////
+// Analysing energy deposition profiles.
+/////////////////
 #include <iostream>
 #include <cmath>
 
@@ -67,6 +70,7 @@ void TPSCluster::ComputeLongProfile(int verbose) {
     double mint = 0.0;
     double maxt = 30.0;    // in radiation lengths
     double binWidth = (maxt - mint) / nBins;
+    // ASK for it
     double conversionX0 = 0.78/52.2;  /// in X0/mm MAKE SURE THIS IS CORRECT IF CHANGE GEOMETRY !!!
 
     // Initialize an array to store the energy in each bin
@@ -131,6 +135,7 @@ void TPSCluster::ComputeLongProfile(int verbose) {
     double b = fitFunc->GetParameter(2);
     double tmax = (a-1)/b;
     ///////////////////////////////////////////////////////////////////////
+    // ASK for it
     double critical_energy = 23.82; // ad-hoc  (W 8 MeV)
     ///////////////////////////////////////////////////////////////////////
     double y = rawenergy / critical_energy;

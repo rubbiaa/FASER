@@ -4,6 +4,7 @@ import numpy as np
 import glob
 import tqdm
 from ROOT import TFile
+##ROOT.gSystem.Load("data/sw/FASERCAL/FASER/Python_io/Python_io/lib/ClassesDict.so")
 
 def get_channel_xyz_from_id(ID, geom_detector):
     """

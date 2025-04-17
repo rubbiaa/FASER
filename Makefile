@@ -61,7 +61,7 @@ clhep: clhep_git
 	if [ ! -d CLHEP-install ]; then \
 		mkdir -p CLHEP-build; \
 		mkdir -p CLHEP-install; \
-		cd CLHEP-build && cmake -DCMAKE_INSTALL_PREFIX=../CLHEP-install ../CLHEP; \
+		cd CLHEP-build && cmake3 -DCMAKE_INSTALL_PREFIX=../CLHEP-install ../CLHEP; \
 		make -j; \
 		make install; \
 	fi
@@ -88,15 +88,15 @@ rave: rave_tar
 genfit_git:
 	if [ ! -d GenFit ]; then \
 		git clone https://github.com/GenFit/GenFit.git; \
-		cd Genfit; \
+		cd GenFit; \
 		patch -p0 -u -i ../genfit.patch; \
 	fi
 
-genfit: genfit_git
+genfitxx: genfit_git
 	if [ ! -d GenFit-build ]; then \
 		mkdir -p GenFit-build; \
 		mkdir -p GenFit-install; \
-		cd GenFit-build && cmake \
+		cd GenFit-build && cmake3 \
 		-DCMAKE_BUILD_TYPE=Debug \
 		-DCMAKE_INSTALL_PREFIX=$(TOPDIR)/GenFit-install \
 		-DGTEST_LIBRARY=$(TOPDIR)/googletest-install/lib64/libgtest.a -DGTEST_INCLUDE_DIR=$(TOPDIR)/googletest-install/include \
@@ -110,7 +110,23 @@ genfit: genfit_git
 		make -j; \
 		make install; \
 	fi
-	# if make fails, run sh CMakeFiles/gtests.dir/link.txt and then make again
+# if make fails, run sh CMakeFiles/gtests.dir/link.txt and then make again
+
+genfit-build:
+	cd GenFit-build;\
+	cmake \
+		-DCMAKE_BUILD_TYPE=Debug \
+		-DCMAKE_INSTALL_PREFIX=$(TOPDIR)/GenFit-install \
+		-DGTEST_LIBRARY=$(TOPDIR)/googletest-install/lib64/libgtest.a \
+		-DGTEST_INCLUDE_DIR=$(TOPDIR)/googletest-install/include \
+		-DGTEST_MAIN_LIBRARY=$(TOPDIR)/googletest-install/lib64/libgtest_main.a \
+		-DRave_CFLAGS="-DRaveDllExport= -DWITH_FLAVORTAGGING -DWITH_KINEMATICS" \
+		-DRave_INCLUDE_DIRS=$(TOPDIR)/rave-install/include/ \
+		-DRave_LDFLAGS="-Wl,-rpath-link,$(TOPDIR)/rave-install/lib/ -L$(TOPDIR)/rave-install/lib/ -lRaveBase -L$(TOPDIR)/CLHEP-install/lib/ -lCLHEP" \
+		-DCMAKE_CXX_STANDARD=14 \
+		../GenFit;\
+
+
 
 googletest_git:
 	if [ ! -d googletest ]; then \
@@ -121,9 +137,11 @@ googletest: googletest_git
 	if [ ! -d googletest-build ]; then \
 		mkdir -p googletest-build; \
 		mkdir -p googletest-install; \
-		cd googletest-build && cmake \
+		cd googletest-build && cmake3 \
 		-DCMAKE_INSTALL_PREFIX=$(TOPDIR)/googletest-install \
 		../googletest; \
+		make -j; \
+		make install; \
 	fi
 
 

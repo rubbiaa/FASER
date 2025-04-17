@@ -5,7 +5,7 @@
 #pragma link C++ nestedtypedefs;
 #pragma link C++ class DigitizedTrack+;
 #pragma link C++ class TDatabasePDG+;
-#pragma link C++ class std::vectoGr<DigitizedTrack*>+;
+#pragma link C++ class std::vector<DigitizedTrack*>+;
 #pragma link C++ class TcalEvent+;
 #pragma link C++ struct TcalEvent::GEOM_DETECTOR+;
 #pragma link C++ struct TcalEvent::REARCALDEPOSIT+;
