@@ -1,0 +1,7 @@
+Label,nu_e,nu_e_bar,nu_mu,nu_mu_bar,nu_tau,nu_tau_bar,Total,
+Hadronic: KaonPion,237,195,1411,559,6,6,2414,
+Hadronic: Kaonic,27,12,162,54,1,0,256,
+Hadronic: MultiPion,253,173,1389,470,4,1,2290,
+Leptonic: Electronic,145,86,882,264,4,1,1382,
+Leptonic: Muonic,74,39,442,143,0,0,698,
+Unknown Decay Mode,41,25,226,84,1,0,377,
