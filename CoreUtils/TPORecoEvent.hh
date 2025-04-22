@@ -246,7 +246,7 @@ public:
     void Reconstruct3DPS_2(int maxIter = 150);
     void reconstruct3DPS_module(int maxIter, int imodule, std::vector<std::vector<std::vector<Voxel>>> &V,
         std::vector<std::vector<float>> &XZ, std::vector<std::vector<float>> &YZ, std::vector<std::vector<std::vector<float>>> &XY,
-        std::vector<int>& nvox_per_layer, int nvox_per_layer_max);
+        std::vector<int>& nvox_per_layer, int nvox_per_layer_max, int nzlayer);
     void Reconstruct3DPS_Eflow();
 
     /// @brief Recontruct particle tracks from 3D PS voxels
