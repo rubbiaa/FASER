@@ -88,7 +88,7 @@ rave: rave_tar
 genfit_git:
 	if [ ! -d GenFit ]; then \
 		git clone https://github.com/GenFit/GenFit.git; \
-		cd Genfit; \
+		cd GenFit; \
 		patch -p0 -u -i ../genfit.patch; \
 	fi
 
@@ -124,6 +124,8 @@ googletest: googletest_git
 		cd googletest-build && cmake \
 		-DCMAKE_INSTALL_PREFIX=$(TOPDIR)/googletest-install \
 		../googletest; \
+		make -j; \
+		make install; \
 	fi
 
 
