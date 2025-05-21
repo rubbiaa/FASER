@@ -2393,8 +2393,22 @@ void TPORecoEvent::reconstruct3DPS_module(int maxIter, int imodule, std::vector<
 
     std::random_device rd;  // Seed for the random number generator
     std::mt19937 gen(rd());  // Mersenne Twister random number generator
-    std::uniform_int_distribution<> rnd_nx(0, nx-1);
-    std::uniform_int_distribution<> rnd_ny(0, ny-1);
+    
+    std::vector<std::vector<std::pair<int,int>>> valid_xy(nztot);
+    for (int iz = 0; iz < nzlayer; ++iz) {
+        int zidx = imodule * nzlayer + iz;
+        auto &list = valid_xy[zidx];
+        list.reserve(nx * ny);
+        for (int x = 0; x < nx; ++x) {
+            for (int y = 0; y < ny; ++y) {
+                if (XY[imodule][x][y] != 0.0f &&
+                    XZ[x][zidx]       != 0.0f &&
+                    YZ[y][zidx]       != 0.0f) {
+                    list.emplace_back(x, y);
+                }
+            }
+        }
+    }
 
     double total_score = 0;
     for (int iter = 0; iter < maxIter; ++iter)
@@ -2444,11 +2458,10 @@ void TPORecoEvent::reconstruct3DPS_module(int maxIter, int imodule, std::vector<
                 }
 #endif
 
-            for (int iterl = 0; iterl < nx * ny; ++iterl)
-            {
-
-                int x = rnd_nx(gen);
-                int y = rnd_ny(gen);
+            auto &candidates = valid_xy[z];
+	        std::shuffle(candidates.begin(), candidates.end(), gen);
+            
+	        for (auto &[x, y] : candidates) {
 
                 double sumXZ = 0;
                 for (int iy = 0; iy < ny; ++iy)
