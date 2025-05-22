@@ -1,5 +1,7 @@
 TOPDIR = $(shell pwd)
 
+UNAME_S := $(shell uname -s)
+
 PYTHIA8_DIR = $(TOPDIR)/pythia8312
 PYTHIA8_INCLUDE_DIR = $(PYTHIA8_DIR)/include
 PYTHIA8_LIBRARY = $(PYTHIA8_DIR)/lib/libpythia8.a
@@ -72,6 +74,7 @@ clhep_git:
 	fi
 
 .PHONY: rave
+ifeq ($(UNAME_S),Darwin)
 rave: 
 	if [ ! -d rave-install ]; then \
 		mkdir -p rave-install; \
@@ -80,6 +83,16 @@ rave:
 		make CXXFLAGS="-g -std=c++11" LHEPINCPATH=. -j; \
 		make install; \
 	fi
+else
+rave: 
+	if [ ! -d rave-install ]; then \
+		mkdir -p rave-install; \
+		cd rave && ./configure --prefix=$(TOPDIR)/rave-install --disable-java \
+		--with-clhep=$(TOPDIR)/CLHEP-install; \
+		make CXXFLAGS="-g -std=c++11" LHEPINCPATH=. -j; \
+		make install; \
+	fi
+endif
 
 genfit_git:
 	if [ ! -d GenFit ]; then \
@@ -88,6 +101,24 @@ genfit_git:
 		patch -p0 -u -i ../genfit.patch; \
 	fi
 
+ifeq ($(UNAME_S),Darwin)
+genfit: genfit_git
+	if [ ! -d GenFit-build ]; then \
+		mkdir -p GenFit-build; \
+		mkdir -p GenFit-install; \
+		cd GenFit-build && cmake \
+		-DCMAKE_BUILD_TYPE=Debug \
+		-DCMAKE_INSTALL_PREFIX=$(TOPDIR)/GenFit-install \
+		-DGTEST_LIBRARY=$(TOPDIR)/googletest-install/lib64/libgtest.a -DGTEST_INCLUDE_DIR=$(TOPDIR)/googletest-install/include \
+		-DGTEST_MAIN_LIBRARY=$(TOPDIR)/googletest-install/lib64/libgtest_main.a \
+		-DRave_CFLAGS="-DRaveDllExport= -DWITH_FLAVORTAGGING -DWITH_KINEMATICS" \
+		-DRave_INCLUDE_DIRS=$(TOPDIR)/rave-install/include/ \
+		-DRave_LDFLAGS="-L$(TOPDIR)/rave-install/lib/ -lRaveBase -L$(TOPDIR)/CLHEP-install/lib/ -lCLHEP" \
+		../GenFit; \
+		make CXXFLAFS="-g" -j; \
+		make install; \
+	fi
+else
 genfit: genfit_git
 	if [ ! -d GenFit-build ]; then \
 		mkdir -p GenFit-build; \
@@ -106,7 +137,7 @@ genfit: genfit_git
 		make -j; \
 		make install; \
 	fi
-	# if make fails, run sh CMakeFiles/gtests.dir/link.txt and then make again
+endif
 
 googletest_git:
 	if [ ! -d googletest ]; then \

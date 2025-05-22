@@ -1,3 +1,4 @@
+#include <sstream>
 #include "TcalEvent.hh"
 
 #include <TChain.h>
