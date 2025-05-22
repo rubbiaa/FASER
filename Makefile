@@ -87,7 +87,7 @@ else
 rave: 
 	if [ ! -d rave-install ]; then \
 		mkdir -p rave-install; \
-		cd rave && ./configure --prefix=$(TOPDIR)/rave-install --disable-java \
+		cd rave && autoreconf && ./configure --prefix=$(TOPDIR)/rave-install --disable-java \
 		--with-clhep=$(TOPDIR)/CLHEP-install; \
 		make CXXFLAGS="-g -std=c++11" LHEPINCPATH=. -j; \
 		make install; \

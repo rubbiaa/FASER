@@ -18,3 +18,51 @@
  
      } // end loop over tracks
  
+--- CMakeLists.txt
++++ CMakeLists.txt
+@@ -12,6 +12,37 @@ SET( ${PROJECT_NAME}_VERSION_MAJOR 2 )
+ SET( ${PROJECT_NAME}_VERSION_MINOR 2 )
+ SET( ${PROJECT_NAME}_VERSION_PATCH 0 )
+ 
++message(STATUS "APPLE = $<BOOL:${APPLE}>")
++
++if(APPLE)
++    message(STATUS "You are on macOS")
++    option(BUILD_TESTING "Build tests" OFF)
++else()
++    message(STATUS "Not on macOS")
++    option(BUILD_TESTING "Build tests" ON)
++endif()
++
++# Set default for BUILD_TESTING: OFF on macOS, ON otherwise
++if(APPLE)
++    option(BUILD_TESTING "Build tests" OFF)
++else()
++    option(BUILD_TESTING "Build tests" ON)
++endif()
++
++# Find Boost libraries
++set(Boost_USE_STATIC_LIBS        OFF)
++set(Boost_USE_MULTITHREADED      ON)
++set(Boost_USE_STATIC_RUNTIME     OFF)
++
++find_package(Boost REQUIRED COMPONENTS filesystem system)  # Add any components you need
++
++if(NOT Boost_FOUND)
++    message(FATAL_ERROR "Boost not found!")
++endif()
++
++message(STATUS "Boost include dirs: ${Boost_INCLUDE_DIRS}")
++message(STATUS "Boost libraries: ${Boost_LIBRARIES}")
++
+ include(GNUInstallDirs)
+ 
+ # install destinations can be passed via the command line:
+@@ -312,6 +312,7 @@
+ 	TARGET_LINK_LIBRARIES(
+ 			${PROJECT_NAME}
+ 			ROOT::Core ROOT::Physics ROOT::Eve
++			${Boost_LIBRARIES}
+ 			${Rave_LIB}
+ 			${Rave_LDFLAGS_STR}
+ 	)
