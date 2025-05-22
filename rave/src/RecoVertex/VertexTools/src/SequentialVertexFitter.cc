@@ -13,8 +13,9 @@ namespace {
   static const float TrackerBoundsRadius = 112;
   static const float TrackerBoundsHalfLength = 273.5;
   bool insideTrackerBounds(const GlobalPoint& point) {
-    return ((point.transverse() < TrackerBoundsRadius)
-        && (abs(point.z()) < TrackerBoundsHalfLength));
+    return true;
+    /* return ((point.transverse() < TrackerBoundsRadius)
+        && (abs(point.z()) < TrackerBoundsHalfLength)); */
   }
 }
 

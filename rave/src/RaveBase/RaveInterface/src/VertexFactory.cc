@@ -373,8 +373,8 @@ vector < Vertex > VertexFactory::fit ( const vector < Track > & prims,
     
     if ( theVerbosity>1 )
     {
-      edm::LogInfo("rave::VertexFactory") 
-          << "produced " << ret.size() << " vertices from " << ttrks.size() << " tracks.";
+//      edm::LogInfo("rave::VertexFactory") 
+//          << "produced " << ret.size() << " vertices from " << ttrks.size() << " tracks.";
     };
     CmsToRaveObjects converter;
   
@@ -392,8 +392,8 @@ vector < Vertex > VertexFactory::fit ( const vector < Track > & prims,
   
     if ( theVerbosity>1 )
     {
-        cout << "[rave::VertexFactory] produced " << ret.size() << " vertices from " << ttrks.size()
-                  << " tracks." << endl;
+   //     cout << "[rave::VertexFactory] produced " << ret.size() << " vertices from " << ttrks.size()
+   //               << " tracks." << endl;
     };
  
     return ret;

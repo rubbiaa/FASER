@@ -61,8 +61,8 @@ clhep: clhep_git
 	if [ ! -d CLHEP-install ]; then \
 		mkdir -p CLHEP-build; \
 		mkdir -p CLHEP-install; \
-		cd CLHEP-build && cmake -DCMAKE_INSTALL_PREFIX=../CLHEP-install ../CLHEP; \
-		make -j; \
+		cd CLHEP-build && cmake -DCLHEP_SINGLE_THREAD=ON -DCMAKE_INSTALL_PREFIX=../CLHEP-install ../CLHEP; \
+		make -j4; \
 		make install; \
 	fi
 
@@ -71,15 +71,11 @@ clhep_git:
 		git clone https://gitlab.cern.ch/CLHEP/CLHEP.git; \
 	fi
 
-rave_tar: 
-	if [ ! -d rave-0.6.25 ]; then \
-		tar -xvf rave-0.6.25.tar.gz; \
-	fi
-
-rave: rave_tar
+.PHONY: rave
+rave: 
 	if [ ! -d rave-install ]; then \
 		mkdir -p rave-install; \
-		cd rave-0.6.25 && ./configure --prefix=$(TOPDIR)/rave-install --disable-java \
+		cd rave && ./configure --prefix=$(TOPDIR)/rave-install --disable-java --with-boost=/opt/homebrew --with-boost-libdir=/opt/homebrew/lib \
 		--with-clhep=$(TOPDIR)/CLHEP-install; \
 		make CXXFLAGS="-g -std=c++11" LHEPINCPATH=. -j; \
 		make install; \

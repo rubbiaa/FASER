@@ -416,9 +416,25 @@ inline bool SMatrix<T,D1,D2,R>::Invert() {
 template <class T, unsigned int D1, unsigned int D2, class R>
 inline SMatrix<T,D1,D2,R> SMatrix<T,D1,D2,R>::Inverse(int & ifail) const {
    SMatrix<T,D1,D2,R> tmp(*this);
+   SMatrix<T,D1,D2,R> tmp2(*this);
    bool ok = tmp.Invert();
    ifail = 0; 
-   if (!ok) ifail = 1;  
+   if (!ok) {
+      // constexpr T epsilon = 1e-11;
+      const T epsilon = static_cast<T>(1e-11);
+      // Regularize the matrix by adding epsilon to the diagonal
+      for (unsigned int i = 0; i < std::min(D1, D2); ++i) {
+         tmp2(i, i) += epsilon;
+      }
+#if 0
+      std::cout << "We are going to invert this regularized matrix ";
+      tmp2.Print(std::cout);
+      std::cout << std::endl;
+#endif
+      ok = tmp2.Invert();
+      if(!ok) ifail= 1;
+      return tmp2;
+   } 
    return tmp;
 }
 

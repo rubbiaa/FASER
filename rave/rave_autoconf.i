@@ -28,11 +28,11 @@
 
         try {
             try {   
-                System.load ( "/home/walten/install/lib/jni/" + libname );
+                System.load ( "/Users/rubbiaa/Documents/GitHub/FASER/rave-install/lib/jni/" + libname );
                 System.out.println( libname + " successfully loaded!" );
             } catch(UnsatisfiedLinkError e) {
                 libname = "libJavaRave.so";
-                System.load ( "/home/walten/install/lib/jni/" + libname );
+                System.load ( "/Users/rubbiaa/Documents/GitHub/FASER/rave-install/lib/jni/" + libname );
                 System.out.println( libname + " successfully loaded!" );
             }
         } catch(SecurityException e) {

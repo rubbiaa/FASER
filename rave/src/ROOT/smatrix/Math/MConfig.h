@@ -2,7 +2,7 @@
 // Authors: T. Glebe, L. Moneta    2005  
 
 #ifndef ROOT_Math_MConfig_
-#define ROOT_Math_MConfig
+#define ROOT_Math_MConfig_
 
 // for alpha streams 
 #if defined(__alpha) && !defined(linux)

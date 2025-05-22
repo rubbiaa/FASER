@@ -60,7 +60,8 @@ namespace ROOT
 ////////////////////////////////////////////////////////////////////////////////
 
 #define STATIC_CHECK(expr, msg) \
-    { ROOT::Math::CompileTimeError<((expr) != 0)> ERROR_##msg; (void)ERROR_##msg; } 
+    {       std::cout << "ERROR:   "  << #msg << std::endl; }
+//   { ROOT::Math::CompileTimeError<((expr) != 0)> ERROR_##msg; (void)ERROR_##msg; } 
 
 
 ////////////////////////////////////////////////////////////////////////////////

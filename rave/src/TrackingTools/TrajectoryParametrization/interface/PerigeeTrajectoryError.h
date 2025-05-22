@@ -51,6 +51,7 @@ public:
  
   const AlgebraicSymMatrix55 &weightMatrix(int & error) const
   {
+//    std::cout << "weightmatrix weightisavailable " << weightIsAvailable << std::endl;
     if (!weightIsAvailable) calculateWeightMatrix();
     error = inverseError;
     return thePerigeeWeight;
@@ -59,6 +60,11 @@ public:
   void calculateWeightMatrix() const
   {
     thePerigeeWeight = thePerigeeError.Inverse(inverseError);
+    if(inverseError) {
+      std::cout << "PerigeeTrajectoryError::calculateWeightMatrix" << std::endl;
+      std::cout << thePerigeeError << std::endl; 
+      std::cout << "Inverse error " << inverseError << std::endl;
+    }
     weightIsAvailable = true;
   }
 

@@ -51,7 +51,7 @@ double DeterministicAnnealing::weight ( double chi2 ) const
   */
   // return mphi / ( mphi + phi ( theChi2cut ) );
   long double newtmp = mphi / ( mphi + phi ( theChi2cut ) );
-  if ( !finite(newtmp ) )
+  if ( !std::isfinite(newtmp ) )
   {
     if ( chi2 < theChi2cut ) newtmp=1.;
     else newtmp=0.;
