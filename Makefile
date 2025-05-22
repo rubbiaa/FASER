@@ -97,7 +97,7 @@ endif
 genfit_git:
 	if [ ! -d GenFit ]; then \
 		git clone https://github.com/GenFit/GenFit.git; \
-		cd Genfit; \
+		cd GenFit; \
 		patch -p0 -u -i ../genfit.patch; \
 	fi
 
@@ -109,8 +109,6 @@ genfit: genfit_git
 		cd GenFit-build && cmake \
 		-DCMAKE_BUILD_TYPE=Debug \
 		-DCMAKE_INSTALL_PREFIX=$(TOPDIR)/GenFit-install \
-		-DGTEST_LIBRARY=$(TOPDIR)/googletest-install/lib64/libgtest.a -DGTEST_INCLUDE_DIR=$(TOPDIR)/googletest-install/include \
-		-DGTEST_MAIN_LIBRARY=$(TOPDIR)/googletest-install/lib64/libgtest_main.a \
 		-DRave_CFLAGS="-DRaveDllExport= -DWITH_FLAVORTAGGING -DWITH_KINEMATICS" \
 		-DRave_INCLUDE_DIRS=$(TOPDIR)/rave-install/include/ \
 		-DRave_LDFLAGS="-L$(TOPDIR)/rave-install/lib/ -lRaveBase -L$(TOPDIR)/CLHEP-install/lib/ -lCLHEP" \
@@ -126,8 +124,8 @@ genfit: genfit_git
 		cd GenFit-build && cmake \
 		-DCMAKE_BUILD_TYPE=Debug \
 		-DCMAKE_INSTALL_PREFIX=$(TOPDIR)/GenFit-install \
-		-DGTEST_LIBRARY=$(TOPDIR)/googletest-install/lib64/libgtest.a -DGTEST_INCLUDE_DIR=$(TOPDIR)/googletest-install/include \
-		-DGTEST_MAIN_LIBRARY=$(TOPDIR)/googletest-install/lib64/libgtest_main.a \
+		-DGTEST_LIBRARY=$(TOPDIR)/googletest-install/lib/libgtest.a -DGTEST_INCLUDE_DIR=$(TOPDIR)/googletest-install/include \
+		-DGTEST_MAIN_LIBRARY=$(TOPDIR)/googletest-install/lib/libgtest_main.a \
 		-DRave_CFLAGS="-DRaveDllExport= -DWITH_FLAVORTAGGING -DWITH_KINEMATICS" \
 		-DRave_INCLUDE_DIRS=$(TOPDIR)/rave-install/include/ \
 		-DRave_LDFLAGS="-Wl,-rpath-link,$(TOPDIR)/rave-install/lib/ -L$(TOPDIR)/rave-install/lib/ -lRaveBase -L$(TOPDIR)/CLHEP-install/lib/ -lCLHEP" \
@@ -151,6 +149,7 @@ googletest: googletest_git
 		cd googletest-build && cmake \
 		-DCMAKE_INSTALL_PREFIX=$(TOPDIR)/googletest-install \
 		../googletest; \
+		make install \
 	fi
 
 
