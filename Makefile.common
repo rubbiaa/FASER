@@ -1,11 +1,18 @@
 UNAME_S := $(shell uname -s)
 
-COREUTILSDIR := ../CoreUtils
+CLHEPINSTALL := ../CLHEP-install
+RAVEINSTALL := ../rave-install
+GENFITINSTALL := ../GenFit-install
 
 GENFITINCDIR := $(GENFITINSTALL)/include
 
 # Default for Linux
-GENFITLIBS := -L$(GENFITINSTALL)/lib -L$(GENFITINSTALL)/lib64 -lgenfit2 -L$(RAVEINSTALL)/lib -lRaveBase -L$(CLHEPINSTALL)/lib -lCLHEP
+GENFITLIBS := -Wl,-rpath,$(GENFITINSTALL)/lib \
+                  -Wl,-rpath,$(RAVEINSTALL)/lib \
+                  -Wl,-rpath,$(CLHEPINSTALL)/lib \
+                  -L$(GENFITINSTALL)/lib -lgenfit2 \
+                  -L$(RAVEINSTALL)/lib -lRaveBase \
+                  -L$(CLHEPINSTALL)/lib -lCLHEP
 
 ifeq ($(UNAME_S),Darwin)
     # Override for macOS
@@ -16,6 +23,8 @@ ifeq ($(UNAME_S),Darwin)
                   -L$(RAVEINSTALL)/lib -lRaveBase \
                   -L$(CLHEPINSTALL)/lib -lCLHEP
 endif
+
+COREUTILSDIR := ../CoreUtils
 
 ROOTCFLAGS = -fPIC -g $(shell root-config --cflags)
 
