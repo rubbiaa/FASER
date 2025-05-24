@@ -1,8 +1,18 @@
-HOMEFASER=/home/rubbiaa/TESTGIT/FASER
+export HOMEFASER=$PWD
+
+echo "Setting up environment for FASER simulation"
+echo "Current working directory: $HOMEFASER"
 
 source /home/rubbiaa/ROOT/root_install_v6.32.02/bin/thisroot.sh
-source /home/rubbiaa/geant4-install/bin/geant4.sh
-export PYTHIA8=/home/rubbiaa/ROOT/pythia8312
+
+echo "Root installed in $HOMEFASER/ROOT/root_install"
+
+GEANT4_INSTALL=/home/rubbiaa/geant4-install/
+
+source $GEANT4_INSTALL/bin/geant4.sh
+echo "GEANT4 installed in $GEANT4_INSTALL"
+
+# export PYTHIA8=/home/rubbiaa/ROOT/pythia8312
 
 export CLHEPINSTALL=$HOMEFASER/CLHEP-install
 export RAVEINSTALL=$HOMEFASER/rave-install
