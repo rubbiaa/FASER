@@ -20,14 +20,15 @@ INCS = $(wildcard *.h)
 INCS += $(wildcard *.hh)
 INCS += $(wildcard $(COREUTILSDIR)/*.hh)
 
+LINKLIB := -L$(ROOTSYS)/lib `root-config --glibs` -lEG -lGeom $(GENFITLIBS)
+
 all : $(EXE)
 
 dict.cxx : $(INCS) $(SRC)
 	rootcling -f dict.cxx -c LinkDef.h -I$(COREUTILSDIR) -I$(GENFITINCDIR)
 
 $(EXE) : $(OBJ) Makefile
-#	g++ $(ROOTCFLAGS) $(OBJ) `root-config --glibs --evelibs` -lEG -lGeom -o $(EXE)
-	g++ $(ROOTCFLAGS) $(OBJ) `root-config --glibs` -lEG -lGeom $(GENFITLIBS) -o $(EXE)
+	g++ $(ROOTCFLAGS) $(OBJ) $(LINKLIB) -o $(EXE)
 
 # Compile source files to object files
 %.o: %.C $(INCS)
