@@ -80,7 +80,7 @@ rave:
 		mkdir -p rave-install; \
 		cd rave && ./configure --prefix=$(TOPDIR)/rave-install --disable-java --with-boost=/opt/homebrew --with-boost-libdir=/opt/homebrew/lib \
 		--with-clhep=$(TOPDIR)/CLHEP-install; \
-		make CXXFLAGS="-g -std=c++11" LHEPINCPATH=. -j; \
+		make CXXFLAGS="-g -std=c++11" LHEPINCPATH=. -j4; \
 		make install; \
 	fi
 else
@@ -89,7 +89,7 @@ rave:
 		mkdir -p rave-install; \
 		cd rave && autoreconf && ./configure --prefix=$(TOPDIR)/rave-install --disable-java \
 		--with-clhep=$(TOPDIR)/CLHEP-install; \
-		make CXXFLAGS="-g -std=c++11" LHEPINCPATH=. -j; \
+		make CXXFLAGS="-g -std=c++11" LHEPINCPATH=. -j4; \
 		make install; \
 	fi
 endif
