@@ -41,7 +41,7 @@ class DetectorMessenger : public G4UImessenger {
 	DetectorMessenger(DetectorConstruction*); ///< Constructor
 	~DetectorMessenger() override; ///< Destructor
 
-	void SetNewValue(G4UIcommand*, G4String); ///< Set the new value of one fo the properties set by the messenger. This function is called by the geometry initialization and calls the Setters of the DetectorConstruction class.
+	void SetNewValue(G4UIcommand*, G4String) override; ///< Set the new value of one fo the properties set by the messenger. This function is called by the geometry initialization and calls the Setters of the DetectorConstruction class.
 
     private:
 	DetectorConstruction* fDetectorConstruction = nullptr; ///< Pointer to the detector construction class
