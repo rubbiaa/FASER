@@ -511,6 +511,13 @@ void TPORecoEvent::FindPatternTracks() {
                 hits.push_back(hit);
                 hitMap[ilayer] = hits;
             }
+            /*
+            int ilayer = fTcalEvent->getChannelModulefromID(ID);
+            ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(ID);
+
+            TTKTrack::TRACKHIT hit = {ID, static_cast<int>(hittype), position, ehit};
+            hitMap[ilayer].push_back(hit);
+            */
         }
     }
 
@@ -1373,6 +1380,10 @@ void TPORecoEvent::Dump() {
     TDatabasePDG *pdgDB = TDatabasePDG::Instance();
     fTPOEvent->dump_header();
     for(auto it : fPORecs) {
+        if (it->POID < 0 || it->POID >= fTPOEvent->POs.size()) {
+            std::cerr << "Error: POID " << it->POID << " is out of bounds for POs size: " << fTPOEvent->POs.size() << std::endl;
+            continue;
+        }
         fTPOEvent->dump_PO(fTPOEvent->POs[it->POID], pdgDB);
         int ntracks = it->fGEANTTrackIDs.size();
         std::cout << "RECO>>" << std::setw(10) << ntracks << " tracks ";
