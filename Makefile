@@ -149,7 +149,8 @@ googletest: googletest_git
 		cd googletest-build && cmake \
 		-DCMAKE_INSTALL_PREFIX=$(TOPDIR)/googletest-install \
 		../googletest; \
-		make install \
+		make -j; \
+		make install; \
 	fi
 
 
