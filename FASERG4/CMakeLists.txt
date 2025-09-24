@@ -49,9 +49,7 @@ set(SOURCES
     src/RunAction.cc
     src/TrackerSD.cc
     src/TauDecayPhysics.cc
-    src/CharmDecayPhysics.cc
     src/CustomTauDecay.cc
-    src/CustomCharmDecay.cc
     ${EXTERNAL_SOURCE_DIR}/TcalEvent.cc
     ${EXTERNAL_SOURCE_DIR}/TPOEvent.cc
     faserps.cc
@@ -72,7 +70,7 @@ target_link_libraries(faserps ${Geant4_LIBRARIES} ${ROOT_LIBRARIES} EG ROOTDataF
 # Build the shared library for the classes mentioned in the LinkDef.h file
 #
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-add_library(FaserPS SHARED G__PS.cxx)
+# add_library(FaserPS SHARED G__PS.cxx)
 
 #----------------------------------------------------------------------------
 # Copy the stuff from the ./input directory to the build directory

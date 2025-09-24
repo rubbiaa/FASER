@@ -15,7 +15,6 @@
 #include "RunAction.hh"
 
 #include "TauDecayPhysics.hh"
-#include "CharmDecayPhysics.hh"
 
 #include "TFile.h"
 #include "TH2F.h"
@@ -64,11 +63,8 @@ int main(int argc, char** argv)
 	//	physicsList->RegisterPhysics(new G4OpticalPhysics());
 	physicsList->RegisterPhysics(stepLimitPhys);
 
-	// add custom tau decays
+	// add custom tau and charm decays
 	physicsList->RegisterPhysics(new TauDecayPhysics());
-
-	// add custom charm decays
-	physicsList->RegisterPhysics(new CharmDecayPhysics());
 
 	runManager->SetUserInitialization(physicsList);
 	// Set the ParticleManager in RunAction and EventAction

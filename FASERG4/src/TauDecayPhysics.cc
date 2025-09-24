@@ -57,10 +57,16 @@ void TauDecayPhysics::ConstructProcess()
    while ((*particleIterator)())
    {    
       G4ParticleDefinition* particle = particleIterator->value();
+      int pdg = abs(particle->GetPDGEncoding());
+      // remove native/existing decay table for charmed hadrons
+      // so that G4Decay will use the external decayer
+      int nq1 = (pdg/1000)%10;
+      int nq2 = (pdg/100)%10;
+      bool ischarm = (nq1 == 0 && nq2 == 4) || (nq1 == 4);
 
       // remove native/existing decay table for tau's 
       // so that G4Decay will use the external decayer
-      if ( std::abs(particle->GetPDGEncoding()) == 15 )
+      if ( pdg == 15 || ischarm )
       {
         if ( particle->GetDecayTable() )
         {
