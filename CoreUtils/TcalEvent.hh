@@ -36,6 +36,20 @@ class DigitizedTrack : public TObject {
     std::vector<long> fhitIDs;
     std::vector<double> fEnergyDeposits;
 
+    void Dump(int verbose = 1)
+    {
+        size_t nhits = fhitIDs.size();
+        std::cout << "TrackID: " << ftrackID << " ParentID: " << fparentID << " PrimaryID: " << fprimaryID << " PDG: " << fPDG << " nvoxels: " << nhits << std::endl;
+        if (verbose > 1)
+        {
+            for (size_t i = 0; i < nhits; i++)
+            {
+                std::cout << "  HitID: " << fhitIDs[i] << " Edep: " << fEnergyDeposits[i] << "   ";
+            }
+            std::cout << std::endl;
+        }
+    };
+
     ClassDef(DigitizedTrack, 1)
 };
 

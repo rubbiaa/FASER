@@ -1387,6 +1387,9 @@ void TPORecoEvent::Dump() {
         fTPOEvent->dump_PO(fTPOEvent->POs[it->POID], pdgDB);
         int ntracks = it->fGEANTTrackIDs.size();
         std::cout << "RECO>>" << std::setw(10) << ntracks << " tracks ";
+        for(auto dt: it->DTs) {
+            dt->Dump(verbose);
+        }
         std::cout << "em: " << std::setw(10) << it->fTotal.em << " had: " << std::setw(10) << it->fTotal.had << " ";
         std::cout << "comp: " << std::setw(10) << it->fTotal.Ecompensated << " ";
         std::cout << std::endl;
