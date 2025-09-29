@@ -12,7 +12,8 @@ GEANT4_INSTALL=/home/rubbiaa/geant4-install/
 source $GEANT4_INSTALL/bin/geant4.sh
 echo "GEANT4 installed in $GEANT4_INSTALL"
 
-# export PYTHIA8=/home/rubbiaa/ROOT/pythia8312
+export PYTHIA8=/home/rubbiaa/ROOT/pythia8312
+echo "Pythia8 installed in $PYTHIA8"
 
 export CLHEPINSTALL=$HOMEFASER/CLHEP-install
 export RAVEINSTALL=$HOMEFASER/rave-install
