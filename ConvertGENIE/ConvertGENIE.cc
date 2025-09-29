@@ -15,6 +15,7 @@
 #include "TPOEvent.hh"
 
 bool charm_only = false;
+bool tauCC_only = false;
 
 void convert_FASERMC(int run_number, TTree *tree, int min_event, int max_event,
                      std::string ROOTOutputFile, int mask)
@@ -111,10 +112,11 @@ void convert_FASERMC(int run_number, TTree *tree, int min_event, int max_event,
 
     // SKIP VERTICES IN REAR CAL
 //    if(fTPOEvent.prim_vx.z() > 1533.0) continue;
-    if(fTPOEvent.prim_vx.z() > 511.0) continue;
+    if(fTPOEvent.prim_vx.z() > 1150.0) continue; // for 10 layers
+//    if(fTPOEvent.prim_vx.z() > 511.0) continue;
     // identify IN FRONT TARGET
     int front_target = 0;
-    if(fTPOEvent.prim_vx.z() < -1533.0) front_target = 1;
+//    if(fTPOEvent.prim_vx.z() < -1533.0) front_target = 1;
 //    if(front_target) continue;
 
     fTPOEvent.event_id = iseq;
@@ -166,6 +168,7 @@ void convert_FASERMC(int run_number, TTree *tree, int min_event, int max_event,
 
     // skip events with no charm 
     if(charm_only && !fTPOEvent.isCharmed()) continue;
+    if(tauCC_only && !found_tau_lepton) continue;
 
     if (evt_to_dump++ < 20)
     {
@@ -190,12 +193,13 @@ int main(int argc, char **argv)
   // get the output file name as the first argument
   if (argc < 3)
   {
-    std::cout << "Usage: " << argv[0] << " [-charmonly] <genieroot> <run>" << std::endl;
+    std::cout << "Usage: " << argv[0] << " [-charmonly] [-tauCConly] <genieroot> <run>" << std::endl;
     std::cout << std::endl;
     std::cout << "  <genieroot>                The input FASER GENIE root files" << std::endl;
     std::cout << "  <run>                      The output run number" << std::endl;
     std::cout << "Options:" << std::endl;
     std::cout << "  -charmonly                      To process only charm events " << std::endl;
+    std::cout << "  -tauCConly                      To process only tau CC events " << std::endl;
     return 1;
   }
 
@@ -203,6 +207,11 @@ int main(int argc, char **argv)
   charm_only = false;
   if(strcmp(argv[iarg],"-charmonly") == 0) {
     charm_only = true;
+    iarg++;
+  }
+  tauCC_only = false;
+  if(strcmp(argv[iarg],"-tauCConly") == 0) {
+    tauCC_only = true;
     iarg++;
   }
   std::string rootinputString = argv[iarg++];
