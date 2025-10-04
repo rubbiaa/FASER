@@ -101,11 +101,18 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	G4double fTotalWMass;
 	G4double fTotalScintMass;
 
+	// rear HCAL
+	G4double fRearHCalSizeX = 720 * mm;
+	G4double fRearHCalSizeY = 720 * mm;
+	G4double fRearHCalVoxelSize = 40 * mm;
+
 	void SetNumberReplicas(G4int);
 	G4int getNumberReplicas() const {return fNumberReplicas ;}
 
 	// channel ID
 	G4long getChannelIDfromXYZ(std::string const& VolumeName, int CopyNumber, int MotherCopyVolume, XYZVector const& position) const;
+
+	G4long getHCalChannelIDfromXYZ(int CopyNumber, XYZVector const& position) const;
 
     private:
 	// methods

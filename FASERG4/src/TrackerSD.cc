@@ -55,9 +55,15 @@ G4bool TrackerSD::ProcessHits(G4Step* aStep, G4TouchableHistory*)
 		// Get the copy number
 		G4int copyNumber = touchable->GetCopyNumber();
 
+		XYZVector local_position = XYZVector(touchable->GetHistory()->GetTopTransform().TransformPoint(
+		    aStep->GetPreStepPoint()->GetPosition()));
+	
 		G4int motherCopyNumber = -1;
         if (touchable->GetHistoryDepth() > 0) {
             motherCopyNumber = touchable->GetCopyNumber(1); // 1 indicates one level up
+			local_position = XYZVector(touchable->GetHistory()->GetTransform(1)
+			.TransformPoint(
+				aStep->GetPreStepPoint()->GetPosition()));
         }
 
 		// std::cout << process << std::endl;
@@ -65,7 +71,7 @@ G4bool TrackerSD::ProcessHits(G4Step* aStep, G4TouchableHistory*)
 		int trackID = aStep->GetTrack()->GetTrackID();
 		int pdgCode = aStep->GetTrack()->GetDefinition()->GetPDGEncoding();
 
-		fParticleManager->processParticleHit(aStep->GetTrack(), position, direction, time, energyDeposit, 
+		fParticleManager->processParticleHit(aStep->GetTrack(), position, local_position, direction,time, energyDeposit, 
 			parentID, pdgCode, volumeName, copyNumber, motherCopyNumber);
     
 		// determine if the particle is leavingthe world volume or is beeing killed/absorbed
@@ -74,6 +80,7 @@ G4bool TrackerSD::ProcessHits(G4Step* aStep, G4TouchableHistory*)
 			// Add another photon hit with the post step point
 			XYZVector position = XYZVector(aStep->GetPostStepPoint()->GetPosition().x(), aStep->GetPostStepPoint()->GetPosition().y(),
 						     aStep->GetPostStepPoint()->GetPosition().z());
+			XYZVector local_position = XYZVector(position);
 			XYZVector direction =
 			    XYZVector(aStep->GetPostStepPoint()->GetMomentumDirection().x(), aStep->GetPostStepPoint()->GetMomentumDirection().y(),
 				     aStep->GetPostStepPoint()->GetMomentumDirection().z());
@@ -85,7 +92,7 @@ G4bool TrackerSD::ProcessHits(G4Step* aStep, G4TouchableHistory*)
 			int trackID = aStep->GetTrack()->GetTrackID();
 			int pdgCode = aStep->GetTrack()->GetDefinition()->GetPDGEncoding();
 			if (!aStep->GetTrack()->GetNextVolume()) {
-				fParticleManager->processParticleHit(aStep->GetTrack(), position, direction, time, 
+				fParticleManager->processParticleHit(aStep->GetTrack(), position, local_position, direction, time, 
 				energyDeposit, parentID, pdgCode,
 								     "OutOfWorld",0,0);
 			}
@@ -113,7 +120,7 @@ G4bool TrackerSD::ProcessHits(G4Step* aStep, G4TouchableHistory*)
 					motherCopyNumber = touchable->GetCopyNumber(1); // 1 indicates one level up
 				}
 
-				fParticleManager->processParticleHit(aStep->GetTrack(), position, direction, time, 
+				fParticleManager->processParticleHit(aStep->GetTrack(), position, local_position, direction, time, 
 						energyDeposit, parentID, pdgCode,
 								     volumeName,copyNumber, motherCopyNumber);
 			}

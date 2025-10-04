@@ -9,6 +9,9 @@
 #include "G4Mag_UsualEqRhs.hh"
 #include "G4ClassicalRK4.hh"
 #include "G4ChordFinder.hh"
+#include "G4SubtractionSolid.hh"
+
+#include "MuonDetMagneticField.hh"
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -144,7 +147,7 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 
 	G4double WorldSizeX = 2.5* sizeX;
 	G4double WorldSizeY = 2.5* sizeY;
-	G4double WorldSizeZ = 6*m; // 1.2* NRep*(sizetargetWZ + sizeScintillatorZ);
+	G4double WorldSizeZ = 9*m; // 1.2* NRep*(sizetargetWZ + sizeScintillatorZ);
 
 	G4cout << "Size of the world " << WorldSizeX << " " << WorldSizeY << " " << WorldSizeZ << " mm" << G4endl;
 
@@ -223,7 +226,8 @@ void DetectorConstruction::ConstructSDandField()
 	SetSensitiveDetector("trackerSiLogical", aTrackerSD, false);
 	SetSensitiveDetector("rearCalscintillatorLogical", aTrackerSD, false);
 	SetSensitiveDetector("rearHCalscintillatorLogical", aTrackerSD, false);
-	SetSensitiveDetector("muCalscintillatorLogical", aTrackerSD, false);
+//	SetSensitiveDetector("muCalscintillatorLogical", aTrackerSD, false);
+	SetSensitiveDetector("SciFiLayerLV", aTrackerSD, false);
 
 #if magnet
 	SetSensitiveDetector("ShortCylLogical", aTrackerSD, false);
@@ -414,8 +418,9 @@ static int getchannelIDerrorcount = 0;
 
 G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, int CopyNumber, int MotherCopyNumber, XYZVector const& position) const {
 
-	G4double dx = position.X()-fFASERCal_LOS_shiftX+fScintillatorSizeX/2.0;
-	G4double dy = position.Y()-fFASERCal_LOS_shiftY+fScintillatorSizeY/2.0;
+	// position is given in the local coordinate system of the volume
+	G4double dx = position.X()+fScintillatorSizeX/2.0;
+	G4double dy = position.Y()+fScintillatorSizeY/2.0;
 	G4double epsilon = 1e-4;   // avoid rounding errors at volume boundary
 	G4double dz = position.Z()+fTotalLength/2.0+epsilon;
 
@@ -464,6 +469,35 @@ G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, 
 		G4cerr << "Don't know how to handle volume " << VolumeName << G4endl;
 		return 0;
 	}
+}
+
+G4long DetectorConstruction::getHCalChannelIDfromXYZ(int CopyNumber, XYZVector const& position) const {
+	
+	// position is given in the local coordinate system of the volume
+	G4double dx = position.X()+fRearHCalSizeX/2.0;
+	G4double dy = position.Y()+fRearHCalSizeY/2.0;
+	G4double epsilon = 1e-4;   // avoid rounding errors at volume boundary
+
+	// sanity check
+	if((dx < 0 || dx > fRearHCalSizeX) || (dy < 0 || dy > fRearHCalSizeY)) {
+		getchannelIDerrorcount++;
+		if(getchannelIDerrorcount < 100) {
+			G4cerr << "ERROR : getHCalCHannelIDfromXYZ problem dx:" << dx << " dy:" << dy << G4endl;
+		}
+		return 0;
+	}
+
+	G4long iz = CopyNumber;
+	G4long ix = floor(dx / fRearHCalVoxelSize);
+	G4long iy = floor(dy / fRearHCalVoxelSize);
+	// sanity check
+	if (ix < 0 || ix > 999 || iy < 0 || iy > 999 || iz < 0 || iz > 999) {
+		if(iz>1000)
+			G4cerr << "ERROR : getHCalCHannelIDfromXYZ problem ix:" << ix << " iy:" << iy << " iz:" << iz << G4endl;
+		return 0;
+	}
+	G4long ID = ix + iy*1000L + iz*1000000LL;
+	return ID;
 }
 
 void DetectorConstruction::CreateMagnetSystem(G4double zLocation, G4LogicalVolume* parent) {
@@ -545,28 +579,28 @@ void DetectorConstruction::CreateRearCal(G4double zLocation, G4LogicalVolume* pa
 
 void DetectorConstruction::CreateRearHCalMuTag(G4double zLocation, G4LogicalVolume* parent) {
 	// dimensions of the rear HCal
-	G4double sizeZ_Pb = 9*cm;
-	G4double sizeZ_PS = 1*cm;
-	G4int nlayer = 9;
+	G4double sizeZ_Fe = 2*cm;
+	G4double sizeZ_PS = 0.3*cm;
+	G4int nlayer = 40;
 	// dimensions of the neutron absorber
 	G4double sizeZ_nabs = 10*cm;  /// polyethylene slab
 	// dimensions of the rear MuTag
-	G4double sizeX = 60*cm;
-	G4double sizeY = 60*cm;
+	G4double sizeX = 72*cm;
+	G4double sizeY = 72*cm;
 	G4double sizeZ = 4*cm;
 
-	G4Material * G4_Pb = G4NistManager::Instance()->FindOrBuildMaterial("G4_Pb");
+	G4Material * G4_Fe = G4NistManager::Instance()->FindOrBuildMaterial("G4_Fe");
 	G4Material* polyethylene = G4NistManager::Instance()->FindOrBuildMaterial("G4_POLYETHYLENE");
 	G4Material* plasticScintillator = G4NistManager::Instance()->FindOrBuildMaterial("G4_PLASTIC_SC_VINYLTOLUENE");
 
-	double sizeZ_HCalmodule = sizeZ_Pb + sizeZ_PS;
+	double sizeZ_HCalmodule = sizeZ_Fe + sizeZ_PS;
 	double total_sizeZ = nlayer*sizeZ_HCalmodule;
 
-	double Pb_mass = nlayer*sizeX*sizeY*sizeZ_Pb*(G4_Pb->GetDensity()/(kg/cm3));
-	G4cout << "Total mass of RearMuCal absorber " << Pb_mass << " kg " << G4endl;
+	double Fe_mass = nlayer*sizeX*sizeY*sizeZ_Fe*(G4_Fe->GetDensity()/(kg/cm3));
+	G4cout << "Total mass of RearMuCal absorber " << Fe_mass << " kg " << G4endl;
 
-	G4Box* absorberSolid = new G4Box("PbSlab", sizeX / 2, sizeY / 2, sizeZ_Pb / 2);
-	G4LogicalVolume* absorberLogic = new G4LogicalVolume(absorberSolid, G4_Pb, "absorberLogical");
+	G4Box* absorberSolid = new G4Box("PbSlab", sizeX / 2, sizeY / 2, sizeZ_Fe / 2);
+	G4LogicalVolume* absorberLogic = new G4LogicalVolume(absorberSolid, G4_Fe, "absorberLogical");
 
 	G4Box* nabsorberSolid = new G4Box("NeutronAbsSlab", sizeX / 2, sizeY / 2, sizeZ_nabs / 2);
 	G4LogicalVolume* nabsorberLogic = new G4LogicalVolume(nabsorberSolid, polyethylene, "neutabsorberLogical");
@@ -574,24 +608,182 @@ void DetectorConstruction::CreateRearHCalMuTag(G4double zLocation, G4LogicalVolu
 	G4Box* HscintillatorSolid = new G4Box("HCALPSSlab", sizeX / 2, sizeY / 2, sizeZ_PS / 2);
 	G4LogicalVolume* HscintillatorLogic = new G4LogicalVolume(HscintillatorSolid, plasticScintillator, "rearHCalscintillatorLogical");
 
-	G4Box* scintillatorSolid = new G4Box("PSSlab", sizeX / 2, sizeY / 2, sizeZ / 2);
-	G4LogicalVolume* scintillatorLogic = new G4LogicalVolume(scintillatorSolid, plasticScintillator, "muCalscintillatorLogical");
+//	G4Box* scintillatorSolid = new G4Box("PSSlab", sizeX / 2, sizeY / 2, sizeZ / 2);
+//	G4LogicalVolume* scintillatorLogic = new G4LogicalVolume(scintillatorSolid, plasticScintillator, "muCalscintillatorLogical");
 
+    // Create container, which hosts Nrep replicas of our layer. This container then is set inside the world volume
+    G4Box* HcalSolid = new G4Box("ContainerHcal", sizeX/2, sizeY / 2, total_sizeZ / 2);
+    G4LogicalVolume* HCalcontainerLogic = new G4LogicalVolume(HcalSolid, fWorldMaterial, "HCalContainerLogical");
+
+	for(int i = 0; i < nlayer; i++) {
+		double z = i*sizeZ_HCalmodule + sizeZ_Fe/2.0 - total_sizeZ/2.0;
+		new G4PVPlacement(0, G4ThreeVector(0,0,z), absorberLogic, "rearHCalAbs", HCalcontainerLogic, false, i, true);
+		z += sizeZ_Fe/2.0 + sizeZ_PS/2.0;
+		new G4PVPlacement(0, G4ThreeVector(0,0,z), HscintillatorLogic, "rearHCalScint", HCalcontainerLogic, false, i, true);
+	}
 	double x = fFASERCal_LOS_shiftX;
 	double y = fFASERCal_LOS_shiftY;
-	for(int i = 0; i < nlayer; i++) {
-		double z = zLocation + i*sizeZ_HCalmodule + sizeZ_Pb/2.0;
-		new G4PVPlacement(0, G4ThreeVector(x,y,z), absorberLogic, "rearHCalAbs", parent, false, i, true);
-		z += sizeZ_Pb/2.0 + sizeZ_PS/2.0;
-		new G4PVPlacement(0, G4ThreeVector(x,y,z), HscintillatorLogic, "rearHCalScint", parent, false, i, true);
-	}
-//	new G4PVPlacement(0, G4ThreeVector(0,0,z), absorberLogic, "rearMuCalAbs", parent, false, 0, true);
+	new G4PVPlacement(0, G4ThreeVector(x,y,zLocation + total_sizeZ/2.0), HCalcontainerLogic, "rearHCal", parent, false, 0, true);
 
+	#if 0
 	double z = zLocation + total_sizeZ + sizeZ_nabs/2.0;
 	new G4PVPlacement(0, G4ThreeVector(x,y,z), nabsorberLogic, "rearMuCalNAbs", parent, false, 0, true);
 
 	z = zLocation + total_sizeZ + sizeZ_nabs + sizeZ/2.0;
 	new G4PVPlacement(0, G4ThreeVector(x,y,z), scintillatorLogic, "rearMuCalScint", parent, false, 0, true);
+	#endif
+
+	auto nist = G4NistManager::Instance();
+	G4Material *air = nist->FindOrBuildMaterial("G4_AIR");
+	G4Material *steel = nist->FindOrBuildMaterial("G4_Fe");
+	G4Material *plastic = nist->FindOrBuildMaterial("G4_POLYSTYRENE");
+	G4Material *aluminum = nist->FindOrBuildMaterial("G4_Al");
+
+	// Parameters
+	const int nMagnets = 10;
+	const int nSciFiGroups = nMagnets + 1;
+	const int nSciFiPerGroup = 4;
+	const int nSciFiPlanes = nSciFiGroups * nSciFiPerGroup;
+	G4double magnetSizeX = 1000. * mm;
+	G4double magnetSizeY = 1000. * mm;
+	G4double scifilayerThickness = 2.5 * mm;
+	G4double magnetThickness = 150. * mm; // Thickness of each magnet changed from 100 to 150
+	G4double gapBeforeMagnet = 10. * mm;
+	G4double gapAfterMagnet = 10. * mm;
+
+	// Calculate total length needed
+	G4double totalSciFiThickness = nSciFiPlanes * scifilayerThickness;
+	G4double totalMagnetThickness = nMagnets * magnetThickness;
+	G4double totalGapBefore = nMagnets * gapBeforeMagnet;
+	G4double totalGapAfter = nMagnets * gapAfterMagnet;
+	G4double totalLength = totalSciFiThickness + totalMagnetThickness + totalGapBefore + totalGapAfter;
+
+	G4double zStart = -totalLength / 2;
+	
+	double z = zLocation + total_sizeZ + totalLength / 2;
+	G4Box* muonSpectrometerBox = new G4Box("MuonSpectrometer", magnetSizeX / 2, magnetSizeY / 2, totalLength / 2);
+	G4LogicalVolume* muonSpectrometerLV = new G4LogicalVolume(muonSpectrometerBox, air, "MuonSpectrometerLV");
+	new G4PVPlacement(0, G4ThreeVector(x,y,z), muonSpectrometerLV, "MuonSpectrometer", parent, false, 0, true);
+
+	int scifiLayerID = 0;
+	G4double zPos = zStart + scifilayerThickness / 2;
+
+	G4Box *scifiBox = new G4Box("SciFiLayer", magnetSizeX / 2, magnetSizeY / 2, scifilayerThickness / 2);
+	G4LogicalVolume *scifiLV = new G4LogicalVolume(scifiBox, plastic, "SciFiLayerLV");
+
+			for (int group = 0; group < nSciFiGroups; ++group)
+	{
+		// Place 4 SciFi layers
+		for (int l = 0; l < nSciFiPerGroup; ++l)
+		{
+			G4String physName = "SciFiLayer_" + std::to_string(scifiLayerID);
+			new G4PVPlacement(nullptr, G4ThreeVector(0, 0, zPos), scifiLV, physName, muonSpectrometerLV, false, scifiLayerID);
+
+			auto scifiVis = new G4VisAttributes(G4Colour(0.0, 1.0, 0.0)); // green
+			scifiVis->SetForceSolid(true);
+			scifiLV->SetVisAttributes(scifiVis);
+			// scifiLV->SetSensitiveDetector(scifiSD);
+
+			zPos += scifilayerThickness;
+			scifiLayerID++;
+		}
+
+		// After last group, don't place a magnet
+		if (group == nMagnets)
+			break;
+
+		// Gap before magnet
+		zPos += gapBeforeMagnet;
+
+		// Place magnet
+		G4Box *solidMagnet = new G4Box("Magnet", magnetSizeX / 2, magnetSizeY / 2, magnetThickness / 2);
+		// Create slits in the magnet
+		G4double slitWidth = magnetSizeX / 2.0;
+		G4double slitHeight = 20. * mm;
+		G4double slitPosition = 250. * mm;
+		// Create two slits symmetrically positioned above and below the center
+		G4Box *slitBox = new G4Box("Slit", slitWidth / 2.0, slitHeight / 2.0, magnetThickness / 2);
+
+		G4SubtractionSolid *magnetMinusSlit1 = new G4SubtractionSolid(
+			"MagnetMinusSlit1", solidMagnet, slitBox, nullptr, G4ThreeVector(0, slitPosition, 0));
+		G4SubtractionSolid *magnetWithSlits = new G4SubtractionSolid(
+			"MagnetWithSlits", magnetMinusSlit1, slitBox, nullptr, G4ThreeVector(0, -slitPosition, 0));
+
+		G4LogicalVolume *magnetLV = new G4LogicalVolume(magnetWithSlits, steel, "MagnetLV");
+		new G4PVPlacement(nullptr, G4ThreeVector(0, 0, zPos + magnetThickness / 2 - scifilayerThickness / 2), magnetLV, "Magnet", muonSpectrometerLV, false, group);
+
+		// Magnetic field on the magnet volume
+		auto field = new MuonMagneticField();
+		field->SetSlitPosition(slitPosition);
+		auto fieldManager = new G4FieldManager(field);
+		fieldManager->CreateChordFinder(field);
+		magnetLV->SetFieldManager(fieldManager, true);
+
+		// Magnet (gray)
+		auto magnetVis = new G4VisAttributes(G4Colour(0.5, 0.5, 0.5)); // RGB: gray
+		magnetVis->SetForceSolid(true);
+		magnetLV->SetVisAttributes(magnetVis);
+
+		#if 0
+		// Place aluminum strips as before, using the magnet center z
+		G4double magnetZ = zPos + magnetThickness / 2 - scifilayerThickness / 2;
+
+		int nTopStrips = 11;
+		G4double stripWidth = 25. * mm;
+		G4double stripHalfLength = 125. * mm;
+		G4double stripThickness = 2. * mm;
+
+		for (int j = 0; j < nTopStrips; ++j)
+		{
+			G4bool placeFront = (j % 2 == 0);
+			G4double xOffset = -250. * mm + j * 50. * mm;
+			G4double yOffset = 375. * mm;
+			G4Box *aluStripSolid = new G4Box("AluStrip", stripWidth, stripHalfLength, stripThickness);
+			G4LogicalVolume *aluStripLV = new G4LogicalVolume(aluStripSolid, aluminum, "AluStripLV");
+			auto aluVis = new G4VisAttributes(G4Colour(0.8, 0.6, 0.4));
+			aluVis->SetForceSolid(true);
+			aluStripLV->SetVisAttributes(aluVis);
+			G4double zPlacement = magnetZ + (placeFront ? -magnetThickness / 2 - 2. * mm : magnetThickness / 2 + 2. * mm);
+			G4ThreeVector pos(xOffset, yOffset, zPlacement);
+			new G4PVPlacement(nullptr, pos, aluStripLV, "AluStrip", muonSpectrometerLV, false, group * 1000 + j);
+		}
+		for (int j = 0; j < nTopStrips; ++j)
+		{
+			G4bool placeFront = (j % 2 == 0);
+			G4double xOffset = -250. * mm + j * 50. * mm;
+			G4double yOffset = -375. * mm;
+			G4Box *aluStripSolid = new G4Box("AluStrip", stripWidth, stripHalfLength, stripThickness);
+			G4LogicalVolume *aluStripLV = new G4LogicalVolume(aluStripSolid, aluminum, "AluStripLV");
+			auto aluVis = new G4VisAttributes(G4Colour(0.8, 0.6, 0.4));
+			aluVis->SetForceSolid(true);
+			aluStripLV->SetVisAttributes(aluVis);
+			G4double zPlacement = magnetZ + (placeFront ? -magnetThickness / 2 - 2. * mm : magnetThickness / 2 + 2. * mm);
+			G4ThreeVector pos(xOffset, yOffset, zPlacement);
+			new G4PVPlacement(nullptr, pos, aluStripLV, "AluStrip", muonSpectrometerLV, false, group * 1000 + j + 100);
+		}
+		int nMiddleStrips = 12;
+		G4double MiddlestripHalfLength = 250. * mm;
+		for (int j = 1; j < nMiddleStrips; ++j)
+		{
+			G4bool placeFront = (j % 2 == 0);
+			G4double xOffset = -300. * mm + j * 50. * mm;
+			G4double yOffset = 0;
+			G4Box *aluStripSolid = new G4Box("AluStrip", stripWidth, MiddlestripHalfLength, stripThickness);
+			G4LogicalVolume *aluStripLV = new G4LogicalVolume(aluStripSolid, aluminum, "AluStripLV");
+			auto aluVis = new G4VisAttributes(G4Colour(0.8, 0.6, 0.4));
+			aluVis->SetForceSolid(true);
+			aluStripLV->SetVisAttributes(aluVis);
+			G4double zPlacement = magnetZ + (placeFront ? -magnetThickness / 2 - 2. * mm : magnetThickness / 2 + 2. * mm);
+			G4ThreeVector pos(xOffset, yOffset, zPlacement);
+			new G4PVPlacement(nullptr, pos, aluStripLV, "AluStrip", muonSpectrometerLV, false, group * 1000 + j + 200);
+		}
+#endif
+		// Advance zPos past the magnet
+		zPos += magnetThickness;
+
+		// Gap after magnet
+		zPos += gapAfterMagnet;
+	}
 }
 
 void DetectorConstruction::CreateFrontTarget(G4double zLocation, G4LogicalVolume *parent) {

@@ -41,6 +41,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 
 	// DEBUG : only primary lepton if CC otherwise random pion
 	bool want_particleGun = false; //  true;
+	bool want_muon_background = true; // true;
 
 	const TPOEvent *branch_POEvent = GetTPOEvent();
 
@@ -89,7 +90,15 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 		double x = fTPOEvent.prim_vx.x();
 		double y = fTPOEvent.prim_vx.y();
 		double z = fTPOEvent.prim_vx.z();
-		std::cout << " Using GENIE vtx:  x=" << x << " y=" << y << " z=" << z << " ";
+		if(want_muon_background) {
+		  // put muon in front of the detector
+		  // uniform in x and y from -20 to 20 cm
+		  x = (G4UniformRand() - 0.5) * 400; // in mm
+		  y = (G4UniformRand() - 0.5) * 400; // in mm
+		  z = -2000; // in mm, in front of the detector
+		} else {
+		  std::cout << " Using GENIE vtx:  x=" << x << " y=" << y << " z=" << z << " ";
+		}
 		vtxpos.SetX(x);
 		vtxpos.SetY(y);
 		vtxpos.SetZ(z);
@@ -144,35 +153,73 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 	fTPOEvent.dump_event();	
 
 	valid_event++;
-	for (G4int i = 0; i < fTPOEvent.n_particles(); ++i)
+	if (!want_muon_background)
 	{
-		struct PO aPO = fTPOEvent.POs[i];
+		for (G4int i = 0; i < fTPOEvent.n_particles(); ++i)
+		{
+			struct PO aPO = fTPOEvent.POs[i];
 
-		// run in particle gun mode keeping only one relevant track from event
-		if(want_particleGun) {
-			if(got_pion) continue;
-			if(fTPOEvent.isCC) {
-				if(!fTPOEvent.is_lepton(aPO.m_pdg_id)) continue;
-			} else {
-				if(i != ipo_maxhadron) continue;				
-				got_pion = true;
+			// run in particle gun mode keeping only one relevant track from event
+			if (want_particleGun)
+			{
+				if (got_pion)
+					continue;
+				if (fTPOEvent.isCC)
+				{
+					if (!fTPOEvent.is_lepton(aPO.m_pdg_id))
+						continue;
+				}
+				else
+				{
+					if (i != ipo_maxhadron)
+						continue;
+					got_pion = true;
+				}
+			}
+
+			G4ParticleDefinition *particle = particleTable->FindParticle(aPO.m_pdg_id);
+
+			if (particle != nullptr && aPO.m_status == 1)
+			{
+				//			if(aPO.m_pdg_id != 15) continue;  // TODO/FIXME debug to process only taus
+				G4ParticleGun *particleGun = new G4ParticleGun(1);
+
+				//			ParticlePDGCode.push_back(aPO.m_pdg_id);
+
+				particleGun->SetParticleDefinition(particle);
+
+				particleGun->SetParticlePosition(G4ThreeVector(vtxpos.x() * mm, vtxpos.y() * mm, vtxpos.z() * mm));
+				G4ThreeVector StartMomentum(aPO.m_px * GeV, aPO.m_py * GeV, aPO.m_pz * GeV);
+
+				particleGun->SetParticleMomentum(StartMomentum);
+				fParticleGuns.push_back(particleGun);
 			}
 		}
-
-		G4ParticleDefinition *particle = particleTable->FindParticle(aPO.m_pdg_id);
-
-		if (particle != nullptr && aPO.m_status == 1)
+	}
+	else
+	{
+		// generate muon background
+		fTPOEvent.run_number = 999;
+		G4ParticleDefinition *muon = particleTable->FindParticle("mu-");
+		if (muon != nullptr)
 		{
-//			if(aPO.m_pdg_id != 15) continue;  // TODO/FIXME debug to process only taus
 			G4ParticleGun *particleGun = new G4ParticleGun(1);
-
-//			ParticlePDGCode.push_back(aPO.m_pdg_id);
-
-			particleGun->SetParticleDefinition(particle);
-
+			particleGun->SetParticleDefinition(muon);
 			particleGun->SetParticlePosition(G4ThreeVector(vtxpos.x() * mm, vtxpos.y() * mm, vtxpos.z() * mm));
-			G4ThreeVector StartMomentum(aPO.m_px * GeV, aPO.m_py * GeV, aPO.m_pz * GeV);
+			// Define angular spread (in radians)
+			double sigmaTheta = 0.1; // 100 mrad
+			// Sample θ from Gaussian centered at 0 with std dev 0.1
+			double theta = G4RandGauss::shoot(0.0, sigmaTheta);
+			// Sample φ uniformly from 0 to 2π
+			double phi = G4UniformRand() * 2.0 * CLHEP::pi;
+			// Convert (θ, φ) to Cartesian direction vector
+			double px = std::sin(theta) * std::cos(phi);
+			double py = std::sin(theta) * std::sin(phi);
+			double pz = std::cos(theta);
 
+			// Set direction vector with given momentum magnitude
+			G4ThreeVector StartMomentum(px, py, pz);
+			StartMomentum = StartMomentum.unit() * (50 * GeV); // Normalize and scale
 			particleGun->SetParticleMomentum(StartMomentum);
 			fParticleGuns.push_back(particleGun);
 		}

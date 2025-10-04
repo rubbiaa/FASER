@@ -41,6 +41,7 @@ set(SOURCES
     src/Track.cc
     src/ActionInitialization.cc
     src/DetectorConstruction.cc
+    src/MuonDetMagneticField.cc
     src/DetectorMessenger.cc
     src/EventAction.cc
     src/ParticleManager.cc

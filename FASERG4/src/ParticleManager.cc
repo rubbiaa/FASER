@@ -18,10 +18,12 @@ ParticleManager::ParticleManager(int number) : m_rootFile(nullptr)
 
 ParticleManager::~ParticleManager() {}
 
-void ParticleManager::processParticleHit(G4Track *track, XYZVector const& position, XYZVector const& direction, double const& time,
+void ParticleManager::processParticleHit(G4Track *track, XYZVector const& position, XYZVector const &local_position, XYZVector const& direction, double const& time,
 					 double const& energydeposit, int const& parentID, int const& pdg,
 					 std::string const& VolumeName, int CopyNumber, int MotherCopyNumber)
 {
+	const G4ParticleDefinition *particledef = track->GetParticleDefinition();
+	// special treatment for the rear calorimeter hits
 	if(VolumeName == "rearCalscintillatorLogical") {
 //		std::cout << VolumeName << " copy=" << CopyNumber << " MotherCopy = " << MotherCopyNumber << std::endl;
 		auto it = std::find_if(fTcalEvent->rearCalDeposit.begin(), fTcalEvent->rearCalDeposit.end(),
@@ -36,15 +38,22 @@ void ParticleManager::processParticleHit(G4Track *track, XYZVector const& positi
 		}
 		return;
 	} else if(VolumeName == "rearHCalscintillatorLogical") {
+		if(particledef->GetPDGCharge() == 0) return;
+		// special treatment for the rear hadronic calorimeter hits
 //		std::cout << VolumeName << " copy=" << CopyNumber << " MotherCopy = " << MotherCopyNumber << std::endl;
+
+		const DetectorConstruction *detector = static_cast<const DetectorConstruction *>(G4RunManager::GetRunManager()->GetUserDetectorConstruction());
+		const XYZVector pos = local_position;
+		G4long moduleID = detector->getHCalChannelIDfromXYZ(CopyNumber, pos);
+
 		auto it = std::find_if(fTcalEvent->rearHCalDeposit.begin(), fTcalEvent->rearHCalDeposit.end(),
-                       [CopyNumber](const TcalEvent::REARCALDEPOSIT& deposit) {
-                           return deposit.moduleID == CopyNumber;
+                       [moduleID](const TcalEvent::REARCALDEPOSIT& deposit) {
+                           return deposit.moduleID == moduleID;
                        });
 		if (it != fTcalEvent->rearHCalDeposit.end()) {
 			it->energyDeposit += energydeposit;
 		} else {
-			struct TcalEvent::REARCALDEPOSIT rearhit = {CopyNumber, energydeposit};
+			struct TcalEvent::REARCALDEPOSIT rearhit = {moduleID, energydeposit};
 			fTcalEvent->rearHCalDeposit.push_back(rearhit);
 		}
 		#if 0
@@ -55,16 +64,22 @@ void ParticleManager::processParticleHit(G4Track *track, XYZVector const& positi
 		G4cout << "  Momentum: " << momentum / MeV << " MeV/c" << G4endl;
 		#endif
 		return;
-	} else if(VolumeName == "muCalscintillatorLogical") {
+	} else if(VolumeName == "muCalscintillatorLogical" || VolumeName == "SciFiLayerLV") {
+		// special treatment for the rear muon calorimeter hits
+		if(particledef->GetPDGCharge() == 0) return;
 		fTcalEvent->rearMuCalDeposit += energydeposit;
 		#if 0
+		{
 		G4cout << "MucalScint: pdgid=" << pdg << " edepo=" << energydeposit << G4endl;
         G4double kineticEnergy = track->GetKineticEnergy();
 	    G4ThreeVector momentum = track->GetMomentum();
 		G4cout << "  Kinetic Energy: " << kineticEnergy / MeV << " MeV" << G4endl;
         G4cout << "  Momentum: " << momentum / MeV << " MeV/c" << G4endl;
+		G4cout << " CopyNumber: " << CopyNumber << " MotherCopyNumber: " << MotherCopyNumber << G4endl;
+		}
 		#endif
 		int trackID = track->GetTrackID();
+		int layerID = CopyNumber; // 1-40
 		G4ThreeVector momentum = track->GetMomentum();
 		auto it = m_MuTagTrackMap.find(trackID);
 		if (it != m_MuTagTrackMap.end())
@@ -75,6 +90,7 @@ void ParticleManager::processParticleHit(G4Track *track, XYZVector const& positi
 			ROOT::Math::XYZVector mom;
 			mom.SetXYZ(momentum.x()/MeV, momentum.y()/MeV, momentum.z()/MeV);
 			it->second->mom.push_back(mom);
+			it->second->layerID.push_back(layerID);
 		}
 		else
 		{
@@ -87,12 +103,13 @@ void ParticleManager::processParticleHit(G4Track *track, XYZVector const& positi
 			ROOT::Math::XYZVector mom;
 			mom.SetXYZ(momentum.x()/MeV, momentum.y()/MeV, momentum.z()/MeV);
 			newT->mom.push_back(mom);
+			newT->layerID.push_back(layerID);
 			m_MuTagTrackMap[trackID] = newT;
 		}
 		return;
 	}
+	// special treatment for the magnet volume, store all positions
 	if(VolumeName == "ShortCylLogical" || VolumeName == "LongCylLogical") {
-		const G4ParticleDefinition *particledef = track->GetParticleDefinition();
 		if(particledef->GetPDGCharge() == 0) return;
 
 		int trackID = track->GetTrackID();
@@ -115,18 +132,28 @@ void ParticleManager::processParticleHit(G4Track *track, XYZVector const& positi
 		}
 		return;
 	}
-	int trackID = track->GetTrackID();
-	if(energydeposit>0 || parentID == 0) { 					// or some energy or is primary
-		auto it = m_particleMap.find(trackID);
-		if (it != m_particleMap.end()) {
-			it->second->addTotalEnergyDeposit(energydeposit);
-			it->second->update(position, direction, time, energydeposit, VolumeName, CopyNumber, MotherCopyNumber);
-		}
-		else {
-			// If the track does not exist, create a new one
-			Track* newParticle = new Track(trackID, parentID, pdg, position, direction, time, 
-			energydeposit, VolumeName, CopyNumber, MotherCopyNumber);
-			m_particleMap[trackID] = newParticle;
+	// normal treatment for all other volumes which should essentially be scintillator voxels or tracker hits
+	if (VolumeName == "ScintillatorLogical" || VolumeName == "SiTrackerLogical")
+	{
+		//std::cout << "Position: " << position.x()/mm << " " << position.y()/mm << " " << position.z()/mm << " mm" << std::endl;
+		//std::cout << "Local Position: " << local_position.x()/mm << " " << local_position.y()/mm << " " << local_position.z()/mm << " mm" << std::endl;
+	
+		int trackID = track->GetTrackID();
+		if (energydeposit > 0 || parentID == 0)
+		{ // or some energy or is primary
+			auto it = m_particleMap.find(trackID);
+			if (it != m_particleMap.end())
+			{
+				it->second->addTotalEnergyDeposit(energydeposit);
+				it->second->update(local_position, direction, time, energydeposit, VolumeName, CopyNumber, MotherCopyNumber);
+			}
+			else
+			{
+				// If the track does not exist, create a new one
+				Track *newParticle = new Track(trackID, parentID, pdg, local_position, direction, time,
+											   energydeposit, VolumeName, CopyNumber, MotherCopyNumber);
+				m_particleMap[trackID] = newParticle;
+			}
 		}
 	}
 }
@@ -180,9 +207,10 @@ void ParticleManager::beginOfEvent()
 	fTcalEvent->geom_detector.rearCalSizeY = 121.2;
     fTcalEvent->geom_detector.rearCalLocZ = detector->fTotalLength/2.0; // when no magnet + 3500.0;
 	fTcalEvent->geom_detector.rearCalNxy = 5;
-	fTcalEvent->geom_detector.rearHCalSizeX = 600.0; // mm
-	fTcalEvent->geom_detector.rearHCalSizeY = 600.0; // mm
-	fTcalEvent->geom_detector.rearHCalSizeZ = 100.0; // mm
+	fTcalEvent->geom_detector.rearHCalSizeX = 720.0; // mm
+	fTcalEvent->geom_detector.rearHCalSizeY = 720.0; // mm
+	fTcalEvent->geom_detector.rearHCalSizeZ = 23; // mm
+	fTcalEvent->geom_detector.rearHCalVoxelSize = 40; // mm
 	fTcalEvent->geom_detector.rearHCalLocZ =  fTcalEvent->geom_detector.rearCalLocZ + 66*6.0; 
 	fTcalEvent->geom_detector.fFASERCal_LOS_shiftX = detector->fFASERCal_LOS_shiftX * mm;
 	fTcalEvent->geom_detector.fFASERCal_LOS_shiftY = detector->fFASERCal_LOS_shiftY * mm;

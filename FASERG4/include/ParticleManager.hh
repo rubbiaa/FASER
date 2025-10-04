@@ -82,7 +82,7 @@ class ParticleManager {
 	 * @param VolumeName Name of the volume where the hit occurred
 	 * @param CopyNumber The replica number of the volume
 	 */
-	void processParticleHit(G4Track *track, XYZVector const& position, XYZVector const& direction, double const& time, double const& energydeposit,
+	void processParticleHit(G4Track *track, XYZVector const& position, XYZVector const& local_position, XYZVector const& direction, double const& time, double const& energydeposit,
 				int const& parentID, int const& pdg, std::string const& VolumeName, G4int CopyNumber, int MotherCopyNumber);
 
 	/**
