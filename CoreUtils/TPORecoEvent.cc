@@ -2,6 +2,10 @@
 #include "DBScan.hh"
 #include "TTKTrack.hh"
 #include "TPSTrack.hh"
+#include "TMuTrack.hh"
+#include "TcalEvent.hh"
+#include "TPOEvent.hh"
+#include "GenMagneticField.hh"
 
 #include <TVectorD.h>
 #include <TMatrixDSym.h>
@@ -83,7 +87,9 @@ TPORecoEvent:: TPORecoEvent() : TObject(), fTcalEvent(0), fTPOEvent(0), fPOFullE
         TPORecoEvent_initGenfit = 1;
         std::cout << "Initializing Genfit" << std::endl;
         genfit::MaterialEffects::getInstance()->init(new genfit::TGeoMaterialInterface());
-        genfit::FieldManager::getInstance()->init(new genfit::ConstField(0. ,1e-4, 0.)); 
+        // genfit::FieldManager::getInstance()->init(new genfit::ConstField(0. ,1e-4, 0.));
+        // put the magnetic field of the FASER detector
+        genfit::FieldManager::getInstance()->init(new GenMagneticField());
     }
 }
 
@@ -170,7 +176,7 @@ void TPORecoEvent::ReconstructTruth() {
     for (auto it : fTcalEvent->getfTracks()) {
         if(it -> fparentID ==0) {
             int POID = fTPOEvent->findFromGEANT4TrackID(it->ftrackID);
-
+            if(POID<0) continue;
             // skip final state neutrinos
             if(fTPOEvent->is_neutrino(fTPOEvent->POs[POID].m_pdg_id)) continue;
 
@@ -264,11 +270,15 @@ void TPORecoEvent::ReconstructTruth() {
                 EKin += it->fEnergiesCogs[i].em + it->fEnergiesCogs[i].had;
             }
             // get the mass from the PO information - assumes perfect particle ID!
-            double px = fTPOEvent->POs[it->POID].m_px;
-            double py = fTPOEvent->POs[it->POID].m_py;
-            double pz = fTPOEvent->POs[it->POID].m_pz;
-            double E = fTPOEvent->POs[it->POID].m_energy;
-            double mass = sqrt(std::max(E*E-px*px-py*py-pz*pz,0.0));
+            double mass = 0;
+            if (it->POID >= 0)
+            {
+                double px = fTPOEvent->POs[it->POID].m_px;
+                double py = fTPOEvent->POs[it->POID].m_py;
+                double pz = fTPOEvent->POs[it->POID].m_pz;
+                double E = fTPOEvent->POs[it->POID].m_energy;
+                mass = sqrt(std::max(E * E - px * px - py * py - pz * pz, 0.0));
+            }
 
             double Ereco = EKin + mass;
             if(std::isnan(Ereco)) {
@@ -308,6 +318,8 @@ void TPORecoEvent::ReconstructTruth() {
     for (auto it : fPORecs)
     {
         int POID = it->POID;
+        if (POID < 0)
+            continue;
         struct PO *aPO = &fTcalEvent->fTPOEvent->POs[POID];
         int PDG = aPO->m_pdg_id;
         // consider only primary track
@@ -3071,5 +3083,72 @@ void TPORecoEvent::ReconstructRearCals() {
         }
         std::cout << std::endl;   
         std::cout << "Rear MuCalDeposit " << rearCals.rearMuCalDeposit << std::endl;
+    }
+}
+
+
+void TPORecoEvent::ReconstructMuonSpectrometer() {
+    // print tracks in mutag
+    if(verbose>0) {
+        std::cout << " ------------ MUTAG truth tracks" << std::endl;
+        for (const auto &it : fTcalEvent->fMuTagTracks) {
+            std::cout << it->ftrackID << " " << it->fPDG << " Mom:" << it->mom[0].x() << " " << it->mom[0].y() << " " << it->mom[0].z() << std::endl;
+        }
+    }
+
+    // create temporary TMuTrack to hold all hits from each scifi plane for muons
+    // we assume full efficiency and perfect pattern recognition to identify muon hits
+    std::vector<TMuTrack> tempMuTracks;
+    for (const auto &it : fTcalEvent->fMuTagTracks) {
+        if(it->fPDG != 13 && it->fPDG != -13) continue; // only muons
+        // seed temporary TMuTrack
+        TMuTrack mutrack;
+        mutrack.ftrackID = it->ftrackID;
+        mutrack.fPDG = it->fPDG;
+        mutrack.fpos = it->pos;
+        mutrack.layerID = it->layerID;
+        tempMuTracks.push_back(mutrack);
+    }
+
+    // now loop over tempMuTracks and create MuTrack withaverage hits in the same station
+    fMuTracks.clear();
+    for(auto &it : tempMuTracks) {
+        TMuTrack mutrack;
+        mutrack.ftrackID = it.ftrackID;
+        mutrack.fPDG = it.fPDG;
+        // loop over all hits and average position over hits in the same station
+        size_t nhits = it.fpos.size();
+        int currentStation = -1;
+        int nstation = 0;
+        for(size_t i = 0; i < nhits; i++) {
+            int stationID = it.layerID[i] / 4;
+            ROOT::Math::XYZVector pos = it.fpos[i];
+            if(stationID == currentStation) {
+                // average fpos with position in nstation
+                mutrack.fpos[nstation-1].SetX( (mutrack.fpos[nstation-1].x()*float(nstation) + pos.x())/float(nstation+1) );
+                mutrack.fpos[nstation-1].SetY( (mutrack.fpos[nstation-1].y()*float(nstation) + pos.y())/float(nstation+1) );
+                mutrack.fpos[nstation-1].SetZ( (mutrack.fpos[nstation-1].z()*float(nstation) + pos.z())/float(nstation+1) );
+            } else {
+                mutrack.fpos.push_back(pos);
+                mutrack.layerID.push_back(stationID * 4);
+                currentStation = stationID;
+                nstation++;
+            }
+        }
+        fMuTracks.push_back(mutrack);
+    }
+
+    // dump fMuTracks
+    if(verbose>0) {
+        std::cout << " ------------ MUTAG reconstructed muon tracks" << std::endl;
+        for (const auto &it : fMuTracks) {
+            std::cout << it.ftrackID << " " << it.fPDG << " Mom:" << it.fpos[0].x() << " " << it.fpos[0].y() << " " << it.fpos[0].z() << std::endl;
+            it.Dump(verbose);
+        }
+    }
+
+    // fit each track
+    for(auto &it : fMuTracks) {
+        it.GenFitTrackFit(verbose, 0.1);
     }
 }

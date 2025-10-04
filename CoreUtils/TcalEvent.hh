@@ -38,15 +38,18 @@ class DigitizedTrack : public TObject {
 
     void Dump(int verbose = 1)
     {
-        size_t nhits = fhitIDs.size();
-        std::cout << "TrackID: " << ftrackID << " ParentID: " << fparentID << " PrimaryID: " << fprimaryID << " PDG: " << fPDG << " nvoxels: " << nhits << std::endl;
-        if (verbose > 1)
+        if (verbose > 3)
         {
-            for (size_t i = 0; i < nhits; i++)
+            size_t nhits = fhitIDs.size();
+            std::cout << "TrackID: " << ftrackID << " ParentID: " << fparentID << " PrimaryID: " << fprimaryID << " PDG: " << fPDG << " nvoxels: " << nhits << std::endl;
+            if (verbose > 4)
             {
-                std::cout << "  HitID: " << fhitIDs[i] << " Edep: " << fEnergyDeposits[i] << "   ";
+                for (size_t i = 0; i < nhits; i++)
+                {
+                    std::cout << "  HitID: " << fhitIDs[i] << " Edep: " << fEnergyDeposits[i] << "   ";
+                }
+                std::cout << std::endl;
             }
-            std::cout << std::endl;
         }
     };
 
@@ -69,14 +72,15 @@ class MagnetTrack : public TObject {
 class MuTagTrack : public TObject {
     public:
 
-    MuTagTrack() { };
+    MuTagTrack() = default;
     MuTagTrack(int trackID) { ftrackID = trackID; pos.clear(); };
-    ~MuTagTrack() {};
+    ~MuTagTrack() = default;
 
     int ftrackID;           // the GEANT4 track id
     int fPDG;               // the PDG id of this track
     std::vector<ROOT::Math::XYZVector> pos;
     std::vector<ROOT::Math::XYZVector> mom;
+    std::vector<int> layerID; // the layer index in the muon spectrometer (1-40)
     
     ClassDef(MuTagTrack,1)
 };
@@ -126,7 +130,7 @@ public:
     void fillTree();
 
     struct REARCALDEPOSIT {
-        Int_t moduleID;
+        Long_t moduleID;
         Double_t energyDeposit;
     };
     std::vector<struct REARCALDEPOSIT> rearCalDeposit;    // energy deposited in rear calorimeter
@@ -157,7 +161,9 @@ public:
         Double_t rearHCalSizeY; // in mm
         Double_t rearHCalSizeZ; // in mm
         Double_t rearHCalLocZ;  // in mm
-        Int_t rearHCalNxy = 9;   // number of modules in z   
+        double_t rearHCalVoxelSize; // in mm
+        Int_t rearHCalNxy = 18;   // number of modules in x, and y
+        Int_t rearHCalNlayer = 40; // number of layers   
         Double_t fFASERCal_LOS_shiftX; // in mm
         Double_t fFASERCal_LOS_shiftY; // in mm 
         Double_t fAirGap; // in mm

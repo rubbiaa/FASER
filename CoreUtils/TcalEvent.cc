@@ -110,6 +110,11 @@ int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
 
     Long_t nentries = event_tree->GetEntries();
     if(verbose > 0) std::cout << "Number of entries " << nentries << std::endl;
+    if(nentries < 1) {
+        m_rootFile -> Close();
+        delete m_rootFile;
+        return 1;
+    }
 
     // Set the branch address
     std::vector<DigitizedTrack*> *t = &fTracks;
@@ -222,9 +227,12 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZRearCal(int moduleID) const {
 }
 
 ROOT::Math::XYZVector TcalEvent::getChannelXYZRearHCal(int moduleID) const {
-    double x = geom_detector.fFASERCal_LOS_shiftX;
-    double y = geom_detector.fFASERCal_LOS_shiftY;
-    double z = geom_detector.rearHCalLocZ + moduleID * geom_detector.rearHCalSizeZ + geom_detector.rearHCalSizeZ/2.0;
+    long ix = moduleID % 1000;
+    long iy = (moduleID / 1000) % 1000;
+    long iz = (moduleID / 1000000LL) % 1000;
+    double x = geom_detector.fFASERCal_LOS_shiftX + (ix - geom_detector.rearHCalNxy/2.0 + 0.5)*geom_detector.rearHCalVoxelSize;
+    double y = geom_detector.fFASERCal_LOS_shiftY + (iy - geom_detector.rearHCalNxy/2.0 + 0.5)*geom_detector.rearHCalVoxelSize;
+    double z = geom_detector.rearHCalLocZ + iz * geom_detector.rearHCalSizeZ + geom_detector.rearHCalSizeZ/2.0;
     return ROOT::Math::XYZVector(x, y, z);
 }
 

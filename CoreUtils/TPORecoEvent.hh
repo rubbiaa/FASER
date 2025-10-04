@@ -16,6 +16,7 @@
 #include "TPSCluster.hh"
 #include "TTKTrack.hh"
 #include "TPSTrack.hh"
+#include "TMuTrack.hh"
 
 /// @brief TPORec holds a reconstructed particle object
 class TPORec : public TObject {
@@ -162,6 +163,9 @@ public:
     };
     struct REARCALS rearCals;
 
+    // muon tracks
+    std::vector<TMuTrack> fMuTracks;
+
     // @brief A copy of the geometry originally stored in TCalEvent
     struct TcalEvent::GEOM_DETECTOR geom_detector;
 
@@ -254,6 +258,9 @@ public:
 
     /// @brief Reconstruct FASERCAL and rear calorimeters and rear mu tag
     void ReconstructRearCals();
+
+    /// @brief Reconstruct the muon spectrometer's tracks
+    void ReconstructMuonSpectrometer();
 
     /// @brief Dump PORecs to the screen
     void Dump();
