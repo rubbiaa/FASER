@@ -113,7 +113,7 @@ genfit: genfit_git
 		-DRave_INCLUDE_DIRS=$(TOPDIR)/rave-install/include/ \
 		-DRave_LDFLAGS="-L$(TOPDIR)/rave-install/lib/ -lRaveBase -L$(TOPDIR)/CLHEP-install/lib/ -lCLHEP" \
 		../GenFit; \
-		make CXXFLAFS="-g" -j; \
+		make CXXFLAGS="-g" -j; \
 		make install; \
 	fi
 else
@@ -130,7 +130,7 @@ genfit: genfit_git
 		-DRave_INCLUDE_DIRS=$(TOPDIR)/rave-install/include/ \
 		-DRave_LDFLAGS="-Wl,-rpath-link,$(TOPDIR)/rave-install/lib/ -L$(TOPDIR)/rave-install/lib/ -lRaveBase -L$(TOPDIR)/CLHEP-install/lib/ -lCLHEP" \
 		../GenFit; \
-		make CXXFLAFS="-g" -j; \
+		make CXXFLAGS="-g" -j; \
 		sh CMakeFiles/gtests.dir/link.txt; \
 		make -j; \
 		make install; \
