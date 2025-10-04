@@ -83,6 +83,7 @@ private:
 
     std::vector<TPolyMarker3D*> polylineVertices;
 
+    int frun_number;
     int ievent;
     int event_mask;
     bool process_reco_event;

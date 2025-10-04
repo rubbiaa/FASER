@@ -150,6 +150,7 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, bool pre, const TGW
     range_max[0] = 25.0; range_max[1] = 25.0; range_max[2] = 200.0;
 
     // load event
+    frun_number = run_number;
     ievent = ieve;
     opened_reco_event = false;
 
@@ -212,6 +213,7 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
         fPORecoEvent->Reconstruct3DPS_2();
     }
     fPORecoEvent -> ReconstructRearCals();
+    fPORecoEvent -> ReconstructMuonSpectrometer();
     fPORecoEvent -> ReconstructClusters(0);    // this is very slow
     fPORecoEvent -> Reconstruct3DPS_Eflow();
     std::cout << "Start reconstruction of tracks..." << std::endl;
@@ -270,6 +272,7 @@ void MyMainFrame::Update_ListTree() {
     TGListTreeItem *item2 = listTree->AddItem(root, "Vertices");
     listTree->OpenItem(root); // Expand the root node
     
+    if(fPORecoEvent == nullptr) return;
     // Add the tracks from TPORecoEvent
     for (const auto &track : fPORecoEvent->fTKTracks) {
         std::ostringstream trackname;
@@ -499,30 +502,58 @@ void MyMainFrame::Draw_event() {
     // draw rear Hcal hits
     for (const auto &it : fTcalEvent->rearHCalDeposit)
     {
+        if(it.energyDeposit < 0.25) continue; // skip small deposits
         ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZRearHCal(it.moduleID);
         double zBox = it.energyDeposit*10.0; // 1mm is 100 MeV
-        TGeoShape *box = new TGeoBBox("rearhcalbox", fTcalEvent->geom_detector.rearHCalSizeX / 20.0,
-                                      zBox / 20.0, 
-                                      fTcalEvent->geom_detector.rearHCalSizeZ / 20.0);
+        TGeoShape *box = new TGeoBBox("rearhcalbox", fTcalEvent->geom_detector.rearHCalVoxelSize / 20.0,
+                                    fTcalEvent->geom_detector.rearHCalVoxelSize / 20.0,
+                                    zBox / 20.0);
         TGeoVolume *hitVolume = new TGeoVolume("RearHCalVolume", box, air);
-        hitVolume->SetLineColor(kRed);
+        if (it.energyDeposit < 1.0)
+            hitVolume->SetLineColor(kYellow);
+        else if (it.energyDeposit < 5.0)
+            hitVolume->SetLineColor(kOrange);
+        else
+            hitVolume->SetLineColor(kRed);
         TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0,
-                                                     (position.Y() + zBox / 2.0) / 10.0, position.Z() / 10.0);
+                                                    position.Y() / 10.0, (position.Z() + zBox / 2.0) / 10.0);
         rearHcal->AddNode(hitVolume, it.moduleID, trans);
     }
 
     // draw rear Muon Cal hits
-    if(true) {
-        ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZRearHCal(10);
-        double zBox = fTcalEvent->rearMuCalDeposit*10.0; // 1mm is 100 MeV
+    if (true)
+    {
+        ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZRearHCal(41); // rear mucal is behind rear hcal module 41
+        double zBox = fTcalEvent->rearMuCalDeposit * 10.0;                      // 1mm is 100 MeV
+        #if 0
         TGeoShape *box = new TGeoBBox("rearmucalbox", fTcalEvent->geom_detector.rearHCalSizeX / 20.0,
-                                      zBox / 20.0, 
+                                      zBox / 20.0,
                                       fTcalEvent->geom_detector.rearHCalSizeZ / 20.0);
         TGeoVolume *hitVolume = new TGeoVolume("RearMuCalVolume", box, air);
         hitVolume->SetLineColor(kMagenta);
         TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0,
-                                                (position.Y()+zBox/2.0) / 10.0, position.Z() / 10.0);
+                                                     (position.Y() + zBox / 2.0) / 10.0, position.Z() / 10.0);
         rearMucal->AddNode(hitVolume, 0, trans);
+        #endif
+
+        for (auto it : fTcalEvent->fMuTagTracks)
+        {
+            int nhits = it->pos.size();
+            if (nhits == 0)
+                continue;
+            // draw a box for each entry in pos
+            for (const auto &hit : it->pos)
+            {
+                double x = hit.x() / 10.0;
+                double y = hit.y() / 10.0;
+                double z = hit.z() / 10.0;
+                TGeoShape *box = new TGeoBBox("mutagbox", 0.5, 0.5, 0.5);
+                TGeoVolume *hitVolume = new TGeoVolume("MuTagVolume", box, air);
+                hitVolume->SetLineColor(kMagenta);
+                TGeoTranslation *trans = new TGeoTranslation(x, y, z);
+                rearMucal->AddNode(hitVolume, 0, trans);
+            }
+        }
     }
 
     fCanvas->GetCanvas()->cd();
@@ -599,43 +630,52 @@ void MyMainFrame::Draw_event() {
 
     delete energyText;
     std::ostringstream energies;
-    if(fPORecoEvent->GetPOFullRecoEvent()!=nullptr) {
-        energies << Form("Evis:%6.2f GeV", fPORecoEvent->GetPOFullRecoEvent()->TotalEvis());
-        energies << Form("  ET:%6.2f GeV", fPORecoEvent->GetPOFullRecoEvent()->TotalET());
+    if (fPORecoEvent != nullptr)
+    {
+        if (fPORecoEvent->GetPOFullRecoEvent() != nullptr)
+        {
+            energies << Form("Evis:%6.2f GeV", fPORecoEvent->GetPOFullRecoEvent()->TotalEvis());
+            energies << Form("  ET:%6.2f GeV", fPORecoEvent->GetPOFullRecoEvent()->TotalET());
+        }
+        energies << Form("  RearCal:%6.2f GeV", fPORecoEvent->rearCals.rearCalDeposit);
+        energies << Form("  RearHCal:%6.2f GeV", fPORecoEvent->rearCals.rearHCalDeposit);
+        energies << Form("  RearMuCal:%6.2f MeV", fPORecoEvent->rearCals.rearMuCalDeposit);
     }
-    energies << Form("  RearCal:%6.2f GeV", fPORecoEvent->rearCals.rearCalDeposit);
-    energies << Form("  RearHCal:%6.2f GeV", fPORecoEvent->rearCals.rearHCalDeposit);
-    energies << Form("  RearMuCal:%6.2f MeV", fPORecoEvent->rearCals.rearMuCalDeposit);
     energyText = new TText(0.05, 0.85, energies.str().c_str());
     energyText->SetNDC();
     energyText->SetTextSize(0.03);
     energyText->Draw();
 
-    Draw_event_reco_tracks();
-    
-    // Draw reconstructed voxels
-    Draw_event_reco_voxel(bigbox, air, box);
-    gGeoManager->GetTopVolume()->AddNode(ps_reco_voxel,1);
+    if (fPORecoEvent != nullptr)
+    {
+        Draw_event_reco_tracks();
 
-    // Draw reconstructed PSTracks
-    ps_tracks = new TGeoVolume("ps_tracks", bigbox, air);
-    int ivox = 1;
-    Int_t colors[] = {kCyan, kOrange, kSpring, kTeal, kAzure, kViolet, kPink};
-    for (const auto& it : fPORecoEvent->fPSTracks) {
-        Int_t kcolor = colors[(ivox/6)%6]+ivox%6-3;
-        size_t nhits = it.tkhit.size();
-        for ( size_t i = 0; i < nhits; i++) {
-            long ID = it.tkhit[i].ID;
-            ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(ID);
-            TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, 
-                position.Y() / 10.0, position.Z() / 10.0);
-            TGeoVolume *hitVolume = new TGeoVolume("HitVolume", box, air);
-            hitVolume->SetLineColor(kcolor); 
-            ps_tracks->AddNode(hitVolume, ivox++, trans);
+        // Draw reconstructed voxels
+        Draw_event_reco_voxel(bigbox, air, box);
+        gGeoManager->GetTopVolume()->AddNode(ps_reco_voxel, 1);
+
+        // Draw reconstructed PSTracks
+        ps_tracks = new TGeoVolume("ps_tracks", bigbox, air);
+        int ivox = 1;
+        Int_t colors[] = {kCyan, kOrange, kSpring, kTeal, kAzure, kViolet, kPink};
+        for (const auto &it : fPORecoEvent->fPSTracks)
+        {
+            Int_t kcolor = colors[(ivox / 6) % 6] + ivox % 6 - 3;
+            size_t nhits = it.tkhit.size();
+            for (size_t i = 0; i < nhits; i++)
+            {
+                long ID = it.tkhit[i].ID;
+                ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(ID);
+                TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0,
+                                                             position.Y() / 10.0, position.Z() / 10.0);
+                TGeoVolume *hitVolume = new TGeoVolume("HitVolume", box, air);
+                hitVolume->SetLineColor(kcolor);
+                ps_tracks->AddNode(hitVolume, ivox++, trans);
+            }
         }
     }
 
-    if(toggle_secondary_em)
+    if (toggle_secondary_em)
         gGeoManager->GetTopVolume()->AddNode(secondary_em,1);
     if(toggle_secondary_em)
         gGeoManager->GetTopVolume()->AddNode(secondary_had,1);
@@ -658,12 +698,12 @@ void MyMainFrame::Draw_event() {
     c1->cd(1);
     gPad->SetLogz();
     gStyle->SetOptStat(0);  // Disable the statistics box
-    if(fPORecoEvent -> Get2DViewXPS() != nullptr)
+    if(fPORecoEvent != nullptr && fPORecoEvent -> Get2DViewXPS() != nullptr)
         fPORecoEvent -> Get2DViewXPS() -> Draw("COLZ");
     c1->cd(2);
     gPad->SetLogz();
     gStyle->SetOptStat(0);  // Disable the statistics box
-    if(fPORecoEvent -> Get2DViewYPS() != nullptr)
+    if(fPORecoEvent != nullptr && fPORecoEvent -> Get2DViewYPS() != nullptr)
         fPORecoEvent -> Get2DViewYPS() -> Draw("COLZ");
     c1->Modified();
     c1->Update();
@@ -674,22 +714,22 @@ void MyMainFrame::Draw_event() {
     c2->cd(1);
     gPad->SetLogz();
     gStyle->SetOptStat(0);  // Disable the statistics box
-    if(fPORecoEvent -> xviewPS_em != nullptr)
+    if(fPORecoEvent != nullptr && fPORecoEvent -> xviewPS_em != nullptr)
         fPORecoEvent -> xviewPS_em -> Draw("COLZ");
     c2->cd(2);
     gPad->SetLogz();
     gStyle->SetOptStat(0);  // Disable the statistics box
-    if(fPORecoEvent -> yviewPS_em != nullptr)
+    if(fPORecoEvent != nullptr && fPORecoEvent -> yviewPS_em != nullptr)
         fPORecoEvent -> yviewPS_em -> Draw("COLZ");
     c2->cd(3);
     gPad->SetLogz();
     gStyle->SetOptStat(0);  // Disable the statistics box
-    if(fPORecoEvent -> xviewPS_had != nullptr)
+    if(fPORecoEvent != nullptr && fPORecoEvent -> xviewPS_had != nullptr)
         fPORecoEvent -> xviewPS_had -> Draw("COLZ");
     c2->cd(4);
     gPad->SetLogz();
     gStyle->SetOptStat(0);  // Disable the statistics box
-    if(fPORecoEvent -> yviewPS_had != nullptr)
+    if(fPORecoEvent != nullptr && fPORecoEvent -> yviewPS_had != nullptr)
         fPORecoEvent -> yviewPS_had -> Draw("COLZ");
     c2->Modified();
     c2->Update();
@@ -701,7 +741,7 @@ void MyMainFrame::Draw_event() {
         c3->cd(i+1);
         gPad->SetLogz();
         gStyle->SetOptStat(0);  // Disable the statistics box
-        if(fPORecoEvent -> zviewPS.size() > 0)
+        if(fPORecoEvent != nullptr && fPORecoEvent -> zviewPS.size() > 0)
             fPORecoEvent -> zviewPS[i] -> Draw("COLZ");
     }
     c3->Modified();
@@ -713,7 +753,7 @@ void MyMainFrame::Draw_event() {
     c4->cd(1);
     gPad->SetLogz();
     gStyle->SetOptStat(0);  // Disable the statistics box
-    if(fPORecoEvent -> xviewPS_eldepo != nullptr)
+    if(fPORecoEvent != nullptr && fPORecoEvent -> xviewPS_eldepo != nullptr)
     {
         fPORecoEvent -> xviewPS_eldepo -> GetXaxis() -> SetTitle("Electromagneticity");
         fPORecoEvent -> xviewPS_eldepo -> GetYaxis() -> SetTitle("Deposited energy (MeV)");
@@ -722,7 +762,7 @@ void MyMainFrame::Draw_event() {
     c4->cd(2);
     gPad->SetLogz();
     gStyle->SetOptStat(0);  // Disable the statistics box
-    if(fPORecoEvent -> yviewPS_eldepo != nullptr)
+    if(fPORecoEvent != nullptr && fPORecoEvent -> yviewPS_eldepo != nullptr)
     {
         fPORecoEvent -> yviewPS_eldepo -> GetXaxis() -> SetTitle("Electromagneticity");
         fPORecoEvent -> yviewPS_eldepo -> GetYaxis() -> SetTitle("Deposited energy (MeV)");
@@ -730,12 +770,6 @@ void MyMainFrame::Draw_event() {
     }
     c4->Modified();
     c4->Update();
-
-    // print tracks in mutag
-    std::cout << " ------------ MUTAG truth tracks" << std::endl;
-    for (const auto &it : fTcalEvent->fMuTagTracks) {
-        std::cout << it->ftrackID << " " << it->fPDG << " Mom:" << it->mom[0].x() << " " << it->mom[0].y() << " " << it->mom[0].z() << std::endl;
-    }
 
 }
 
@@ -814,7 +848,8 @@ void MyMainFrame::Draw_event_reco_tracks() {
 void MyMainFrame::Draw_event_reco_voxel(TGeoShape *bigbox, TGeoMedium *air, TGeoShape *box) {
     // Draw reconstructed voxels
     ps_reco_voxel = new TGeoVolume("ps_reco_voxel", bigbox, air);
-
+    if(fPORecoEvent == nullptr)
+        return;
     int i = 1;
     for (auto& it : fPORecoEvent->PSvoxelmap) {
         long ID = it.first;
@@ -868,7 +903,6 @@ void MyMainFrame::Next_Event(int ievent) {
     TGeoNode *nodeToRemove10 = gGeoManager->GetTopVolume()->FindNode("rearMucal_1");
     gGeoManager->GetTopVolume()->RemoveNode(nodeToRemove10);
 
-    int run_number = fTcalEvent->fTPOEvent->run_number;
     if(!process_reco_event) {
         delete POevent;
         delete fTcalEvent;
@@ -876,6 +910,7 @@ void MyMainFrame::Next_Event(int ievent) {
     delete fPORecoEvent;
     fPORecoEvent = nullptr;
 
+    int run_number = frun_number;
     if(!process_reco_event) 
         Load_event(run_number, ievent, event_mask);
     else

@@ -26,7 +26,13 @@
 void ListVolumes(TGeoVolume* volume, int depth = 0) {
     // Print the volume name with indentation for hierarchy
     for (int i = 0; i < depth; ++i) std::cout << "  "; // Indent based on depth
-    std::cout << volume->GetName() << std::endl;
+    std::cout << volume->GetName();
+    std::cout << "  Volume type: " << volume->GetShape()->GetTitle() << std::endl;
+    std::cout << "  Volume material: " << volume->GetMaterial()->GetName() << std::endl;
+    std::cout << "  Number of daughters: " << volume->GetNdaughters() << std::endl;
+    std::cout << "  Volume dimensions: ";
+    volume->GetShape()->Print(); // Print shape details
+    std::cout << std::endl;
 
     // Loop through the list of daughter volumes
     int nDaughters = volume->GetNdaughters();
