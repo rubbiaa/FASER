@@ -89,8 +89,9 @@ TPORecoEvent:: TPORecoEvent() : TObject(), fTcalEvent(0), fTPOEvent(0), fPOFullE
         genfit::MaterialEffects::getInstance()->init(new genfit::TGeoMaterialInterface());
         // genfit::FieldManager::getInstance()->init(new genfit::ConstField(0. ,1e-4, 0.));
         // put the magnetic field of the FASER detector
-        genfit::FieldManager::getInstance()->init(new GenMagneticField());
     }
+    fMagField = new GenMagneticField();
+    genfit::FieldManager::getInstance()->init(fMagField);
 }
 
 TPORecoEvent::TPORecoEvent(TcalEvent* c, TPOEvent* p) : TPORecoEvent() {
@@ -98,6 +99,9 @@ TPORecoEvent::TPORecoEvent(TcalEvent* c, TPOEvent* p) : TPORecoEvent() {
     fTPOEvent = p;
     // copy geometry
     geom_detector = fTcalEvent->geom_detector;
+    // set the magnetic field based on the geometry
+    fMagField->SetSlitPosition(25.0); // in cm
+    fMagField->SetRearMuSpectGeometry(fTcalEvent->geom_detector.rearMuSpectLocZ/10.0, fTcalEvent->geom_detector.rearMuSpectSizeZ/10.0); // in cm 
 
     // empty histogram pointers
 	for(int i =0; i < 50; i++){
@@ -158,6 +162,7 @@ TPORecoEvent::~TPORecoEvent() {
     }
     delete fPOFullEvent;
     delete fPOFullRecoEvent;
+    delete fMagField;
     fPORecs.clear();
 }
 
@@ -3136,6 +3141,19 @@ void TPORecoEvent::ReconstructMuonSpectrometer() {
             }
         }
         fMuTracks.push_back(mutrack);
+    }
+
+    // introduce some smearing to simulate detector resolution
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::normal_distribution<> d(0, 0.1); // in mm
+    for(auto &it : fMuTracks) {
+        size_t nhits = it.fpos.size();
+        for(size_t i = 0; i < nhits; i++) {
+            it.fpos[i].SetX( it.fpos[i].x() + d(gen) );
+            it.fpos[i].SetY( it.fpos[i].y() + d(gen) );
+            // no smearing in z
+        }
     }
 
     // dump fMuTracks

@@ -157,13 +157,17 @@ public:
         Double_t rearCalSizeY; // in mm
         Double_t rearCalLocZ;  // in mm
         Int_t rearCalNxy = 5;   // number of modules in x, and y
+        Double_t rearCalSizeZ = 66.0*6; // in mm
         Double_t rearHCalSizeX; // in mm
         Double_t rearHCalSizeY; // in mm
         Double_t rearHCalSizeZ; // in mm
         Double_t rearHCalLocZ;  // in mm
         double_t rearHCalVoxelSize; // in mm
         Int_t rearHCalNxy = 18;   // number of modules in x, and y
-        Int_t rearHCalNlayer = 40; // number of layers   
+        Int_t rearHCalNlayer = 40; // number of layers  
+        Double_t rearHCalLength; // in mm 
+        Double_t rearMuSpectLocZ; // in mm
+        Double_t rearMuSpectSizeZ; // in mm
         Double_t fFASERCal_LOS_shiftX; // in mm
         Double_t fFASERCal_LOS_shiftY; // in mm 
         Double_t fAirGap; // in mm

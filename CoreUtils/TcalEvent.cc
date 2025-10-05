@@ -80,7 +80,7 @@ TcalEvent::~TcalEvent()
 /// @brief Load event from G4 output for INPUT
 /// @param base_path
 /// @param ievent
-/// @return error = 0, ok, error = 1, file not found
+/// @return error = 0, ok, error = 1, file not found, error=2 no entries found
 int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
                             int event_mask, TPOEvent *POevent) {
     std::string extension = ".root";
@@ -113,7 +113,7 @@ int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
     if(nentries < 1) {
         m_rootFile -> Close();
         delete m_rootFile;
-        return 1;
+        return 2;
     }
 
     // Set the branch address

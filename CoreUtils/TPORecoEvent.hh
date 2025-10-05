@@ -17,6 +17,7 @@
 #include "TTKTrack.hh"
 #include "TPSTrack.hh"
 #include "TMuTrack.hh"
+#include "GenMagneticField.hh"
 
 /// @brief TPORec holds a reconstructed particle object
 class TPORec : public TObject {
@@ -78,6 +79,8 @@ private:
 
     TcalEvent* fTcalEvent;                            //! Reference to the TCAL event
     TPOEvent* fTPOEvent;                              // Reference to the TPOEvent
+
+    GenMagneticField* fMagField = nullptr;         //! The magnetic field of the FASER detector
 
 // static    TVector3 fitLineThroughPoints(const struct TPORec::TRACK &track, TVector3& centroid);
 public:

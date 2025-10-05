@@ -64,8 +64,11 @@ void TMuTrack::GenFitTrackFit(int verbose, double detectorResolutionPSmm) {
         std::cerr << "Exception when track fitting with GENFIT" << std::endl;
       }
 
-    fitTrack->getFittedState().Print();
-    fitTrack->Print();
+    if(verbose > 3) {
+        std::cout << "After fit: " << std::endl;
+        fitTrack->getFittedState().Print();
+        fitTrack->Print();
+    }
 
     // compute momentum at the first point
     double chi2 = fitTrack->getFitStatus()->getChi2();
