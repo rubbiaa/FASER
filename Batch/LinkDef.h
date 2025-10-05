@@ -5,6 +5,7 @@
 #include "TParticleGun.hh"
 #include "TPSCluster.hh"
 #include "TTKTrack.hh"
+#include "TMuonSpect.hh"
 
 #ifdef __CLING__
 
@@ -39,11 +40,15 @@
 #pragma link C++ class TParticleGun;
 #pragma link C++ struct TParticleGun::FEATURES;
 
+#pragma link C++ class TMuonSpectrometer;
+#pragma link C++ struct TMuonSpectrometer::FEATURES;
+
 #pragma link C++ class TPSCluster;
 #pragma link C++ struct TPSCluster::PSCLUSTERLONGPROFILE;
 
 #pragma link C++ class TTKTrack;
 #pragma link C++ class TPSTrack;
+#pragma link C++ class TMuTrack;
 
 #pragma link C++ struct TcalEvent::GEOM_DETECTOR;
 

@@ -19,6 +19,7 @@
 #include "TPORecoEvent.hh"
 #include "TTauSearch.hh"
 #include "TParticleGun.hh"
+#include "TMuonSpect.hh"
 
 #include <chrono>
 
@@ -84,10 +85,10 @@ int main(int argc, char** argv) {
         try {
             min_event = std::stoi(argv[argv_index++]);
         } catch (const std::invalid_argument& e) {
-            std::cerr << "Invalid argument for maxevent: " << e.what() << std::endl;
+            std::cerr << "Invalid argument for minevent: " << e.what() << std::endl;
             exit(1);
         } catch (const std::out_of_range& e) {
-            std::cerr << "Out of range for maxevent: " << e.what() << std::endl;
+            std::cerr << "Out of range for minevent: " << e.what() << std::endl;
             exit(1);
         }
     }
@@ -179,6 +180,11 @@ int main(int argc, char** argv) {
     TTree *m_particlegun_Tree = new TTree("ParticleGun","ParticleGun");
     fTParticleGun.Create_Sel_Tree(m_particlegun_Tree);
 
+    // TMuonSpectrometer
+    TMuonSpectrometer fTMuonSpectrometer;
+    TTree *m_muonspect_Tree = new TTree("MuonSpectrometer","MuonSpectrometer");
+    fTMuonSpectrometer.Create_Sel_Tree(m_muonspect_Tree);
+
     // process events
     int ievent = min_event;
     int error = 0;
@@ -206,6 +212,7 @@ int main(int argc, char** argv) {
 
         if(!dump_event_cout) fTcalEvent->SetVerbose(0);
         error = fTcalEvent -> Load_event(base_path, run_number, ievent++, event_mask, POevent);
+        if(error==2){ error = 0; continue; }
         if(error != 0) break;
 
         // skip empty events (can happen for example for particle guns G4 where no lepton or pion has been found (i.e. NC ES))
@@ -254,6 +261,7 @@ int main(int argc, char** argv) {
         fPORecoEvent -> ReconstructClusters(0);
         fPORecoEvent -> Reconstruct3DPS_2();
         fPORecoEvent -> ReconstructRearCals();
+        fPORecoEvent -> ReconstructMuonSpectrometer();
         fPORecoEvent -> Reconstruct3DPS_Eflow();
         fPORecoEvent -> TrackReconstruct();
 
@@ -274,6 +282,7 @@ int main(int argc, char** argv) {
         for (auto it : fPORecoEvent->GetPORecs())
         {
             int POID = it->POID;
+            if(POID < 0) continue;
             struct PO *aPO = &fTcalEvent->fTPOEvent->POs[POID];
             size_t ntracks = it->fGEANTTrackIDs.size();
             for (size_t i = 0; i < ntracks; i++)
@@ -324,6 +333,7 @@ int main(int argc, char** argv) {
         for (auto it : fPORecoEvent->GetPORecs())
         {
             int POID = it->POID;
+            if(POID < 0) continue;
             struct PO *aPO = &fTcalEvent->fTPOEvent->POs[POID];
             int PDG = aPO->m_pdg_id;
             double POEne = aPO->m_energy;
@@ -397,6 +407,7 @@ int main(int argc, char** argv) {
         for (auto it : fPORecoEvent->GetPORecs())
         {
             int POID = it->POID;
+            if(POID < 0) continue;
             struct PO *aPO = &fTcalEvent->fTPOEvent->POs[POID];
             int PDG = aPO->m_pdg_id;
 
@@ -427,28 +438,51 @@ int main(int argc, char** argv) {
         // particle gun studies
         bool particle_gun = true;
         double emax_cluster = 0;
-        if(particle_gun){
-            if((fPORecoEvent->GetPORecs()).size() == 0) continue;
-            struct TPORec* aPORec = (fPORecoEvent->GetPORecs())[0]; 
+        if (particle_gun)
+        {
+            if ((fPORecoEvent->GetPORecs()).size() == 0)
+                continue;
+            struct TPORec *aPORec = (fPORecoEvent->GetPORecs())[0];
             int POID = aPORec->POID;
-            struct PO *aPO = &fTcalEvent->fTPOEvent->POs[POID];
-            fTParticleGun.features.m_pdg_id = aPO->m_pdg_id;
-            fTParticleGun.features.m_energy = aPO->m_energy;
-
-            // fill features of most energetic reconstructed cluster
-            if (fPORecoEvent->PSClustersX.size() > 0)
+            if (POID >= 0)
             {
-                TPSCluster *c = &fPORecoEvent->PSClustersX[0]; // most energetic one
-                fTParticleGun.features.ep_chi2_per_ndf = c->longenergyprofile.chi2_per_ndf;
-                fTParticleGun.features.ep_E0 = c->longenergyprofile.E0;
-                fTParticleGun.features.ep_a = c->longenergyprofile.a;
-                fTParticleGun.features.ep_b = c->longenergyprofile.b;
-                fTParticleGun.features.ep_tmax = c->longenergyprofile.tmax;
-                fTParticleGun.features.ep_c = c->longenergyprofile.c;
-            }
+                struct PO *aPO = &fTcalEvent->fTPOEvent->POs[POID];
+                fTParticleGun.features.m_pdg_id = aPO->m_pdg_id;
+                fTParticleGun.features.m_energy = aPO->m_energy;
 
-            fTParticleGun.Fill_Sel_Tree(m_particlegun_Tree);     
+                // fill features of most energetic reconstructed cluster
+                if (fPORecoEvent->PSClustersX.size() > 0)
+                {
+                    TPSCluster *c = &fPORecoEvent->PSClustersX[0]; // most energetic one
+                    fTParticleGun.features.ep_chi2_per_ndf = c->longenergyprofile.chi2_per_ndf;
+                    fTParticleGun.features.ep_E0 = c->longenergyprofile.E0;
+                    fTParticleGun.features.ep_a = c->longenergyprofile.a;
+                    fTParticleGun.features.ep_b = c->longenergyprofile.b;
+                    fTParticleGun.features.ep_tmax = c->longenergyprofile.tmax;
+                    fTParticleGun.features.ep_c = c->longenergyprofile.c;
+                }
+
+                fTParticleGun.Fill_Sel_Tree(m_particlegun_Tree);
+            }
         }
+
+        // TMuonSpectrometer
+        fTMuonSpectrometer.features.ntracks = fPORecoEvent->fMuTracks.size();
+        int ntracks = fPORecoEvent->fMuTracks.size();
+        if(ntracks>MAXMUTRACKS) ntracks = MAXMUTRACKS;
+        for(int i=0; i<ntracks; i++) {
+            TMuTrack *aMuTrack = &fPORecoEvent->fMuTracks[i];
+            fTMuonSpectrometer.features.charge[i] = aMuTrack->fcharge;
+            fTMuonSpectrometer.features.npoints[i] = aMuTrack->fpos.size();
+            fTMuonSpectrometer.features.px[i] = aMuTrack->fpx;
+            fTMuonSpectrometer.features.py[i] = aMuTrack->fpy;
+            fTMuonSpectrometer.features.pz[i] = aMuTrack->fpz;
+            fTMuonSpectrometer.features.p[i] = aMuTrack->fp;
+            fTMuonSpectrometer.features.chi2[i] = aMuTrack->fchi2;
+            fTMuonSpectrometer.features.nDoF[i] = aMuTrack->fnDoF;
+            fTMuonSpectrometer.features.pval[i] = aMuTrack->fpval;
+        }
+        fTMuonSpectrometer.Fill_Sel_Tree(m_muonspect_Tree);
 
         m_POEventTree -> Fill();
 
