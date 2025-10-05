@@ -116,8 +116,8 @@ void convert_FASERMC(int run_number, TTree *tree, int min_event, int max_event,
 //    if(fTPOEvent.prim_vx.z() > 511.0) continue;
     // identify IN FRONT TARGET
     int front_target = 0;
-//    if(fTPOEvent.prim_vx.z() < -1533.0) front_target = 1;
-//    if(front_target) continue;
+    if(fTPOEvent.prim_vx.z() < -1150.0) front_target = 1;
+    if(front_target) continue;
 
     fTPOEvent.event_id = iseq;
 
