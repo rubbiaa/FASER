@@ -204,8 +204,11 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 
 	CreateRearCal(zLocation, worldLV);
 
-	G4double sizeZmu = zLocation + 66*6*mm;
-	CreateRearHCalMuTag(sizeZmu, worldLV);
+	G4double locZHcal = zLocation + fRearCalSizeZ;
+	CreateRearHCal(locZHcal, worldLV);
+
+	G4double locMuSpect = locZHcal + fRearHCalLength;
+	CreateRearMuSpectrometer(locMuSpect, worldLV);
 
 	// Save the geometry of the detector
 	G4GDMLParser parser;
@@ -549,6 +552,10 @@ void DetectorConstruction::CreateRearCal(G4double zLocation, G4LogicalVolume* pa
 	G4double sizeZ_Pb = 2*mm;
 	G4double sizeZ_PS = 4*mm;
 	G4int nlayer = 66;
+	fRearCalSizeZ = nlayer*(sizeZ_Pb+sizeZ_PS);
+	G4cout << "Total length of the rear calorimeter " << fRearCalSizeZ << " mm " << G4endl;
+
+	// Pb and plastic scintillator
 	G4Material * G4_Pb = G4NistManager::Instance()->FindOrBuildMaterial("G4_Pb");
 	G4Material* plasticScintillator = G4NistManager::Instance()->FindOrBuildMaterial("G4_PLASTIC_SC_VINYLTOLUENE");
 
@@ -577,14 +584,14 @@ void DetectorConstruction::CreateRearCal(G4double zLocation, G4LogicalVolume* pa
 	}
 }
 
-void DetectorConstruction::CreateRearHCalMuTag(G4double zLocation, G4LogicalVolume* parent) {
+void DetectorConstruction::CreateRearHCal(G4double zLocation, G4LogicalVolume* parent) {
 	// dimensions of the rear HCal
 	G4double sizeZ_Fe = 2*cm;
 	G4double sizeZ_PS = 0.3*cm;
 	G4int nlayer = 40;
 	// dimensions of the neutron absorber
 	G4double sizeZ_nabs = 10*cm;  /// polyethylene slab
-	// dimensions of the rear MuTag
+	// dimensions of the rear HCal
 	G4double sizeX = 72*cm;
 	G4double sizeY = 72*cm;
 	G4double sizeZ = 4*cm;
@@ -595,6 +602,8 @@ void DetectorConstruction::CreateRearHCalMuTag(G4double zLocation, G4LogicalVolu
 
 	double sizeZ_HCalmodule = sizeZ_Fe + sizeZ_PS;
 	double total_sizeZ = nlayer*sizeZ_HCalmodule;
+
+	fRearHCalLength = total_sizeZ;
 
 	double Fe_mass = nlayer*sizeX*sizeY*sizeZ_Fe*(G4_Fe->GetDensity()/(kg/cm3));
 	G4cout << "Total mass of RearMuCal absorber " << Fe_mass << " kg " << G4endl;
@@ -632,7 +641,9 @@ void DetectorConstruction::CreateRearHCalMuTag(G4double zLocation, G4LogicalVolu
 	z = zLocation + total_sizeZ + sizeZ_nabs + sizeZ/2.0;
 	new G4PVPlacement(0, G4ThreeVector(x,y,z), scintillatorLogic, "rearMuCalScint", parent, false, 0, true);
 	#endif
+}
 
+void DetectorConstruction::CreateRearMuSpectrometer(G4double zLocation, G4LogicalVolume* parent) {
 	auto nist = G4NistManager::Instance();
 	G4Material *air = nist->FindOrBuildMaterial("G4_AIR");
 	G4Material *steel = nist->FindOrBuildMaterial("G4_Fe");
@@ -651,16 +662,22 @@ void DetectorConstruction::CreateRearHCalMuTag(G4double zLocation, G4LogicalVolu
 	G4double gapBeforeMagnet = 10. * mm;
 	G4double gapAfterMagnet = 10. * mm;
 
+	fRearMuSpectLocZ = zLocation;
+
 	// Calculate total length needed
 	G4double totalSciFiThickness = nSciFiPlanes * scifilayerThickness;
 	G4double totalMagnetThickness = nMagnets * magnetThickness;
 	G4double totalGapBefore = nMagnets * gapBeforeMagnet;
 	G4double totalGapAfter = nMagnets * gapAfterMagnet;
 	G4double totalLength = totalSciFiThickness + totalMagnetThickness + totalGapBefore + totalGapAfter;
+	fRearMuSpectSizeZ = totalLength;
+	G4cout << "Total length of the muon spectrometer " << totalLength / mm << " mm " << G4endl;
 
 	G4double zStart = -totalLength / 2;
 	
-	double z = zLocation + total_sizeZ + totalLength / 2;
+	double x = 0;
+	double y = 0;
+	double z = zLocation + totalLength / 2;
 	G4Box* muonSpectrometerBox = new G4Box("MuonSpectrometer", magnetSizeX / 2, magnetSizeY / 2, totalLength / 2);
 	G4LogicalVolume* muonSpectrometerLV = new G4LogicalVolume(muonSpectrometerBox, air, "MuonSpectrometerLV");
 	new G4PVPlacement(0, G4ThreeVector(x,y,z), muonSpectrometerLV, "MuonSpectrometer", parent, false, 0, true);

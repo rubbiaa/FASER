@@ -210,8 +210,13 @@ void ParticleManager::beginOfEvent()
 	fTcalEvent->geom_detector.rearHCalSizeX = 720.0; // mm
 	fTcalEvent->geom_detector.rearHCalSizeY = 720.0; // mm
 	fTcalEvent->geom_detector.rearHCalSizeZ = 23; // mm
-	fTcalEvent->geom_detector.rearHCalVoxelSize = 40; // mm
+	fTcalEvent->geom_detector.rearHCalVoxelSize = detector->fRearHCalVoxelSize;
 	fTcalEvent->geom_detector.rearHCalLocZ =  fTcalEvent->geom_detector.rearCalLocZ + 66*6.0; 
+	fTcalEvent->geom_detector.rearHCalNxy = 18;
+	fTcalEvent->geom_detector.rearHCalLength = detector->fRearHCalLength;
+	fTcalEvent->geom_detector.rearHCalNlayer = 40;
+	fTcalEvent->geom_detector.rearMuSpectLocZ = detector->fRearMuSpectLocZ;
+	fTcalEvent->geom_detector.rearMuSpectSizeZ = detector->fRearMuSpectSizeZ;
 	fTcalEvent->geom_detector.fFASERCal_LOS_shiftX = detector->fFASERCal_LOS_shiftX * mm;
 	fTcalEvent->geom_detector.fFASERCal_LOS_shiftY = detector->fFASERCal_LOS_shiftY * mm;
 	fTcalEvent->geom_detector.fAirGap = detector->fAirGap * mm;

@@ -218,8 +218,9 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 			double pz = std::cos(theta);
 
 			// Set direction vector with given momentum magnitude
+			double momentumMagnitude = 200.0; // in GeV
 			G4ThreeVector StartMomentum(px, py, pz);
-			StartMomentum = StartMomentum.unit() * (50 * GeV); // Normalize and scale
+			StartMomentum = StartMomentum.unit() * (momentumMagnitude * GeV); // Normalize and scale
 			particleGun->SetParticleMomentum(StartMomentum);
 			fParticleGuns.push_back(particleGun);
 		}

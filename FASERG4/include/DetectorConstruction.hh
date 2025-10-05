@@ -101,10 +101,20 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	G4double fTotalWMass;
 	G4double fTotalScintMass;
 
+	// read ECAL
+	G4double fECalSizeX = 121.2 * cm;
+	G4double fECalSizeY = 121.2 * cm;
+	G4double fRearCalSizeZ;
+
 	// rear HCAL
 	G4double fRearHCalSizeX = 720 * mm;
 	G4double fRearHCalSizeY = 720 * mm;
 	G4double fRearHCalVoxelSize = 40 * mm;
+	G4double fRearHCalLength;
+
+	// read muon spectrometer
+	G4double fRearMuSpectLocZ; // in mm
+	G4double fRearMuSpectSizeZ; // in mm
 
 	void SetNumberReplicas(G4int);
 	G4int getNumberReplicas() const {return fNumberReplicas ;}
@@ -143,7 +153,10 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	/// @brief Create the rear HCAL and rear muon tagger
 	/// @param zLocation 
 	/// @param parent 
-	void CreateRearHCalMuTag(G4double zLocation, G4LogicalVolume* parent);
+	void CreateRearHCal(G4double zLocation, G4LogicalVolume* parent);
+
+	/// @brief Create the rear muon spectrometer
+	void CreateRearMuSpectrometer(G4double zLocation, G4LogicalVolume* parent);
 
 	/// @brief Create the front Pb target
 	/// @param zLocation 
