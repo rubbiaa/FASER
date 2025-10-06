@@ -154,7 +154,7 @@ googletest: googletest_git
 	fi
 
 
-.PHONY clean:
+.PHONY distclean:
 	rm -rf pythia8312 pythia8312.tgz
 	rm -rf CLHEP-build CLHEP-install
 	rm -rf CLHEP
