@@ -12,6 +12,7 @@
 #include "TVector3.h"
 #include "TFile.h"
 #include "TTree.h"
+#include <TGeoManager.h>
 
 #include "TPOEvent.hh"
 
@@ -163,11 +164,15 @@ public:
         Double_t rearHCalSizeZ; // in mm
         Double_t rearHCalLocZ;  // in mm
         double_t rearHCalVoxelSize; // in mm
-        Int_t rearHCalNxy = 18;   // number of modules in x, and y
-        Int_t rearHCalNlayer = 40; // number of layers  
-        Double_t rearHCalLength; // in mm 
+        Int_t rearHCalNxy;   // number of modules in x, and y
+        Int_t rearHCalNlayer; // number of layers  
+        Double_t rearHCalLength; // in mm
+        Double_t frearHCal_LOS_shiftX; // in mm
+        Double_t frearHCal_LOS_shiftY; // in mm
         Double_t rearMuSpectLocZ; // in mm
         Double_t rearMuSpectSizeZ; // in mm
+        Double_t fRearMuSpect_LOS_shiftX; // in mm
+        Double_t fRearMuSpect_LOS_shiftY; // in mm
         Double_t fFASERCal_LOS_shiftX; // in mm
         Double_t fFASERCal_LOS_shiftY; // in mm 
         Double_t fAirGap; // in mm
@@ -177,6 +182,9 @@ public:
 
     /// @brief The summary of the detector geometry
     struct GEOM_DETECTOR geom_detector;
+
+    // TGeom declarations
+    TGeoNode *frearHCalTGeomNode = nullptr;
 
     /// @brief Returns type ID of a hit
     /// @param ID The hit ID (see FASERG4 DetectorConstruction class)

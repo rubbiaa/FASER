@@ -2,6 +2,7 @@
 #include "TcalEvent.hh"
 
 #include <TChain.h>
+#include <TGeoManager.h>
 
 ClassImp(TcalEvent)
 
@@ -11,6 +12,22 @@ TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fMuTagTracks() ,
     rearCalDeposit = {};
     rearHCalDeposit = {};
     rearMuCalDeposit = {};
+
+    // Find the TGeoNode corresponding to the rear HCal
+    TGeoNode *node = gGeoManager->GetTopNode();
+    // loop over all daughters
+    int ndaughters = node->GetNdaughters();
+    for(int i=0; i<ndaughters; i++) {
+        TGeoNode *dnode = node->GetDaughter(i);
+        std::string name = dnode->GetName();
+        if(name.find("rearHCal")!=std::string::npos) {
+            frearHCalTGeomNode = dnode;
+            TGeoMatrix *matrix = dnode->GetMatrix();
+            matrix->Print();
+            break;
+        }
+    }
+
 }
 
 /// @brief Create a TcalEvent with a given event number for OUTPUT
@@ -226,16 +243,32 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZRearCal(int moduleID) const {
     return ROOT::Math::XYZVector(x, y, z);
 }
 
-ROOT::Math::XYZVector TcalEvent::getChannelXYZRearHCal(int moduleID) const {
+ROOT::Math::XYZVector TcalEvent::getChannelXYZRearHCal(int moduleID) const
+{
     long ix = moduleID % 1000;
     long iy = (moduleID / 1000) % 1000;
     long iz = (moduleID / 1000000LL) % 1000;
-    double x = geom_detector.fFASERCal_LOS_shiftX + (ix - geom_detector.rearHCalNxy/2.0 + 0.5)*geom_detector.rearHCalVoxelSize;
-    double y = geom_detector.fFASERCal_LOS_shiftY + (iy - geom_detector.rearHCalNxy/2.0 + 0.5)*geom_detector.rearHCalVoxelSize;
-    double z = geom_detector.rearHCalLocZ + iz * geom_detector.rearHCalSizeZ + geom_detector.rearHCalSizeZ/2.0;
-    return ROOT::Math::XYZVector(x, y, z);
-}
+    //    double x = geom_detector.frearHCal_LOS_shiftX + (ix - geom_detector.rearHCalNxy/2.0 + 0.5)*geom_detector.rearHCalVoxelSize;
+    //    double y = geom_detector.frearHCal_LOS_shiftY + (iy - geom_detector.rearHCalNxy/2.0 + 0.5)*geom_detector.rearHCalVoxelSize;
+    //    double z = geom_detector.rearHCalLocZ + iz * geom_detector.rearHCalSizeZ + geom_detector.rearHCalSizeZ/2.0;
+    //    std::cout << "HCal moduleID " << moduleID << " ix " << ix << " iy " << iy << " iz " << iz << " x " << x << " y " << y << " z " << z << std::endl;
 
+    // Compute local coordinates
+    double x = (ix - geom_detector.rearHCalNxy / 2.0 + 0.5) * geom_detector.rearHCalVoxelSize;
+    double y = (iy - geom_detector.rearHCalNxy / 2.0 + 0.5) * geom_detector.rearHCalVoxelSize;
+    double z = (iz - geom_detector.rearHCalNlayer / 2.0 + 0.5) * geom_detector.rearHCalSizeZ;
+
+    // Get the transformation matrix of the HCAL mother node
+    TGeoMatrix *matrix = frearHCalTGeomNode->GetMatrix();
+    // Transform the point using the matrix
+    double local[3] = {x / 10.0, y / 10.0, z / 10.0}; // Convert mm to cm for TGeo
+    double global[3] = {0, 0, 0};
+    matrix->LocalToMaster(local, global);
+    //std::cout << "Local (" << local[0] << ", " << local[1] << ", " << local[2] << ") -> Global ("
+    //          << global[0] << ", " << global[1] << ", " << global[2] << ")" << std::endl;
+
+    return ROOT::Math::XYZVector(global[0] * 10.0, global[1] * 10.0, global[2] * 10.0);
+}
 
 void TcalEvent::fillTree()
 {
