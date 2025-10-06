@@ -18,10 +18,12 @@ public:
     std::vector<int> layerID; // the layer index in the muon spectrometer (0-43)
 
     genfit::Track *fitTrack;                //! the genfit track
-    float fpx, fpy, fpz, fp; // fitted momentum at the first point
-    float fchi2;              // chi2 of the fit
+    double fpx, fpy, fpz, fp; // fitted momentum at the first point
+    double fpErr;            // error on fitted momentum at the first point
+    double fchi2;              // chi2 of the fit
     int fnDoF;                // nDoF of the fit
-    float fpval;              // p-value of the fit
+    double fpval;              // p-value of the fit
+    double fipErr;            // error on fitted inverse momentum at the first point
 
     TMuTrack() : ftrackID(-1), fcharge(0), fitTrack(nullptr) {}
     virtual ~TMuTrack() {
@@ -46,7 +48,7 @@ public:
     /// @brief Use GenFit to fit the track
     void GenFitTrackFit(int verbose, double detectorResolutionPSmm);
 
-    ClassDef(TMuTrack,1) // A reconstructed track in the muon spectrometer
+    ClassDef(TMuTrack,2) // A reconstructed track in the muon spectrometer
 };
 
 #endif

@@ -21,7 +21,7 @@ void TMuTrack::GenFitTrackFit(int verbose, double detectorResolutionPSmm) {
     // start values for the fit, e.g. from pattern recognition
     // position of first hit of the track
     TVector3 pos(fpos[0].x()/10.0, fpos[0].y()/10.0, fpos[0].z()/10.0);
-    double pmom = 10.0*1e3;  // in MeV??
+    double pmom = 10.0*1e3;  // in GeV;
     TVector3 mom(0, 0, pmom);
 
     // create track
@@ -32,7 +32,7 @@ void TMuTrack::GenFitTrackFit(int verbose, double detectorResolutionPSmm) {
     int hitId(0); // hit ID
 
     // Scifi resolution
-    double detectorResolution(0.1); // resolution of planar detectors in cm 
+    double detectorResolution(0.01); // resolution of planar detectors in cm 
     TMatrixDSym hitCov(2);
     hitCov.UnitMatrix();
     hitCov *= detectorResolution*detectorResolution;
@@ -90,6 +90,13 @@ void TMuTrack::GenFitTrackFit(int verbose, double detectorResolutionPSmm) {
     fpy = p.Y();
     fpz = p.Z();
     fp = p.Mag();
+    fcharge = state.getCharge();
+    // compute error on momentum 
+    fipErr = sqrt(state.getCov()(0,0));
+    fpErr = sqrt(state.getMomVar()); 
+    if (verbose>0) {
+        std::cout << "fitted momentum error (GeV/c): " << fpErr << std::endl;
+    }
 
     // clean up (don't delete rep because it is owned by the track)
     delete fitter;

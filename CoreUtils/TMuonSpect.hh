@@ -26,12 +26,14 @@ struct FEATURES {
     float chi2[MAXMUTRACKS];  // chi2 of the fit
     int nDoF[MAXMUTRACKS];    // nDoF of the fit
     float pval[MAXMUTRACKS];  // p-value of the fit
+    float fpErr[MAXMUTRACKS]; // error on fitted momentum at the first point
+    float fipErr[MAXMUTRACKS]; // error on fitted inverse momentum at the first point
 };
 
 private:
 
 public:
-    ClassDef(TMuonSpectrometer, 1)
+    ClassDef(TMuonSpectrometer, 2)
 
     struct FEATURES features;
 
