@@ -41,7 +41,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 
 	// DEBUG : only primary lepton if CC otherwise random pion
 	bool want_particleGun = false; //  true;
-	bool want_muon_background = true; // true;
+	bool want_muon_background = false; // true;
 
 	const TPOEvent *branch_POEvent = GetTPOEvent();
 
@@ -218,7 +218,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 			double pz = std::cos(theta);
 
 			// Set direction vector with given momentum magnitude
-			double momentumMagnitude = 200.0; // in GeV
+			double momentumMagnitude = 500.0; // in GeV
 			G4ThreeVector StartMomentum(px, py, pz);
 			StartMomentum = StartMomentum.unit() * (momentumMagnitude * GeV); // Normalize and scale
 			particleGun->SetParticleMomentum(StartMomentum);

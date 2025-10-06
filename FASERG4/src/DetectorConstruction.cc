@@ -205,6 +205,9 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	CreateRearCal(zLocation, worldLV);
 
 	G4double locZHcal = zLocation + fRearCalSizeZ;
+	fRearHCal_LOS_shiftX = fFASERCal_LOS_shiftX + (fRearHCalSizeX - fECalSizeX)/2.0;
+	fRearHCal_LOS_shiftY = fFASERCal_LOS_shiftY + (fRearHCalSizeY - fECalSizeY)/2.0;
+	std::cout << "HCal shift x " << fRearHCal_LOS_shiftX/cm << " cm,  y " << fRearHCal_LOS_shiftY/cm << " cm" << std::endl;
 	CreateRearHCal(locZHcal, worldLV);
 
 	G4double locMuSpect = locZHcal + fRearHCalLength;
@@ -549,6 +552,10 @@ void DetectorConstruction::CreateMagnetSystem(G4double zLocation, G4LogicalVolum
 void DetectorConstruction::CreateRearCal(G4double zLocation, G4LogicalVolume* parent) {
 	G4double sizeX = 121.2*mm;
 	G4double sizeY = 121.2*mm;
+	// dimensions of the rear calorimeter
+	int nMat = 5;
+	fECalSizeX = sizeX*nMat;
+	fECalSizeY = sizeY*nMat;
 	G4double sizeZ_Pb = 2*mm;
 	G4double sizeZ_PS = 4*mm;
 	G4int nlayer = 66;
@@ -630,8 +637,8 @@ void DetectorConstruction::CreateRearHCal(G4double zLocation, G4LogicalVolume* p
 		z += sizeZ_Fe/2.0 + sizeZ_PS/2.0;
 		new G4PVPlacement(0, G4ThreeVector(0,0,z), HscintillatorLogic, "rearHCalScint", HCalcontainerLogic, false, i, true);
 	}
-	double x = fFASERCal_LOS_shiftX;
-	double y = fFASERCal_LOS_shiftY;
+	double x = fRearHCal_LOS_shiftX;
+	double y = fRearHCal_LOS_shiftY;
 	new G4PVPlacement(0, G4ThreeVector(x,y,zLocation + total_sizeZ/2.0), HCalcontainerLogic, "rearHCal", parent, false, 0, true);
 
 	#if 0
@@ -674,9 +681,9 @@ void DetectorConstruction::CreateRearMuSpectrometer(G4double zLocation, G4Logica
 	G4cout << "Total length of the muon spectrometer " << totalLength / mm << " mm " << G4endl;
 
 	G4double zStart = -totalLength / 2;
-	
-	double x = 0;
-	double y = 0;
+
+	double x = fRearMuSpect_LOS_shiftX;
+	double y = fRearMuSpect_LOS_shiftY;
 	double z = zLocation + totalLength / 2;
 	G4Box* muonSpectrometerBox = new G4Box("MuonSpectrometer", magnetSizeX / 2, magnetSizeY / 2, totalLength / 2);
 	G4LogicalVolume* muonSpectrometerLV = new G4LogicalVolume(muonSpectrometerBox, air, "MuonSpectrometerLV");

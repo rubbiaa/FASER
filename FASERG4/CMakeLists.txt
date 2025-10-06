@@ -32,7 +32,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 # Ensure Geant4 is compiled with C++17 support
 set(GEANT4_COMPILE_FEATURES cxx_std_17)
 
-find_package(ROOT REQUIRED)
+find_package(ROOT REQUIRED COMPONENTS Geom)
 include(${ROOT_USE_FILE})
 include_directories(${ROOT_INCLUDE_DIRS})
 link_directories(${ROOT_LIBRARY_DIR})

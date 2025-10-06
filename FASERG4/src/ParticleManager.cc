@@ -222,6 +222,11 @@ void ParticleManager::beginOfEvent()
 	fTcalEvent->geom_detector.fAirGap = detector->fAirGap * mm;
 	fTcalEvent->geom_detector.fAlPlateThickness = detector->fAlPlateThickness * mm;
 	fTcalEvent->geom_detector.fSiTrackerGap = detector->fSiTrackerGap * mm;
+	fTcalEvent->geom_detector.NRep_SiTracker = detector->fNumberRep_SiTracker;
+	fTcalEvent->geom_detector.frearHCal_LOS_shiftX = detector->fRearHCal_LOS_shiftX * mm;
+	fTcalEvent->geom_detector.frearHCal_LOS_shiftY = detector->fRearHCal_LOS_shiftY * mm;
+	fTcalEvent->geom_detector.fRearMuSpect_LOS_shiftX = detector->fRearMuSpect_LOS_shiftX * mm;
+	fTcalEvent->geom_detector.fRearMuSpect_LOS_shiftY = detector->fRearMuSpect_LOS_shiftY * mm;
 
 	// clear the rear calorimeter
 	fTcalEvent->rearCalDeposit.clear();
