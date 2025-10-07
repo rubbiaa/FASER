@@ -79,7 +79,7 @@ void ParticleManager::processParticleHit(G4Track *track, XYZVector const& positi
 		}
 		#endif
 		int trackID = track->GetTrackID();
-		int layerID = CopyNumber; // 1-40
+		int layerID = CopyNumber; // 0-43
 		G4ThreeVector momentum = track->GetMomentum();
 		auto it = m_MuTagTrackMap.find(trackID);
 		if (it != m_MuTagTrackMap.end())
@@ -135,6 +135,7 @@ void ParticleManager::processParticleHit(G4Track *track, XYZVector const& positi
 	// normal treatment for all other volumes which should essentially be scintillator voxels or tracker hits
 	if (VolumeName == "ScintillatorLogical" || VolumeName == "SiTrackerLogical")
 	{
+		// we save the absolute position in the world coordinate system
 		//std::cout << "Position: " << position.x()/mm << " " << position.y()/mm << " " << position.z()/mm << " mm" << std::endl;
 		//std::cout << "Local Position: " << local_position.x()/mm << " " << local_position.y()/mm << " " << local_position.z()/mm << " mm" << std::endl;
 	

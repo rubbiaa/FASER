@@ -41,7 +41,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 
 	// DEBUG : only primary lepton if CC otherwise random pion
 	bool want_particleGun = false; //  true;
-	bool want_muon_background = false; // true;
+	bool want_muon_background = true; // true;
 
 	const TPOEvent *branch_POEvent = GetTPOEvent();
 

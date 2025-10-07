@@ -211,6 +211,8 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	CreateRearHCal(locZHcal, worldLV);
 
 	G4double locMuSpect = locZHcal + fRearHCalLength;
+	fRearMuSpect_LOS_shiftX = fFASERCal_LOS_shiftX + (fRearMuSpectSizeX - fECalSizeX)/2.0;
+	fRearMuSpect_LOS_shiftY = fFASERCal_LOS_shiftY + (fRearMuSpectSizeY - fECalSizeY)/2.0;
 	CreateRearMuSpectrometer(locMuSpect, worldLV);
 
 	// Save the geometry of the detector
@@ -662,8 +664,8 @@ void DetectorConstruction::CreateRearMuSpectrometer(G4double zLocation, G4Logica
 	const int nSciFiGroups = nMagnets + 1;
 	const int nSciFiPerGroup = 4;
 	const int nSciFiPlanes = nSciFiGroups * nSciFiPerGroup;
-	G4double magnetSizeX = 1000. * mm;
-	G4double magnetSizeY = 1000. * mm;
+	G4double magnetSizeX = fRearMuSpectSizeX;
+	G4double magnetSizeY = fRearMuSpectSizeY;
 	G4double scifilayerThickness = 2.5 * mm;
 	G4double magnetThickness = 150. * mm; // Thickness of each magnet changed from 100 to 150
 	G4double gapBeforeMagnet = 10. * mm;

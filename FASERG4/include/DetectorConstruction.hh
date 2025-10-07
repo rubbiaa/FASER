@@ -115,6 +115,8 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	G4double fRearHCal_LOS_shiftY = 0 * cm;
 
 	// read muon spectrometer
+	G4double fRearMuSpectSizeX = 1000 * mm;
+	G4double fRearMuSpectSizeY = 1000 * mm;
 	G4double fRearMuSpectLocZ; // in mm
 	G4double fRearMuSpectSizeZ; // in mm
 	G4double fRearMuSpect_LOS_shiftX = 0 * cm;
