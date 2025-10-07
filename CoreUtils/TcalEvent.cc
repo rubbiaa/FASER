@@ -13,6 +13,11 @@ TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fMuTagTracks() ,
     rearHCalDeposit = {};
     rearMuCalDeposit = {};
 
+    if(gGeoManager == nullptr) {
+//        std::cerr << "Warning: gGeoManager is null! Cannot initialize TcalEvent TGeom nodes." << std::endl;
+        return;
+    }
+
     // Find the TGeoNode corresponding to the rear HCal
     TGeoNode *node = gGeoManager->GetTopNode();
     // loop over all daughters
@@ -22,6 +27,20 @@ TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fMuTagTracks() ,
         std::string name = dnode->GetName();
         if(name.find("rearHCal")!=std::string::npos) {
             frearHCalTGeomNode = dnode;
+            TGeoMatrix *matrix = dnode->GetMatrix();
+            matrix->Print();
+            break;
+        }
+    }
+    
+    node = gGeoManager->GetTopNode();
+    // loop over all daughters
+    ndaughters = node->GetNdaughters();
+    for(int i=0; i<ndaughters; i++) {
+        TGeoNode *dnode = node->GetDaughter(i);
+        std::string name = dnode->GetName();
+        if(name.find("MuonSpectrometer")!=std::string::npos) {
+            frearMuSpectTGeomNode = dnode;
             TGeoMatrix *matrix = dnode->GetMatrix();
             matrix->Print();
             break;

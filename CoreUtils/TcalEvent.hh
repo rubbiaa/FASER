@@ -184,7 +184,8 @@ public:
     struct GEOM_DETECTOR geom_detector;
 
     // TGeom declarations
-    TGeoNode *frearHCalTGeomNode = nullptr;
+    TGeoNode *frearHCalTGeomNode = nullptr;  //! the TGeoNode of the rear HCal mother volume
+    TGeoNode *frearMuSpectTGeomNode = nullptr;  //! the TGeoNode of the rear Muon Spectrometer mother volume
 
     /// @brief Returns type ID of a hit
     /// @param ID The hit ID (see FASERG4 DetectorConstruction class)

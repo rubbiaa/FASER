@@ -101,7 +101,8 @@ TPORecoEvent::TPORecoEvent(TcalEvent* c, TPOEvent* p) : TPORecoEvent() {
     geom_detector = fTcalEvent->geom_detector;
     // set the magnetic field based on the geometry
     fMagField->SetSlitPosition(25.0); // in cm
-    fMagField->SetRearMuSpectGeometry(fTcalEvent->geom_detector.rearMuSpectLocZ/10.0, fTcalEvent->geom_detector.rearMuSpectSizeZ/10.0); // in cm 
+    fMagField->SetRearMuSpectGeometry(fTcalEvent->geom_detector.rearMuSpectLocZ/10.0, fTcalEvent->geom_detector.rearMuSpectSizeZ/10.0); // in cm
+    fMagField->SetRearMuSpectShift(fTcalEvent->geom_detector.fRearMuSpect_LOS_shiftX/10.0, fTcalEvent->geom_detector.fRearMuSpect_LOS_shiftY/10.0); // in cm
 
     // empty histogram pointers
 	for(int i =0; i < 50; i++){
@@ -3160,7 +3161,7 @@ void TPORecoEvent::ReconstructMuonSpectrometer() {
     if(verbose>0) {
         std::cout << " ------------ MUTAG reconstructed muon tracks" << std::endl;
         for (const auto &it : fMuTracks) {
-            std::cout << it.ftrackID << " " << it.fPDG << " Mom:" << it.fpos[0].x() << " " << it.fpos[0].y() << " " << it.fpos[0].z() << std::endl;
+            std::cout << it.ftrackID << " " << it.fPDG << " Pos:" << it.fpos[0].x() << " " << it.fpos[0].y() << " " << it.fpos[0].z() << std::endl;
             it.Dump(verbose);
         }
     }
