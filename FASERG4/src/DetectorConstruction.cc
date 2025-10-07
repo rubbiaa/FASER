@@ -142,8 +142,8 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	G4double sizeScintillatorY = getScintillatorSizeY();
 	G4double sizeScintillatorZ = getScintillatorSizeZ();
 
-	G4double sizeX = std::max(sizetargetWX, sizeScintillatorX);
-	G4double sizeY = std::max(sizetargetWY, sizeScintillatorY);
+	G4double sizeX = fRearMuSpectSizeX;
+	G4double sizeY = fRearMuSpectSizeY;
 
 	G4double WorldSizeX = 2.5* sizeX;
 	G4double WorldSizeY = 2.5* sizeY;
