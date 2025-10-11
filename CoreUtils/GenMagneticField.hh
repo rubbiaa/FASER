@@ -1,6 +1,7 @@
 #ifndef _GENMAGNETICFIELD_HH_
 #define _GENMAGNETICFIELD_HH_ 1
 
+#include <iostream>
 #include <TVector3.h>
 
 #include <AbsBField.h>
