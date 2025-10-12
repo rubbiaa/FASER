@@ -228,7 +228,7 @@ namespace display
 
       Int_t fEventNumber = 0;
       Int_t fRunNumber = 0;
-      Int_t fMaskNumber = 0;
+      Int_t fMaskNumber = -1;
       Int_t fCharmParentID = -1;
       Int_t fCharmDaughterID = -1;
 

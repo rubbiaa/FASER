@@ -40,15 +40,18 @@ void handleSignal(int signal) {
     }
 }
 
-void load_geometry() {
+void load_geometry(std::string geometryFile){
     // Load the GDML geometry
-    TGeoManager::Import("../GeomGDML/geometry.gdml");
+    TGeoManager::Import(geometryFile.c_str());
 }
 
 int main(int argc, char** argv) {
 
 	if (argc < 2) {
-	std::cout << "Usage: " << argv[0] << " [-mt] <run> [minevent] [maxevent] [mask]" << std::endl;
+	std::cout << "Usage: " << argv[0] << " [-mt] [-g <geometryFile>] <run> [minevent] [maxevent] [mask]" << std::endl;
+        std::cout << "   -mt                       Enable multi-threading (if supported)" << std::endl;
+        std::cout << "   -g <geometryfile>         Load a specific geometry file" << std::endl;
+        std::cout << "   -r                        Open reconstructed files" << std::endl;
         std::cout << "   <run>                     Run number" << std::endl;
         std::cout << "   minevent                  Minimum number of events to process (def=-1)" << std::endl;
         std::cout << "   maxevent                  Maximum number of events to process (def=-1)" << std::endl;
@@ -62,6 +65,20 @@ int main(int argc, char** argv) {
     if(argc>argv_index) {
         if(std::string(argv[argv_index]) == "-mt") {
             multiThread_option = true;
+            argv_index++;
+        }
+    }
+
+    // check for -g <geometryfile>  to load a specific geometry file
+    std::string geometryFile = "../GeomGDML/geometry.gdml";
+    if(argc>argv_index) {
+        if (std::string(argv[argv_index]) == "-g") {
+            argv_index++;
+            if (argc < argv_index + 1) {
+                std::cerr << "Error: -g option requires a geometry file argument." << std::endl;
+                return 1;
+            }
+            geometryFile = argv[argv_index];
             argv_index++;
         }
     }
@@ -118,7 +135,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    load_geometry();
+    load_geometry(geometryFile);
 
     std::string base_path = "input/";
 

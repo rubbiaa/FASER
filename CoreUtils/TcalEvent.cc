@@ -3,6 +3,7 @@
 
 #include <TChain.h>
 #include <TGeoManager.h>
+#include <TGeoBBox.h>
 
 ClassImp(TcalEvent)
 
@@ -25,6 +26,7 @@ TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fMuTagTracks() ,
     for(int i=0; i<ndaughters; i++) {
         TGeoNode *dnode = node->GetDaughter(i);
         std::string name = dnode->GetName();
+//        std::cout << "Daughter " << i << " name: " << name << std::endl;
         if(name.find("rearHCal")!=std::string::npos) {
             frearHCalTGeomNode = dnode;
             TGeoMatrix *matrix = dnode->GetMatrix();
@@ -32,7 +34,11 @@ TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fMuTagTracks() ,
             break;
         }
     }
-    
+    // if not found, fatal error
+    if(frearHCalTGeomNode == nullptr) {
+        std::cerr << "FATAL error: Could not find rearHCal TGeoNode in Geometry!" << std::endl;
+        throw std::runtime_error("Could not find rearHCal TGeoNode");
+    }
     node = gGeoManager->GetTopNode();
     // loop over all daughters
     ndaughters = node->GetNdaughters();
@@ -42,11 +48,10 @@ TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fMuTagTracks() ,
         if(name.find("MuonSpectrometer")!=std::string::npos) {
             frearMuSpectTGeomNode = dnode;
             TGeoMatrix *matrix = dnode->GetMatrix();
-//            matrix->Print();
+            // matrix->Print();
             break;
         }
     }
-
 }
 
 /// @brief Create a TcalEvent with a given event number for OUTPUT
@@ -190,6 +195,52 @@ int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
     m_rootFile -> Close();
     delete m_rootFile;
 
+    // check geometry
+        const char *volumeName = "ContainerLogical";
+    TGeoVolume *targetVolume = gGeoManager->GetVolume(volumeName);
+
+    if (targetVolume)
+    {
+        std::cout << "Found volume: " << targetVolume->GetName() << std::endl;
+        // You can now draw it, modify it, or use it for positioning
+        // targetVolume->Draw();
+        // check its dimensions
+        Double_t dims[3] = {0.0, 0.0, 0.0};
+        TGeoShape *shape = targetVolume->GetShape();
+        if (shape) {
+            // If it's a box, use the typed accessors (ROOT shapes are in cm)
+            TGeoBBox *bbox = dynamic_cast<TGeoBBox*>(shape);
+            if (bbox) {
+                // GetDx/GetDy/GetDz return half-lengths in cm -> convert to mm and full length
+                dims[0] = 2.0 * bbox->GetDX() * 10.0; // X in mm
+                dims[1] = 2.0 * bbox->GetDY() * 10.0; // Y in mm
+                dims[2] = 2.0 * bbox->GetDZ() * 10.0; // Z in mm
+            } 
+        }
+        std::cout << "Dimensions of " << volumeName << ": "
+                  << "X: " << dims[0] << " mm, "
+                  << "Y: " << dims[1] << " mm, "
+                  << "Z: " << dims[2] << " mm" << std::endl;
+        // compare to what is stored in geom_detector
+        if (fabs(dims[0] - geom_detector.fScintillatorSizeX) > 1e-3 ||
+            fabs(dims[1] - geom_detector.fScintillatorSizeY) > 1e-3 ||
+            fabs(dims[2] - geom_detector.fTotalLength) > 1e-3)
+        {
+            std::cerr << "FATAL error: Geometry mismatch for " << volumeName << std::endl;
+            std::cerr << " TGeoManager has X: " << dims[0] << " Y: " << dims[1] << " Z: " << dims[2] << std::endl;
+            std::cerr << " geom_detector has X: " << geom_detector.fScintillatorSizeX
+                      << " Y: " << geom_detector.fScintillatorSizeY
+                      << " Z: " << geom_detector.fTotalLength << std::endl;
+            exit(1);
+        }
+    }
+    else
+    {
+        std::cerr << "Volume '" << volumeName << "' not found." << std::endl;
+        exit(1);
+    }
+
+    // return success
     return 0;
 }
 

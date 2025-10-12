@@ -42,16 +42,16 @@ void ListVolumes(TGeoVolume* volume, int depth = 0) {
     }
 }
 
-void load_geometry() {
+void load_geometry(std::string geometryFile) {
     // Load the GDML geometry
-    TGeoManager::Import("../GeomGDML/geometry.gdml");
+    TGeoManager::Import(geometryFile.c_str());
 
     TGeoVolume* topVolume = gGeoManager->GetTopVolume();
     topVolume->SetTransparency(50);  // Value from 0 (opaque) to 100 (fully transparent)
 
     // List all volumes in the geometry
-    std::cout << "Listing all volumes in the geometry:" << std::endl;
-    ListVolumes(topVolume);
+//    std::cout << "Listing all volumes in the geometry:" << std::endl;
+//    ListVolumes(topVolume);
 
     TGeoVolume *volume1 = gGeoManager->FindVolumeFast("ShortCylLogical");
 //    volume1->SetLineColor(kRed);      // Set color (optional)
@@ -72,7 +72,8 @@ int main(int argc, char** argv) {
 
     // get the run number as the first argument
 	if (argc < 2) {
-		std::cout << "Usage: " << argv[0] << " [-r] <run> [mask]" << std::endl;
+		std::cout << "Usage: " << argv[0] << " [-g <geometryfile>] [-r] <run> [mask]" << std::endl;
+        std::cout << "   -g <geometryfile>         Load a specific geometry file" << std::endl;
         std::cout << "   -r                        Open reconstructed files" << std::endl;
         std::cout << "   <run>                     Run number" << std::endl;
         std::cout << "   mask                      To process only specific events (def=none): ";
@@ -86,6 +87,24 @@ int main(int argc, char** argv) {
     if(strcmp(argv[idx], "-r")==0) {
         pre = true;
         idx++;
+    }
+
+    // -g <geometryfile>  to load a specific geometry file
+    std::string geometryFile = "../GeomGDML/geometry.gdml";
+    if (strcmp(argv[idx], "-g") == 0) {
+        idx++;
+        if (argc < idx + 1) {
+            std::cerr << "Error: -g option requires a geometry file argument." << std::endl;
+            return 1;
+        }
+        geometryFile = argv[idx];
+        idx++;
+    } 
+
+    // check number of arguments on command line
+    if (argc < idx + 1) {
+        std::cerr << "Error: Missing run number argument." << std::endl;
+        return 1;
     }
 
     std::string runString = argv[idx];
@@ -112,7 +131,7 @@ int main(int argc, char** argv) {
 
     TApplication app("app", &argc, argv);
 
-    load_geometry();
+    load_geometry(geometryFile);
 #if 0
     TGeoVolume *specificVolume = gGeoManager->FindVolumeFast("rearCalmoduleLogical");
     if (specificVolume) {

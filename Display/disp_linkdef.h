@@ -30,6 +30,7 @@
 #pragma link C++ class TPSTrack;
 #pragma link C++ class TPSCluster+;
 #pragma link C++ class DBScan+;
+#pragma link C++ class TMuTrack+;
 
 #pragma link C++ struct TcalEvent::REARCALDEPOSIT+;
 
