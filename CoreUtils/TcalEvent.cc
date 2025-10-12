@@ -28,7 +28,7 @@ TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fMuTagTracks() ,
         if(name.find("rearHCal")!=std::string::npos) {
             frearHCalTGeomNode = dnode;
             TGeoMatrix *matrix = dnode->GetMatrix();
-            matrix->Print();
+//            matrix->Print();
             break;
         }
     }
@@ -42,7 +42,7 @@ TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fMuTagTracks() ,
         if(name.find("MuonSpectrometer")!=std::string::npos) {
             frearMuSpectTGeomNode = dnode;
             TGeoMatrix *matrix = dnode->GetMatrix();
-            matrix->Print();
+//            matrix->Print();
             break;
         }
     }
