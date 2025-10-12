@@ -122,6 +122,8 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	G4double fRearMuSpect_LOS_shiftX = 0 * cm;
 	G4double fRearMuSpect_LOS_shiftY = 0 * cm;
 
+	G4bool fonlyFaserCal = false;    // true if only the FASER calorimeter is constructed
+
 	void SetNumberReplicas(G4int);
 	G4int getNumberReplicas() const {return fNumberReplicas ;}
 

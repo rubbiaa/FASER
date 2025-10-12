@@ -10,6 +10,9 @@
 #include "G4ClassicalRK4.hh"
 #include "G4ChordFinder.hh"
 #include "G4SubtractionSolid.hh"
+#include "G4IntersectionSolid.hh"
+#include "G4LogicalVolumeStore.hh"
+
 
 #include "MuonDetMagneticField.hh"
 
@@ -132,7 +135,8 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	// Sizes of the principal geometrical components (solids)
 	// The values are given via the messenger, same as the units
 
-
+	// FASER calorimeter only flag
+	fonlyFaserCal = false;    // true if only the FASER calorimeter is constructed
 
 	G4int NRep = getNumberReplicas();
 	G4double sizetargetWX = gettargetWSizeX();
@@ -202,22 +206,42 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	zLocation += 350.0*cm;    // length of the magnet system
 #endif
 
-	CreateRearCal(zLocation, worldLV);
+	if (!fonlyFaserCal)
+	{
+		CreateRearCal(zLocation, worldLV);
 
-	G4double locZHcal = zLocation + fRearCalSizeZ;
-	fRearHCal_LOS_shiftX = fFASERCal_LOS_shiftX + (fRearHCalSizeX - fECalSizeX)/2.0;
-	fRearHCal_LOS_shiftY = fFASERCal_LOS_shiftY + (fRearHCalSizeY - fECalSizeY)/2.0;
-	std::cout << "HCal shift x " << fRearHCal_LOS_shiftX/cm << " cm,  y " << fRearHCal_LOS_shiftY/cm << " cm" << std::endl;
-	CreateRearHCal(locZHcal, worldLV);
+		G4double locZHcal = zLocation + fRearCalSizeZ;
+		fRearHCal_LOS_shiftX = fFASERCal_LOS_shiftX + (fRearHCalSizeX - fECalSizeX) / 2.0;
+		fRearHCal_LOS_shiftY = fFASERCal_LOS_shiftY + (fRearHCalSizeY - fECalSizeY) / 2.0;
+		std::cout << "HCal shift x " << fRearHCal_LOS_shiftX / cm << " cm,  y " << fRearHCal_LOS_shiftY / cm << " cm" << std::endl;
+		CreateRearHCal(locZHcal, worldLV);
 
-	G4double locMuSpect = locZHcal + fRearHCalLength;
-	fRearMuSpect_LOS_shiftX = fFASERCal_LOS_shiftX + (fRearMuSpectSizeX - fECalSizeX)/2.0;
-	fRearMuSpect_LOS_shiftY = fFASERCal_LOS_shiftY + (fRearMuSpectSizeY - fECalSizeY)/2.0;
-	CreateRearMuSpectrometer(locMuSpect, worldLV);
+		G4double locMuSpect = locZHcal + fRearHCalLength;
+		fRearMuSpect_LOS_shiftX = fFASERCal_LOS_shiftX + (fRearMuSpectSizeX - fECalSizeX) / 2.0;
+		fRearMuSpect_LOS_shiftY = fFASERCal_LOS_shiftY + (fRearMuSpectSizeY - fECalSizeY) / 2.0;
+		CreateRearMuSpectrometer(locMuSpect, worldLV);
+	}
 
 	// Save the geometry of the detector
 	G4GDMLParser parser;
 	parser.Write("geometry.gdml", worldPV->GetLogicalVolume());
+
+	// Print the total mass of the detector
+	G4cout << "----------------------------------" << G4endl;
+	G4cout << "Total mass of the detector : " << worldLV->GetMass() / kg << " kg" << G4endl;
+	G4cout << "----------------------------------" << G4endl;
+	// loop over all logical volumes hanging from worldLV and print their masses
+	G4cout << "Masses of logical volumes : " << G4endl;
+	// Collect all logical volumes in the geometry
+	std::vector<G4LogicalVolume*> fLogicalVolumes;
+	const auto& lvStore = *G4LogicalVolumeStore::GetInstance();
+	for (const auto& lv : lvStore) {
+		fLogicalVolumes.push_back(lv);
+	}
+	for (const auto& volume : fLogicalVolumes) {
+			G4cout << volume->GetName() << " : " << volume->GetMass() / kg << " kg" << G4endl;
+	}
+	G4cout << "----------------------------------" << G4endl;
 
 	return worldPV;
 }
@@ -232,10 +256,12 @@ void DetectorConstruction::ConstructSDandField()
 	G4SDManager::GetSDMpointer()->AddNewDetector(aTrackerSD);
 	SetSensitiveDetector("ScintillatorLogical", aTrackerSD, true);
 	SetSensitiveDetector("trackerSiLogical", aTrackerSD, false);
-	SetSensitiveDetector("rearCalscintillatorLogical", aTrackerSD, false);
-	SetSensitiveDetector("rearHCalscintillatorLogical", aTrackerSD, false);
-//	SetSensitiveDetector("muCalscintillatorLogical", aTrackerSD, false);
-	SetSensitiveDetector("SciFiLayerLV", aTrackerSD, false);
+	if(!fonlyFaserCal){
+		SetSensitiveDetector("rearCalscintillatorLogical", aTrackerSD, false);
+		SetSensitiveDetector("rearHCalscintillatorLogical", aTrackerSD, false);
+		//	SetSensitiveDetector("muCalscintillatorLogical", aTrackerSD, false);
+		SetSensitiveDetector("SciFiLayerLV", aTrackerSD, false);
+	}
 
 #if magnet
 	SetSensitiveDetector("ShortCylLogical", aTrackerSD, false);
