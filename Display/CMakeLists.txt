@@ -32,6 +32,7 @@ set(SOURCES
     ../CoreUtils/TPSCluster.cc
     ../CoreUtils/DBScan.cc
     ../CoreUtils/TPSTrack.cc
+    ../CoreUtils/TMuTrack.cc
 )
 
 # Generate dictionary

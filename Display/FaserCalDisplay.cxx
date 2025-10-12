@@ -53,10 +53,7 @@ namespace display
   {
     std::cout << "Starting GetDetector()" << std::endl;
     // Load the GDML file using TGeoManager::Import
-    //TGeoManager::Import("/data/sw/FASERCAL/FASER/GeomGDML/geometry.gdml");
-    // use for Run120 and v5.0
-    //TGeoManager::Import("/home/hyperk/sw/FASERCAL/FASER_March2025/GeomGDML/geometry_v5.gdml");
-    TGeoManager::Import("../../GeomGDML/geometry_v5.gdml");
+    TGeoManager::Import("../GeomGDML/geometry.gdml");
     //
     if (!gGeoManager) {
       std::cerr << "Failed to import GDML file." << std::endl;
@@ -169,7 +166,7 @@ namespace display
     /////////////////////////////////////////////////////////////////////
     // Set Event Number Button
     int posy = 20;
-        fNumberEntryRun = new TGNumberEntryField(fGroupFrame2, -1, 200025, TGNumberFormat::kNESInteger);
+        fNumberEntryRun = new TGNumberEntryField(fGroupFrame2, -1, 310, TGNumberFormat::kNESInteger);
     fGroupFrame2->AddFrame(fNumberEntryRun, new TGLayoutHints(kLHintsLeft | kLHintsTop, 2, 2, 62, 2));
     fNumberEntryRun->MoveResize(20, posy, 90, 18);
     
@@ -1625,7 +1622,7 @@ namespace display
     std::string mask = HandleEventTypeSelection(imask);
     
     std::string file_path;
-    if (imask!=0) 
+    if (imask>0) 
       file_path = base_path + "FASERG4-Tcalevent_" +std::to_string(irun)+"_"+std::to_string(ievent)+"_"+mask+".root";
     else
       file_path = base_path + "FASERG4-Tcalevent_" +std::to_string(irun)+"_"+std::to_string(ievent)+".root";
