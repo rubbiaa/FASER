@@ -140,8 +140,8 @@ TPORecoEvent::TPORecoEvent(TcalEvent* c, TPOEvent* p) : TPORecoEvent() {
 
     recoConfig.PS3D_nvox_max_after_iteration = 25; // after this iteration limit the number of voxels in module
     recoConfig.PS3D_total_score_min_break = 10.0;
-    recoConfig.PS3D_ehit_threshold = 0.5; // MeV
-    recoConfig.PS3D_evox_threshold = 0.5; // MeV
+    recoConfig.PS3D_ehit_threshold = 1e-3; // MeV
+    recoConfig.PS3D_evox_threshold = 1e-3; // MeV
     recoConfig.PS3D_nvox_per_layer_max = 3000; // maximum number of voxels per module
 
     recoConfig.PSFilter_max_number_track_seeds = 1000;
@@ -182,9 +182,8 @@ void TPORecoEvent::ReconstructTruth() {
     for (auto it : fTcalEvent->getfTracks()) {
         if(it -> fparentID ==0) {
             int POID = fTPOEvent->findFromGEANT4TrackID(it->ftrackID);
-            if(POID<0) continue;
             // skip final state neutrinos
-            if(fTPOEvent->is_neutrino(fTPOEvent->POs[POID].m_pdg_id)) continue;
+            if(POID>-1 && fTPOEvent->is_neutrino(fTPOEvent->POs[POID].m_pdg_id)) continue;
 
             TPORec* aPORec = new TPORec(POID);
             aPORec->POID = POID;
