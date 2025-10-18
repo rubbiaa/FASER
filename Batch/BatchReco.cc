@@ -292,7 +292,7 @@ int main(int argc, char** argv) {
             m_POEventTree = new TTree("RecoEvent", "RecoEvent");
             m_POEventTree->Branch("TPORecoEvent", &branch_TPORecoEvent);
         }
-
+#if 0
         // fill hit level histograms (time consuming!)
         std::map<long, double> hitmap_scint;
         std::map<long, double> hitmap_tracker;
@@ -345,6 +345,7 @@ int main(int argc, char** argv) {
         for (auto it : hitmap_tracker) {
             hit_tracker_edepo.Fill(it.second);
         }
+#endif
 
         // fill reconstructed track histograms and some additional ntuple variables
         for (auto it : fPORecoEvent->GetPORecs())
@@ -457,28 +458,7 @@ int main(int argc, char** argv) {
         double emax_cluster = 0;
         if (particle_gun)
         {
-            if ((fPORecoEvent->GetPORecs()).size() == 0)
-                continue;
-            struct TPORec *aPORec = (fPORecoEvent->GetPORecs())[0];
-            int POID = aPORec->POID;
-            if (POID >= 0)
-            {
-                struct PO *aPO = &fTcalEvent->fTPOEvent->POs[POID];
-                fTParticleGun.features.m_pdg_id = aPO->m_pdg_id;
-                fTParticleGun.features.m_energy = aPO->m_energy;
-
-                // fill features of most energetic reconstructed cluster
-                if (fPORecoEvent->PSClustersX.size() > 0)
-                {
-                    TPSCluster *c = &fPORecoEvent->PSClustersX[0]; // most energetic one
-                    fTParticleGun.features.ep_chi2_per_ndf = c->longenergyprofile.chi2_per_ndf;
-                    fTParticleGun.features.ep_E0 = c->longenergyprofile.E0;
-                    fTParticleGun.features.ep_a = c->longenergyprofile.a;
-                    fTParticleGun.features.ep_b = c->longenergyprofile.b;
-                    fTParticleGun.features.ep_tmax = c->longenergyprofile.tmax;
-                    fTParticleGun.features.ep_c = c->longenergyprofile.c;
-                }
-
+            if(fTParticleGun.ProcessEvent(fTcalEvent,fPORecoEvent) == 1) {
                 fTParticleGun.Fill_Sel_Tree(m_particlegun_Tree);
             }
         }

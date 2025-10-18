@@ -37,6 +37,9 @@ public:
     std::vector<struct CALENERGIES> fEnergiesCogs; //! the energies and COG of each Digitized track
 
     struct CALENERGIES fTotal;         // the cumulative energies for the primary
+    struct CALENERGIES fTotal_fasercal;        // total energy in FASER calorimeter (compensated)
+    struct CALENERGIES fTotal_ecal;           // total calorimetric energy
+    struct CALENERGIES fTotal_hcal;           // total hadronic calorimetric energy
 
     struct TRACKHIT {
         long ID;
@@ -59,7 +62,7 @@ public:
     virtual ~TPORec() = default;
 
     // computed quantities
-    double TotalEvis() { return fTotal.Ecompensated; };   // Total visible energy
+    double TotalEvis() { return sqrt(fTotal.Eflow.Mag2()); };   // Total visible energy
     double TotalET() { return sqrt(fTotal.Eflow.Perp2()); };// Total transverse energy
 
     ClassDef(TPORec,1)
@@ -119,6 +122,7 @@ public:
         float RawEnergy;            // MeV
         bool ghost;
         bool member_of_TKtrack;       // is this voxel part of a TKtrack
+        std::vector<int> pdgs;       // all the PDG codes of tracks contributing to this voxel
     };
 
     struct Voxel {
@@ -186,6 +190,13 @@ public:
         // energy compensation factors for the PS voxel hits
         double alpha;
         double beta;
+        double gamma; // for ECAL energy in total energy flow
+        double delta; // for HCAL energy in total energy flow
+        // e/pi compensation at voxel level
+        double PS_EoverEhad_electron;
+        double PS_EoverEhad_muon;
+        double PS_EoverEhad_photon;
+        double PS_EoverEhad_hadron;
 
         double findpattern_max_hit_layers;
         double findpattern_dist_min_cut;

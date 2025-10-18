@@ -201,7 +201,7 @@ int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
 
     if (targetVolume)
     {
-        std::cout << "Found volume: " << targetVolume->GetName() << std::endl;
+        //std::cout << "Found volume: " << targetVolume->GetName() << std::endl;
         // You can now draw it, modify it, or use it for positioning
         // targetVolume->Draw();
         // check its dimensions
@@ -217,15 +217,15 @@ int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
                 dims[2] = 2.0 * bbox->GetDZ() * 10.0; // Z in mm
             } 
         }
-        std::cout << "Dimensions of " << volumeName << ": "
-                  << "X: " << dims[0] << " mm, "
-                  << "Y: " << dims[1] << " mm, "
-                  << "Z: " << dims[2] << " mm" << std::endl;
         // compare to what is stored in geom_detector
         if (fabs(dims[0] - geom_detector.fScintillatorSizeX) > 1e-3 ||
             fabs(dims[1] - geom_detector.fScintillatorSizeY) > 1e-3 ||
             fabs(dims[2] - geom_detector.fTotalLength) > 1e-3)
         {
+            std::cerr << "Dimensions of " << volumeName << ": "
+                      << "X: " << dims[0] << " mm, "
+                      << "Y: " << dims[1] << " mm, "
+                      << "Z: " << dims[2] << " mm" << std::endl;
             std::cerr << "FATAL error: Geometry mismatch for " << volumeName << std::endl;
             std::cerr << " TGeoManager has X: " << dims[0] << " Y: " << dims[1] << " Z: " << dims[2] << std::endl;
             std::cerr << " geom_detector has X: " << geom_detector.fScintillatorSizeX

@@ -69,6 +69,7 @@ void TPOEvent::clear_event() {
   POs.clear();
   taudecay.clear();
   charmdecay.clear();
+  out_lepton = in_neutrino = {0,0,0,0,0,0,0,0,0,0,{0},0,0};
   tau_decaymode = -1;
   isCC = false;
   istau = false;
