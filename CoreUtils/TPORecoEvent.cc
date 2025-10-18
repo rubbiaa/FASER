@@ -45,6 +45,12 @@ static void printRecoConfig(const struct TPORecoEvent::RECOCONFIG& config) {
     std::cout << std::setw(40) << "psvoxel_fudge_factor" << config.psvoxel_fudge_factor << std::endl;
     std::cout << std::setw(40) << "alpha" << config.alpha << std::endl;
     std::cout << std::setw(40) << "beta" << config.beta << std::endl;
+    std::cout << std::setw(40) << "gamma" << config.gamma << std::endl;
+    std::cout << std::setw(40) << "delta" << config.delta << std::endl;
+    std::cout << std::setw(40) << "PS_EoverEhad_electron" << config.PS_EoverEhad_electron << std::endl;
+    std::cout << std::setw(40) << "PS_EoverEhad_muon" << config.PS_EoverEhad_muon << std::endl;
+    std::cout << std::setw(40) << "PS_EoverEhad_photon" << config.PS_EoverEhad_photon << std::endl;
+    std::cout << std::setw(40) << "PS_EoverEhad_hadron" << config.PS_EoverEhad_hadron << std::endl;
 
     std::cout << std::setw(40) << "findpattern_max_hit_layers" << config.findpattern_max_hit_layers << std::endl;
     std::cout << std::setw(40) << "findpattern_dist_min_cut" << config.findpattern_dist_min_cut << std::endl;
@@ -113,7 +119,14 @@ TPORecoEvent::TPORecoEvent(TcalEvent* c, TPOEvent* p) : TPORecoEvent() {
     recoConfig.psvoxel_fudge_factor = 1.25/sqrt(12);  // fudge factor for voxel size
 
     recoConfig.alpha = 1.0/(1.0-0.341)*0.98;
-    recoConfig.beta = 3.0;
+    recoConfig.beta = 4.0*recoConfig.alpha;
+    recoConfig.gamma = 4.16; // for ECAL energy in total energy flow
+    recoConfig.delta = 38.76; // for HCAL energy in total energy flow
+    // e/pi compensation at voxel level
+    recoConfig.PS_EoverEhad_electron = recoConfig.alpha;
+    recoConfig.PS_EoverEhad_muon = 1.0;
+    recoConfig.PS_EoverEhad_photon = recoConfig.alpha;
+    recoConfig.PS_EoverEhad_hadron = recoConfig.beta;
 
     recoConfig.findpattern_max_hit_layers = 1000;
     recoConfig.findpattern_dist_min_cut = 15.0;
@@ -311,6 +324,8 @@ void TPORecoEvent::ReconstructTruth() {
         std::cerr << "TPORecoEvent::Reconstruct - compensated total energy is nan!" << std::endl;
     }
     fPOFullEvent->fTotal.cog /= fPOFullEvent->fTotal.Ecompensated;
+    // add also ECAL energy if available
+    // TODO: ??
     // now compute the energy compensated eflow relative to primary vertex
     ROOT::Math::XYZVector primary(fTPOEvent->prim_vx.X(), fTPOEvent->prim_vx.Y(), fTPOEvent->prim_vx.Z());
     ROOT::Math::XYZVector direction = fPOFullEvent->fTotal.cog - primary;
@@ -1446,7 +1461,12 @@ void TPORecoEvent::Dump() {
         std::cout << " Ez: " << fPOFullRecoEvent->fTotal.Eflow.Z();
         std::cout << std::endl;
         std::cout << "FULL RECO EVENT>> Ene: " << fPOFullRecoEvent->TotalEvis() << " ";
-        std::cout << " ET: " << fPOFullRecoEvent->TotalET();
+        std::cout << " ET: " << fPOFullRecoEvent->TotalET() << " Ex: " << fPOFullRecoEvent->fTotal.Eflow.X() << " Ey: " << fPOFullRecoEvent->fTotal.Eflow.Y() << " Ez: " << fPOFullRecoEvent->fTotal.Eflow.Z();
+        std::cout << std::endl;
+        std::cout << "CALS DEPOSITS>> ";
+        std::cout << " FaserCal: " << sqrt(fPOFullRecoEvent->fTotal_fasercal.Eflow.Mag2()) << " " << " ET:" << sqrt(fPOFullRecoEvent->fTotal_fasercal.Eflow.Perp2()) << " ";
+        std::cout << " ECal: " << sqrt(fPOFullRecoEvent->fTotal_ecal.Eflow.Mag2()) << " " << " ET:" << sqrt(fPOFullRecoEvent->fTotal_ecal.Eflow.Perp2()) << " ";
+        std::cout << " Hcal: " << sqrt(fPOFullRecoEvent->fTotal_hcal.Eflow.Mag2()) << " " << " ET:" << sqrt(fPOFullRecoEvent->fTotal_hcal.Eflow.Perp2()) << " ";
         std::cout << std::endl;
     }
     fTPOEvent->dump_header();
@@ -2713,13 +2733,14 @@ void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
         }
     }
 
-    // now flag real hits
+    // now flag real hits and collect all contributing tracks to this voxel
     for (const auto& track : fTcalEvent->getfTracks()) {
         size_t nhits = track->fhitIDs.size();
         for ( size_t i = 0; i < nhits; i++) {
             auto v = PSvoxelmap.find(track->fhitIDs[i]);
             if (v != PSvoxelmap.end()) {
                 v->second.ghost = false;
+                v->second.pdgs.push_back(track->fPDG);
             }
         }
     }
@@ -2785,7 +2806,7 @@ void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
 
 
 void TPORecoEvent::Reconstruct3DPS_Eflow() {
-    struct TPORec::CALENERGIES result;
+    struct TPORec::CALENERGIES fasercal_result;
     double cogx = 0;
     double cogy = 0;
     double cogz = 0;
@@ -2794,29 +2815,137 @@ void TPORecoEvent::Reconstruct3DPS_Eflow() {
         long ID = v.first;
         ROOT::Math::XYZVector position = fTcalEvent -> getChannelXYZfromID(ID);
         double ehit = v.second.RawEnergy;
+        // apply E/had compensation based on pdgs contributing to this voxel
+        if(v.second.pdgs.size()>0) {
+            double weight = 1.0;
+            for(auto pdg : v.second.pdgs) {
+                if(std::abs(pdg)==11) weight *= recoConfig.PS_EoverEhad_electron;
+                else if(pdg==22) weight *= recoConfig.PS_EoverEhad_photon;
+                else if(std::abs(pdg)==13) weight *= recoConfig.PS_EoverEhad_muon;
+                else weight *= recoConfig.PS_EoverEhad_hadron;
+            }
+            weight = pow(weight, 1.0/float(v.second.pdgs.size()));
+            ehit *= weight;
+        }
+        if(verbose>0 && !v.second.ghost) {
+            std::cout << "Voxel " << ID << " e=" << ehit << " pdgs: ";
+            for(auto pdg : v.second.pdgs) {
+                std::cout << pdg << " ";
+            }
+            std::cout << std::endl;
+        }
         cogx += position.X()*ehit;
         cogy += position.Y()*ehit;
         cogz += position.Z()*ehit;
         etot += ehit;
     }
     if(etot>0) {
-        result.cog.SetX(cogx/etot);
-        result.cog.SetY(cogy/etot);
-        result.cog.SetZ(cogz/etot);
+        fasercal_result.cog.SetX(cogx/etot);
+        fasercal_result.cog.SetY(cogy/etot);
+        fasercal_result.cog.SetZ(cogz/etot);
 
         // compute energy flow relative to primary vertex
         ROOT::Math::XYZVector primary(fTPOEvent->prim_vx.X(), fTPOEvent->prim_vx.Y(), fTPOEvent->prim_vx.Z());
-        ROOT::Math::XYZVector direction = result.cog - primary;
-        result.Eflow = (etot/1e3)*direction.Unit(); // convert to GeV
+        ROOT::Math::XYZVector direction = fasercal_result.cog - primary;
+
+        etot /= 1e3; // convert to GeV
+
+        fasercal_result.Eflow = etot*direction.Unit();
 
     } else {
-        result.cog.SetCoordinates(0,0,0);
-        result.Eflow.SetCoordinates(0,0,0);
+        fasercal_result.cog.SetCoordinates(0,0,0);
+        fasercal_result.Eflow.SetCoordinates(0,0,0);
     }
+
+    // compute Ecal energy flow
+    struct TPORec::CALENERGIES ecalresult;
+    struct TPORec::CALENERGIES hcalresult;
+    double ecal_etot = 0;
+    for (const auto &it : fTcalEvent->rearCalDeposit)
+    {
+        ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZRearCal(it.moduleID);
+        double ehit = it.energyDeposit;
+        cogx += position.X() * ehit;
+        cogy += position.Y() * ehit;
+        cogz += position.Z() * ehit;
+        ecal_etot += ehit;
+    }
+    if (ecal_etot > 0)
+    {
+        ecalresult.cog.SetX(cogx / ecal_etot);
+        ecalresult.cog.SetY(cogy / ecal_etot);
+        ecalresult.cog.SetZ(cogz / ecal_etot);
+
+        // compute energy flow relative to primary vertex
+        ROOT::Math::XYZVector primary(fTPOEvent->prim_vx.X(), fTPOEvent->prim_vx.Y(), fTPOEvent->prim_vx.Z());
+        ROOT::Math::XYZVector direction = ecalresult.cog - primary;
+
+        ecal_etot /= 1e3; // convert to GeV
+
+        ecalresult.Eflow = ecal_etot * direction.Unit();
+    }
+    else
+    {
+        ecalresult.cog.SetCoordinates(0, 0, 0);
+        ecalresult.Eflow.SetCoordinates(0, 0, 0);
+    }
+
+    // compute Hcal energy flow
+    double hcal_etot = 0;
+    for (const auto &it : fTcalEvent->rearHCalDeposit)
+    {
+        ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZRearHCal(it.moduleID);
+        double ehit = it.energyDeposit;
+        cogx += position.X() * ehit;
+        cogy += position.Y() * ehit;
+        cogz += position.Z() * ehit;
+        hcal_etot += ehit;
+    }
+    if (hcal_etot > 0)
+    {
+        hcalresult.cog.SetX(cogx / hcal_etot);
+        hcalresult.cog.SetY(cogy / hcal_etot);
+        hcalresult.cog.SetZ(cogz / hcal_etot);
+        // compute energy flow relative to primary vertex
+        ROOT::Math::XYZVector primary(fTPOEvent->prim_vx.X(), fTPOEvent->prim_vx.Y(), fTPOEvent->prim_vx.Z());
+        ROOT::Math::XYZVector direction = hcalresult.cog - primary; 
+        hcal_etot /= 1e3; // convert to GeV
+        hcalresult.Eflow = hcal_etot * direction.Unit();
+    } else {
+        hcalresult.cog.SetCoordinates(0, 0, 0);
+        hcalresult.Eflow.SetCoordinates(0, 0, 0);
+    }
+
+    struct TPORec::CALENERGIES result;
+    // add ecal eflow energy weighted by a factor
+    result.cog.SetCoordinates(0, 0, 0);
+    result.Eflow = fasercal_result.Eflow + ecalresult.Eflow * recoConfig.gamma + hcalresult.Eflow * recoConfig.delta;
+
     fPOFullRecoEvent = new TPORec(-1);
     fPOFullRecoEvent->fTotal.cog = result.cog;
     fPOFullRecoEvent->fTotal.Eflow = result.Eflow;
-    fPOFullRecoEvent->fTotal.Ecompensated = etot / 1e3; // in GeV
+    fPOFullRecoEvent->fTotal.Ecompensated = etot; // in GeV
+    fPOFullRecoEvent->fTotal_fasercal.cog = fasercal_result.cog;
+    fPOFullRecoEvent->fTotal_fasercal.Eflow = fasercal_result.Eflow;
+    fPOFullRecoEvent->fTotal_fasercal.Ecompensated = etot; // in GeV
+    fPOFullRecoEvent->fTotal_ecal.cog = ecalresult.cog;
+    fPOFullRecoEvent->fTotal_ecal.Eflow = ecalresult.Eflow;
+    fPOFullRecoEvent->fTotal_ecal.Ecompensated = ecal_etot; // in GeV
+    fPOFullRecoEvent->fTotal_hcal.cog = hcalresult.cog;
+    fPOFullRecoEvent->fTotal_hcal.Eflow = hcalresult.Eflow;
+    fPOFullRecoEvent->fTotal_hcal.Ecompensated = hcal_etot; // in GeV
+
+    // add muon tracks to Eflow
+    for(auto &it : fMuTracks) {
+        if(it.fchi2 > 0) {
+            std::cout << " Add muon track to Eflow: p=" << it.fp << " (" << it.fpx << "," << it.fpy << "," << it.fpz << ") GeV" << std::endl;
+            double ex = fPOFullRecoEvent->fTotal.Eflow.x() + it.fpx;
+            double ey = fPOFullRecoEvent->fTotal.Eflow.y() + it.fpy;
+            double ez = fPOFullRecoEvent->fTotal.Eflow.z() + it.fpz;
+            fPOFullRecoEvent->fTotal.Eflow.SetXYZ(ex, ey, ez);
+        }
+    }
+
 }
 
 void TPORecoEvent::PSVoxelParticleFilter() {
@@ -3169,4 +3298,5 @@ void TPORecoEvent::ReconstructMuonSpectrometer() {
     for(auto &it : fMuTracks) {
         it.GenFitTrackFit(verbose, 0.1);
     }
+
 }
