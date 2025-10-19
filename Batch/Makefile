@@ -26,7 +26,7 @@ INCS += $(wildcard *.hh)
 INCS += $(wildcard $(COREUTILSDIR)/*.hh)
 
 LINKLIB := -L$(ROOTSYS)/lib `root-config --glibs` -lEG -lGeom $(GENFITLIBS)
-# ROOTCFLAGS += -fsanitize=address 
+ROOTCFLAGS += -O3
 
 all : $(EXE) $(EXE2)
 
