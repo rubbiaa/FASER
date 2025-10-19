@@ -75,7 +75,7 @@ private:
     struct TPORec::CALENERGIES computeEnergiesAndCOG(DigitizedTrack *dt);   //! (no ROOT I/O output)
 
     /// @brief The vector that holds all the PORec (Reconstructed POs) in the event
-    std::vector<class TPORec*> fPORecs;                                     //! (no ROOT I/O output)
+    std::vector<class TPORec*> fPORecs;                                     // (keep ROOT I/O output)
 
     TPORec *fPOFullEvent = nullptr;                   // the kinematics of the full event (TRUTH)
     TPORec *fPOFullRecoEvent = nullptr;                   // the kinematics of the full event (RECO)
@@ -166,7 +166,7 @@ public:
         double rearHCalDeposit;  // total energy in hCal in GeV
         double rearMuCalDeposit; // total energy in muTag in MeV
         std::vector<struct TcalEvent::REARCALDEPOSIT> rearCalModule; // individual module deposits
-        std::vector<struct TcalEvent::REARCALDEPOSIT> rearHCalModule; // individual module deposits
+        std::vector<struct TcalEvent::REARCALDEPOSIT> rearHCalModule; //! (NO ROOT I/O) individual module deposits
     };
     struct REARCALS rearCals;
 

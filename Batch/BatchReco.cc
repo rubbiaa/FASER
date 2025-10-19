@@ -17,7 +17,6 @@
 
 #include "TcalEvent.hh"
 #include "TPORecoEvent.hh"
-#include "TTauSearch.hh"
 #include "TParticleGun.hh"
 #include "TMuonSpect.hh"
 
@@ -187,11 +186,6 @@ int main(int argc, char** argv) {
     TH1D h_charm_Enuall = TH1D("h_charm_Enuall", "Neutrino energy", 50, 0, 4000.0);
     TH1D h_charm_Enucharmed = TH1D("h_charm_Enucharmed", "Neutrino energy", 50, 0, 4000.0);
     
-    // TauSearches
-    TTauSearch fTTauSearch_e;
-    TTree *m_tausearch_e_Tree = new TTree("Tausearch_e", "Tausearch_e");
-    fTTauSearch_e.Create_Sel_Tree(m_tausearch_e_Tree);
-
     // TParticleGun
     TParticleGun fTParticleGun;
     TTree *m_particlegun_Tree = new TTree("ParticleGun","ParticleGun");
@@ -428,42 +422,6 @@ int main(int argc, char** argv) {
         // full event histograms
         h_fullevent_Evis.Fill(fPORecoEvent->GetPOFullEvent()->TotalEvis());
         h_fullevent_ET.Fill(fPORecoEvent->GetPOFullEvent()->TotalET());
-
-        // Tau Searches !!
-        bool found_electron = false;
-        bool found_tau_e = false;
-        ROOT::Math::XYZVector spx = fPORecoEvent->GetPOFullEvent()->fTotal.Ecompensated*
-                fPORecoEvent->GetPOFullEvent()->fTotal.Eflow.Unit();
-        for (auto it : fPORecoEvent->GetPORecs())
-        {
-            int POID = it->POID;
-            if(POID < 0) continue;
-            struct PO *aPO = &fTcalEvent->fTPOEvent->POs[POID];
-            int PDG = aPO->m_pdg_id;
-
-            double RecoLeptonEne = it->fTotal.Ecompensated;
-            ROOT::Math::XYZVector lepton = RecoLeptonEne*it->fTotal.Eflow.Unit();
-            ROOT::Math::XYZVector jet = spx-lepton;
-            fTTauSearch_e.SetLepton(lepton);
-            fTTauSearch_e.SetJet(jet);
-            fTTauSearch_e.Kinematics(fPORecoEvent->primary_n_charged);
-
-            // nueCC background
-            if(abs(PDG) == 11 && !found_electron) {
-                found_electron = true;
-                if(!POevent->isES())                     // skip ES events
-                    fTTauSearch_e.Fill_Sel_Tree(m_tausearch_e_Tree);
-            }
-
-            // nutau signal -> e
-            if(abs(PDG) == 15 && !found_tau_e) {
-                if(fPORecoEvent->GetPOEvent()->tau_decaymode==1) {
-                    found_tau_e = true;
-                    if(!POevent->isES())                     // skip ES events
-                        fTTauSearch_e.Fill_Sel_Tree(m_tausearch_e_Tree);
-                }
-            }
-        }
 
         // particle gun studies
         bool particle_gun = true;
