@@ -118,8 +118,8 @@ TPORecoEvent::TPORecoEvent(TcalEvent* c, TPOEvent* p) : TPORecoEvent() {
         // set default values for the recoConfig
     recoConfig.psvoxel_fudge_factor = 1.25/sqrt(12);  // fudge factor for voxel size
 
-    recoConfig.alpha = 1.0/(1.0-0.341)*0.98;
-    recoConfig.beta = 4.0*recoConfig.alpha;
+    recoConfig.alpha = 1.0/(1.0-0.341)*1.02;
+    recoConfig.beta = 4.75*recoConfig.alpha;
     recoConfig.gamma = 4.16; // for ECAL energy in total energy flow
     recoConfig.delta = 38.76; // for HCAL energy in total energy flow
     // e/pi compensation at voxel level
