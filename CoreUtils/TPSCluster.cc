@@ -119,7 +119,7 @@ void TPSCluster::ComputeLongProfile(int verbose) {
     fitFunc->FixParameter(2, 0.6);
 
     // Perform the fit and capture the result
-    TFitResultPtr fitStatus = hist->Fit("TPSclusterenergyfitFunc", "S R"); // "S" option is required to get the fit status
+    TFitResultPtr fitStatus = hist->Fit("TPSclusterenergyfitFunc", "S R Q"); // "S" option is required to get the fit status
     if (fitStatus != 0) {
         std::cout << "Fit failed with status: " << fitStatus << std::endl;
         // Handle the failure case
