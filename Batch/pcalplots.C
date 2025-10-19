@@ -3,7 +3,7 @@ TTree* pgtree;
 void pcalplots() {
     gSystem->Load("LibTPORec.so");
 
-    TFile f("Batch-TPORecevent_88800100_0_99999999.root");
+    TFile f("Batch-TPORecevent_88830100_0_99999999.root");
 //    TFile f("Batch-TPORecevent_9990000_0_99999999.root");
 
     pgtree = (TTree*)f.Get("ParticleGun");
