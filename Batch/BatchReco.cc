@@ -279,6 +279,18 @@ int main(int argc, char** argv) {
         fPORecoEvent -> Reconstruct3DPS_2();
         fPORecoEvent -> ReconstructRearCals();
         fPORecoEvent -> ReconstructMuonSpectrometer();
+        #if 0
+        // poor's man fit of beta scan
+        float betas[] = {3.5, 4.0, 4.5, 5.0, 5.5, 6.0};
+        for (size_t i=0; i<sizeof(betas)/sizeof(float); i++) {
+            fPORecoEvent -> recoConfig.beta = betas[i]*fPORecoEvent -> recoConfig.alpha;
+            fPORecoEvent->recoConfig.PS_EoverEhad_hadron = fPORecoEvent -> recoConfig.beta;
+            fPORecoEvent -> Reconstruct3DPS_Eflow();
+            // print out results
+            std::cout << " ++++Reco beta " << betas[i] << " Full event Evis " << sqrtf(fPORecoEvent -> GetPOFullRecoEvent()->fTotal.Eflow.Mag2()) << " GeV" <<std::endl;
+        }
+        fPORecoEvent -> recoConfig.beta = 3.0*fPORecoEvent -> recoConfig.alpha;
+        #endif
         fPORecoEvent -> Reconstruct3DPS_Eflow();
         fPORecoEvent -> TrackReconstruct();
 
