@@ -13,6 +13,9 @@
 
 #include <TTree.h>
 
+#include "TcalEvent.hh"
+#include "TPORecoEvent.hh"
+
 class TTauSearch : public TObject {
 
 public:
@@ -44,6 +47,8 @@ public:
 
     /// @brief Compute the tau search kinematical variables
     void Kinematics(int primary_n_charged);
+
+    int ProcessEvent(TPORecoEvent *fPORecoEvent);
 };
 
 

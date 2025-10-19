@@ -53,4 +53,50 @@ void TTauSearch::Kinematics(int primary_n_charged) {
     kine.primary_n_charged = primary_n_charged;
 }
 
+int TTauSearch::ProcessEvent(TPORecoEvent *fPORecoEvent)
+{
+    // fill kinematics from recoEvent
+    if ((fPORecoEvent->GetPORecs()).size() == 0)
+        return 0;
 
+        fPORecoEvent->Dump();
+
+        TPOEvent *POevent = fPORecoEvent->GetPOEvent();
+
+        bool found_electron = false;
+        bool found_tau_e = false;
+        ROOT::Math::XYZVector spx = fPORecoEvent->GetPOFullEvent()->fTotal.Ecompensated*
+                fPORecoEvent->GetPOFullEvent()->fTotal.Eflow.Unit();
+        for (auto it : fPORecoEvent->GetPORecs())
+        {
+            int POID = it->POID;
+            if(POID < 0) continue;
+            struct PO *aPO = &POevent->POs[POID];
+            int PDG = aPO->m_pdg_id;
+
+            double RecoLeptonEne = it->fTotal.Ecompensated;
+            ROOT::Math::XYZVector lepton = RecoLeptonEne*it->fTotal.Eflow.Unit();
+            ROOT::Math::XYZVector jet = spx-lepton;
+            SetLepton(lepton);
+            SetJet(jet);
+            Kinematics(fPORecoEvent->primary_n_charged);
+
+            // nueCC background
+            if(abs(PDG) == 11 && !found_electron) {
+                found_electron = true;
+                if(!POevent->isES())                     // skip ES events
+                    return 1;
+            }
+
+            // nutau signal -> e
+            if(abs(PDG) == 15 && !found_tau_e) {
+                if(fPORecoEvent->GetPOEvent()->tau_decaymode==1) {
+                    found_tau_e = true;
+                    if(!POevent->isES())                     // skip ES events
+                    return 1;
+                }
+            }
+        }
+
+    return 0;
+}
