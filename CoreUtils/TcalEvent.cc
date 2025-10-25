@@ -141,17 +141,23 @@ int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
     }
 
     TFile *m_rootFile = new TFile(filename.str().c_str(), "READ"); 
-    if (!m_rootFile || !m_rootFile->IsOpen())
+    if (!m_rootFile || m_rootFile-> IsZombie() || !m_rootFile->IsOpen())
     {
+      std::cerr << "Error : failed to open file " << filename.str() << std::endl;
         return 1;
     }
     m_rootFile->cd();
-    TTree *event_tree;
+    TTree *event_tree = nullptr;
     m_rootFile->GetObject("calEvent",event_tree);
+    if(!event_tree) {
+      std::cerr << "Error : TTree 'calEvent' not found in " << filename.str() << std::endl;
+      return 1;
+    }
 
     Long_t nentries = event_tree->GetEntries();
     if(verbose > 0) std::cout << "Number of entries " << nentries << std::endl;
     if(nentries < 1) {
+        std::cerr << "Number of entries " << nentries << std::endl;
         m_rootFile -> Close();
         delete m_rootFile;
         return 2;
