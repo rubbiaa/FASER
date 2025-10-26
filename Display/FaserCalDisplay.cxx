@@ -39,12 +39,20 @@ namespace display
     fSecondaryShowerElements = new TEveElementList("Secondary Shower Elements");  
     fSecondaryHadShowerElements = new TEveElementList("Secondary Hadron Shower Elements");  
     fPixelHitElements = new TEveElementList("Pixel Hit Elements");
+    fClusterHitElements = new TEveElementList("Cluster Hit Elements");
     fShortLivedParticleHitElements =  new TEveElementList("Short Lived Particle Elements");
     fMuonHitElements = new TEveElementList("Muon Hit Elements");
+    fProtonHitElements = new TEveElementList("Proton Hit Elements");
+    fPionHitElements = new TEveElementList("Pion Hit Elements");
+    fKaonHitElements = new TEveElementList("Kaon Hit Elements");
     fRearECALElements = new TEveElementList("RearECAL Elements");  
     fRearHCALElements = new TEveElementList("RearHCAL Elements");
     fRearMuCALElements = new TEveElementList("RearMuCAL Elements");
     fMuTagHitElements = new TEveElementList("MuTagHit Elements");
+    fVoxHitElements = new TEveElementList("RecoVoxel Elements");
+    fVoxGhostElements = new TEveElementList("GhostVoxel Elements");
+    fMuSpectHitElements = new TEveElementList("MuonSpectHit Elements");
+    fMuonSpectFitElements = new TEveElementList("MuonSpectFit Elements");
   }
   //////////////////////////////////////////////////////////
   FaserCalDisplay::~FaserCalDisplay() {}
@@ -53,7 +61,10 @@ namespace display
   {
     std::cout << "Starting GetDetector()" << std::endl;
     // Load the GDML file using TGeoManager::Import
-    TGeoManager::Import("../GeomGDML/geometry.gdml");
+    //TGeoManager::Import("/data/sw/FASERCAL/FASER/GeomGDML/geometry.gdml");
+    // use for Run120 and v5.0
+    //TGeoManager::Import("/home/hyperk/sw/FASERCAL/FASER_March2025/GeomGDML/geometry_v5.gdml");
+    TGeoManager::Import("../../GeomGDML/geometry.gdml");
     //
     if (!gGeoManager) {
       std::cerr << "Failed to import GDML file." << std::endl;
@@ -119,6 +130,14 @@ namespace display
   //////////////////////////////////////////////////////////
   void FaserCalDisplay::GetEventDisplay()
   {
+    gSystem->Setenv("ROOT_OPENGL_FALLBACK", "1");
+    gROOT->SetBatch(kFALSE);
+    
+    // Force software rendering
+    if (gSystem->Getenv("DISPLAY") == nullptr) {
+        gSystem->Setenv("DISPLAY", ":0.0");
+    }
+    
     TEveManager* gEve = TEveManager::Create(kTRUE, "V");
     if (gROOT->IsBatch())
       gROOT->SetBatch(kFALSE);
@@ -166,7 +185,7 @@ namespace display
     /////////////////////////////////////////////////////////////////////
     // Set Event Number Button
     int posy = 20;
-        fNumberEntryRun = new TGNumberEntryField(fGroupFrame2, -1, 310, TGNumberFormat::kNESInteger);
+        fNumberEntryRun = new TGNumberEntryField(fGroupFrame2, -1, 200025, TGNumberFormat::kNESInteger);
     fGroupFrame2->AddFrame(fNumberEntryRun, new TGLayoutHints(kLHintsLeft | kLHintsTop, 2, 2, 62, 2));
     fNumberEntryRun->MoveResize(20, posy, 90, 18);
     
@@ -242,6 +261,17 @@ namespace display
     fMuons->Connect("Clicked()", "display::FaserCalDisplay", this, "ShowMuonParticles()");
 
     posy += 25;
+    fKaons = new TGCheckButton(fGroupFrame2, "Kaons");
+    fKaons->MoveResize(10, posy, 0, 18);
+    fKaons->Connect("Clicked()", "display::FaserCalDisplay", this, "ShowKaonParticles()");
+    fPions = new TGCheckButton(fGroupFrame2, "Pions");
+    fPions->MoveResize(80, posy, 0, 18);
+    fPions->Connect("Clicked()", "display::FaserCalDisplay", this, "ShowPionParticles()");
+    fProtons = new TGCheckButton(fGroupFrame2, "Protons");
+    fProtons->MoveResize(150, posy, 0, 18);
+    fProtons->Connect("Clicked()", "display::FaserCalDisplay", this, "ShowProtonParticles()");  
+
+    posy += 25;
     fEMShowers = new TGCheckButton(fGroupFrame2, "EM Showers");
     fEMShowers->MoveResize(10, posy, 0, 18);
     fEMShowers->Connect("Clicked()", "display::FaserCalDisplay", this, "ShowSecondaryShowers()");
@@ -258,6 +288,17 @@ namespace display
     fPixelRecoTrack = new TGCheckButton(fGroupFrame2, "RecoTracks");
     fPixelRecoTrack->MoveResize(110, posy, 0, 18);
     fPixelRecoTrack->Connect("Clicked()", "display::FaserCalDisplay", this, "ShowPixelRecoTrack()");
+
+    posy += 25;
+
+    fRecoVoxHits = new TGCheckButton(fGroupFrame2, "RecoVox");
+    fRecoVoxHits->MoveResize(10, posy, 0, 18);
+    fRecoVoxHits->Connect("Clicked()", "display::FaserCalDisplay", this, "ShowRecoVoxelHits()");
+
+    fGhostHits = new TGCheckButton(fGroupFrame2, "Ghost");
+    fGhostHits->MoveResize(110, posy, 0, 18);
+    fGhostHits->Connect("Clicked()", "display::FaserCalDisplay", this, "ShowOnlyGhostHits()");
+
     posy += 15;
 
 
@@ -270,7 +311,7 @@ namespace display
     //"display::FaserCalDisplay", this, "OnShapeSelected(TEveElement*)");
 
     hf->AddFrame(fGroupFrame2, new TGLayoutHints(kLHintsLeft | kLHintsTop, 2, 2, 2, 2));
-    fGroupFrame2->MoveResize(0, 200, 240, 220);
+    fGroupFrame2->MoveResize(0, 200, 260, 270);
 
 
     TGGroupFrame* fGroupFrame30 = new TGGroupFrame(hf, "Analysis");
@@ -280,7 +321,7 @@ namespace display
     fb_sel->Connect("Clicked()","display::FaserCalDisplay",this,"EnablePicking()");
     fb_sel->SetState((EButtonState)1);
     hf->AddFrame(fGroupFrame30, new TGLayoutHints(kLHintsLeft | kLHintsTop, 2, 2, 2, 2));
-    fGroupFrame30->MoveResize(0, 220, 240, 50);
+    fGroupFrame30->MoveResize(0, 220, 250, 50);
 
 
     TGGroupFrame* fGroupFrame3 = new TGGroupFrame(hf, "Plots");
@@ -350,7 +391,7 @@ namespace display
     posy = 20;
 
     hf->AddFrame(fGroupFrame5, new TGLayoutHints(kLHintsLeft | kLHintsTop, 2, 2, 2, 2));
-    fGroupFrame5->MoveResize(0, 210, 240, 100);
+    fGroupFrame5->MoveResize(0, 210, 240, 50);
 
     TGGroupFrame* fGroupFrame6 = new TGGroupFrame(hf, "Saving");
     fGroupFrame6->SetLayoutBroken(kTRUE);
@@ -554,11 +595,16 @@ namespace display
       fShortLivedParticleHitElements->SetRnrState(kFALSE);  
       fPixelRecoTrackElements->SetRnrState(kFALSE);
       fPrimaryElements->SetRnrState(kFALSE);  
-
+      fPionHitElements->SetRnrState(kFALSE);
+      fKaonHitElements->SetRnrState(kFALSE);
+      fProtonHitElements->SetRnrState(kFALSE);
+      fMuonHitElements->SetRnrState(kFALSE);
+      fMuTagHitElements->SetRnrState(kFALSE);
+      fMuSpectHitElements->SetRnrState(kFALSE);
       if(!fIsolate->IsOn())
-	fDetectorElements->SetRnrState(kTRUE);
+	      fDetectorElements->SetRnrState(kTRUE);
       else
-	fDetectorElements->SetRnrState(kFALSE);
+	      fDetectorElements->SetRnrState(kFALSE);
       
       gEve->AddGlobalElement(fRearECALElements);
       gEve->AddGlobalElement(fRearHCALElements);
@@ -595,10 +641,16 @@ namespace display
       fRearECALElements->SetRnrState(kFALSE);
       fRearHCALElements->SetRnrState(kFALSE);
       fRearMuCALElements->SetRnrState(kFALSE);
+      fPionHitElements->SetRnrState(kFALSE);
+      fKaonHitElements->SetRnrState(kFALSE);
+      fProtonHitElements->SetRnrState(kFALSE);
+      fMuTagHitElements->SetRnrState(kFALSE);
+      fMuSpectHitElements->SetRnrState(kFALSE);
+
       if(!fIsolate->IsOn())
-	fDetectorElements->SetRnrState(kTRUE);
+	      fDetectorElements->SetRnrState(kTRUE);
       else
-	fDetectorElements->SetRnrState(kFALSE);
+	      fDetectorElements->SetRnrState(kFALSE);
       
       gEve->AddGlobalElement(fPrimaryElements);
       fPrimaryElements->SetRnrState(kTRUE);  
@@ -614,8 +666,50 @@ namespace display
   void FaserCalDisplay::ShowMuonParticles()
   { 
     if (fMuons->IsOn())
+    {
+	    std::cout << "Muons" << std::endl;
+	    fDetectorElements->SetRnrState(kFALSE);
+	    fHitElements->SetRnrState(kFALSE);
+      fSecondaryShowerElements->SetRnrState(kFALSE);
+	    fSecondaryHadShowerElements->SetRnrState(kFALSE);
+	    fPixelHitElements->SetRnrState(kFALSE);  
+	    fShortLivedParticleHitElements->SetRnrState(kFALSE);  
+      fPrimaryElements->SetRnrState(kFALSE);  
+      fPixelRecoTrackElements->SetRnrState(kFALSE);
+	    fRearECALElements->SetRnrState(kFALSE);
+	    fRearHCALElements->SetRnrState(kFALSE);
+	    fRearMuCALElements->SetRnrState(kFALSE);
+	    fPionHitElements->SetRnrState(kFALSE);
+      fKaonHitElements->SetRnrState(kFALSE);
+      fProtonHitElements->SetRnrState(kFALSE);
+      fMuTagHitElements->SetRnrState(kFALSE);
+
+      if(!fIsolate->IsOn())
+	      fDetectorElements->SetRnrState(kTRUE);
+	    else
+	      fDetectorElements->SetRnrState(kFALSE);
+	
+	    gEve->AddGlobalElement(fMuonHitElements);
+	    fMuonHitElements->SetRnrState(kTRUE);  
+      gEve->AddGlobalElement(fMuSpectHitElements);
+      fMuSpectHitElements->SetRnrState(kTRUE);
+      gEve->AddGlobalElement(fMuonSpectFitElements);
+      fMuonSpectFitElements->SetRnrState(kTRUE);
+	    gStyle->SetPalette(-1);
+	    gEve->FullRedraw3D(kTRUE);
+    } else {
+      fHitElements->SetRnrState(kTRUE);
+      gStyle->SetPalette(-1);
+      gEve->FullRedraw3D(kTRUE);    
+    }
+  }
+
+//////////////////////////////////////////////////////////
+  void FaserCalDisplay::ShowPionParticles()
+  { 
+    if (fPions->IsOn())
       {
-	std::cout << "Muons" << std::endl;
+	std::cout << "Pions" << std::endl;
 	fDetectorElements->SetRnrState(kFALSE);
 	fHitElements->SetRnrState(kFALSE);
 	fSecondaryShowerElements->SetRnrState(kFALSE);
@@ -627,13 +721,18 @@ namespace display
 	fRearECALElements->SetRnrState(kFALSE);
 	fRearHCALElements->SetRnrState(kFALSE);
 	fRearMuCALElements->SetRnrState(kFALSE);
+  fMuonHitElements->SetRnrState(kFALSE);
+  fProtonHitElements->SetRnrState(kFALSE);
+  fKaonHitElements->SetRnrState(kFALSE);
+  fMuTagHitElements->SetRnrState(kFALSE);
+  fMuSpectHitElements->SetRnrState(kFALSE);
 	if(!fIsolate->IsOn())
 	  fDetectorElements->SetRnrState(kTRUE);
 	else
 	  fDetectorElements->SetRnrState(kFALSE);
-	
-	gEve->AddGlobalElement(fMuonHitElements);
-	fMuonHitElements->SetRnrState(kTRUE);  
+
+	gEve->AddGlobalElement(fPionHitElements);
+	fPionHitElements->SetRnrState(kTRUE);  
 	gStyle->SetPalette(-1);
 	gEve->FullRedraw3D(kTRUE);
       } else {
@@ -642,6 +741,84 @@ namespace display
       gEve->FullRedraw3D(kTRUE);    
     }
   }
+  
+//////////////////////////////////////////////////////////
+  void FaserCalDisplay::ShowKaonParticles()
+  { 
+    if (fKaons->IsOn())
+      {
+	std::cout << "Kaons" << std::endl;
+	fDetectorElements->SetRnrState(kFALSE);
+	fHitElements->SetRnrState(kFALSE);
+	fSecondaryShowerElements->SetRnrState(kFALSE);
+	fSecondaryHadShowerElements->SetRnrState(kFALSE);
+	fPixelHitElements->SetRnrState(kFALSE);  
+	fShortLivedParticleHitElements->SetRnrState(kFALSE);  
+	fPrimaryElements->SetRnrState(kFALSE);  
+	fPixelRecoTrackElements->SetRnrState(kFALSE);
+	fRearECALElements->SetRnrState(kFALSE);
+	fRearHCALElements->SetRnrState(kFALSE);
+	fRearMuCALElements->SetRnrState(kFALSE);
+  fMuonHitElements->SetRnrState(kFALSE);
+  fProtonHitElements->SetRnrState(kFALSE);
+  fPionHitElements->SetRnrState(kFALSE);
+  fMuTagHitElements->SetRnrState(kFALSE);
+  fMuSpectHitElements->SetRnrState(kFALSE);
+	if(!fIsolate->IsOn())
+	  fDetectorElements->SetRnrState(kTRUE);
+	else
+	  fDetectorElements->SetRnrState(kFALSE);
+
+	gEve->AddGlobalElement(fKaonHitElements);
+	fKaonHitElements->SetRnrState(kTRUE);  
+	gStyle->SetPalette(-1);
+	gEve->FullRedraw3D(kTRUE);
+      } else {
+      fHitElements->SetRnrState(kTRUE);
+      gStyle->SetPalette(-1);
+      gEve->FullRedraw3D(kTRUE);    
+    }
+  }
+  
+//////////////////////////////////////////////////////////
+  void FaserCalDisplay::ShowProtonParticles()
+  { 
+    if (fProtons->IsOn())
+      {
+	std::cout << "Protons" << std::endl;
+	fDetectorElements->SetRnrState(kFALSE);
+	fHitElements->SetRnrState(kFALSE);
+	fSecondaryShowerElements->SetRnrState(kFALSE);
+	fSecondaryHadShowerElements->SetRnrState(kFALSE);
+	fPixelHitElements->SetRnrState(kFALSE);  
+	fShortLivedParticleHitElements->SetRnrState(kFALSE);  
+	fPrimaryElements->SetRnrState(kFALSE);  
+	fPixelRecoTrackElements->SetRnrState(kFALSE);
+	fRearECALElements->SetRnrState(kFALSE);
+	fRearHCALElements->SetRnrState(kFALSE);
+	fRearMuCALElements->SetRnrState(kFALSE);
+  fMuonHitElements->SetRnrState(kFALSE);
+  fPionHitElements->SetRnrState(kFALSE);
+  fKaonHitElements->SetRnrState(kFALSE);
+  fMuTagHitElements->SetRnrState(kFALSE);
+  fMuSpectHitElements->SetRnrState(kFALSE);
+	if(!fIsolate->IsOn())
+	  fDetectorElements->SetRnrState(kTRUE);
+	else
+	  fDetectorElements->SetRnrState(kFALSE);
+
+	gEve->AddGlobalElement(fProtonHitElements);
+	fProtonHitElements->SetRnrState(kTRUE);  
+	gStyle->SetPalette(-1);
+	gEve->FullRedraw3D(kTRUE);
+      } else {
+      fHitElements->SetRnrState(kTRUE);
+      gStyle->SetPalette(-1);
+      gEve->FullRedraw3D(kTRUE);    
+    }
+  }
+  
+
   //////////////////////////////////////////////////////////
   void FaserCalDisplay::ShowShortLivedParticle()
   { 
@@ -655,10 +832,16 @@ namespace display
       fPixelHitElements->SetRnrState(kFALSE);  
       fPrimaryElements->SetRnrState(kFALSE);  
       fMuonHitElements->SetRnrState(kFALSE);  
+      fPionHitElements->SetRnrState(kFALSE);
+      fKaonHitElements->SetRnrState(kFALSE);
+      fProtonHitElements->SetRnrState(kFALSE);
       fPixelRecoTrackElements->SetRnrState(kFALSE);
       fRearECALElements->SetRnrState(kFALSE);
       fRearHCALElements->SetRnrState(kFALSE);
       fRearMuCALElements->SetRnrState(kFALSE);
+      fMuTagHitElements->SetRnrState(kFALSE);
+      fMuSpectHitElements->SetRnrState(kFALSE);
+
       if(!fIsolate->IsOn())
 	fDetectorElements->SetRnrState(kTRUE);
       else
@@ -687,10 +870,16 @@ namespace display
       fPixelHitElements->SetRnrState(kFALSE);  
       fShortLivedParticleHitElements->SetRnrState(kFALSE);  
       fMuonHitElements->SetRnrState(kFALSE);  
+      fPionHitElements->SetRnrState(kFALSE);
+      fKaonHitElements->SetRnrState(kFALSE);
+      fProtonHitElements->SetRnrState(kFALSE);
       fPixelRecoTrackElements->SetRnrState(kFALSE);
       fRearECALElements->SetRnrState(kFALSE);
       fRearHCALElements->SetRnrState(kFALSE);
       fRearMuCALElements->SetRnrState(kFALSE);
+      fMuTagHitElements->SetRnrState(kFALSE);
+      fMuSpectHitElements->SetRnrState(kFALSE);
+
       if(!fIsolate->IsOn())
 	fDetectorElements->SetRnrState(kTRUE);
       else
@@ -723,10 +912,13 @@ namespace display
       fRearECALElements->SetRnrState(kFALSE);
       fRearHCALElements->SetRnrState(kFALSE);
       fRearMuCALElements->SetRnrState(kFALSE);
+      fMuTagHitElements->SetRnrState(kFALSE);
+      fMuSpectHitElements->SetRnrState(kFALSE);
+      
       if(!fIsolate->IsOn())
-	fDetectorElements->SetRnrState(kTRUE);
+	      fDetectorElements->SetRnrState(kTRUE);
       else
-	fDetectorElements->SetRnrState(kFALSE);
+	      fDetectorElements->SetRnrState(kFALSE);
  	
       gEve->AddGlobalElement(fSecondaryHadShowerElements);
       fSecondaryHadShowerElements->SetRnrState(kTRUE);  
@@ -755,6 +947,8 @@ namespace display
 	fRearECALElements->SetRnrState(kFALSE);
 	fRearHCALElements->SetRnrState(kFALSE);
 	fRearMuCALElements->SetRnrState(kFALSE);
+	fMuTagHitElements->SetRnrState(kFALSE);
+	fMuSpectHitElements->SetRnrState(kFALSE);
 
 	if(!fIsolate->IsOn())
 	  fDetectorElements->SetRnrState(kTRUE);
@@ -790,6 +984,8 @@ namespace display
 	fRearECALElements->SetRnrState(kFALSE);
 	fRearHCALElements->SetRnrState(kFALSE);
 	fRearMuCALElements->SetRnrState(kFALSE);
+  fMuTagHitElements->SetRnrState(kFALSE);
+  fMuSpectHitElements->SetRnrState(kFALSE);
 	if(!fIsolate->IsOn())
 	  fDetectorElements->SetRnrState(kTRUE);
 	else
@@ -807,6 +1003,125 @@ namespace display
       gEve->FullRedraw3D(kTRUE);
     }
   }
+  //////////////////////////////////////////////////////////
+  void FaserCalDisplay::ShowRecoVoxelHits()
+  {
+    TEveLine *trackLine;
+    if(fRecoVoxHits->IsOn())
+      {
+	std::cout << "Show Reconstructed tracks" << std::endl;
+	fDetectorElements->SetRnrState(kFALSE);
+	fHitElements->SetRnrState(kFALSE);
+	fSecondaryShowerElements->SetRnrState(kFALSE);
+	fPrimaryElements->SetRnrState(kFALSE);
+	fSecondaryHadShowerElements->SetRnrState(kFALSE);
+	fPixelHitElements->SetRnrState(kFALSE);
+	fShortLivedParticleHitElements->SetRnrState(kFALSE);  
+	fMuonHitElements->SetRnrState(kFALSE);  
+	fRearECALElements->SetRnrState(kFALSE);
+	fRearHCALElements->SetRnrState(kFALSE);
+	fRearMuCALElements->SetRnrState(kFALSE);
+	fPixelRecoTrackElements->SetRnrState(kFALSE);
+	fMuTagHitElements->SetRnrState(kFALSE);
+  fMuSpectHitElements->SetRnrState(kFALSE);
+
+	if(!fIsolate->IsOn())
+	  fDetectorElements->SetRnrState(kTRUE);
+	else
+	  fDetectorElements->SetRnrState(kFALSE);
+
+	fVoxHitElements->SetRnrState(kTRUE);
+	gEve->AddGlobalElement(fVoxHitElements);
+	fVoxHitElements->SetRnrState(kTRUE);
+	gStyle->SetPalette(-1);
+	gEve->FullRedraw3D(kTRUE);
+	EnablePicking();
+      } else {
+      fVoxHitElements->SetRnrState(kFALSE);
+      fHitElements->SetRnrState(kTRUE);
+      gStyle->SetPalette(-1);
+      gEve->FullRedraw3D(kTRUE);
+    }
+  }  
+   //////////////////////////////////////////////////////////
+  void FaserCalDisplay::ShowOnlyGhostHits()
+  {
+    TEveLine *trackLine;
+    if(fGhostHits->IsOn())
+      {
+	std::cout << "Show only ghost" << std::endl;
+	fDetectorElements->SetRnrState(kFALSE);
+	fHitElements->SetRnrState(kFALSE);
+	fSecondaryShowerElements->SetRnrState(kFALSE);
+	fPrimaryElements->SetRnrState(kFALSE);
+	fSecondaryHadShowerElements->SetRnrState(kFALSE);
+	fPixelHitElements->SetRnrState(kFALSE);
+	fShortLivedParticleHitElements->SetRnrState(kFALSE);  
+	fMuonHitElements->SetRnrState(kFALSE);  
+	fRearECALElements->SetRnrState(kFALSE);
+	fRearHCALElements->SetRnrState(kFALSE);
+	fRearMuCALElements->SetRnrState(kFALSE);
+	fPixelRecoTrackElements->SetRnrState(kFALSE);
+	fVoxHitElements->SetRnrState(kFALSE);
+	fMuTagHitElements->SetRnrState(kFALSE);
+  fMuSpectHitElements->SetRnrState(kFALSE);
+
+	if(!fIsolate->IsOn())
+	  fDetectorElements->SetRnrState(kTRUE);
+	else
+	  fDetectorElements->SetRnrState(kFALSE);
+
+	fVoxGhostElements->SetRnrState(kTRUE);
+	gEve->AddGlobalElement(fVoxGhostElements);
+	fVoxGhostElements->SetRnrState(kTRUE);
+	gStyle->SetPalette(-1);
+	gEve->FullRedraw3D(kTRUE);
+	EnablePicking();
+      } else {
+      fVoxGhostElements->SetRnrState(kFALSE);
+      fHitElements->SetRnrState(kTRUE);
+      gStyle->SetPalette(-1);
+      gEve->FullRedraw3D(kTRUE);
+    }
+  }   
+
+
+  //////////////////////////////////////////////////////////
+  /*
+  void FaserCalDisplay::ShowClusterHits()
+  {    
+    if (fClusterHits->IsOn())
+      {
+	std::cout << "Cluster Hits" << std::endl;
+	fDetectorElements->SetRnrState(kFALSE);
+	fHitElements->SetRnrState(kFALSE);
+	fSecondaryShowerElements->SetRnrState(kFALSE);
+	fPrimaryElements->SetRnrState(kFALSE);
+	fSecondaryHadShowerElements->SetRnrState(kFALSE);  
+	fShortLivedParticleHitElements->SetRnrState(kFALSE);  
+	fMuonHitElements->SetRnrState(kFALSE);  
+	fPixelRecoTrackElements->SetRnrState(kFALSE);
+	fRearECALElements->SetRnrState(kFALSE);
+	fRearHCALElements->SetRnrState(kFALSE);
+	fRearMuCALElements->SetRnrState(kFALSE);
+
+	if(!fIsolate->IsOn())
+	  fDetectorElements->SetRnrState(kTRUE);
+	else
+	  fDetectorElements->SetRnrState(kFALSE);
+ 	
+	gEve->AddGlobalElement(fClusterHitElements);
+	fClusterHitElements->SetRnrState(kTRUE);  
+	gStyle->SetPalette(-1);
+	gEve->FullRedraw3D(kTRUE);      
+      } else {
+      fClusterHitElements->SetRnrState(kFALSE);  
+      fHitElements->SetRnrState(kTRUE);
+      gStyle->SetPalette(-1);
+      gEve->FullRedraw3D(kTRUE);    
+    }
+  }
+  */
   //////////////////////////////////////////////////////////  
   void FaserCalDisplay::EnablePicking()
   {
@@ -977,7 +1292,7 @@ namespace display
     if (myCan) myCan->Clear();
     myCan = (TCanvas*)gROOT->FindObject("HitsInCubes");
     if (myCan) myCan->Clear();
-    myCan = (TCanvas*)gROOT->FindObject("RD_Cry1TPC1");
+    myCan = (TCanvas*)gROOT->FindObject("Clusters");
     if (myCan) myCan->Clear();
   }
   //////////////////////////////////////////////////////////  
@@ -1255,7 +1570,101 @@ namespace display
   }
 //////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////  
+bool FaserCalDisplay::IsShortLivedParticle(int pdg_id, int& particleType)
+    {
+        particleType = 0; // 0 = not SLP, 1 = charm, 2 = tau
+        // Charm particles
+        if (abs(pdg_id) == 411 || abs(pdg_id) == 421 || abs(pdg_id) == 431 ||
+            abs(pdg_id) == 4122 || abs(pdg_id) == 4132 || abs(pdg_id) == 4232 ||
+            abs(pdg_id) == 4332) {
+            particleType = 1; // Charm
+            std::cout << "Charm found for this event" << std::endl;
+            return true;
+        }
+        // Tau lepton
+        if (abs(pdg_id) == 15) {
+            particleType = 2; // Tau
+            std::cout << "Tau found for this event" << std::endl;
+
+            return true;
+        }
+        return false;
+    }
+    //////////////////////////////////////////////////////////  
+bool FaserCalDisplay::ShortLivedParticleEvent()
+{
+    fCharmParentID = -1;
+    fTauParentID = -1;
+    fSLPParentIDs.clear();
+    fSLPNames.clear();
+    fSLPTypes.clear();
+    
+    // Reset all variables
+    fcharmname = "";
+    ftauname = "";
+    fCharmCharge = 0;
+    fTauCharge = 0;
+    fCharmEnergy = 0.0;
+    fTauEnergy = 0.0;
+    fnumChargedDaughters = 0;
+    fnumNeutralDaughters = 0;
+    fnumTauChargedDaughters = 0;
+    fnumTauNeutralDaughters = 0;
+    fdecayMode = "";
+    ftauDecayMode = "";
+    
+    int PrimaryTrackID = 0;
+    TDatabasePDG* pdgDB = TDatabasePDG::Instance();
+    bool foundSLP = false;
+    
+    for (size_t i = 0; i < POevent->n_particles(); i++) 
+    {
+        struct PO& aPO = POevent->POs[i];
+        if (aPO.m_status == 1)
+        {
+            PrimaryTrackID++;
+            
+            if (abs(aPO.m_pdg_id) == 13) {
+                fPryMuonID = PrimaryTrackID;  
+                GetPryMuon();
+            }
+            
+            int particleType;
+            if (IsShortLivedParticle(aPO.m_pdg_id, particleType)) 
+            {
+              std::cout << "Check for shortlived" << std::endl;
+                foundSLP = true;
+                fSLPParentIDs.push_back(PrimaryTrackID);
+                fSLPTypes.push_back(particleType);
+                
+                TParticlePDG* particle = pdgDB->GetParticle(aPO.m_pdg_id);
+                std::string particleName = particle ? particle->GetName() : "Unknown";
+                fSLPNames.push_back(particleName);
+                
+                if (particleType == 1) { // Charm
+                    fCharmParentID = PrimaryTrackID;
+                    fCharmCharge = particle ? particle->Charge() : 0;
+                    fcharmname = particleName;
+                    fCharmEnergy = aPO.m_energy;
+                    std::cout << "Charm found: trackID " << fCharmParentID << std::endl;
+
+                    CharmDecayMode();
+                }
+                else if (particleType == 2) { // Tau
+                    fTauParentID = PrimaryTrackID;
+                    fTauCharge = particle ? particle->Charge() : 0;
+                    ftauname = particleName;
+                    fTauEnergy = aPO.m_energy;
+                    std::cout << "Tau found: trackID " << fTauParentID << std::endl;
+                    TauDecayMode();
+                }
+            }
+        }
+    }   
+    return foundSLP;
+}
+/////////////////////////////////////////////////////////////
+
   bool FaserCalDisplay::CharmedEvent()
   {
     //fTcalEvent = new TcalEvent();
@@ -1289,7 +1698,7 @@ namespace display
             fCharmParentID = PrimaryTrackID;
             fCharmCharge = pdgDB->GetParticle(aPO.m_pdg_id)->Charge();
             fcharmname = pdgDB->GetParticle(aPO.m_pdg_id)->GetName();
-	    fCharmEnergy = aPO.m_energy;
+	          fCharmEnergy = aPO.m_energy;
             CharmDecayMode();
             return true;
           }
@@ -1470,6 +1879,135 @@ namespace display
     //std::cout << "Number of charged daughters: " << fnumChargedDaughters << std::endl;
     // Add topology classification based on unique charged tracks
   }
+//////////////////////////////////////////////////////////////
+  void FaserCalDisplay::TauDecayMode()
+{
+    std::vector<std::pair<int, int>> daughterTracks; // Stores (trackID, PDG)
+    std::cout << "Inside tau decay mode analysis..." << std::endl;
+    
+    TVector3 primaryVertex(POevent->prim_vx.x(), POevent->prim_vx.y(), POevent->prim_vx.z());
+    TVector3 decayVertex(0.0, 0.0, 0.0);
+
+    for (const auto& track : fTcalEvent->getfTracks())
+    {
+        if (fTauParentID == track->fparentID)
+        {
+            for (size_t i = 0; i < track->fhitIDs.size(); i++)
+            {
+                ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(track->fhitIDs[i]);
+                long module = fTcalEvent->getChannelModulefromID(track->fhitIDs[i]);
+
+                std::cout << "TauDaughter " << track->fparentID << " "
+                         << track->ftrackID << " "
+                         << track->fprimaryID << " "
+                         << track->fPDG << " "
+                         << track->fEnergyDeposits[i] << " "
+                         << position.x() << " "
+                         << position.y() << " "
+                         << position.z() << " "
+                         << module << " "
+                         << std::endl;
+                
+                daughterTracks.emplace_back(track->ftrackID, track->fPDG);
+                
+                // Check for muon daughter reaching MuTag
+                if (abs(track->fPDG) == 13) {
+                    fTauDaughterID = track->ftrackID;
+                    std::cout << "Tau->Muon decay found, reaching detector..." << std::endl;
+                }
+                
+                if (i == 0) {
+                    ftau_vx = position.x();
+                    ftau_vy = position.y();
+                    ftau_vz = position.z();
+                    ftau_decay_module = module;
+                    
+                    decayVertex.SetXYZ(position.x(), position.y(), position.z());
+                    ftauDecayFlightLength = (decayVertex - primaryVertex).Mag();
+                    std::cout << "Tau Flight Length: " << ftauDecayFlightLength << " mm" << std::endl;
+                }
+            }
+        }
+    }
+    IdentifyTauDecayMode(daughterTracks);
+}
+
+void FaserCalDisplay::IdentifyTauDecayMode(const std::vector<std::pair<int, int>>& daughterTracks)
+{
+    std::set<int> uniqueChargedTracks;
+    std::set<int> uniqueNeutralTracks;
+    
+    int numPions = 0, numKaons = 0, numLeptons = 0, numMuons = 0, numElectrons = 0;
+    int numNeutrinos = 0, numPhotons = 0, numNeutralPions = 0;
+    bool hasNeutralKaon = false;
+
+    // Classify particles based on unique track IDs
+    for (const auto& [trackID, pdg] : daughterTracks)
+    {
+        // Charged particles
+        if (abs(pdg) == 211 || abs(pdg) == 321 || abs(pdg) == 11 || abs(pdg) == 13) {
+            uniqueChargedTracks.insert(trackID);
+            
+            if (abs(pdg) == 211) numPions++;
+            if (abs(pdg) == 321) numKaons++;
+            if (abs(pdg) == 11) numElectrons++, numLeptons++;
+            if (abs(pdg) == 13) numMuons++, numLeptons++;
+        }
+        // Neutral particles
+        else if (abs(pdg) == 111 || abs(pdg) == 130 || abs(pdg) == 310 || 
+                 abs(pdg) == 22 || abs(pdg) == 12 || abs(pdg) == 14 || abs(pdg) == 16) {
+            uniqueNeutralTracks.insert(trackID);
+            
+            if (abs(pdg) == 111) numNeutralPions++;
+            if (abs(pdg) == 130 || abs(pdg) == 310) hasNeutralKaon = true;
+            if (abs(pdg) == 22) numPhotons++;
+            if (abs(pdg) == 12 || abs(pdg) == 14 || abs(pdg) == 16) numNeutrinos++;
+        }
+    }
+    
+    fnumTauChargedDaughters = uniqueChargedTracks.size();
+    fnumTauNeutralDaughters = uniqueNeutralTracks.size();
+    fTau = -1;
+    
+    // Tau decay mode classification
+    if (numMuons > 0) {
+        ftauDecayMode = "Tau -> Muon";
+        fTau = 1; // Muonic decay
+    }
+    else if (numElectrons > 0) {
+        ftauDecayMode = "Tau -> Electron";
+        fTau = 2; // Electronic decay
+    }
+    else if (numPions >1 && fnumTauChargedDaughters == 1) {
+        ftauDecayMode = "Tau -> Pion (1-prong)";
+        fTau = 3; // 1-prong hadronic
+    }
+    else if (fnumTauChargedDaughters == 1 && numNeutralPions > 0) {
+        ftauDecayMode = "Tau -> Charged + Neutrals (1-prong)";
+        fTau = 4; // 1-prong with neutrals
+    }
+    else if (fnumTauChargedDaughters == 3) {
+        ftauDecayMode = "Tau -> 3-prong hadronic";
+        fTau = 5; // 3-prong hadronic
+    }
+    else if (numKaons > 0) {
+        ftauDecayMode = "Tau -> Kaonic decay";
+        fTau = 6; // Kaonic decay
+    }
+    else {
+        ftauDecayMode = "Tau -> Other/Unknown";
+        fTau = 0; // Unknown
+    }
+    
+    std::cout << "Tau decay mode: " << ftauDecayMode << std::endl;
+    std::cout << "Number of charged daughters: " << fnumTauChargedDaughters << std::endl;
+    std::cout << "Number of neutral daughters: " << fnumTauNeutralDaughters << std::endl;
+    std::cout << "Number of Pions: " << numPions << std::endl;
+    std::cout << "Number of Kaons: " << numKaons << std::endl;
+    std::cout << "Number of Leptons: " << numLeptons << std::endl;
+    std::cout << "Number of Neutrinos: " << numElectrons << std::endl;
+    std::cout << "Number of Photons: " << numMuons << std::endl;
+}
 
   //////////////////////////////////////////////////////////  
   void FaserCalDisplay::DumpMCTruth()
@@ -1622,7 +2160,7 @@ namespace display
     std::string mask = HandleEventTypeSelection(imask);
     
     std::string file_path;
-    if (imask>0) 
+    if (imask!=0) 
       file_path = base_path + "FASERG4-Tcalevent_" +std::to_string(irun)+"_"+std::to_string(ievent)+"_"+mask+".root";
     else
       file_path = base_path + "FASERG4-Tcalevent_" +std::to_string(irun)+"_"+std::to_string(ievent)+".root";
@@ -1630,7 +2168,7 @@ namespace display
     // Create an instance of TcalEvent and TPOEvent
     fTcalEvent = new TcalEvent();
     POevent = new TPOEvent();
-    
+
     std::cout << file_path << std::endl;
     if (!gSystem->AccessPathName(file_path.c_str())) {  
       //
@@ -1642,7 +2180,7 @@ namespace display
       std::cout << " copied digitized tracks " << fTcalEvent->getfTracks().size() << std::endl;
       fTcalEvent -> fTPOEvent -> dump_event();
       ///
-      if(CharmedEvent())
+      /*if(CharmedEvent())
     	{
         std::cout << "Charm parent ID: " << fCharmParentID << std::endl;
         std::cout << "Charm name: " << fcharmname << std::endl;
@@ -1651,17 +2189,46 @@ namespace display
         std::cout << "Number of charged daughters: " << fnumChargedDaughters << std::endl;
         std::cout << "Number of neutral daughters: " << fnumNeutralDaughters << std::endl;  
 	    }
+        */
+      if(ShortLivedParticleEvent())
+      {
+        std::cout << "Event " << ievent << " contains short-lived particles:" << std::endl;
+        for (size_t i = 0; i < fSLPTypes.size(); i++) {
+          std::string particleType = "";
+          switch(fSLPTypes[i]) {
+            case 1: particleType = "Charm"; break;
+            case 2: particleType = "Tau"; break;
+            case 3: particleType = "Other SLP"; break;
+            default: particleType = "Unknown"; break;
+          }
+          std::cout << "  - " << particleType << ": " << fSLPNames[i] 
+                   << " (Parent ID: " << fSLPParentIDs[i] << ")" << std::endl;
+        }
+
+      }
+
       fPORecoEvent = new TPORecoEvent(fTcalEvent, fTcalEvent->fTPOEvent);
       // Modification based on Andre's changes
       //fPORecoEvent -> Reconstruct3DPS();
       //fPORecoEvent -> Dump();
       std::cout << "Start reconstruction of PORecs..." << std::endl;
       fPORecoEvent->ReconstructTruth();
-      std::cout << "Start reconstruction of clusters..." << std::endl;
-      fPORecoEvent->Reconstruct2DViewsPS();
-      fPORecoEvent->Reconstruct3DPS_2();
-      fPORecoEvent->ReconstructRearCals();
-      fPORecoEvent->ReconstructClusters(0);    // this is very slow
+       std::cout << "Start reconstruction of clusters..." << std::endl;
+       fPORecoEvent->Reconstruct2DViewsPS();
+       fPORecoEvent->Reconstruct3DPS_2();
+       fPORecoEvent->ReconstructRearCals();
+       // added for muon spectrometer
+       std::cout << "Start reconstruction of muon spectrometer..." << std::endl;
+       fPORecoEvent->ReconstructMuonSpectrometer();
+       //fPORecoEvent->ReconstructMuonSpectrometerKasaKalman();
+
+      fPORecoEvent->ReconstructClusters(0);   
+      fPORecoEvent->ReconstructClusters(1);   
+
+
+      std::cout << "DBSCAC in 3D" << std::endl;
+      //fPORecoEvent->Reconstruct3DClusters();
+
       fPORecoEvent->Reconstruct3DPS_Eflow();
       fPORecoEvent->TrackReconstruct();
       fPORecoEvent->PSVoxelParticleFilter();
@@ -1691,8 +2258,8 @@ namespace display
       std::cerr << "File not found: " << file_path << std::endl;
       std::cerr << "#########################################################" << std::endl;
       if (fStatusBar) {
-	fStatusBar->GetBarPart(0)->SetBackgroundColor(kRed);
-	fStatusBar->SetText(Form("Warning: File not found for event #%d", ievent), 0);
+	      fStatusBar->GetBarPart(0)->SetBackgroundColor(kRed);
+	      fStatusBar->SetText(Form("Warning: File not found for event #%d", ievent), 0);
       }
     }
   }
@@ -1883,6 +2450,22 @@ void FaserCalDisplay::LoadAllEvents()
   tree->Branch("RearHCalEnergy", &fRearHCalEnergy,"RearHCalEnergy/D");
   tree->Branch("RearMuCalEnergy", &fRearMuCalEnergy,"RearMuCalEnergy/D");
 
+  tree->Branch("TauType", &fTau, "TauType/I");
+  tree->Branch("TauProngs", &fnumTauChargedDaughters, "TauProngs/I");
+  tree->Branch("TauDecayMode", &ftauDecayMode);
+  tree->Branch("TauParticle", &ftauname);
+  tree->Branch("TauEnergy", &fTauEnergy, "TauEnergy/D");
+  tree->Branch("TauVtx_dcy", &ftau_vx, "TauVtx_dcy/D");
+  tree->Branch("TauVty_dcy", &ftau_vy, "TauVty_dcy/D");
+  tree->Branch("TauVtz_dcy", &ftau_vz, "TauVtz_dcy/D");
+  tree->Branch("TauFlightLength", &ftauDecayFlightLength, "TauFlightLength/D");
+    
+  // Generic SLP info
+  tree->Branch("NumSLPs", &fSLPParentIDs);
+  tree->Branch("SLPTypes", &fSLPTypes);
+  tree->Branch("SLPNames", &fSLPNames);
+ 
+
   tree->Branch("MuTag_mom", &fmuTag_p);
   tree->Branch("MuTag_ene", &fmuTag_E);
   tree->Branch("MuTag_dist", &fmuTag_dist);
@@ -1907,15 +2490,15 @@ void FaserCalDisplay::LoadAllEvents()
       std::vector<std::string> parts;
       while (std::getline(ss, token, '_'))
         {
-	  parts.push_back(token);
+	        parts.push_back(token);
         }
       if (parts.size() < 3)
         {
-	  std::cerr << "Error: Invalid filename format, unable to parse: " << base_name << std::endl;
-	  continue; // Skip this file if the format is incorrect
+	        std::cerr << "Error: Invalid filename format, unable to parse: " << base_name << std::endl;
+	        continue; // Skip this file if the format is incorrect
         }
       try {
-	mask_str = (parts.size() == 3) ? "NoMask" : parts[3];
+	      mask_str = (parts.size() == 3) ? "NoMask" : parts[3];
         irun = std::stoi(parts[1]);
         ievent = std::stoi(parts[2]);
 	std::cout << cnt << " Event Number: " << ievent << ", Run Number: " << irun << ", Mask: " << mask_str << std::endl;
@@ -1935,12 +2518,13 @@ void FaserCalDisplay::LoadAllEvents()
 	prim_vz = POevent->prim_vx.z();
 	
 	fdecay_vx = fdecay_vy = fdecay_vz = fdecayFlightLength = 0.0;
+    ftau_vx = ftau_vy = ftau_vz = ftauDecayFlightLength = 0.0;
 
 	totalMultiplicity = chargedMultiplicity = neutralMultiplicity = 0;
 	gammaMultiplicity = neutronMultiplicity = 0;
 	CharmType = neutrinoType = 0;
-	CharmedEvent();
-
+	//CharmedEvent();
+  ShortLivedParticleEvent();
 	// Count the particles based on their properties
 	for (size_t i = 0; i < POevent->n_particles(); i++)
 	  {
@@ -1964,7 +2548,7 @@ void FaserCalDisplay::LoadAllEvents()
 		  neutronMultiplicity++;
 	      }
 	  }
-	// Get neutrino energy
+	  // Get neutrino energy
         neutrinoEnergy = POevent->in_neutrino.m_energy;
 	neutrinoType = POevent->in_neutrino.m_pdg_id;
 	CCNC = POevent->isCC;
@@ -1975,6 +2559,7 @@ void FaserCalDisplay::LoadAllEvents()
 	fPORecoEvent->Reconstruct3DPS_2();
 	fPORecoEvent->ReconstructRearCals();
 	fPORecoEvent->ReconstructClusters(0); 
+	fPORecoEvent->ReconstructClusters(1); 
 	fPORecoEvent->Reconstruct3DPS_Eflow();
 	fPORecoEvent->TrackReconstruct();
 	fPORecoEvent->PSVoxelParticleFilter();
@@ -2015,24 +2600,30 @@ void FaserCalDisplay::LoadAllEvents()
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   void FaserCalDisplay::DrawEvent(int irun, int ievent, int imask)
   {
-    if (!gEve) {
+    if (!gEve) 
+    {
       std::cerr << "TEveManager is not initialized!" << std::endl;
       return;
     }
     gEve->GetViewers()->DeleteAnnotations();
     if(fHitElements)
       {
-     	fHitElements->DestroyElements();
-	fPrimaryElements->DestroyElements();
-	fSecondaryShowerElements->DestroyElements();
-	fSecondaryHadShowerElements->DestroyElements();
-	fPixelHitElements->DestroyElements();
-	fShortLivedParticleHitElements->DestroyElements();
-	fMuonHitElements->DestroyElements();
-	fRearECALElements->DestroyElements();
-	fRearHCALElements->DestroyElements();
-	fRearMuCALElements->DestroyElements();
-	fMuTagHitElements->DestroyElements();
+       	fHitElements->DestroyElements();
+	      fPrimaryElements->DestroyElements();
+	      fSecondaryShowerElements->DestroyElements();
+        fSecondaryHadShowerElements->DestroyElements();
+        fPixelHitElements->DestroyElements();
+        fShortLivedParticleHitElements->DestroyElements();
+        fMuonHitElements->DestroyElements();
+        fProtonHitElements->DestroyElements();
+        fPionHitElements->DestroyElements();
+        fKaonHitElements->DestroyElements();
+        fRearECALElements->DestroyElements();
+        fRearHCALElements->DestroyElements();
+        fRearMuCALElements->DestroyElements();
+        fMuTagHitElements->DestroyElements();
+        fMuSpectHitElements->DestroyElements();
+        fMuonSpectFitElements->DestroyElements();
       }    
     TEveEventManager* currEvent = gEve->GetCurrentEvent();
     if( currEvent ) currEvent->DestroyElements();
@@ -2040,14 +2631,15 @@ void FaserCalDisplay::LoadAllEvents()
     LoadEvent(irun, ievent, imask);
     //
     double wdx, wdy, wdz;
-    if (TGeoBBox *box = dynamic_cast<TGeoBBox*>(gGeoManager->GetTopVolume()->GetShape())){
-	wdx = box->GetDX();
-	wdy = box->GetDY();
-	wdz = box->GetDZ()/2.0;
-	printf("Top volume dimensions: DX = %f, DY = %f, DZ = %f\n", wdx, wdy, wdz);
+    if (TGeoBBox *box = dynamic_cast<TGeoBBox*>(gGeoManager->GetTopVolume()->GetShape()))
+      {
+	      wdx = box->GetDX();
+	      wdy = box->GetDY();
+	      wdz = box->GetDZ()/2.0;
+	      printf("Top volume dimensions: DX = %f, DY = %f, DZ = %f\n", wdx, wdy, wdz);
       } else {
-	std::cerr << "Failed to get top volume dimensions." << std::endl;
-	exit(1);
+	      std::cerr << "Failed to get top volume dimensions." << std::endl;
+	      exit(1);
       }
     TGeoShape *bigbox = new TGeoBBox("bigbox", wdx, wdy, wdz);
     TGeoMedium *air = gGeoManager->GetMedium("AIR");
@@ -2057,6 +2649,9 @@ void FaserCalDisplay::LoadAllEvents()
     si_tracker = new TGeoVolume("si_tracker", bigbox, air);
     ShortLivedP = new TGeoVolume("ShortLivedP", bigbox, air);
     muonhit = new TGeoVolume("MuonHit", bigbox, air);
+    pionhit = new TGeoVolume("PionHit", bigbox, air);
+    protonhit = new TGeoVolume("ProtonHit", bigbox, air);
+    kaonhit = new TGeoVolume("KaonHit", bigbox, air);
     // Adding rearcal, hcal and mucal
     rearecal = new TGeoVolume("RearECAL", bigbox, air);
     rearhcal = new TGeoVolume("RearHCAL", bigbox, air);
@@ -2075,6 +2670,10 @@ void FaserCalDisplay::LoadAllEvents()
     TEveElementList* hitList = new TEveElementList("Hits");
     TEveElementList* zoomhitList = new TEveElementList("ZoomHits");
     TEveElementList* muonhitList = new TEveElementList("MuonHits");
+    TEveElementList* protonhitList = new TEveElementList("ProtonHits");
+    TEveElementList* pionhitList = new TEveElementList("PionHits");
+    TEveElementList* kaonhitList = new TEveElementList("KaonHits");
+
     TEveElementList* primaryList = new TEveElementList("PrimaryHits");
     TEveElementList* secondaryShowerList = new TEveElementList("SecondaryShowerHits");
     TEveElementList* secondaryHadShowerList = new TEveElementList("SecondaryHadShowerHits");
@@ -2091,251 +2690,346 @@ void FaserCalDisplay::LoadAllEvents()
     /////////////////
     for (const auto& track : fTcalEvent->getfTracks())
       {
-	size_t nhits = track->fhitIDs.size();
-	for ( size_t i = 0; i < nhits; i++)
-	  {
-	    long hittype = fTcalEvent->getChannelTypefromID(track->fhitIDs[i]);
-	    
-	    // apply energy cut on scintillator voxel
-	    if(hittype == 0 && track->fEnergyDeposits[i] < 0.5)continue;
-	    // apply cut on pixel hit
+        size_t nhits = track->fhitIDs.size();
+        for ( size_t i = 0; i < nhits; i++)
+          {
+            long hittype = fTcalEvent->getChannelTypefromID(track->fhitIDs[i]);
+            
+            // apply energy cut on scintillator voxel
+            if(hittype == 0 && track->fEnergyDeposits[i] < 0.5)continue;
+            // apply cut on pixel hit
             if(hittype == 1 && track->fEnergyDeposits[i] < 1e-3)continue;
-	    //
-	    ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(track->fhitIDs[i]);
-	    //
-	    // Create a translation matrix for the hit position
-	    TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, position.Y() / 10.0, position.Z() / 10.0);
-	    //
-	    auto currentTrack = track;
-	    //
-	    TGeoVolume* hitVolume = nullptr;
-	    TGeoVolume *hitVolumeTracker = nullptr;
-	    if(hittype == 0)
-	      {
-		hitVolume = new TGeoVolume("HitVolume", box, air);
-		//hitVolume->SetFillColor(30); 
-		//hitVolume->SetLineColor(kRed); 
-		hitVolume->SetLineColorAlpha(kRed, 0.5);
-		// Store the association between hitVolume and track
-		volumeTrackMap[hitVolume] = track;
-		//
-		if(fabs(track->fPDG) == 11)
-		  hitVolume->SetLineColorAlpha(kBlue, 0.5);
-		//hitVolume->SetLineColor(kBlue); // electromagnetic is blue
-		else if(fabs(track->fPDG) == 13){
-		  //hitVolume->SetLineColor(kGreen); // muons
-		  hitVolume->SetLineColorAlpha(kGreen,0.5); // muons
-		  muonhit->AddNode(hitVolume,i,trans);
-		}
-		// get primary tracks
-		if(track->fparentID == 0)
-		  {
-		    primary->AddNode(hitVolume, i, trans);
-		    
-		    if(IsCharmed(track->fPDG))
-		      {
-			ShortLivedP->AddNode(hitVolume, i, trans);
-			//std::cout << "short lived particle voxel" << track->fPDG << std::endl;
-		      }
-		  } 
-		else 
-		  {
-		    if(fabs(track->fPDG) == 11)
-		      secondary_em->AddNode(hitVolume, i, trans);
-		    else
-		      secondary_had->AddNode(hitVolume, i, trans);
-		    
-		    if(track->fprimaryID == fCharmParentID)
-		      {
-			ShortLivedP->AddNode(hitVolume, i, trans);
-			//std::cout << "short lived particle voxel 2 --- " << track->fPDG << std::endl;
-		      }
-		  }
-	      }
-	    else if (hittype == 1)
-	      {
-		hitVolumeTracker = new TGeoVolume("TrackerHitVolume", trackerhitbox, air);
-		hitVolumeTracker->SetLineColor(kMagenta); 
-		si_tracker->AddNode(hitVolumeTracker, i, trans);
-	      }
-	    else
-	      {
-		std::cout << " Unknown type of hit " << std::endl;
-		delete trans;
-	      }
+            //
+            ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(track->fhitIDs[i]);
+            //
+            // Create a translation matrix for the hit position
+            TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, position.Y() / 10.0, position.Z() / 10.0);
+            //
+            auto currentTrack = track;
+            //
+            TGeoVolume* hitVolume = nullptr;
+            TGeoVolume *hitVolumeTracker = nullptr;
+            if(hittype == 0)
+              {
+                hitVolume = new TGeoVolume("HitVolume", box, air);
+		            //hitVolume->SetFillColor(30); 
+                //hitVolume->SetLineColor(kRed); 
+                hitVolume->SetLineColorAlpha(kRed, 0.5);
+                // Store the association between hitVolume and track
+                volumeTrackMap[hitVolume] = track;
+                //
+                if(fabs(track->fPDG) == 11)
+                  hitVolume->SetLineColorAlpha(kBlue, 0.5);
+                //hitVolume->SetLineColor(kBlue); // electromagnetic is blue
+                else if(fabs(track->fPDG) == 13){
+                  //hitVolume->SetLineColor(kGreen); // muons
+                  hitVolume->SetLineColorAlpha(kGreen,0.5); // muons
+                  muonhit->AddNode(hitVolume,i,trans);
+                  std::cout << "muon voxel " << track->fPDG << " " << track->fparentID << " " << track->fprimaryID << " " << track->ftrackID << ""<< fCharmParentID << " " << fTauParentID << std::endl;
+                }
+                else if(abs(track->fPDG) == 211){
+                  hitVolume->SetLineColorAlpha(kOrange,0.5); // pions
+                  pionhit->AddNode(hitVolume,i,trans);
+                }
+                else if(fabs(track->fPDG) == 2212){
+                  hitVolume->SetLineColorAlpha(kYellow,0.5); // protons
+                  protonhit->AddNode(hitVolume,i,trans);
+                }
+                else if(fabs(track->fPDG) == 321){
+                  hitVolume->SetLineColorAlpha(kMagenta,0.5); // kaons
+                  kaonhit->AddNode(hitVolume,i,trans);
+                }
+                // get primary tracks
+                if(track->fparentID == 0)
+                {
+                  primary->AddNode(hitVolume, i, trans);
+                  if(IsCharmed(track->fPDG)||abs(track->fPDG) == 15)
+                    {
+                      ShortLivedP->AddNode(hitVolume, i, trans);
+                      std::cout << "short lived particle voxel " << track->fPDG << std::endl;
+                    }
+                }
+              else 
+               {
+                  if(fabs(track->fPDG) == 11)
+                    secondary_em->AddNode(hitVolume, i, trans);
+                  else
+                    secondary_had->AddNode(hitVolume, i, trans); 
+                  
+                    if(track->fprimaryID == fCharmParentID || track->fparentID == fTauParentID)
+                  {
+                    ShortLivedP->AddNode(hitVolume, i, trans);
+                    std::cout << "short lived particle voxel 2 --- " << track->fPDG << std::endl;
+                  }
+                }
+              }
+      	    else if (hittype == 1)
+	          {
+      		    hitVolumeTracker = new TGeoVolume("TrackerHitVolume", trackerhitbox, air);
+		          hitVolumeTracker->SetLineColor(kMagenta); 
+		          si_tracker->AddNode(hitVolumeTracker, i, trans);
+	          }
+	          else
+	          {
+      		    std::cout << " Unknown type of hit " << std::endl;
+		          delete trans;
+	          }
             if (hitVolume)
-	      {
-                TEveGeoShape* eveShape = new TEveGeoShape(hitVolume->GetName());
-                eveShape->SetShape(hitVolume->GetShape());
-                eveShape->SetMainColor(hitVolume->GetLineColor());
-                eveShape->SetTransMatrix(*trans);
-                eveShape->SetPickable(kTRUE); // Enable selection
-                eveShape->SetUserData((void*)&track);
-                //std::cout << "Created shape: " << eveShape << ", pickable: " << eveShape->IsPickable() << std::endl;
-                hitList->AddElement(eveShape);
-                // Store the association between shape and track
-                //shapeTrackMap[eveShape] = currentTrack;
-	      }
+	          {
+              TEveGeoShape* eveShape = new TEveGeoShape(hitVolume->GetName());
+              eveShape->SetShape(hitVolume->GetShape());
+              eveShape->SetMainColor(hitVolume->GetLineColor());
+              eveShape->SetTransMatrix(*trans);
+              eveShape->SetPickable(kTRUE); // Enable selection
+              eveShape->SetUserData((void*)&track);
+              //std::cout << "Created shape: " << eveShape << ", pickable: " << eveShape->IsPickable() << std::endl;
+              hitList->AddElement(eveShape);
+              // Store the association between shape and track
+              //shapeTrackMap[eveShape] = currentTrack;
+	          }
             if (hitVolumeTracker)
-	      {
-                TEveGeoShape* eveShapeP = new TEveGeoShape(hitVolumeTracker->GetName());
-                eveShapeP->SetShape(hitVolumeTracker->GetShape());
-                eveShapeP->SetMainColor(hitVolumeTracker->GetLineColor());
-                eveShapeP->SetTransMatrix(*trans);
-                eveShapeP->SetPickable(kTRUE); // Enable selection
-                pixelhitList->AddElement(eveShapeP);
-                // Store the association between shape and track
-                //shapeTrackMap[eveShapeP] = currentTrack;
-	      }
-	  }
+	          {
+              TEveGeoShape* eveShapeP = new TEveGeoShape(hitVolumeTracker->GetName());
+              eveShapeP->SetShape(hitVolumeTracker->GetShape());
+              eveShapeP->SetMainColor(hitVolumeTracker->GetLineColor());
+              eveShapeP->SetTransMatrix(*trans);
+              eveShapeP->SetPickable(kTRUE); // Enable selection
+              pixelhitList->AddElement(eveShapeP);
+              // Store the association between shape and track
+              //shapeTrackMap[eveShapeP] = currentTrack;
+	          }
+	        }
       }
-
-    if (primary) {
-      std::cout << "...... " << primary->GetNdaughters() << std::endl;
-      for (int i = 0; i < primary->GetNdaughters(); ++i) {
-	TGeoNode* node = primary->GetNode(i);
-	if (!node) continue;  
-	TGeoVolume* vol = node->GetVolume();
-	TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
-	if (vol && trans) {
-	  TEveGeoShape* eveShape = new TEveGeoShape(vol->GetName());
-	  eveShape->SetShape(vol->GetShape());
-	  eveShape->SetMainColor(vol->GetLineColor());
-	  eveShape->SetTransMatrix(*trans);
-	  primaryList->AddElement(eveShape);
-	}
+      //////////////
+      if (primary) 
+      {
+        std::cout << "...... " << primary->GetNdaughters() << std::endl;
+        for (int i = 0; i < primary->GetNdaughters(); ++i) 
+        {
+	        TGeoNode* node = primary->GetNode(i);
+	        if (!node) continue;  
+	        TGeoVolume* vol = node->GetVolume();
+	        TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
+	        if (vol && trans) 
+          {
+    	      TEveGeoShape* eveShape = new TEveGeoShape(vol->GetName());
+	          eveShape->SetShape(vol->GetShape());
+	          eveShape->SetMainColor(vol->GetLineColor());
+	          eveShape->SetTransMatrix(*trans);
+	          primaryList->AddElement(eveShape);
+    	    }
+        }
+        fPrimaryElements->AddElement(primaryList);
       }
-      fPrimaryElements->AddElement(primaryList);
+      ///////////////
+      if (muonhit) 
+      {
+        std::cout << "...... " << muonhit->GetNdaughters() << std::endl;
+        for (int i = 0; i < muonhit->GetNdaughters(); ++i) 
+        {
+	        TGeoNode* node = muonhit->GetNode(i);
+	        if (!node) continue;  
+	        TGeoVolume* vol = node->GetVolume();
+	        TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
+	        if (vol && trans) 
+          {
+      	    TEveGeoShape* eveShape = new TEveGeoShape(vol->GetName());
+	          eveShape->SetShape(vol->GetShape());
+	          eveShape->SetMainColor(vol->GetLineColor());
+	          eveShape->SetTransMatrix(*trans);
+	          muonhitList->AddElement(eveShape);
+	        }
+        }
+        fMuonHitElements->AddElement(muonhitList);
+      }
+      ///////////////
+      if (pionhit) 
+      {
+        std::cout << "...... " << pionhit->GetNdaughters() << std::endl;
+        for (int i = 0; i < pionhit->GetNdaughters(); ++i) 
+        {
+          TGeoNode* node = pionhit->GetNode(i); 
+          if (!node) continue;
+          TGeoVolume* vol = node->GetVolume();
+          TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
+          if (vol && trans) 
+          {
+            TEveGeoShape* eveShape = new TEveGeoShape(vol->GetName());
+            eveShape->SetShape(vol->GetShape());
+            eveShape->SetMainColor(vol->GetLineColor());
+            eveShape->SetTransMatrix(*trans);
+            pionhitList->AddElement(eveShape);
+          }
+        } 
+        fPionHitElements->AddElement(pionhitList);
+      }
+      ///////////////
+      if (kaonhit) 
+      {
+        std::cout << "...... " << kaonhit->GetNdaughters() << std::endl;
+        for (int i = 0; i < kaonhit->GetNdaughters(); ++i) 
+        {
+          TGeoNode* node = kaonhit->GetNode(i);
+          if (!node) continue;
+          TGeoVolume* vol = node->GetVolume();
+          TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
+          if (vol && trans) 
+          {
+            TEveGeoShape* eveShape = new TEveGeoShape(vol->GetName());
+            eveShape->SetShape(vol->GetShape());
+            eveShape->SetMainColor(vol->GetLineColor());
+            eveShape->SetTransMatrix(*trans);
+            kaonhitList->AddElement(eveShape);
+          }
+        }
+        fKaonHitElements->AddElement(kaonhitList);
+      }
+      ///////////////
+    if (protonhit) 
+    {
+      std::cout << "...... " << protonhit->GetNdaughters() << std::endl;
+      for (int i = 0; i < protonhit->GetNdaughters(); ++i) 
+      {
+        TGeoNode* node = protonhit->GetNode(i);
+        if (!node) continue;
+        TGeoVolume* vol = node->GetVolume();
+        TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
+        if (vol && trans) 
+        {
+          TEveGeoShape* eveShape = new TEveGeoShape(vol->GetName());
+          eveShape->SetShape(vol->GetShape());
+          eveShape->SetMainColor(vol->GetLineColor());
+          eveShape->SetTransMatrix(*trans);
+          protonhitList->AddElement(eveShape);
+        }
+      }
+      fProtonHitElements->AddElement(protonhitList);
     }
-
-    if (muonhit) {
-      std::cout << "...... " << muonhit->GetNdaughters() << std::endl;
-      for (int i = 0; i < muonhit->GetNdaughters(); ++i) {
-	TGeoNode* node = muonhit->GetNode(i);
-	if (!node) continue;  
-	TGeoVolume* vol = node->GetVolume();
-	TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
-	if (vol && trans) {
-	  TEveGeoShape* eveShape = new TEveGeoShape(vol->GetName());
-	  eveShape->SetShape(vol->GetShape());
-	  eveShape->SetMainColor(vol->GetLineColor());
-	  eveShape->SetTransMatrix(*trans);
-	  muonhitList->AddElement(eveShape);
-	}
-      }
-      fMuonHitElements->AddElement(muonhitList);
-    }
-
-    if (secondary_em) {
+    ///////////////
+    if (secondary_em) 
+    {
       std::cout << "...... " << secondary_em->GetNdaughters() << std::endl;
-      for (int i = 0; i < secondary_em->GetNdaughters(); ++i) {
-	TGeoNode* node = secondary_em->GetNode(i);
-	if (!node) continue;  
-	TGeoVolume* vol = node->GetVolume();
-	TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
-	if (vol && trans) {
-	  TEveGeoShape* eveShape = new TEveGeoShape(vol->GetName());
-	  eveShape->SetShape(vol->GetShape());
-	  eveShape->SetMainColor(vol->GetLineColor());
-	  eveShape->SetTransMatrix(*trans);
-	  secondaryShowerList->AddElement(eveShape);
-	}
+      for (int i = 0; i < secondary_em->GetNdaughters(); ++i) 
+      {
+	      TGeoNode* node = secondary_em->GetNode(i);
+	      if (!node) continue;  
+	      TGeoVolume* vol = node->GetVolume();
+	      TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
+	      if (vol && trans) 
+        {
+	        TEveGeoShape* eveShape = new TEveGeoShape(vol->GetName());
+	        eveShape->SetShape(vol->GetShape());
+	        eveShape->SetMainColor(vol->GetLineColor());
+	        eveShape->SetTransMatrix(*trans);
+	        secondaryShowerList->AddElement(eveShape);
+        } 
       }
       fSecondaryShowerElements->AddElement(secondaryShowerList);
     }
-    //
-    if (secondary_had) {
+    //////////////
+    if (secondary_had) 
+    {
       std::cout << "...... " << secondary_had->GetNdaughters() << std::endl;
-      for (int i = 0; i < secondary_had->GetNdaughters(); ++i) {
-	TGeoNode* node = secondary_had->GetNode(i);
-	if (!node) continue;  
-	TGeoVolume* vol = node->GetVolume();
-	TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
-	if (vol && trans) {
-	  TEveGeoShape* eveShape = new TEveGeoShape(vol->GetName());
-	  eveShape->SetShape(vol->GetShape());
-	  eveShape->SetMainColor(vol->GetLineColor());
-	  eveShape->SetTransMatrix(*trans);
-	  secondaryHadShowerList->AddElement(eveShape);
-	}
+      for (int i = 0; i < secondary_had->GetNdaughters(); ++i) 
+      {
+	      TGeoNode* node = secondary_had->GetNode(i);
+	      if (!node) continue;  
+	      TGeoVolume* vol = node->GetVolume();
+	      TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
+	      if (vol && trans) 
+        {
+	        TEveGeoShape* eveShape = new TEveGeoShape(vol->GetName());
+	        eveShape->SetShape(vol->GetShape());
+	        eveShape->SetMainColor(vol->GetLineColor());
+	        eveShape->SetTransMatrix(*trans);
+	        secondaryHadShowerList->AddElement(eveShape);
+	      }
       }
       fSecondaryHadShowerElements->AddElement(secondaryHadShowerList);
     }
-    //
-    if (si_tracker) {
+    //////////////
+    if (si_tracker) 
+    {
       std::cout << "...xx... " << si_tracker->GetNdaughters() << std::endl;
-      for (int i = 0; i < si_tracker->GetNdaughters(); ++i) {
-	TGeoNode* node = si_tracker->GetNode(i);
-	if (!node) continue;
-	//std::cout<< "here i am!! " << std::endl;
-	TGeoVolume* vol = node->GetVolume();
-	TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
-	if (vol && trans) {
-	  TEveGeoShape* eveShape = new TEveGeoShape(vol->GetName());
-	  eveShape->SetShape(vol->GetShape());
-	  eveShape->SetMainColor(vol->GetLineColor());
-	  eveShape->SetTransMatrix(*trans);
-	  pixelhitList->AddElement(eveShape);
-	}
+      for (int i = 0; i < si_tracker->GetNdaughters(); ++i) 
+      {
+	      TGeoNode* node = si_tracker->GetNode(i);
+	      if (!node) continue;
+	      //std::cout<< "here i am!! " << std::endl;
+	      TGeoVolume* vol = node->GetVolume();
+	      TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
+	      if (vol && trans) 
+        {
+	        TEveGeoShape* eveShape = new TEveGeoShape(vol->GetName());
+	        eveShape->SetShape(vol->GetShape());
+	        eveShape->SetMainColor(vol->GetLineColor());
+	        eveShape->SetTransMatrix(*trans);
+	        pixelhitList->AddElement(eveShape);
+	      }
       }
       fPixelHitElements->AddElement(pixelhitList);
     }
-    //
-    if (ShortLivedP) {
+    //////////////
+    if (ShortLivedP) 
+    {
       std::cout << "...xx... " << ShortLivedP->GetNdaughters() << std::endl;
-      for (int i = 0; i < ShortLivedP->GetNdaughters(); ++i) {
-	TGeoNode* node = ShortLivedP->GetNode(i);
-	if (!node) continue;
-	//std::cout<< "here i am!! " << std::endl;
-	TGeoVolume* vol = node->GetVolume();
-	TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
-	if (vol && trans) {
-	  TEveGeoShape* eveShape = new TEveGeoShape(vol->GetName());
-	  eveShape->SetShape(vol->GetShape());
-	  eveShape->SetMainColor(vol->GetLineColor());
-	  eveShape->SetTransMatrix(*trans);
-	  ShortLivedParticleList->AddElement(eveShape);
-	}
+      for (int i = 0; i < ShortLivedP->GetNdaughters(); ++i) 
+      {
+	      TGeoNode* node = ShortLivedP->GetNode(i);
+	      if (!node) continue;
+	      //std::cout<< "here i am!! " << std::endl;
+	      TGeoVolume* vol = node->GetVolume();
+	      TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
+	      if (vol && trans) 
+        {
+	        TEveGeoShape* eveShape = new TEveGeoShape(vol->GetName());
+	        eveShape->SetShape(vol->GetShape());
+	        eveShape->SetMainColor(vol->GetLineColor());
+	        eveShape->SetTransMatrix(*trans);
+	        ShortLivedParticleList->AddElement(eveShape);
+	      }
       }
       fShortLivedParticleHitElements->AddElement(ShortLivedParticleList);
     }   
+    //////////////
     fHitElements->AddElement(hitList);
+    // Draw reconstructed tracks
     GetRecoTracks();
     //////
     // rearECAL
     for (const auto &it : fTcalEvent->rearCalDeposit)
-      {
-	std::cout << "ïnside RearECAL" << std::endl;
-	ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZRearCal(it.moduleID);
-        double zBox = it.energyDeposit / 1e2; // 1cm is 1 GeV
-	std::cout << position << std::endl;
-	std::cout << it.energyDeposit << " " << zBox << std::endl;
-	std::cout << it.moduleID << std::endl;
+    {
+	    std::cout << "ïnside RearECAL" << std::endl;
+	    ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZRearCal(it.moduleID);
+      double zBox = it.energyDeposit / 1e2; // 1cm is 1 GeV
+	    std::cout << position << std::endl;
+	    std::cout << it.energyDeposit << " " << zBox << std::endl;
+	    std::cout << it.moduleID << std::endl;
    
-        TGeoShape *box = new TGeoBBox("RearCALBox", fTcalEvent->geom_detector.rearCalSizeX / 20.0,
-                                      fTcalEvent->geom_detector.rearCalSizeY / 20.0, zBox / 20.0);
-        TGeoVolume *hitVolume = new TGeoVolume("RearCalVolume", box, air);
-        hitVolume->SetLineColor(kBlue);
-        TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0,
-                                                     position.Y() / 10.0, (position.Z() + zBox / 2.0) / 10.0);
-        rearecal->AddNode(hitVolume, it.moduleID, trans);
-      }
+      TGeoShape *box = new TGeoBBox("RearCALBox", fTcalEvent->geom_detector.rearCalSizeX / 20.0,
+                                    fTcalEvent->geom_detector.rearCalSizeY / 20.0, zBox / 20.0);
+      TGeoVolume *hitVolume = new TGeoVolume("RearCalVolume", box, air);
+      hitVolume->SetLineColor(kBlue);
+      TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0,
+                                                  position.Y() / 10.0, (position.Z() + zBox / 2.0) / 10.0);
+      rearecal->AddNode(hitVolume, it.moduleID, trans);
+    }
     // rearHCAL
     for (const auto &it : fTcalEvent->rearHCalDeposit)
-      {
-	ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZRearHCal(it.moduleID);
-        double zBox = it.energyDeposit*10; // 1mm is 100 MeV                 
-	TGeoShape *box = new TGeoBBox("rearHCALbox", fTcalEvent->geom_detector.rearHCalSizeX / 20.0,
+    {
+	    ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZRearHCal(it.moduleID);
+      double zBox = it.energyDeposit*10; // 1mm is 100 MeV                 
+	    TGeoShape *box = new TGeoBBox("rearHCALbox", fTcalEvent->geom_detector.rearHCalSizeX / 20.0,
                                       zBox / 20.0, 
                                       fTcalEvent->geom_detector.rearHCalSizeZ / 20.0);
-        TGeoVolume *hitVolume = new TGeoVolume("RearHCalVolume", box, air);
-        hitVolume->SetLineColor(kRed);
-        TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0,
-                                                     (position.Y() + zBox / 2.0) / 10.0, position.Z() / 10.0);
-        rearhcal->AddNode(hitVolume, it.moduleID, trans);
-      }
-
+      TGeoVolume *hitVolume = new TGeoVolume("RearHCalVolume", box, air);
+      hitVolume->SetLineColor(kRed);
+      TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0,
+                                                  (position.Y() + zBox / 2.0) / 10.0, position.Z() / 10.0);
+      rearhcal->AddNode(hitVolume, it.moduleID, trans);
+    }
     // rearMuCAL
+   /*
     ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZRearHCal(10);
     double zBox = fTcalEvent->rearMuCalDeposit*10.0; // 1mm is 100 MeV
     TGeoShape *mubox = new TGeoBBox("rearmucalbox", fTcalEvent->geom_detector.rearHCalSizeX / 20.0,
@@ -2346,33 +3040,61 @@ void FaserCalDisplay::LoadAllEvents()
     TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0,
 						 (position.Y()+zBox/2.0) / 10.0, position.Z() / 10.0);
     rearmucal->AddNode(hitVolume, 0, trans);
-
-    if (rearecal) {
+   */
+    for (const auto *mt : fTcalEvent->fMuTagTracks)
+    {
+      if (!mt) continue;
+      int hitsize = static_cast<int>(mt->pos.size());
+      if (hitsize == 0) continue;
+      std::cout << "ïnside RearMuCAL" << std::endl;
+      for (const auto &hit : mt->pos)
+      {
+        // ROOT::Math::XYZVector accessors
+        double x = hit.X() / 10.0;
+        double y = hit.Y() / 10.0;
+        double z = hit.Z() / 10.0;
+        std::cout << x << " " << y << " " << z << std::endl;
+        TGeoShape *mubox = new TGeoBBox("rearmucalbox", 0.5, 0.5, 0.5);
+        TGeoVolume *hitVolume = new TGeoVolume("RearMuCalVolume", mubox, air);
+        hitVolume->SetLineColor(kMagenta);
+        TGeoTranslation *trans = new TGeoTranslation(x, y, z);
+        rearmucal->AddNode(hitVolume, 0, trans);
+      }
+    }
+    ////////////////////////
+    // Draw rearcal, hcal and mucal
+    if (rearecal) 
+    {
       std::cout << "...... " << rearecal->GetNdaughters() << std::endl;
-      for (int i = 0; i < rearecal->GetNdaughters(); ++i) {
-	TGeoNode* node = rearecal->GetNode(i);
-	if (!node) continue;  
-	TGeoVolume* vol = node->GetVolume();
-	TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
-	if (vol && trans) {
-	  TEveGeoShape* eveShape = new TEveGeoShape(vol->GetName());
-	  eveShape->SetShape(vol->GetShape());
-	  eveShape->SetMainColor(vol->GetLineColor());
-	  eveShape->SetTransMatrix(*trans);
-	  rearecalList->AddElement(eveShape);
-	}
+      for (int i = 0; i < rearecal->GetNdaughters(); ++i) 
+      {
+      	TGeoNode* node = rearecal->GetNode(i);
+	      if (!node) continue;  
+	      TGeoVolume* vol = node->GetVolume();
+	      TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
+	      if (vol && trans) 
+        {
+	        TEveGeoShape* eveShape = new TEveGeoShape(vol->GetName());
+	        eveShape->SetShape(vol->GetShape());
+	        eveShape->SetMainColor(vol->GetLineColor());
+	        eveShape->SetTransMatrix(*trans);
+	        rearecalList->AddElement(eveShape);
+	      }
       }
       fRearECALElements->AddElement(rearecalList);
     }
-
-    if (rearhcal) {
+    ///////////////////////
+    if (rearhcal) 
+    {
       std::cout << "...... " << rearhcal->GetNdaughters() << std::endl;
-      for (int i = 0; i < rearhcal->GetNdaughters(); ++i) {
-	TGeoNode* node = rearhcal->GetNode(i);
-	if (!node) continue;
-	TGeoVolume* vol = node->GetVolume();
-	TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
-        if (vol && trans) {
+      for (int i = 0; i < rearhcal->GetNdaughters(); ++i) 
+      {
+	      TGeoNode* node = rearhcal->GetNode(i);
+	      if (!node) continue;
+	      TGeoVolume* vol = node->GetVolume();
+	      TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
+        if (vol && trans) 
+        {
           TEveGeoShape* eveShape = new TEveGeoShape(vol->GetName());
           eveShape->SetShape(vol->GetShape());
           eveShape->SetMainColor(vol->GetLineColor());
@@ -2382,15 +3104,18 @@ void FaserCalDisplay::LoadAllEvents()
       }
       fRearHCALElements->AddElement(rearhcalList);
     }
-
-    if (rearmucal) {
+    ///////////////////////
+    if (rearmucal) 
+    {
       std::cout << "...... " << rearmucal->GetNdaughters() << std::endl;
-      for (int i = 0; i < rearmucal->GetNdaughters(); ++i) {
-	TGeoNode* node = rearmucal->GetNode(i);
-	if (!node) continue;
-	TGeoVolume* vol = node->GetVolume();
-	TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
-        if (vol && trans) {
+      for (int i = 0; i < rearmucal->GetNdaughters(); ++i) 
+      {
+	      TGeoNode* node = rearmucal->GetNode(i);
+	      if (!node) continue;
+	      TGeoVolume* vol = node->GetVolume();
+	      TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
+        if (vol && trans) 
+        {
           TEveGeoShape* eveShape = new TEveGeoShape(vol->GetName());
           eveShape->SetShape(vol->GetShape());
           eveShape->SetMainColor(vol->GetLineColor());
@@ -2405,44 +3130,129 @@ void FaserCalDisplay::LoadAllEvents()
     TGeoShape *mutagbox = new TGeoBBox("mutagbox", 1, 1, 1); // to be defined the cell size now                                                                               
     TGeoVolume* MuTagHit = new TGeoVolume("MuTagHit", mutagbox, air);
     TEveElementList* muTagHitList = new TEveElementList("MuTagHits");
+    TEveElementList* muonSpectList = new TEveElementList("MuonSpect");
     for (const auto &it : fTcalEvent->fMuTagTracks)
-      {
-	for(size_t i = 0; i < it->pos.size(); ++i)
-	  {
-	    const auto position = it->pos[i];
-	    TGeoTranslation* trans = new TGeoTranslation(position.x()/10.0,
+    {
+	    for(size_t i = 0; i < it->pos.size(); ++i)
+	    {
+	      const auto position = it->pos[i];
+	      const auto momentum = it->mom[i];
+
+        std::cout << "MuSpectrometer hit position " 
+            << ievent << " "
+            << it->ftrackID << " "
+            << it->fPDG << " "
+            << it->layerID[i] << " "
+            << momentum.x() << " "
+            << momentum.y() << " "
+            << momentum.z() << " "
+            << position.x() << " "
+            << position.y() << " "
+            << position.z() << " "
+            << std::endl;
+
+	      TGeoTranslation* trans = new TGeoTranslation(position.x()/10.0,
 							 position.y()/10.0,
 							 position.z()/10.0);
-	    TGeoVolume* vol = new TGeoVolume("MuTagHit",mutagbox,air);
-	    vol->SetLineColor(kOrange);
-	    vol->SetLineColorAlpha(kOrange, 0.7);
-	    if (abs(it->fPDG)==13)
+	      TGeoVolume* vol = new TGeoVolume("MuTagHit",mutagbox,air);
+	      vol->SetLineColor(kOrange);
+	      vol->SetLineColorAlpha(kOrange, 0.7);
+	      if (abs(it->fPDG)==13)
 	      {
-		vol->SetLineColor(kGreen);
-		vol->SetLineColorAlpha(kGreen, 0.7);
+		      vol->SetLineColor(kGreen);
+		      vol->SetLineColorAlpha(kGreen, 0.7);
+          
 	      }
-	    
-	    TEveGeoShape* eveShape = new TEveGeoShape(Form("MuTagHit_%d_%lu",it->ftrackID,i));
-	    eveShape->SetShape(vol->GetShape());
-	    eveShape->SetMainColor(vol->GetLineColor());
-	    eveShape->SetTransMatrix(*trans);
-	    eveShape->SetPickable(kTRUE);
-	    eveShape->SetUserData((void*)it);
-	    muTagHitList->AddElement(eveShape);
-	  }
-      }
+  	    TEveGeoShape* eveShape = new TEveGeoShape(Form("MuTagHit_%d_%lu",it->ftrackID,i));
+	      eveShape->SetShape(vol->GetShape());
+	      eveShape->SetMainColor(vol->GetLineColor());
+	      eveShape->SetTransMatrix(*trans);
+	      eveShape->SetPickable(kTRUE);
+	      eveShape->SetUserData((void*)it);
+        if (abs(it->fPDG)==13)
+          muonSpectList->AddElement(eveShape);
+	      muTagHitList->AddElement(eveShape);
+	    }
+    }
     fMuTagHitElements->AddElement(muTagHitList);
-
-    ////
+    fMuSpectHitElements->AddElement(muonSpectList);
+    ////////////////////////
     // i want to check MuTag muons::
     GetMuTagInfo();
-
+    //
+    GetClusterInfo();
+    //
+    Get3DClusterInfo();
+    //  
+    GetReconstructedVoxels(bigbox, air, box);
+    //
+    GetMuonSpectrometerInfo(bigbox, air, box);
+    //
     gEve->AddGlobalElement(fHitElements);
     gEve->AddGlobalElement(fMuTagHitElements);
     //
     gEve->FullRedraw3D(kTRUE);
   }
   //////////////////////////////////////////////////////////
+  void FaserCalDisplay::GetMuonSpectrometerInfo(TGeoShape* bigbox, TGeoMedium* air, TGeoShape* box)
+  {
+    muonSpectVol = new TGeoVolume("MuonSpectVol", bigbox, air);
+    TEveElementList* muonSpectFitList = new TEveElementList("MuonSpectFitList");
+
+    std::cout << " Inside Muon Spectrometer " << std::endl;
+    for (int i = 0; i < fPORecoEvent->fMuTracks.size(); ++i)
+      {
+        TMuTrack* muTrack = &fPORecoEvent->fMuTracks[i];
+        if (!muTrack) continue;
+        std::cout << "Muon track info: "
+                  << muTrack->fcharge << " "
+                  << muTrack->fpx << " "
+                  << muTrack->fpy << " "
+                  << muTrack->fpz << " "
+                  << muTrack->fp << " "
+                  << muTrack->ftrackID << " "
+                  << muTrack->fPDG << " "
+                  << std::endl;
+        for (size_t j=0; j<muTrack->fpos.size(); ++j)
+        {
+          const auto position = muTrack->fpos[j];
+          std::cout << j << " Muon Spectrometer hit position " 
+                    << muTrack->ftrackID << " "
+                    << muTrack->layerID[j] << " "
+                    << position.x() << " "
+                    << position.y() << " "
+                    << position.z() << " "
+                    << std::endl;
+
+          TGeoTranslation* trans = new TGeoTranslation(position.x()/10.0,
+				                        			  position.y()/10.0,
+							                          position.z()/10.0);
+	        TGeoVolume* vol = new TGeoVolume("MuSpectFitHit", box, air);
+	        vol->SetLineColor(kCyan);
+	        vol->SetLineColorAlpha(kCyan, 0.7);
+          muonSpectVol->AddNode(vol, j, trans);
+        }
+      }
+    if (muonSpectVol)
+      {
+        for (int i = 0; i < muonSpectVol->GetNdaughters(); ++i) 
+        {
+          TGeoNode* node = muonSpectVol->GetNode(i);
+          if (!node) continue;
+          TGeoVolume* vol = node->GetVolume();
+          TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
+          if (vol && trans) 
+          {
+            TEveGeoShape* eveShape = new TEveGeoShape(vol->GetName());
+	          eveShape->SetShape(vol->GetShape());
+            eveShape->SetMainColor(vol->GetLineColor());
+            eveShape->SetTransMatrix(*trans);
+            muonSpectFitList->AddElement(eveShape);
+          }
+      }
+      fMuonSpectFitElements->AddElement(muonSpectFitList);
+    }
+  }
   //////////////////////////////////////////////////////////
   void FaserCalDisplay::GetMuTagInfo()
   {
@@ -2565,11 +3375,271 @@ void FaserCalDisplay::LoadAllEvents()
 	fPixelRecoTrackElements->AddElement(trackLine);
       }
   }
-  //////////////////////////////////////////////////////////
-  //////////////////////////////////////////////////////////
+
+  void FaserCalDisplay::GetReconstructedVoxels(TGeoShape *bigbox,TGeoMedium *air, TGeoShape *box)
+  {
+    voxVol = new TGeoVolume("ps_reco_vox", bigbox, air); 
+    TEveElementList *voxHitList = new TEveElementList("RecoVoxelHits");
+    TEveElementList *voxGhostList = new TEveElementList("GhostVoxelHits");
+    int i = 0;
+    for(auto &vox : fPORecoEvent->PSvoxelmap)
+    {
+	    i++;
+	    long ID = vox.first;
+	    double ehit = vox.second.RawEnergy;
+	    if (ehit < 0.5) continue;
+	    ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(ID);
+	    TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, position.Y() / 10.0, position.Z() / 10.0);
+	    TGeoVolume *hitVolume;// = new TGeoVolume("RecoHitVolume", box, air);
+	    if(vox.second.ghost)
+	    {
+	      hitVolume = new TGeoVolume("GhostHitVolume", box, air);
+	      hitVolume->SetLineColorAlpha(kGray,0.5); // ghost
+	    } 
+	    else
+	    {
+	      hitVolume = new TGeoVolume("RecoHitVolume", box, air);
+	      hitVolume->SetLineColorAlpha(kOrange,0.5); 	    
+	    }
+	    voxVol->AddNode(hitVolume,i,trans);
+    }
+    if (voxVol) 
+    {
+      //std::cout << "...vv... " << voxVol->GetNdaughters() << std::endl;
+      for (int i = 0; i < voxVol->GetNdaughters(); ++i) {
+        TGeoNode* node = voxVol->GetNode(i);
+        if (!node) continue;
+        TGeoVolume* vol = node->GetVolume();
+        TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
+        if (vol && trans) 
+        {
+          TEveGeoShape* eveShape = new TEveGeoShape(vol->GetName());
+	        //std::cout << "... Ghost:: " << vol->GetName() << std::endl;
+          eveShape->SetShape(vol->GetShape());
+          eveShape->SetMainColor(vol->GetLineColor());
+          eveShape->SetTransMatrix(*trans);
+          voxHitList->AddElement(eveShape);
+	        if(std::string(vol->GetName())=="GhostHitVolume")
+	        {
+	          voxGhostList->AddElement(eveShape);
+	        }
+        }
+      }
+      std::cout << "voxGhostList has " << voxGhostList->NumChildren() << " children" << std::endl;
+
+      fVoxHitElements->AddElement(voxHitList);
+      fVoxGhostElements->AddElement(voxGhostList);
+    }
+    
+  }
+  
+
+
 
   //////////////////////////////////////////////////////////
   //////////////////////////////////////////////////////////
+  /*
+  void FaserCalDisplay::ShowClusterHits()
+  {
+    TGeoMaterial *matAir = new TGeoMaterial("Air", 0, 0, 0);
+    TGeoMedium *air = new TGeoMedium("Air", 1, matAir);
+    TGeoShape *hitShape = new TGeoBBox("ClusterHit", 0.5, 0.5, 0.5);
+
+    TEveElementList *clusterHitList = new TEveElementList("AllClusterHits");
+    int colorOffset = 0;
+    
+    for (const auto &c : fPORecoEvent->GetPSClusters(0)) // XZ view
+      {
+	int color = TColor::GetColorPalette(colorOffset % TColor::GetNumberOfColors());
+	colorOffset += 5;
+	
+	for (size_t i = 0; i < c.hits.size(); ++i)
+	  {
+	    const auto &hit = c.hits[i];
+	    double x, y, z;
+	    fPORecoEvent->pshit2d_position(hit.id, x, y, z);
+
+	    TGeoTranslation *trans = new TGeoTranslation(x/10.0, y/10.0, z/10.0);
+	    TGeoVolume *vol = new TGeoVolume("ClusterHit", hitShape, air);
+	    vol->SetLineColor(color);
+	    vol->SetLineColorAlpha(color, 0.6);
+
+	    TEveGeoShape *eveShape = new TEveGeoShape(Form("ClusterHit_%d_%lu",c.clusterID, i));
+	    eveShape->SetShape(vol->GetShape());
+	    eveShape->SetMainColor(vol->GetLineColor());
+	    eveShape->SetTransMatrix(*trans);
+	    eveShape->SetPickable(kTRUE);
+	    eveShape->SetTitle(Form("Cluster %d, Hit %lu, E=%.2f MeV", c.clusterID, i, hit.EDeposit));
+	    clusterHitList->AddElement(eveShape);
+
+	  }
+
+      }
+    fClusterHitElements->AddElement(clusterHitList);
+  }
+  */
+  //////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////
+  /*
+    void FaserCalDisplay::GetClusterInfo()
+  {
+    TGeoMaterial *matAir = new TGeoMaterial("Air", 0, 0, 0);
+    TGeoMedium *air = new TGeoMedium("Air", 1, matAir);
+    TGeoShape *hitShape = new TGeoBBox("ClusterHit", 0.5, 0.5, 0.5);
+    
+    TEveElementList *allClusterHits = new TEveElementList("AllClusterHits");
+    
+    for (int view = 0; view <= 1; ++view) // 0 = XZ, 1 = YZ
+      {
+        const char* viewName = (view == 0) ? "XZ" : "YZ";
+        TEveElementList *clusterHitList = new TEveElementList(Form("%s Clusters", viewName));
+	
+        int colorOffset = (view == 0) ? 0 : 100;
+	
+        for (const auto &c : fPORecoEvent->GetPSClusters(view))
+	  {
+            int color = TColor::GetColorPalette((colorOffset + c.clusterID * 3) % TColor::GetNumberOfColors());
+	    
+            for (size_t i = 0; i < c.hits.size(); ++i)
+	      {
+                const auto &hit = c.hits[i];
+                double x, y, z;
+                fPORecoEvent->pshit2d_position(hit.id, x, y, z);
+		
+                TGeoTranslation *trans = new TGeoTranslation(x / 10.0, y / 10.0, z / 10.0);
+                TGeoVolume *vol = new TGeoVolume("ClusterHit", hitShape, air);
+                vol->SetLineColor(color);
+                vol->SetLineColorAlpha(color, 0.6);
+		
+                TEveGeoShape *eveShape = new TEveGeoShape(Form("ClusterHit_%s_%d_%lu", viewName, c.clusterID, i));
+                eveShape->SetShape(vol->GetShape());
+                eveShape->SetMainColor(vol->GetLineColor());
+                eveShape->SetTransMatrix(*trans);
+                eveShape->SetPickable(kTRUE);
+                eveShape->SetTitle(Form("View %s, Cluster %d, Hit %lu, E=%.2f MeV", viewName, c.clusterID, i, hit.EDeposit));
+		
+                clusterHitList->AddElement(eveShape);
+	      }
+	  }
+	
+        allClusterHits->AddElement(clusterHitList);
+      }
+    
+    fClusterHitElements->AddElement(allClusterHits);
+  }
+  */
+  //////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////
+  void FaserCalDisplay::GetClusterInfo()
+  {
+    CleanCanvas();
+    TCanvas *myCan = CreateCanvas("Clusters",1);
+    gPad->Update();
+    myCan->Divide(2,1);
+    const double boxSize = 10.0; // 1 cm = 10 mm
+    
+    int nx = fTcalEvent->geom_detector.fScintillatorSizeX / fTcalEvent->geom_detector.fScintillatorVoxelSize;
+    int ny = fTcalEvent->geom_detector.fScintillatorSizeY / fTcalEvent->geom_detector.fScintillatorVoxelSize;
+    int nzlayer = fTcalEvent->geom_detector.fSandwichLength / fTcalEvent->geom_detector.fScintillatorVoxelSize;
+    int nztot = fTcalEvent->geom_detector.NRep * nzlayer;
+    
+    std::vector<int> colors = {kRed+1, kBlue+1, kGreen+2, kMagenta+2,kOrange, kCyan, kViolet, kTeal+1};
+    
+    // ========= XZ VIEW =========
+    myCan->cd(1);
+
+    TH2D *xviewPS = new TH2D("xviewPS", "Scintillator xz-view", nztot, 0, nztot, nx, 0, nx);
+    TH2D *yviewPS = new TH2D("yviewPS", "Scintillator yz-view", nztot, 0, nztot, ny, 0, ny);
+    gStyle->SetOptStat(0);
+
+    const auto& clustersXZ = fPORecoEvent->GetPSClusters(0);
+    int colorIndex = 0;
+
+
+    for (const auto& cluster : clustersXZ)
+    {
+      //int color = colors[colorIndex++ % colors.size()];
+        for (const auto& hit : cluster.hits)
+        {
+            double x, y, z;
+            fPORecoEvent->pshit2d_position(hit.id, x, y, z);
+	    // std::cout << "........ " << cluster.clusterID << " " << hit.id << " " << x << " " << y << " " << z << std::endl;  
+	    xviewPS->Fill(z,x,cluster.clusterID);
+        }
+    }
+    xviewPS->Draw();
+
+    // ========= ZY VIEW =========
+    myCan->cd(2);
+    gStyle->SetOptStat(0);
+
+    const auto& clustersZY = fPORecoEvent->GetPSClusters(1);
+    colorIndex = 0;
+
+    for (const auto& cluster : clustersZY)
+    {
+      //int color = colors[colorIndex++ % colors.size()];
+        for (const auto& hit : cluster.hits)
+        {
+            double x, y, z;
+            fPORecoEvent->pshit2d_position(hit.id, x, y, z);
+	    //std::cout << "xxxxxx " << cluster.clusterID << " " << hit.id << " " << x << " " << y << " " << z << std::endl;  
+	    yviewPS->Fill(z,y,cluster.clusterID);
+        }
+    }
+    yviewPS->Draw();
+    myCan->Update();
+  }
+  //////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////
+  void FaserCalDisplay::Get3DClusterInfo()
+  {
+    //CleanCanvas();
+    TCanvas *myCan = CreateCanvas("Clusters3D",1);
+    gPad->Update();
+    myCan->cd();
+    //    const double boxSize = 10.0; // 1 cm = 10 mm
+    
+    int nx = fTcalEvent->geom_detector.fScintillatorSizeX / fTcalEvent->geom_detector.fScintillatorVoxelSize;
+    int ny = fTcalEvent->geom_detector.fScintillatorSizeY / fTcalEvent->geom_detector.fScintillatorVoxelSize;
+    int nzlayer = fTcalEvent->geom_detector.fSandwichLength / fTcalEvent->geom_detector.fScintillatorVoxelSize;
+    int nztot = fTcalEvent->geom_detector.NRep * nzlayer;
+    
+    const auto &clusters3D = *fPORecoEvent->GetPSClusters3D();
+
+    std::cout << "3D histogram " << nx << " " << ny << " " << nztot << " " << std::endl;  
+
+    TH3D *h3D = new TH3D("h3D", "3D Cluster Hits;X (cm);Y (cm);Z (cm)",
+                         nx, 0, nx,
+                         ny, 0, ny,
+                         nztot, 0, nztot);
+
+    std::map<int, int> clusterColorMap;
+    int clusterIndex = 1;
+    for (const auto &cluster : clusters3D)
+      {
+	if (clusterColorMap.find(cluster.clusterID)== clusterColorMap.end())
+	  clusterColorMap[cluster.clusterID] = clusterIndex++;
+      }
+    for (const auto &cluster : clusters3D)
+      {
+	int colorIndex = clusterColorMap[cluster.clusterID];
+        for (const auto &hit : cluster.hits)
+	  {
+	    double x, y, z;
+	    // std::cout << "check 3D clusterIDs: " << cluster.clusterID << std::endl;
+            fPORecoEvent->pshit2d_position(hit.id, x, y, z);
+	    //h3D->Fill(x, y, z, cluster.clusterID);
+	    h3D->Fill(x, y, z, colorIndex);
+	  }
+      }
+    gStyle->SetPalette(kRainBow);
+    h3D->GetXaxis()->SetTitleOffset(1.2);
+    h3D->GetYaxis()->SetTitleOffset(1.4);
+    h3D->Draw("");
+
+    myCan->Update();
+  }
 
   //////////////////////////////////////////////////////////
   //////////////////////////////////////////////////////////
@@ -2668,6 +3738,76 @@ void FaserCalDisplay::LoadAllEvents()
   }
   //////////////////////////////////////////////////////////
   //////////////////////////////////////////////////////////
+
+void FaserCalDisplay::PlotParticleFractionsAndHitsInCubes() {
+    // Maps to count particle types and voxel hits
+    std::map<int, int> particleTypeCounts; // Count of each particle type
+    std::map<std::tuple<int, int, int>, int> voxelHitCounts; // Hits in each voxel
+
+    // Loop over tracks and count particle types and voxel hits
+    for (const auto& track : fTcalEvent->getfTracks()) {
+        size_t nhits = track->fhitIDs.size();
+        for (size_t i = 0; i < nhits; i++) {
+            long hittype = fTcalEvent->getChannelTypefromID(track->fhitIDs[i]);
+            if (hittype == 0 && track->fEnergyDeposits[i] < 0.5) continue; // Energy cut for scintillator voxels
+
+            ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(track->fhitIDs[i]);
+            int x = static_cast<int>(position.X());
+            int y = static_cast<int>(position.Y());
+            int z = static_cast<int>(position.Z());
+
+            // Increment voxel hit count
+            voxelHitCounts[std::make_tuple(x, y, z)]++;
+
+            // Increment particle type count
+            particleTypeCounts[track->fPDG]++;
+        }
+    }
+
+    // Create histograms for particle fractions
+    TH1F* hParticleFractions = new TH1F("hParticleFractions", "Particle Type Fractions;Particle Type (PDG);Fraction", particleTypeCounts.size(), 0, particleTypeCounts.size());
+    TH1F* hVoxelHits = new TH1F("hVoxelHits", "Voxel Hit Counts;Number of Hits;Entries", 20, -0.5, 19.5);
+
+    // Fill particle fraction histogram
+    int totalParticles = 0;
+    for (const auto& [pdg, count] : particleTypeCounts) {
+        totalParticles += count;
+    }
+    int bin = 1;
+    for (const auto& [pdg, count] : particleTypeCounts) {
+        double fraction = static_cast<double>(count) / totalParticles;
+        hParticleFractions->GetXaxis()->SetBinLabel(bin, Form("%d", pdg));
+        hParticleFractions->SetBinContent(bin, fraction);
+        bin++;
+    }
+
+    // Fill voxel hit histogram
+    for (const auto& [voxel, count] : voxelHitCounts) {
+        hVoxelHits->Fill(count);
+    }
+
+    // Create canvas and draw histograms
+    TCanvas* canvas = new TCanvas("canvas", "Particle Fractions and Voxel Hits", 1200, 600);
+    canvas->Divide(2, 1);
+
+    // Draw particle fractions
+    canvas->cd(1);
+    hParticleFractions->SetFillColor(kBlue - 9);
+    hParticleFractions->SetBarWidth(0.8);
+    hParticleFractions->SetBarOffset(0.1);
+    hParticleFractions->Draw("bar");
+
+    // Draw voxel hits
+    canvas->cd(2);
+    hVoxelHits->SetLineColor(kRed);
+    hVoxelHits->SetLineWidth(2);
+    hVoxelHits->Draw();
+
+    // Update canvas
+    canvas->Update();
+}
+
+
 
   /*
   // Function to compute momentum from voxel position and total energy deposited

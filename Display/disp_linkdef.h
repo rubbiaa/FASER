@@ -11,7 +11,7 @@
 #pragma link C++ namespace display;
 #pragma link C++ class display::FaserCalDisplay+;
 //#pragma link C++ class display::FaserCalData+;
-#pragma link C++ function display::FaserCalDisplay::SetEventNumber; // Explicit linkage
+//#pragma link C++ function display::FaserCalDisplay::SetEventNumber; // Explicit linkage
 
 #pragma link C++ class TPOEvent+;
 #pragma link C++ class TcalEvent+;
@@ -29,8 +29,14 @@
 #pragma link C++ class TTKTrack;
 #pragma link C++ class TPSTrack;
 #pragma link C++ class TPSCluster+;
-#pragma link C++ class DBScan+;
-#pragma link C++ class TMuTrack+;
+#pragma link C++ class DBScan+; 
+#pragma link C++ class TMuTrack;
+
+
+#pragma link C++ class TMuonSpectrometer;
+#pragma link C++ struct TMuonSpectrometer::FEATURES;
+
+
 
 #pragma link C++ struct TcalEvent::REARCALDEPOSIT+;
 

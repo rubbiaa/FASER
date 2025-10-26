@@ -1,3 +1,24 @@
+# OS/editor noise
+.DS_Store
+.vscode/
+*~
+
+# Build directories
+*/build/
+
+# ROOT build artifacts
+*.so
+*.dylib
+*.o
+*.pcm
+
+# Large analysis outputs (keep source macros, ignore generated images in Display)
+Display/*.png
+Display/*.pdf
+
+# Local backups and scratch
+CoreUtils/*backup*
+Display/.DS_Store
 *.o
 *.so
 *.exe

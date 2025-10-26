@@ -12,6 +12,12 @@
 #include "G4TrackingManager.hh"
 #include "G4SystemOfUnits.hh"
 
+// add by Umut
+// Field probing for diagnostics
+#include "G4FieldManager.hh"
+#include "G4TransportationManager.hh"
+#include "G4MagneticField.hh"
+
 ParticleManager::ParticleManager(int number) : m_rootFile(nullptr)
 {
 }
@@ -106,6 +112,23 @@ void ParticleManager::processParticleHit(G4Track *track, XYZVector const& positi
 			newT->layerID.push_back(layerID);
 			m_MuTagTrackMap[trackID] = newT;
 		}
+		// added by Umut
+		// Check probe magnetic field at hit (if requested)
+		if (m_verbose) {
+			G4ThreeVector gp(position.x(), position.y(), position.z());
+			const G4FieldManager* fm = G4TransportationManager::GetTransportationManager()->GetFieldManager();
+			G4ThreeVector B(0.,0.,0.);
+			if (fm) {
+				const G4MagneticField* mf = dynamic_cast<const G4MagneticField*>(fm->GetDetectorField());
+				if (mf) {
+					G4double point[4] = {gp.x(), gp.y(), gp.z(), 0.};
+					G4double Bfield[3] = {0.,0.,0.};
+					mf->GetFieldValue(point, Bfield);
+					B = G4ThreeVector(Bfield[0], Bfield[1], Bfield[2]);
+				}
+			}
+			G4cout << "SPECT_HIT: SciFi/MuTag pdg=" << pdg << " edep=" << energydeposit << " B[T]=" << B.x()/tesla << "," << B.y()/tesla << "," << B.z()/tesla << " pos[mm]=" << gp.x()/mm <<","<< gp.y()/mm <<","<< gp.z()/mm << G4endl;
+		}
 		return;
 	}
 	// special treatment for the magnet volume, store all positions
@@ -130,6 +153,23 @@ void ParticleManager::processParticleHit(G4Track *track, XYZVector const& positi
 			newT->pos.push_back(pos);
 			m_magnetTrackMap[trackID] = newT;
 		}
+		// added by Umut
+		// Check probe magnetic field at hit (if requested)
+		if (m_verbose) {
+			G4ThreeVector gp(position.x(), position.y(), position.z());
+			const G4FieldManager* fm = G4TransportationManager::GetTransportationManager()->GetFieldManager();
+			G4ThreeVector B(0.,0.,0.);
+			if (fm) {
+				const G4MagneticField* mf = dynamic_cast<const G4MagneticField*>(fm->GetDetectorField());
+				if (mf) {
+					G4double point[4] = {gp.x(), gp.y(), gp.z(), 0.};
+					G4double Bfield[3] = {0.,0.,0.};
+					mf->GetFieldValue(point, Bfield);
+					B = G4ThreeVector(Bfield[0], Bfield[1], Bfield[2]);
+				}
+			}
+			G4cout << "SPECT_HIT: Magnet pdg=" << pdg << " edep=" << energydeposit << " B[T]=" << B.x()/tesla << "," << B.y()/tesla << "," << B.z()/tesla << " pos[mm]=" << gp.x()/mm <<","<< gp.y()/mm <<","<< gp.z()/mm << " Vol=" << VolumeName << G4endl;
+		}	
 		return;
 	}
 	// normal treatment for all other volumes which should essentially be scintillator voxels or tracker hits

@@ -17,7 +17,6 @@ void LoadAllRecoEvents(display::FaserCalDisplay* display, int runNumber, int max
 {
   const std::string reco_folder_path = "input_reco/";
   std::vector<std::string> reco_file_paths;
-
   const std::string& input_folder_path = "input/";
   std::string input_file_path;
 
@@ -47,6 +46,26 @@ void LoadAllRecoEvents(display::FaserCalDisplay* display, int runNumber, int max
   TTree* tree = new TTree("AnalysisTree", "Storing FaserCalAnalyzer data");
  
   // Variables to store in the tree
+  int eventNumber = 0;
+  int totalMultiplicity = 0, chargedMultiplicity = 0, neutralMultiplicity = 0;
+  int gammaMultiplicity = 0, neutronMultiplicity = 0;
+  int CharmType = 0, CCNC = 0, neutrinoType = 0;
+  double neutrinoEnergy = 0;
+  double prim_vx = 0, prim_vy = 0, prim_vz = 0;
+  double TotalEnergy = 0, VisibleEnergy = 0, RearECalEnergy = 0, RearHCalEnergy = 0, RearMuCalEnergy = 0;
+  Float_t JetEne = 0, JetPt = 0, Ptmiss = 0, Evis_true = 0;
+  Int_t tauDecayModeTruth = 0;
+
+  std::vector<float> v_x, v_y, v_z;
+  std::vector<int> v_ntrks;
+  int t_closest_vertex = -1;
+  int n_tktracks = 0;
+  int n_pstracks = 0;
+  int n_clusters = 0;
+  int n_vertices = 0; 
+  Float_t c_E1 = 0, c_E1T = 0, c_chi2_1 = 0, c_a_1 = 0, c_b_1 = 0, c_E2 = 0;
+
+  /*
   int eventNumber, totalMultiplicity, chargedMultiplicity, neutralMultiplicity, gammaMultiplicity, neutronMultiplicity;
   int CharmType, CCNC, neutrinoType;
   double neutrinoEnergy;
@@ -70,9 +89,11 @@ void LoadAllRecoEvents(display::FaserCalDisplay* display, int runNumber, int max
   Float_t JetEne, JetPt; // true jet energy and PT
   Float_t Ptmiss, Evis_true; // true Ptmiss and Evis
 
+  Int_t tauDecayModeTruth; // Truth tau decay mode from POEvent
+  */
+  // Basic event information
   tree->Branch("Run", &runNumber, "Run/I");
   tree->Branch("Event", &eventNumber, "Event/I");
-  
   
   tree->Branch("Vtx_pry",&prim_vx,"Vtx_pry/D");
   tree->Branch("Vty_pry",&prim_vy,"Vty_pry/D");
@@ -93,6 +114,7 @@ void LoadAllRecoEvents(display::FaserCalDisplay* display, int runNumber, int max
   tree->Branch("Evis_true",&Evis_true,"Evis_true/F");
   tree->Branch("Ptmiss",&Ptmiss,"Ptmiss/F");  
 
+  //========== CHARM PARTICLE INFORMATION ==========
   tree->Branch("CharmType", &CharmType, "CharmType/I");
   tree->Branch("CharmProngs", &display->fnumChargedDaughters, "CharmProngs/I");
   tree->Branch("CharmDecayMode", &display->fdecayMode);
@@ -105,7 +127,24 @@ void LoadAllRecoEvents(display::FaserCalDisplay* display, int runNumber, int max
   tree->Branch("Vtz_dcy",&display->fdecay_vz,"Vtz_dcy/D");
   tree->Branch("FlightLength", &display->fdecayFlightLength, "FlightLength/D");
 
-  tree->Branch("n_vertices", &n_vertices);
+  // ========== TAU LEPTON INFORMATION ==========
+  tree->Branch("TauType", &display->fTau, "TauType/I");
+  tree->Branch("TauProngs", &display->fnumTauChargedDaughters, "TauProngs/I");
+  tree->Branch("TauDecayMode", &display->ftauDecayMode);
+  tree->Branch("TauDecayModeTruth", &tauDecayModeTruth);
+  tree->Branch("TauEnergy", &display->fTauEnergy, "TauEnergy/D");
+  tree->Branch("TauVtx_dcy", &display->ftau_vx, "TauVtx_dcy/D");
+  tree->Branch("TauVty_dcy", &display->ftau_vy, "TauVty_dcy/D");
+  tree->Branch("TauVtz_dcy", &display->ftau_vz, "TauVtz_dcy/D");
+  tree->Branch("TauFlightLength", &display->ftauDecayFlightLength, "TauFlightLength/D");
+ 
+  // ========== GENERIC SHORT-LIVED PARTICLE INFORMATION ==========
+  tree->Branch("NumSLPs", &display->fSLPParentIDs); // Number of short-lived particles
+  tree->Branch("SLPTypes", &display->fSLPTypes);     // Types: 1=charm, 2=tau, 3=other
+  tree->Branch("SLPNames", &display->fSLPNames);     // Particle names
+
+  // ========== VERTEX AND TRACKING INFORMATION ==========
+  /*tree->Branch("n_vertices", &n_vertices);
   tree->Branch("v_x", &v_x, "v_x[n_vertices]/F");
   tree->Branch("v_y", &v_y, "v_y[n_vertices]/F");
   tree->Branch("v_z", &v_z, "v_z[n_vertices]/F");
@@ -120,15 +159,31 @@ void LoadAllRecoEvents(display::FaserCalDisplay* display, int runNumber, int max
   tree->Branch("c_a_1", &c_a_1);
   tree->Branch("c_b_1", &c_b_1);
   tree->Branch("c_E2", &c_E2);
+*/
+  tree->Branch("n_vertices", &n_vertices, "n_vertices/I");
+  tree->Branch("v_x", "std::vector<float>", &v_x);
+    tree->Branch("v_y", "std::vector<float>", &v_y);
+    tree->Branch("v_z", "std::vector<float>", &v_z);
+    tree->Branch("v_ntrks", "std::vector<int>", &v_ntrks);
+  tree->Branch("t_closest_vertex", &t_closest_vertex, "t_closest_vertex/I");
+  tree->Branch("n_tktracks", &n_tktracks, "n_tktracks/I");
+  tree->Branch("n_pstracks", &n_pstracks, "n_pstracks/I");
+  tree->Branch("n_clusters", &n_clusters, "n_clusters/I");
+  tree->Branch("c_E1", &c_E1, "c_E1/F");
+  tree->Branch("c_E1T", &c_E1T, "c_E1T/F");
+  tree->Branch("c_chi2_1", &c_chi2_1, "c_chi2_1/F");
+  tree->Branch("c_a_1", &c_a_1, "c_a_1/F");
+  tree->Branch("c_b_1", &c_b_1, "c_b_1/F");
+  tree->Branch("c_E2", &c_E2, "c_E2/F");
 
-
+  // ========== ENERGY INFORMATION ==========
   tree->Branch("VisibleEnergy", &VisibleEnergy,"VisibleEnergy/D");
   tree->Branch("TotalEnergy", &TotalEnergy,"TotalEnergy/D");
   tree->Branch("RearECalEnergy", &RearECalEnergy,"RearECalEnergy/D");
   tree->Branch("RearHCalEnergy", &RearHCalEnergy,"RearHCalEnergy/D");
   tree->Branch("RearMuCalEnergy", &RearMuCalEnergy,"RearMuCalEnergy/D");
 
-
+  // ========== MUON TAGGING INFORMATION ==========
   tree->Branch("MuTag_alltrk", &display->fmuTag_alltrk);
   tree->Branch("MuTag_mom", &display->fmuTag_p);
   tree->Branch("MuTag_px", &display->fmuTag_px);
@@ -178,38 +233,40 @@ void LoadAllRecoEvents(display::FaserCalDisplay* display, int runNumber, int max
 	  }
 	  // bool dump_event_cout = (ievent < 20);
 	  //if(dump_event_cout) {
-          //  fTPORecoEvent -> GetPOEvent()->dump_event();
-	  //}
+            fTPORecoEvent -> GetPOEvent()->dump_event();
+            std::cout << "Truth Tau decay Mode: " << fTPORecoEvent -> GetPOEvent()->tau_decaymode << std::endl;
+            tauDecayModeTruth = fTPORecoEvent -> GetPOEvent()->tau_decaymode;
+            //}
 	  
 	  std::cout << ievent << " EventNumberReco: " << fTPORecoEvent->GetPOEvent()-> event_id << std::endl;
 	  eventNumber = fTPORecoEvent->GetPOEvent()-> event_id;
+	  // Clear vectors for new event
+            v_x.clear();
+            v_y.clear();
+            v_z.clear();
+            v_ntrks.clear();
 
-	  n_vertices = fTPORecoEvent->fTKVertices.size();
-	  for(int i=0; i<std::min(max_vertices, n_vertices); i++) 
-	    {
-	      v_x[i] = fTPORecoEvent->fTKVertices[i].position.x();
-	      v_y[i] = fTPORecoEvent->fTKVertices[i].position.y();
-	      v_z[i] = fTPORecoEvent->fTKVertices[i].position.z();
-	      v_ntrks[i] = fTPORecoEvent->fTKVertices[i].trackIDs.size();
-	    }
+            // Fill vertex information
+            n_vertices = fTPORecoEvent->fTKVertices.size();
+            for (int i = 0; i < n_vertices; ++i) {
+                v_x.push_back(fTPORecoEvent->fTKVertices[i].position.x());
+                v_y.push_back(fTPORecoEvent->fTKVertices[i].position.y());
+                v_z.push_back(fTPORecoEvent->fTKVertices[i].position.z());
+                v_ntrks.push_back(fTPORecoEvent->fTKVertices[i].trackIDs.size());
+            }
+
 	  // find vertex closest to true primary vertex
 	  double min_dist = 1e9;
 	  int min_index = -1;
 	  ROOT::Math::XYZVector true_vtx(fTPORecoEvent->GetPOEvent()->prim_vx.x(), fTPORecoEvent->GetPOEvent()->prim_vx.y(), fTPORecoEvent->GetPOEvent()->prim_vx.z());
-	  for(int i=0; i<n_vertices; i++) {
-            double dist = (fTPORecoEvent->fTKVertices[i].position - true_vtx).R();
-            if(dist<min_dist) {
-	      min_dist = dist;
-	      min_index = i;
-            }
-	  }
-	  t_closest_vertex = min_index;
-	  
+    for (int i=0;i<n_vertices;++i) {
+        double dist = (fTPORecoEvent->fTKVertices[i].position - true_vtx).R();
+        if (dist < min_dist) { min_dist = dist; t_closest_vertex = i; }
+      }
 	  // store number of tracks
 	  n_tktracks = fTPORecoEvent->fTKTracks.size();
 	  // store number of PS tracks
 	  n_pstracks = fTPORecoEvent->fTKTracks.size();
-	  
 	  // store number of PS clusters
 	  n_clusters = fTPORecoEvent->n_psclustersX();
 	  if(n_clusters>0) {
@@ -265,53 +322,107 @@ void LoadAllRecoEvents(display::FaserCalDisplay* display, int runNumber, int max
 	   display->fTcalEvent = new TcalEvent();
 	   display->POevent = new TPOEvent();
 	   display->fTcalEvent->Load_event(input_folder_path, runNumber, eventNumber, imask, display->POevent);
-	   prim_vx = display->POevent->prim_vx.x();
+
+
+     prim_vx = display->POevent->prim_vx.x();
 	   prim_vy = display->POevent->prim_vx.y();
 	   prim_vz = display->POevent->prim_vx.z();
 	   std::cout << prim_vx << " " << prim_vy << " " << prim_vz << std::endl; 
-	  //display->MuTagInfo();
-	  display->fdecay_vx = display->fdecay_vy = display->fdecay_vz = display->fdecayFlightLength = 0.0;
+	   //display->MuTagInfo();
+	   // ========== RESET ALL SHORT-LIVED PARTICLE VARIABLES ==========
+     // reset SLP info
+      display->fdecay_vx = display->fdecay_vy = display->fdecay_vz = 0.0;
+      display->fdecayFlightLength = 0.0;
+      display->fCharmEnergy = 0.0;
+      display->fCharmCharge = 0;
+      display->fnumChargedDaughters = -1;
+      display->fnumNeutralDaughters = -1;
+      display->fcharmname.clear();
+      display->fdecayMode.clear();
+      display->fCharm = -1;
+      display->fCharmParentID = display->fCharmDaughterID = -1;
 
-	  totalMultiplicity = chargedMultiplicity = neutralMultiplicity = 0;
+     // Reset tau variables
+       display->ftau_vx = display->ftau_vy = display->ftau_vz = 0.0;
+      display->ftauDecayFlightLength = 0.0;
+      display->fTauEnergy = 0.0;
+      display->fTauCharge = 0;
+      display->fnumTauChargedDaughters = -1;
+      display->fnumTauNeutralDaughters = -1;
+      display->ftauname.clear();
+      display->ftauDecayMode.clear();
+      display->fTau = -1;
+      display->fTauParentID = display->fTauDaughterID = -1;
+
+      // Reset generic SLP variables
+      display->fSLPParentIDs.clear();
+      display->fSLPNames.clear();
+      display->fSLPTypes.clear();
+     totalMultiplicity = chargedMultiplicity = neutralMultiplicity = 0;
 	  gammaMultiplicity = neutronMultiplicity = 0;
 	  CharmType = neutrinoType = 0;
-	  display->CharmedEvent();
+	  //
+    // display->CharmedEvent();
 	  
-	  // Count the particles based on their properties
-	  for (size_t i = 0; i < display->POevent->n_particles(); i++)
-	    {
-	      struct PO& aPO = display->POevent->POs[i];
-	      TParticlePDG* particle = pdgDB->GetParticle(aPO.m_pdg_id);
-	      int charge = particle ? particle->Charge() : 0;
-	      
-	      if (aPO.m_status == 1)  // Only consider final state particles
-		{
-		  if(display->IsCharmed(aPO.m_pdg_id))
-		    CharmType = aPO.m_pdg_id;
-		  totalMultiplicity++;
-		  if (charge != 0) {
-		    chargedMultiplicity++;
-		  } else {
-		    neutralMultiplicity++;
-		  }
-		  if(aPO.m_pdg_id==22)
-		    gammaMultiplicity++;
-		  if(aPO.m_pdg_id==2112)
-		    neutronMultiplicity++;
-		}
-	    }	  
+// ========== ANALYZE SHORT-LIVED PARTICLES ==========
+      bool hasSLP = display->ShortLivedParticleEvent(); // This analyzes both charm and tau
+      
+      if (hasSLP) {
+        std::cout << "Event " << eventNumber << " contains short-lived particles:" << std::endl;
+        for (size_t i = 0; i < display->fSLPTypes.size(); i++) {
+          std::string particleType = "";
+          switch(display->fSLPTypes[i]) {
+            case 1: particleType = "Charm"; break;
+            case 2: particleType = "Tau"; break;
+            case 3: particleType = "Other SLP"; break;
+            default: particleType = "Unknown"; break;
+          }
+          std::cout << "  - " << particleType << ": " << display->fSLPNames[i] 
+                   << " (Parent ID: " << display->fSLPParentIDs[i] << ")" << std::endl;
+        }
+      }
+
+	  // particle counts
+      totalMultiplicity = chargedMultiplicity = neutralMultiplicity = 0;
+      gammaMultiplicity = neutronMultiplicity = 0;
+      for (size_t i=0;i<display->POevent->n_particles(); ++i) {
+        struct PO &aPO = display->POevent->POs[i];
+        TParticlePDG* particle = pdgDB->GetParticle(aPO.m_pdg_id);
+        int charge = particle ? particle->Charge() : 0;
+        if (aPO.m_status == 1) {
+          if (display->IsCharmed(aPO.m_pdg_id)) CharmType = aPO.m_pdg_id;
+          totalMultiplicity++;
+          if (charge != 0) chargedMultiplicity++; else neutralMultiplicity++;
+          if (aPO.m_pdg_id == 22) gammaMultiplicity++;
+          if (aPO.m_pdg_id == 2112) neutronMultiplicity++;
+        }
+      }
 	  // Get neutrino energy
 	  neutrinoEnergy = display->POevent->in_neutrino.m_energy;
 	  neutrinoType = display->POevent->in_neutrino.m_pdg_id;
 	  CCNC = display->POevent->isCC;	  
 	  
-	  TVector3 jet = TVector3(fTPORecoEvent->GetPOEvent()->jetpx, fTPORecoEvent->GetPOEvent()->jetpy, fTPORecoEvent->GetPOEvent()->jetpz);
+	  JetEne = 0; JetPt = 0; Evis_true = 0; Ptmiss = 0;
+    TVector3 jet = TVector3(fTPORecoEvent->GetPOEvent()->jetpx, fTPORecoEvent->GetPOEvent()->jetpy, fTPORecoEvent->GetPOEvent()->jetpz);
 	  JetEne = jet.Mag();
 	  JetPt = jet.Pt();
 	  Evis_true = fTPORecoEvent->GetPOEvent()->Evis;
 	  Ptmiss = fTPORecoEvent->GetPOEvent()->ptmiss;
-	  
+	  tauDecayModeTruth = fTPORecoEvent->GetPOEvent()->tau_decaymode;
+
 	  display->GetMuTagInfo();
+// ========== OUTPUT SHORT-LIVED PARTICLE SUMMARY ==========
+      if (hasSLP) {
+        std::cout << "SLP Summary for Event " << eventNumber << ":" << std::endl;
+        if (display->fCharm != -1) {
+          std::cout << "  Charm: " << display->fcharmname << " (Type: " << display->fCharm 
+                   << ", Prongs: " << display->fnumChargedDaughters << ")" << std::endl;
+        }
+        if (display->fTau != -1) {
+          std::cout << "  Tau: " << display->ftauname << " (Type: " << display->fTau 
+                   << ", Prongs: " << display->fnumTauChargedDaughters << ")" << std::endl;
+        }
+      }
 
 	  tree->Fill();
 
@@ -324,12 +435,16 @@ void LoadAllRecoEvents(display::FaserCalDisplay* display, int runNumber, int max
 
   outputFile->cd();
   tree->Write();
-  outputFile->Close();
   std::cout << "Finished processing " << " files." << std::endl;
+
+// Print summary statistics
+  std::cout << "\n========== ANALYSIS SUMMARY ==========" << std::endl;
+  std::cout << "Tree entries: " << tree->GetEntries() << std::endl;
+  std::cout << "Output file: AnalysisData.root" << std::endl;
+  std::cout << "Branches include: Charm, Tau, and generic SLP information" << std::endl;
+  outputFile->Close();
+
 }
-
-
-
 
 
 int main(int argc, char** argv)
@@ -338,12 +453,17 @@ int main(int argc, char** argv)
   if (argc < 4) {
     std::cerr << "Usage: " << argv[0] << " <RunNumber> <MaxEvents> <Masks>" << std::endl;
     std::cout << "Masks: nueCC, numuCC, nutauCC, nuNC, nuES, -" << std::endl;
+    std::cout << "This version includes short-lived particle (charm and tau) analysis" << std::endl;
+
     return 1;
   }
   
   int runNumber = std::stoi(argv[1]);
   int maxEvents = std::stoi(argv[2]);
   std::string mask_str = argv[3];
+
+  std::cout << "Starting FaserCalAnalyzer with Short-Lived Particle Analysis" << std::endl;
+  std::cout << "Run: " << runNumber << ", Max Events: " << maxEvents << ", Mask: " << mask_str << std::endl;
 
   display::FaserCalDisplay* disp = new display::FaserCalDisplay();
   LoadAllRecoEvents(disp, runNumber, maxEvents, mask_str);

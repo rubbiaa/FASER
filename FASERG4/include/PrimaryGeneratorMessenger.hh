@@ -4,6 +4,9 @@
 #include "G4UImessenger.hh"
 #include "G4UIcmdWithAnInteger.hh"
 #include "G4UIcmdWithAString.hh"
+// added by Umut
+#include "G4UIcmdWithABool.hh"
+#include "G4UIcmdWithADoubleAndUnit.hh"
 
 #include "PrimaryGeneratorAction.hh"
 
@@ -37,6 +40,10 @@ class PrimaryGeneratorMessenger: public G4UImessenger
     G4UIcmdWithAString* fROOTInputFileNameCmd; ///< Input command for the ROOT file name
     G4UIcmdWithAnInteger* fFileNumberCmd; ///< Input command for the file number
     G4UIcmdWithAnInteger* fNStartEvent; ///< Input command for the number of events per file
+  // added by Umut
+    G4UIcmdWithABool* fWantMuonBackground; ///< Input command for muon background option
+    G4UIcmdWithABool* fWantSingleParticle; ///< Input command for single particle option
+    G4UIcmdWithADoubleAndUnit* fSingleMomentumCmd; ///< Command to set single particle momentum (with unit)
 };
 
 #endif

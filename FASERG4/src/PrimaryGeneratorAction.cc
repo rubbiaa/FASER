@@ -21,11 +21,40 @@
 PrimaryGeneratorAction::PrimaryGeneratorAction(ParticleManager* f_particleManager) : G4VUserPrimaryGeneratorAction()
 {
 
-  fMessenger = new PrimaryGeneratorMessenger(this);
-  
-  fParticleManager = f_particleManager;
-  
+	fMessenger = new PrimaryGeneratorMessenger(this);
+	fParticleManager = f_particleManager;
+
+	// add by Umut
+	// print initial single particle momentum (GeV)
+	G4cout << "PrimaryGeneratorAction constructed: initial fSingleParticleMomentum = " << fSingleParticleMomentum << " GeV" << G4endl;
+  	// adding for muon background dump
+  	// open muon dump file (append mode)
+ 	m_muonDumpFile.open("faserps_muons.csv", std::ios::out | std::ios::app);
+  	if (m_muonDumpFile.tellp() == 0) 
+  	{
+		// write header if file is empty/new
+		m_muonDumpFile << "run,event,x,y,z,slope_x,slope_y,px,py,pz,p,pdg" << std::endl;
+	}
 }
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+//Umut::adding for single particle momentum command
+void PrimaryGeneratorAction::SetSingleParticleMomentum(double gev) {
+	// Input is expected in GeV (UI command has default unit GeV). 
+	G4cout << "PrimaryGeneratorAction::SetSingleParticleMomentum(" << gev << " GeV) called." << G4endl;
+	if (std::isnan(gev) || std::isinf(gev)) {
+		G4cout << "  Warning: invalid momentum provided, keeping previous value: " << fSingleParticleMomentum << " GeV" << G4endl;
+		return;
+	}
+	// to avoid accidental unit mistakes (e.g. giving MeV without units).
+	const double kMaxMomentumGeV = 1e6;
+	if (std::abs(gev) > kMaxMomentumGeV) {
+		G4cout << "  Warning: requested single-particle momentum is very large (" << gev << " GeV). Clamping to " << kMaxMomentumGeV << " GeV." << G4endl;
+		fSingleParticleMomentum = (gev > 0) ? kMaxMomentumGeV : -kMaxMomentumGeV;
+	} else {
+		fSingleParticleMomentum = gev;
+	}
+}
+
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -43,9 +72,9 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 
 	// DEBUG : only primary lepton if CC otherwise random pion
 	bool want_particleGun = false; //  true;
-	bool want_muon_background = false; // true;
+	bool want_muon_background = true; // true; changed to true from false
 	bool want_single_particle = false; // true;
-	bool want_zeropt_jet = true; // true;
+	bool want_zeropt_jet = false; // true; change to false to disable
 
 	const TPOEvent *branch_POEvent = GetTPOEvent();
 
@@ -86,6 +115,17 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 	if(m_POEventTree != nullptr) m_POEventTree -> GetEntry(tree_ientry++);
 
 	G4ParticleTable* particleTable = G4ParticleTable::GetParticleTable();
+
+	// Umut::adding for muon background dump
+	auto dump_muon = [&](int runnum, int evtid, double x, double y, double z,
+				 double slope_x, double slope_y,
+				 double px, double py, double pz, double p, int pdg){
+		std::lock_guard<std::mutex> lk(m_muonDumpMutex);
+		if (m_muonDumpFile.is_open()) {
+			m_muonDumpFile << runnum << "," << evtid << "," << x << "," << y << "," << z << ","
+				<< slope_x << "," << slope_y << "," << px << "," << py << "," << pz << "," << p << "," << pdg << std::endl;
+		}
+	};
 
 	const DetectorConstruction* detector = static_cast<const DetectorConstruction*>(G4RunManager::GetRunManager()->GetUserDetectorConstruction());
 
@@ -325,11 +365,53 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 			double pz = std::cos(theta);
 
 			// Set direction vector with given momentum magnitude
-			double momentumMagnitude = 500.0; // in GeV
+			//double momentumMagnitude = 500.0; // in GeV
+			// added by Umut: use fSingleParticleMomentum
+			double momentumMagnitude = fSingleParticleMomentum; // in GeV (can be set via /generator/singleMomentum)
+
 			G4ThreeVector StartMomentum(px, py, pz);
+			// Diagnostic: print the configured momentum magnitude (GeV) used for scaling the direction
+			G4cout << "Using momentumMagnitude = " << momentumMagnitude << " GeV for background muon generation." << G4endl;
+	
 			StartMomentum = StartMomentum.unit() * (momentumMagnitude * GeV); // Normalize and scale
 			particleGun->SetParticleMomentum(StartMomentum);
 			fParticleGuns.push_back(particleGun);
+			// added by Umut: dump muon info to file
+			// Extract generated momentum in GeV (StartMomentum is in CLHEP units)
+			double px_bg = StartMomentum.x() / GeV;
+			double py_bg = StartMomentum.y() / GeV;
+			double pz_bg = StartMomentum.z() / GeV;
+			double p_bg = sqrt(px_bg*px_bg + py_bg*py_bg + pz_bg*pz_bg);
+			double slope_x_bg = (pz_bg != 0.0) ? px_bg / pz_bg : 0.0;
+			double slope_y_bg = (pz_bg != 0.0) ? py_bg / pz_bg : 0.0;
+			// Determine PDG explicitly from the chosen particle (handles mu- vs mu+ correctly)
+			int pdg_mu = muon->GetPDGEncoding();
+			dump_muon(fTPOEvent.run_number, fTPOEvent.event_id, vtxpos.x(), vtxpos.y(), vtxpos.z(),
+					 slope_x_bg, slope_y_bg, px_bg, py_bg, pz_bg, p_bg, pdg_mu);
+			/// fill TPOEvent information
+			fTPOEvent.clear_event();
+			fTPOEvent.POs.clear();
+			fTPOEvent.run_number = 999;
+			fTPOEvent.event_id = valid_event;
+			fTPOEvent.setPrimaryVtx(vtxpos.x(), vtxpos.y(), vtxpos.z());
+			struct PO aPO;
+			aPO.m_pdg_id = pdg_mu;
+			G4ParticleDefinition *particle = particleTable->FindParticle(aPO.m_pdg_id);
+			double mass = particle->GetPDGMass()/GeV;
+			aPO.m_track_id = 1;
+			aPO.m_status = 1;
+			// Store PO momentum in GeV
+			aPO.m_px = px_bg;
+			aPO.m_py = py_bg;
+			aPO.m_pz = pz_bg;
+			aPO.m_energy = sqrt(aPO.m_px*aPO.m_px + aPO.m_py*aPO.m_py + aPO.m_pz*aPO.m_pz + mass*mass); // in GeV
+			aPO.m_vx_decay = 0;
+			aPO.m_vy_decay = 0;
+			aPO.m_vz_decay = 0;
+			aPO.nparent = 0;
+			aPO.geanttrackID = -1;
+			fTPOEvent.POs.push_back(aPO);
+
 		}
 	}
 

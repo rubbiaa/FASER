@@ -1,6 +1,7 @@
 #include "DetectorConstruction.hh"
 #include "G4ios.hh"
 #include "G4GDMLParser.hh"
+#include <cstdio>
 
 #include "G4MagneticField.hh"
 #include "G4UniformMagField.hh"
@@ -224,6 +225,9 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 
 	// Save the geometry of the detector
 	G4GDMLParser parser;
+	// If a previous geometry file exists, remove it so G4GDML doesn't abort
+	// (parser.Write throws if the file already exists)
+	std::remove("geometry.gdml");
 	parser.Write("geometry.gdml", worldPV->GetLogicalVolume());
 
 	// Print the total mass of the detector
@@ -770,7 +774,32 @@ void DetectorConstruction::CreateRearMuSpectrometer(G4double zLocation, G4Logica
 		auto fieldManager = new G4FieldManager(field);
 		fieldManager->CreateChordFinder(field);
 		magnetLV->SetFieldManager(fieldManager, true);
-
+		
+		////////////// added umut
+		// If particle manager verbosity enabled, probe the field at magnet center and slit positions
+		if (fParticleManager && fParticleManager->verbose()) {
+			G4ThreeVector centerGlobal(0, 0, zPos + magnetThickness / 2 - scifilayerThickness / 2);
+			G4double slitPos = slitPosition;
+			G4ThreeVector topSlitGlobal(0, slitPos, zPos + magnetThickness / 2 - scifilayerThickness / 2);
+			G4ThreeVector botSlitGlobal(0, -slitPos, zPos + magnetThickness / 2 - scifilayerThickness / 2);
+			// Query the field attached to this logical volume via its field manager
+			const G4FieldManager* fm = magnetLV->GetFieldManager();
+			if (fm) {
+				const G4MagneticField* mf = dynamic_cast<const G4MagneticField*>(fm->GetDetectorField());
+				if (mf) {
+					G4double p[4]; G4double B[3];
+					p[0]=centerGlobal.x(); p[1]=centerGlobal.y(); p[2]=centerGlobal.z(); p[3]=0.;
+					mf->GetFieldValue(p, B);
+					G4cout << "MAGNET_FIELD_TEST: magnet=" << group << " center B[T]=" << B[0]/tesla << "," << B[1]/tesla << "," << B[2]/tesla << " pos[mm]=" << centerGlobal.x()/mm << "," << centerGlobal.y()/mm << "," << centerGlobal.z()/mm << G4endl;
+					p[0]=topSlitGlobal.x(); p[1]=topSlitGlobal.y(); p[2]=topSlitGlobal.z();
+					mf->GetFieldValue(p, B);
+					G4cout << "MAGNET_FIELD_TEST: magnet=" << group << " topslit B[T]=" << B[0]/tesla << "," << B[1]/tesla << "," << B[2]/tesla << " pos[mm]=" << topSlitGlobal.x()/mm << "," << topSlitGlobal.y()/mm << "," << topSlitGlobal.z()/mm << G4endl;
+					p[0]=botSlitGlobal.x(); p[1]=botSlitGlobal.y(); p[2]=botSlitGlobal.z();
+					mf->GetFieldValue(p, B);
+					G4cout << "MAGNET_FIELD_TEST: magnet=" << group << " botslit B[T]=" << B[0]/tesla << "," << B[1]/tesla << "," << B[2]/tesla << " pos[mm]=" << botSlitGlobal.x()/mm << "," << botSlitGlobal.y()/mm << "," << botSlitGlobal.z()/mm << G4endl;
+				}
+			}
+		}
 		// Magnet (gray)
 		auto magnetVis = new G4VisAttributes(G4Colour(0.5, 0.5, 0.5)); // RGB: gray
 		magnetVis->SetForceSolid(true);
