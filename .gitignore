@@ -6,10 +6,10 @@
 # Build directories
 */build/
 
-# ROOT build artifacts
+# ROOT/C++ build artifacts
+*.o
 *.so
 *.dylib
-*.o
 *.pcm
 
 # Large analysis outputs (keep source macros, ignore generated images in Display)
@@ -19,13 +19,11 @@ Display/*.pdf
 # Local backups and scratch
 CoreUtils/*backup*
 Display/.DS_Store
-*.o
-*.so
 *.exe
-*.cxx
-*.pcm
 *.root
 *.tgz
+
+# External libs/build trees (not tracked in repo)
 GenFit/
 GenFit-install/
 GenFit-build/
