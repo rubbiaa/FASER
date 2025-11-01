@@ -306,6 +306,8 @@ void TPOEvent::kinematics_event() {
 
 double TPOEvent::tauDecaylength() {
   if(!istau || !isCC) return -1;
+  if(n_taudecay() == 0) return -1;
+  if(taudecay.size() == 0) return -1;
   double xdecay = taudecay[0].m_vx_decay;
   double ydecay = taudecay[0].m_vy_decay;
   double zdecay = taudecay[0].m_vz_decay;
