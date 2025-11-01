@@ -9,6 +9,9 @@
 #include <iostream>
 #include <fstream>
 #include <sys/resource.h>
+#include <unistd.h>
+#include <chrono>
+#include <thread>
 
 #include "TFile.h"
 #include "TH1.h"
@@ -149,7 +152,7 @@ int main(int argc, char** argv) {
     // Print the filename to verify
     std::cout << "Writing TPORecEvent and histograms into file: " << filename.str() << " ..... ";
 
-    TFile *m_rootFile = new TFile(filename.str().c_str(), "RECREATE", "", 0); // last is the compression level
+    TFile *m_rootFile = new TFile(filename.str().c_str(), "RECREATE", "", 5); // last is the compression level
     if (!m_rootFile || !m_rootFile->IsOpen())
     {
         throw std::runtime_error("Could not create ROOT file");
@@ -222,10 +225,21 @@ int main(int argc, char** argv) {
         TPOEvent *POevent = new TPOEvent();
 
         if(!dump_event_cout) fTcalEvent->SetVerbose(0);
-        error = fTcalEvent -> Load_event(base_path, run_number, ievent++, event_mask, POevent);
-        if(error==2){ error = 0; continue; }
-        if(error != 0) break;
+	int retry = 5;
+	error = -1;
+	while(retry-- > 0 && error != 0) {
+	  error = fTcalEvent -> Load_event(base_path, run_number, ievent, event_mask, POevent);
+	  if(error == 0 || error == 2) break;
+	  std::cerr << "Waiting for a few seconds before trying to open file again..." << std::endl;
+	  std::this_thread::sleep_for(std::chrono::seconds(10));
+	}
+	// empty event ... skip
+	if(error==2){ error = 0; ievent++; continue; }
+	// error seems unrecoverable
+	if(error != 0) break;	
 
+	ievent++;
+	
         // skip empty events (can happen for example for particle guns G4 where no lepton or pion has been found (i.e. NC ES))
         if(POevent -> POs.size() == 0) continue;
     
