@@ -18,6 +18,7 @@
 #include "TPSTrack.hh"
 #include "TMuTrack.hh"
 #include "GenMagneticField.hh"
+#include "TPORecoEvent.hh"
 
 /// @brief TPORec holds a reconstructed particle object
 class TPORec : public TObject {
@@ -179,6 +180,16 @@ public:
     TPORecoEvent();
     TPORecoEvent(TcalEvent* c, TPOEvent* p);
     virtual ~TPORecoEvent();
+
+    friend std::ostream& operator<<(std::ostream& os, const TPORecoEvent& evt) {
+    os << "TPORecoEvent: nMuTracks = " << evt.fMuTracks.size();
+    // loop over muon tracks and dump them
+    for (const auto& muTrack : evt.fMuTracks) {
+        os << "\n" << muTrack.ftrackID << ": PDG=" << muTrack.fPDG << ", Charge=" << muTrack.fcharge
+           << ", nPoints=" << muTrack.fpos.size() << ", Momentum=" << muTrack.fp << " GeV" << ", Chi2=" << muTrack.fchi2;
+    }
+    return os;
+}
 
     int verbose = 0;                            //! controls amount of debug information
     bool multiThread = true;                   //! controls if multi-threading is used
