@@ -92,7 +92,10 @@
 #include "../CoreUtils/TPOEvent.hh"
 //#include "fastjet/ClusterSequence.hh"
 
-
+#include <vector>
+#include <string>
+#include <map>
+#include <set>
 
 namespace display 
 {
@@ -112,6 +115,10 @@ namespace display
       void EventDisplay();
       void GetEventDisplay();
       void GetDetector();
+      ROOT::Math::XYZVector DetToWorld(const ROOT::Math::XYZVector &detPos) const;
+      
+      void InitGeometryPointers();
+
       void DoExit();
       
       void LoadEvent(int iRun, int iEvent, int iMask );
@@ -134,6 +141,9 @@ namespace display
       void ShowPrimary();
       void ShowPixelHits();
       void ShowMuonParticles();
+      void ShowProtonParticles();
+      void ShowPionParticles();
+      void ShowKaonParticles();
       void ShowSecondaryShowers();
       void ShowSecondaryHadShowers();
       void ShowPixelRecoTrack();
@@ -141,7 +151,14 @@ namespace display
       void JetReconstructions();
       void ShowJetHits();
 
-     void GetRearECAL();
+      void ShowClusterHits();
+      void ShowRecoVoxelHits();
+
+      void GetClusterInfo();
+      void Get3DClusterInfo();
+      void GetReconstructedVoxels(TGeoShape *bigbox, TGeoMedium *air, TGeoShape *box);
+      void ShowOnlyGhostHits();
+      void GetRearECAL();
 
       Double_t fVisibleEnergy = 0.0;
       Double_t fTotalEnergy = 0.0;
@@ -150,6 +167,8 @@ namespace display
       Double_t fRearMuCalEnergy = 0.0;
 
       void CountHitsInCube();
+      void PlotParticleFractionsAndHitsInCubes();
+
       void SetMyStyle();
       void BackgroundColor();
       void EnablePicking();
@@ -175,6 +194,8 @@ namespace display
 
       void GetRecoTracks();
       void GetMuTagInfo();
+      void GetMuonSpectrometerInfo(TGeoShape *bigbox, TGeoMedium *air, TGeoShape *box);
+
 
       TObjArray *get_selected(int printsel);
       TObjArray *selected = new TObjArray;
@@ -182,6 +203,9 @@ namespace display
 
       TGCheckButton *fPrimary;
       TGCheckButton *fMuons;
+      TGCheckButton *fProtons;
+      TGCheckButton *fPions;
+      TGCheckButton *fKaons;
       TGCheckButton *fSecondary;
       TGCheckButton *fEMShowers;
       TGCheckButton *fHadronShowers;
@@ -189,6 +213,8 @@ namespace display
       TGCheckButton *fPixelRecoTrack;
       TGCheckButton *fRear;
       TGCheckButton *fMuTag;
+      TGCheckButton *fGhostHits;
+      TGCheckButton *fRecoVoxHits;
      
 
       TGCheckButton *fShortLivedParticle;
@@ -212,40 +238,63 @@ namespace display
       TEveElement * GetSelectedElement () { TEveElement::List_i it= gEve->GetSelection()->EndChildren(); return *(--it);}
       //////
       bool IsCharmed(int pdg) {
-	int abs_pdg = std::abs(pdg);	
-	// Check if it matches charmed meson or baryon
-	return (abs_pdg / 100 == 4) ||       // Charmed mesons: 4xx
-	  (abs_pdg / 1000 == 4) ||      // Charmed baryons: 4xxx
-	  (abs_pdg / 1000 == 104) ||    // Excited mesons: 104xx
-	  (abs_pdg / 10000 == 104);     // Excited baryons: 104xxx
+        int abs_pdg = std::abs(pdg);	
+        // Check if it matches charmed meson or baryon
+        return (abs_pdg / 100 == 4) ||       // Charmed mesons: 4xx
+        (abs_pdg / 1000 == 4) ||      // Charmed baryons: 4xxx
+        (abs_pdg / 1000 == 104) ||    // Excited mesons: 104xx
+        (abs_pdg / 10000 == 104);     // Excited baryons: 104xxx
       }
       ///////
+    bool IsShortLivedParticle(int pdg_id, int& particleType);
+    void TauDecayMode();
+    void IdentifyTauDecayMode(const std::vector<std::pair<int, int>>& daughterTracks);
+       bool ShortLivedParticleEvent();
+
+std::vector<int> fSLPParentIDs;
+    std::vector<std::string> fSLPNames;
+    std::vector<int> fSLPTypes; // 1=charm, 2=tau, 3=other
 
       void GetPryMuon();
       void CharmDecayMode();
       Int_t fCharmCharge;
       Double_t fCharmEnergy;
+      Int_t fTauCharge;
+      Double_t fTauEnergy;
 
       Int_t fEventNumber = 0;
       Int_t fRunNumber = 0;
-      Int_t fMaskNumber = -1;
+      Int_t fMaskNumber = 0;
       Int_t fCharmParentID = -1;
       Int_t fCharmDaughterID = -1;
+      Int_t fTauParentID = -1;
+      Int_t fTauDaughterID = -1;
+
 
       Int_t fPryMuonID = -1;
       Int_t fCurrentEventNumber;
       Int_t fnumLayers = 0;
       Int_t fnumChargedDaughters=-1;
       Int_t fnumNeutralDaughters=-1;
+      Int_t fnumTauChargedDaughters=-1;
+      Int_t fnumTauNeutralDaughters=-1;
 
       Int_t fCharm;
+      Int_t fTau;
       std::string fdecayMode;
       std::string fcharmname=" ";
+      std::string ftauDecayMode;  
+      std::string ftauname=" ";
+
       void IdentifyCharmDecayMode(const std::vector<std::pair<int, int>> &daughterTracks);
       Double_t fdecay_vx, fdecay_vy, fdecay_vz;
+      Double_t ftau_vx, ftau_vy, ftau_vz;
+
       Int_t fdecay_module;
       Double_t fdecayFlightLength;
-      
+      Int_t ftau_decay_module;
+      Double_t ftauDecayFlightLength;
+
       std::vector<double> fmuTag_p;
       std::vector<double> fmuTag_px;
       std::vector<double> fmuTag_py;
@@ -264,8 +313,15 @@ namespace display
       TPOEvent *POevent;
       TPORecoEvent* fPORecoEvent;
 
-
-
+    // FASERCal full container
+    TGeoNode* fFaserCalNode = nullptr;
+    // Rear ECAL has 24 modules → store them in a vector
+    std::vector<TGeoNode*> fRearCalNodes;
+    // Rear HCAL container
+    TGeoNode* fRearHCalNode = nullptr;  
+    // Muon Spectrometer container
+    TGeoNode* fMuonSpectNode = nullptr;
+ 
     private:
       Bool_t fVisibleVol[10000] = { kFALSE };
       //std::map<TEveGeoShape*, TcalEvent->getfTracks()[0]> shapeTrackMap; // Auto-detect the type
@@ -295,6 +351,9 @@ namespace display
 
       TGeoVolume *primary;
       TGeoVolume *muonhit;
+      TGeoVolume *pionhit;
+      TGeoVolume *protonhit;
+      TGeoVolume *kaonhit;
       TGeoVolume *secondary;
       TGeoVolume *secondary_em;
       TGeoVolume *secondary_had;
@@ -303,6 +362,8 @@ namespace display
       TGeoVolume *rearecal;
       TGeoVolume *rearhcal;
       TGeoVolume *rearmucal;
+      TGeoVolume *voxVol;
+      TGeoVolume *muonSpectVol;
 
       TEveElementList* fDetectorElements;
       
@@ -315,12 +376,22 @@ namespace display
       TEveElementList* fShortLivedParticleHitElements;
       TEveElementList* fPixelRecoTrackElements;
       TEveElementList* fMuonHitElements;
+      TEveElementList* fProtonHitElements;
+      TEveElementList* fPionHitElements;
+      TEveElementList* fKaonHitElements;
 
       TEveElementList* fRearECALElements;
       TEveElementList* fRearHCALElements;
       TEveElementList* fRearMuCALElements;
 
       TEveElementList* fMuTagHitElements;
+      TEveElementList* fMuSpectHitElements;
+      TEveElementList* fMuonSpectFitElements;
+
+      TEveElementList* fClusterHitElements;
+      TEveElementList* fVoxHitElements;
+      TEveElementList* fVoxGhostElements;
+
 
       TCanvas* fEventInfoCanvas;
       ClassDef(FaserCalDisplay, 1)

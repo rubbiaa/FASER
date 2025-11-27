@@ -118,6 +118,21 @@ public:
     size_t n_psclustersX() { return PSClustersX.size(); };    // number of reconstructed cluster in XZ view
     size_t n_psclustersY() { return PSClustersY.size(); };    // number of reconstructed cluster in YZ view
 
+    //////////////////////////////
+    // added by Umut
+    /// Added to access hits information in clusters
+    const std::vector<TPSCluster>& GetPSClusters(int view) const {
+        return (view == 0) ? PSClustersX : PSClustersY;
+    }
+    std::vector<TPSCluster>& GetPSClusters(int view) {
+        return (view == 0) ? PSClustersX : PSClustersY;
+    }
+  
+    std::vector<TPSCluster> PSClusters3D;
+    const std::vector<TPSCluster>* GetPSClusters3D() const { return &PSClusters3D; }
+    void Reconstruct3DClusters();
+    ///////////////////////////////////
+
     struct PSVOXEL3D {
         long ID;
         float RawEnergy;            // MeV

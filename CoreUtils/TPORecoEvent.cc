@@ -3300,3 +3300,126 @@ void TPORecoEvent::ReconstructMuonSpectrometer() {
     }
 
 }
+
+
+/////////////////////////////////////
+// added by Umut 
+
+void TPORecoEvent::Reconstruct3DClusters() 
+{
+  //if(verbose > 0)
+  std::cout << "Start Reconstruct3DClusters..." << std::endl;
+  
+  DBScan dbscan;
+  std::map<int, TPSCluster> PSClusters3DMap;
+  std::vector<DBScan::Point3D> points;
+
+  // later on get them directly from geometry
+  double voxelSize = 1; // cm
+  double gapSize = 5; // cm ??
+  int layerPerVolume = 20;
+
+  for (const auto& v : PSvoxelmap)
+    {
+      long ID = v.first;
+      long ix = ID % 1000;
+      long iy = (ID / 1000) % 1000;
+      long iz = (ID / 1000000) % 1000;
+      int nzlayer = fTcalEvent->geom_detector.fSandwichLength / fTcalEvent->geom_detector.fScintillatorVoxelSize;
+      //std::cout << "nzlayer " << nzlayer << std::endl;
+      //long ilayer = (ID / 1000000000);
+      long ilayer = fTcalEvent->getChannelModulefromID(ID);
+      double fix = ix + 0.5;
+      double fiy = iy + 0.5;
+      double fiz = ilayer * nzlayer + iz + 0.5;
+
+
+      //adjusting gap in Z
+      double adjustedZ = ilayer * (layerPerVolume * voxelSize + gapSize) + iz * voxelSize + voxelSize * 0.5;
+      
+      double e = v.second.RawEnergy;
+      //std::cout << ID << " " << ilayer << " " << fix << " " << fiy << " " << fiz << " " << e << " " << adjustedZ << " " << std::endl;
+      if (e < recoConfig.clusters_threshold_2dhit) // need for summing up 3D??? but in Z we would have saturation so lets forget about it
+        continue;
+      
+      DBScan::Point3D p = {ID, e, fix, fiy, adjustedZ};
+      points.push_back(p);
+    }
+
+  std::cout << "DBSCAN3D: total hits = " << points.size() << std::endl;
+  
+// I need to define different eps and npoints for 3D dbscan
+  int eps = 2;
+  int minPts = 10;
+
+  //dbscan.scan3D(points, recoConfig.clusters_eps, recoConfig.clusters_minPts);
+  dbscan.scan3D(points, eps, minPts);
+
+  std::set<int> clusterIDs;
+
+  for (const auto& point : points)
+    {
+      if (point.clusterID == 0) continue;
+      if (point.clusterID > 0) clusterIDs.insert(point.clusterID);
+
+      TPSCluster::PSCLUSTERHIT hit = {point.ID, static_cast<float>(point.ehit)};
+      auto c = PSClusters3DMap.find(point.clusterID);
+      if (c != PSClusters3DMap.end()) 
+        {
+          c->second.hits.push_back(hit);
+          c->second.rawenergy += point.ehit;
+        } 
+      else 
+        {
+          TPSCluster newc(2, fTcalEvent);  // '2' indicates 3D
+          newc.clusterID = point.clusterID;
+          newc.rawenergy = point.ehit;
+          newc.hits.push_back(hit);
+          PSClusters3DMap[point.clusterID] = newc;
+        }
+    }
+
+ std::cout << "DBSCAN3D: found clusters = " << clusterIDs.size() << std::endl;
+
+  ROOT::Math::XYZVector primary(fTPOEvent->prim_vx.X(), fTPOEvent->prim_vx.Y(), fTPOEvent->prim_vx.Z());
+  PSClusters3D.clear();
+  for (auto& c : PSClusters3DMap) {
+    if (c.second.rawenergy < recoConfig.clusters_threshold_cluster) // 1GeV
+      continue;
+    PSClusters3D.push_back(c.second);
+  }
+
+  for (auto &c : PSClusters3D) {
+    c.ComputeCOG();
+    c.setVtx(primary.x(), primary.y(), primary.z());
+    c.ComputeLongProfile(verbose);
+  }
+
+  std::sort(PSClusters3D.begin(), PSClusters3D.end(), [](const TPSCluster& a, const TPSCluster& b) {
+      return a.rawenergy > b.rawenergy;
+    });
+
+  
+  // for debug
+  /*  for (const auto &c : PSClusters3D) {
+      std::cout << "--->>>  after energy cut 3D Cluster ID: " << c.clusterID << " nhits = " << c.hits.size()
+                << " rawEnergy(MeV): " << c.rawenergy << std::endl;
+      for (const auto &hit: c.hits)
+        {
+          double x, y, z;
+          pshit2d_position(hit.id, x, y, z);
+          std::cout << "3D "
+                    << " Cluster " << c.clusterID 
+                    << ": Hit at (" << x << ", " << y << ", " << z 
+                    << ") with energy = " << hit.EDeposit << std::endl;
+          
+        }
+    }
+  */
+  if(verbose > 0) {
+    for (const auto &c : PSClusters3D) {
+      std::cout << "3D Cluster ID: " << c.clusterID << " nhits = " << c.hits.size()
+                << " rawEnergy(MeV): " << c.rawenergy << std::endl;
+    }
+   }
+}
