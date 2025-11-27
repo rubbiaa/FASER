@@ -1,0 +1,26 @@
+# Macro example
+# tilted geometry
+/FASER/scint/material PVT
+/FASER/scint/lightYield 12000.
+/FASER/scint/sizeX 48 cm
+/FASER/scint/sizeY 48 cm
+/FASER/scint/sizeZ 20 cm
+/FASER/scint/voxel 10 mm
+/FASER/targetW/sizeX 48 cm
+/FASER/targetW/sizeY 48 cm
+/FASER/targetW/sizeZ 1 mm
+/FASER/layers 10
+/FASER/LOS/shiftX 22 cm #22 cm
+/FASER/LOS/shiftY 17 cm #17 cm
+# NEW: tilt everything by -5 degrees around Y
+#/FASER/tiltY 0 deg
+/FASER/tiltY -5 deg
+#
+/tracking/verbose 0
+#/process/optical/processActivation Cerenkov false
+/run/numberOfThreads 1
+/run/initialize
+/generator/rootinputfilename FASERMC-PO-Run500-0_99261.root
+/generator/startevent 0
+/run/beamOn 5000
+

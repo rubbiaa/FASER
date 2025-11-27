@@ -96,6 +96,12 @@ DetectorMessenger::DetectorMessenger(DetectorConstruction* det) : fDetectorConst
 	fLOSShiftYCmd->SetDefaultUnit("cm");
 	fLOSShiftYCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
+	// UMUT: add /FASER/tiltY
+    fTiltYCmd = new G4UIcmdWithADoubleAndUnit("/FASER/tiltY", this);
+    fTiltYCmd->SetGuidance("Tilt the whole detector around global Y axis.");
+    fTiltYCmd->SetParameterName("angle", false);
+    fTiltYCmd->SetUnitCategory("Angle");
+    fTiltYCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -118,6 +124,8 @@ DetectorMessenger::~DetectorMessenger()
 	delete fDetDirectory;
 	delete fLOSShiftXCmd;
 	delete fLOSShiftYCmd;
+	// Added for tilt angle
+	delete fTiltYCmd;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -180,6 +188,10 @@ void DetectorMessenger::SetNewValue(G4UIcommand* command, G4String newValue)
 		fDetectorConstruction->fFASERCal_LOS_shiftY = fLOSShiftYCmd->GetNewDoubleValue(newValue);
 	}
 
+	// UMUT: tilt angle command
+	if (command == fTiltYCmd) {
+		fDetectorConstruction->SetTiltAngleY(fTiltYCmd->GetNewDoubleValue(newValue));
+	}
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

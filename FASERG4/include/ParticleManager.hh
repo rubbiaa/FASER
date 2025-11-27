@@ -29,6 +29,9 @@ class ParticleManager {
 
 	std::map<int, MuTagTrack*> m_MuTagTrackMap;   // map to store MC tracks in the muon tagger
 
+	//added by Umut: Verbosity flag to enable/disable detailed diagnostics (magnet/field prints)
+	bool m_verbose = false;
+
 	TFile* m_rootFile;		     ///< ROOT file to store the rays
 
 	std::string m_rootOutputFileName;  ///< Name of the ROOT output file, set by the user using the CLI when calling the program
@@ -67,6 +70,11 @@ class ParticleManager {
 	ParticleManager(int number);
 	~ParticleManager();  ///< Destructor
 
+	// added by Umut:
+	// Verbosity control for diagnostics
+	void setVerbose(bool v) { m_verbose = v; }
+	bool verbose() const { return m_verbose; }
+	/////////////////////////////////////////////////////////////////
 	/**
 	 * @brief Process a hit from a particle
 	 * @details This functionis called by the Sensitive Detector whenever a particle hit is regiersted inside the scintillator. It sets the

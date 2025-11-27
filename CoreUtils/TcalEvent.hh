@@ -178,6 +178,8 @@ public:
         Double_t fAirGap; // in mm
         Double_t fAlPlateThickness; // in mm
         Double_t fSiTrackerGap; // in mm
+        // UMUT: Tilt angle of the detector in radians
+        Double_t fTiltAngleY; // in radians
     };
 
     /// @brief The summary of the detector geometry
@@ -186,6 +188,11 @@ public:
     // TGeom declarations
     TGeoNode *frearHCalTGeomNode = nullptr;  //! the TGeoNode of the rear HCal mother volume
     TGeoNode *frearMuSpectTGeomNode = nullptr;  //! the TGeoNode of the rear Muon Spectrometer mother volume
+    std::vector<TGeoNode*> frearCalTGeomNodes;
+    TGeoNode* fFaserCalTGeomNode  = nullptr;  // container for FASERCal scintillator/target
+
+    //
+    void DumpFaserCalNodeCandidates() const;
 
     /// @brief Returns type ID of a hit
     /// @param ID The hit ID (see FASERG4 DetectorConstruction class)
@@ -240,6 +247,9 @@ public:
     /// @brief Returns (x,y,z) absolute position for a given hit ID (the center of the hit/voxel)
     /// @param ID The hit ID
     /// @return The (x,y,z) absolute position of the hit
+    // Detector tilted and need to transform to world coordinates...
+    ROOT::Math::XYZVector DetToWorld(const ROOT::Math::XYZVector& detPos) const;
+    
     ROOT::Math::XYZVector getChannelXYZfromID(long ID) const;
 
     ROOT::Math::XYZVector getChannelXYZRearCal(int moduleID) const;

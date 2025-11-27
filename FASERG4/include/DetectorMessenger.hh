@@ -73,6 +73,8 @@ class DetectorMessenger : public G4UImessenger {
 
 	G4UIcmdWithAnInteger * fNumberReplicasCmd = nullptr;
 
+	// UMUT: tilt angle command
+	G4UIcmdWithADoubleAndUnit* fTiltYCmd; ///< Command to set the tilt angle around Y axis
 
 
 };
