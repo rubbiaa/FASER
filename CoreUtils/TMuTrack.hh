@@ -48,6 +48,15 @@ public:
     /// @brief Use GenFit to fit the track
     void GenFitTrackFit(int verbose, double detectorResolutionPSmm);
 
+    // ////////    ///////////
+    /// Fast circle fit (Taubin-style) in the bending plane (y-z) under Bx field
+    /// Fills fpx,fpy,fpz,fp as a lightweight alternative to GenFit. Units:
+    /// - Inputs: positions in mm (fpos)
+    /// - Field queried in kGauss via GenFit FieldManager
+    /// - Outputs: momentum components in GeV/c
+    void CircleFitTaubin(int verbose, double detectorResolutionPSmm);
+    // ////////    ///////////
+
     ClassDef(TMuTrack,2) // A reconstructed track in the muon spectrometer
 };
 
