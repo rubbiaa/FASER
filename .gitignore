@@ -1,10 +1,29 @@
+# OS/editor noise
+.DS_Store
+.vscode/
+*~
+
+# Build directories
+*/build/
+
+# ROOT/C++ build artifacts
 *.o
 *.so
-*.exe
-*.cxx
+*.dylib
 *.pcm
+
+# Large analysis outputs (keep source macros, ignore generated images in Display)
+Display/*.png
+Display/*.pdf
+
+# Local backups and scratch
+CoreUtils/*backup*
+Display/.DS_Store
+*.exe
 *.root
 *.tgz
+
+# External libs/build trees (not tracked in repo)
 GenFit/
 GenFit-install/
 GenFit-build/

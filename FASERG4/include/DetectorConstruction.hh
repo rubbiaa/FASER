@@ -131,11 +131,20 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	G4long getChannelIDfromXYZ(std::string const& VolumeName, int CopyNumber, int MotherCopyVolume, XYZVector const& position) const;
 
 	G4long getHCalChannelIDfromXYZ(int CopyNumber, XYZVector const& position) const;
+	///////////
+	// UMUT: tilt angle around Y axis
+	void SetTiltAngleY(G4double angle);
+	// Public getter for the tilt angle (radians). Needed by writer code.
+  	G4double GetTiltAngleY() const { return fTiltAngleY; }
+	///////////
 
     private:
 	// methods
 	void DefineMaterials();		     ///< Define materials used in the detector
 	G4VPhysicalVolume* DefineVolumes();  ///< Define volumes used in the detector
+
+	// UMUT: tilt angle in radians (Geant4 units, so use deg in macro)
+    G4double fTiltAngleY;
 
 	// static data members
 	static G4ThreadLocal G4GlobalMagFieldMessenger* fMagFieldMessenger;  ///< Magnetic field messenger (Currently not used)

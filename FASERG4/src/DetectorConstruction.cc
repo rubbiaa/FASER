@@ -1,6 +1,7 @@
 #include "DetectorConstruction.hh"
 #include "G4ios.hh"
 #include "G4GDMLParser.hh"
+#include <cstdio> // added by UMUT
 
 #include "G4MagneticField.hh"
 #include "G4UniformMagField.hh"
@@ -25,6 +26,8 @@ DetectorConstruction::DetectorConstruction(ParticleManager* photonManager)
 	fMessenger = new DetectorMessenger(this);
 
 	fParticleManager = photonManager;
+	// UMUT: initialize tilt
+    fTiltAngleY = 0.*deg;  // <<< tiltY
 }
 
 DetectorConstruction::~DetectorConstruction()
@@ -149,10 +152,14 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	G4double sizeX = fRearMuSpectSizeX;
 	G4double sizeY = fRearMuSpectSizeY;
 
-	G4double WorldSizeX = 2.5* sizeX;
-	G4double WorldSizeY = 2.5* sizeY;
-	G4double WorldSizeZ = 9*m; // 1.2* NRep*(sizetargetWZ + sizeScintillatorZ);
-
+	//G4double WorldSizeX = 2.5* sizeX;
+	//G4double WorldSizeY = 2.5* sizeY;
+	//G4double WorldSizeZ = 9*m; // 1.2* NRep*(sizetargetWZ + sizeScintillatorZ);
+	// UMUT: tilt the assembly by 5° around Y, the corners move a bit in X and Z.
+	G4double WorldSizeX = 3* sizeX;
+	G4double WorldSizeY = 3* sizeY;
+	G4double WorldSizeZ = 10.*m; // 1.2* NRep*(sizetargetWZ + sizeScintillatorZ);
+	
 	G4cout << "Size of the world " << WorldSizeX << " " << WorldSizeY << " " << WorldSizeZ << " mm" << G4endl;
 
 	// get the maximum size of the detector
@@ -178,7 +185,20 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 					 false,		   // no boolean operations
 					 0,		   // copy number
 					 fCheckOverlaps);  // checking overlaps
-
+	
+	// -------------------------------------------------
+	// UMUT: global detector rotation
+    G4RotationMatrix* detRot = nullptr;                      // <<< tiltY
+    if (fTiltAngleY != 0.) {                                 // <<< tiltY
+        detRot = new G4RotationMatrix();                     // <<< tiltY
+        detRot->rotateY(fTiltAngleY);                        // <<< tiltY
+    }   	//	
+	// DETECTOR ASSEMBLY (the whole detector lives inside this LV)
+    //
+    auto detSolid = new G4Box("DetectorAssemblySolid",
+                              WorldSizeX/2, WorldSizeY/2, WorldSizeZ/2);
+    auto detLV = new G4LogicalVolume(detSolid, fWorldMaterial, "DetectorAssemblyLV");
+	// ------------------------------------------------
 	// target is composed of W or Copper
 	G4Material * G4_W = G4NistManager::Instance()->FindOrBuildMaterial("G4_W");
 	G4Material * G4_Cu = G4NistManager::Instance()->FindOrBuildMaterial("G4_Cu");
@@ -188,8 +208,10 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	G4Material * G4_Target = G4_W;
 
 	G4double zLocation = 0*cm;
+	//CreateFaserCal(zLocation, fPolyvinyltoluene, G4_Target, G4ThreeVector(sizeScintillatorX, sizeScintillatorY, 
+	//sizeScintillatorZ),G4ThreeVector(sizetargetWX, sizetargetWY, sizetargetWZ),worldLV, NRep);
 	CreateFaserCal(zLocation, fPolyvinyltoluene, G4_Target, G4ThreeVector(sizeScintillatorX, sizeScintillatorY, 
-	sizeScintillatorZ),G4ThreeVector(sizetargetWX, sizetargetWY, sizetargetWZ),worldLV, NRep);
+	sizeScintillatorZ),G4ThreeVector(sizetargetWX, sizetargetWY, sizetargetWZ),detLV, NRep);
 	fParticleManager->setDetectorInformation(fPolyvinyltoluene->GetName(),
 	XYZVector(sizeScintillatorX, sizeScintillatorY, sizeScintillatorZ), G4_Target->GetName(),  
 	XYZVector(sizetargetWX, sizetargetWY, sizetargetWZ), NRep);
@@ -202,33 +224,51 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	zLocation += sizeZ/2.0;
 
 #if magnet
-	CreateMagnetSystem(zLocation, worldLV);
+	// CreateMagnetSystem(zLocation, worldLV);
+	CreateMagnetSystem(zLocation, detLV);
 	zLocation += 350.0*cm;    // length of the magnet system
 #endif
 
 	if (!fonlyFaserCal)
 	{
-		CreateRearCal(zLocation, worldLV);
+		//CreateRearCal(zLocation, worldLV);
+		CreateRearCal(zLocation, detLV);
 
 		G4double locZHcal = zLocation + fRearCalSizeZ;
 		fRearHCal_LOS_shiftX = fFASERCal_LOS_shiftX + (fRearHCalSizeX - fECalSizeX) / 2.0;
 		fRearHCal_LOS_shiftY = fFASERCal_LOS_shiftY + (fRearHCalSizeY - fECalSizeY) / 2.0;
 		std::cout << "HCal shift x " << fRearHCal_LOS_shiftX / cm << " cm,  y " << fRearHCal_LOS_shiftY / cm << " cm" << std::endl;
-		CreateRearHCal(locZHcal, worldLV);
+		//CreateRearHCal(locZHcal, worldLV);
+		CreateRearHCal(locZHcal, detLV);
 
 		G4double locMuSpect = locZHcal + fRearHCalLength;
 		fRearMuSpect_LOS_shiftX = fFASERCal_LOS_shiftX + (fRearMuSpectSizeX - fECalSizeX) / 2.0;
-		fRearMuSpect_LOS_shiftY = fFASERCal_LOS_shiftY + (fRearMuSpectSizeY - fECalSizeY) / 2.0;
-		CreateRearMuSpectrometer(locMuSpect, worldLV);
+		fRearMuSpect_LOS_shiftY = fFASERCal_LOS_shiftY + (fRearMuSpectSizeY - fECalSizeY) / 2.0;		//CreateRearMuSpectrometer(locMuSpect, worldLV);
+		//CreateRearMuSpectrometer(locMuSpect, worldLV);
+		CreateRearMuSpectrometer(locMuSpect, detLV);
 	}
+
+	// UMUT: Place the detector assembly into the world with the global rotation
+	new G4PVPlacement(detRot,                      // <<< tiltY
+	                  G4ThreeVector(0,0,0), // given in cm
+	                  detLV,
+	                  "DetectorAssemblyPV",
+	                  worldLV,
+	                  false,
+	                  0,
+	                  fCheckOverlaps);
 
 	// Save the geometry of the detector
 	G4GDMLParser parser;
-	parser.Write("geometry.gdml", worldPV->GetLogicalVolume());
+	//UMUT: If a previous geometry file exists, remove it so G4GDML doesn't abort
+	// (parser.Write throws if the file already exists)
+	std::remove("geometry_tilted_5degree.gdml");
+	parser.Write("geometry_tilted_5degree.gdml", worldPV->GetLogicalVolume());
 
 	// Print the total mass of the detector
 	G4cout << "----------------------------------" << G4endl;
-	G4cout << "Total mass of the detector : " << worldLV->GetMass() / kg << " kg" << G4endl;
+	//G4cout << "Total mass of the detector : " << worldLV->GetMass() / kg << " kg" << G4endl;
+	G4cout << "Total mass of the detector : " << detLV->GetMass() / kg << " kg" << G4endl;
 	G4cout << "----------------------------------" << G4endl;
 	// loop over all logical volumes hanging from worldLV and print their masses
 	G4cout << "Masses of logical volumes : " << G4endl;
@@ -310,7 +350,11 @@ void DetectorConstruction::SettargetWSizeY(G4double detectorSizeY) { ftargetWSiz
 void DetectorConstruction::SettargetWSizeZ(G4double detectorSizeZ) { ftargetWSizeZ = detectorSizeZ; }
 void DetectorConstruction::SetNumberReplicas(G4int rep) { fNumberReplicas = rep; }
 
-
+// UMUT: tilt setter
+void DetectorConstruction::SetTiltAngleY(G4double angle)         // <<< tiltY
+{
+    fTiltAngleY = angle;                                        // <<< tiltY
+}
 
 void DetectorConstruction::SetScintillatorMaterial(G4String materialName)
 {
@@ -770,7 +814,32 @@ void DetectorConstruction::CreateRearMuSpectrometer(G4double zLocation, G4Logica
 		auto fieldManager = new G4FieldManager(field);
 		fieldManager->CreateChordFinder(field);
 		magnetLV->SetFieldManager(fieldManager, true);
-
+		
+		////////////// added umut
+		// If particle manager verbosity enabled, probe the field at magnet center and slit positions
+		if (fParticleManager && fParticleManager->verbose()) {
+			G4ThreeVector centerGlobal(0, 0, zPos + magnetThickness / 2 - scifilayerThickness / 2);
+			G4double slitPos = slitPosition;
+			G4ThreeVector topSlitGlobal(0, slitPos, zPos + magnetThickness / 2 - scifilayerThickness / 2);
+			G4ThreeVector botSlitGlobal(0, -slitPos, zPos + magnetThickness / 2 - scifilayerThickness / 2);
+			// Query the field attached to this logical volume via its field manager
+			const G4FieldManager* fm = magnetLV->GetFieldManager();
+			if (fm) {
+				const G4MagneticField* mf = dynamic_cast<const G4MagneticField*>(fm->GetDetectorField());
+				if (mf) {
+					G4double p[4]; G4double B[3];
+					p[0]=centerGlobal.x(); p[1]=centerGlobal.y(); p[2]=centerGlobal.z(); p[3]=0.;
+					mf->GetFieldValue(p, B);
+					G4cout << "MAGNET_FIELD_TEST: magnet=" << group << " center B[T]=" << B[0]/tesla << "," << B[1]/tesla << "," << B[2]/tesla << " pos[mm]=" << centerGlobal.x()/mm << "," << centerGlobal.y()/mm << "," << centerGlobal.z()/mm << G4endl;
+					p[0]=topSlitGlobal.x(); p[1]=topSlitGlobal.y(); p[2]=topSlitGlobal.z();
+					mf->GetFieldValue(p, B);
+					G4cout << "MAGNET_FIELD_TEST: magnet=" << group << " topslit B[T]=" << B[0]/tesla << "," << B[1]/tesla << "," << B[2]/tesla << " pos[mm]=" << topSlitGlobal.x()/mm << "," << topSlitGlobal.y()/mm << "," << topSlitGlobal.z()/mm << G4endl;
+					p[0]=botSlitGlobal.x(); p[1]=botSlitGlobal.y(); p[2]=botSlitGlobal.z();
+					mf->GetFieldValue(p, B);
+					G4cout << "MAGNET_FIELD_TEST: magnet=" << group << " botslit B[T]=" << B[0]/tesla << "," << B[1]/tesla << "," << B[2]/tesla << " pos[mm]=" << botSlitGlobal.x()/mm << "," << botSlitGlobal.y()/mm << "," << botSlitGlobal.z()/mm << G4endl;
+				}
+			}
+		}
 		// Magnet (gray)
 		auto magnetVis = new G4VisAttributes(G4Colour(0.5, 0.5, 0.5)); // RGB: gray
 		magnetVis->SetForceSolid(true);

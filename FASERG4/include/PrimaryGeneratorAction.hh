@@ -14,6 +14,9 @@
 #include "typedef.h"
 
 #include "TPOEvent.hh"
+// Added by Umut
+#include <fstream>
+#include <mutex>
 
 class G4ParticleGun;
 class G4Event;
@@ -36,6 +39,15 @@ public:
   
   
   void SetRandomFlag(G4bool flag);
+
+  // added by Umut
+  void SetWantMuonBackground(G4bool flag) { fWantMuonBackground = flag; }
+  void SetWantSingleParticle(G4bool flag) { fWantSingleParticle = flag; }
+  
+  // added by Umut
+  void SetWantMuonBackground(G4bool flag) { fWantMuonBackground = flag; }
+  void SetWantSingleParticle(G4bool flag) { fWantSingleParticle = flag; }
+ 
   
   void SetROOTInputFileName(G4String name); ///< Set the name of the ROOT input file for the primary particles
   G4String fROOTInputFileName = "def";    ///< Name of the ROOT input file for the primary particles - default value
@@ -49,7 +61,13 @@ public:
   void Clear(); ///< Clear the data from the previous event
 
   const TPOEvent* GetTPOEvent() const { return &fTPOEvent; };
+
+  // added by Umut: set single-particle momentum (GeV) from messenger
+  void SetSingleParticleMomentum(double gev);
   
+  // added by Umut: set single-particle momentum (GeV) from messenger
+  void SetSingleParticleMomentum(double gev);
+
 private:
   ParticleManager *fParticleManager = nullptr; ///< Particle manager, which is used to generate the primary particles
   
@@ -64,7 +82,15 @@ private:
   TTree *m_POEventTree = nullptr;
   size_t tree_ientry;
   TPOEvent fTPOEvent;
-
+  
+// added by Umut: file to dump generated muons (CSV)
+  std::ofstream m_muonDumpFile;
+  std::mutex m_muonDumpMutex;
+  // runtime control flags (can be set via PrimaryGeneratorMessenger)
+  bool fWantMuonBackground = false;
+  bool fWantSingleParticle = false;
+  // single particle mode momentum (in GeV)
+  double fSingleParticleMomentum = 100.0; // default 100 GeV
 };
 
 #endif

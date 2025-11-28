@@ -20,7 +20,7 @@ TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fMuTagTracks() ,
     }
 
     // Find the TGeoNode corresponding to the rear HCal
-    TGeoNode *node = gGeoManager->GetTopNode();
+    /*TGeoNode *node = gGeoManager->GetTopNode();
     // loop over all daughters
     int ndaughters = node->GetNdaughters();
     for(int i=0; i<ndaughters; i++) {
@@ -33,15 +33,61 @@ TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fMuTagTracks() ,
 //            matrix->Print();
             break;
         }
-    }
+    }*/
+   // UMUT: To solve issue with FATAL on finding rearHCal, the following introduce
+    TGeoVolume *topVol = gGeoManager->GetTopVolume();
+    if (!topVol) {
+        std::cerr << "[TcalEvent] ERROR: Top volume is null!" << std::endl;
+    } else {
+        std::cout << "[TcalEvent] Scanning geometry for rear HCal node..." << std::endl;
+
+        // Recursively iterate over ALL nodes in the geometry
+        TGeoIterator it(topVol);
+        TGeoNode *current = nullptr;
+
+        while ((current = (TGeoNode*) it.Next())) {
+            if (!current || !current->GetVolume()) continue;
+
+            std::string nodeName   = current->GetName();               // placement name
+            std::string volumeName = current->GetVolume()->GetName();  // logical volume name
+
+            if (volumeName.find("ContainerLogical") != std::string::npos) {
+                fFaserCalTGeomNode = current;
+                //std::cout << "[TcalEvent] Using FASER Calorimeter node: " << nodeName
+                //          << " (volume " << volumeName << ")" << std::endl;
+            }
+
+            if(volumeName.find("rearCalscintillatorLogical") != std::string::npos ||
+               volumeName.find("rearCalmoduleLogical") != std::string::npos ){
+                frearCalTGeomNodes.push_back(current);
+                //std::cout << "[TcalEvent] Using rear Cal node: " << nodeName
+                 //         << " (volume " << volumeName << ")" << std::endl;
+            }
+            // Debug: show candidates that look like rear/HCal
+            if (volumeName.find("rear") != std::string::npos ||
+                volumeName.find("HCal") != std::string::npos) {
+                //std::cout << "  [candidate] node=" << nodeName
+                //          << "  volume=" << volumeName << std::endl;
+            }
+
+            // *** Actual selection: pick the rear HCal volume ***
+            if (volumeName.find("rearHCalscintillatorLogical") != std::string::npos ||
+                volumeName.find("HCalContainerLogical")        != std::string::npos) {
+                frearHCalTGeomNode = current;
+                //std::cout << "[TcalEvent] Using rear HCal node: " << nodeName
+                         // << " (volume " << volumeName << ")" << std::endl;
+                //break;
+            }
+        }
+    } 
     // if not found, fatal error
     if(frearHCalTGeomNode == nullptr) {
         std::cerr << "FATAL error: Could not find rearHCal TGeoNode in Geometry!" << std::endl;
         throw std::runtime_error("Could not find rearHCal TGeoNode");
     }
-    node = gGeoManager->GetTopNode();
+    TGeoNode *node = gGeoManager->GetTopNode();
     // loop over all daughters
-    ndaughters = node->GetNdaughters();
+    int ndaughters = node->GetNdaughters();
     for(int i=0; i<ndaughters; i++) {
         TGeoNode *dnode = node->GetDaughter(i);
         std::string name = dnode->GetName();
@@ -246,6 +292,19 @@ int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
         exit(1);
     }
 
+    std::cout << "[TcalEvent] TcalEvent initialized and event loaded." << std::endl;
+    std::cout << "Check LoS shifts: FASERCal ("
+              << geom_detector.fFASERCal_LOS_shiftX << ", "
+              << geom_detector.fFASERCal_LOS_shiftY << "), RearHCal ("
+              << geom_detector.frearHCal_LOS_shiftX << ", "
+              << geom_detector.frearHCal_LOS_shiftY << "), RearMuSpect ("
+              << geom_detector.fRearMuSpect_LOS_shiftX << ", "
+              << geom_detector.fRearMuSpect_LOS_shiftY << "), Tilt Angle Y ("
+              << geom_detector.fTiltAngleY << " rad)"
+              << std::endl;
+
+    //DumpFaserCalNodeCandidates();   
+
     // return success
     return 0;
 }
@@ -273,6 +332,47 @@ void TcalEvent::AssignGEANTTrackID(int G4TrackID, int PDGcode, double px, double
     }
 }
 
+// Added by UMUT
+// to rotate detector coordinates to world coordinates
+ROOT::Math::XYZVector TcalEvent::DetToWorld(const ROOT::Math::XYZVector& detPos) const
+{
+    // Detector frame -> world frame
+    // Same rotation as in Geant4:
+    // new G4RotationMatrix()->rotateY(fTiltAngleY);
+
+    //constexpr double kTiltAngleDeg = 5.0; 
+    //const double theta = kTiltAngleDeg * TMath::DegToRad();
+    double theta = -1*geom_detector.fTiltAngleY; // given in radians
+//
+    const double c = std::cos(theta);
+    const double s = std::sin(theta);
+
+    const double x = detPos.X();
+    const double y = detPos.Y();
+    const double z = detPos.Z();
+
+    // Rotation around Y (right–handed Geant4 / ROOT convention)
+    const double x_rot =  c * x + s * z;
+    const double z_rot = -s * x + c * z;
+
+    return ROOT::Math::XYZVector(x_rot, y, z_rot);
+}
+
+// UMUT: use TGEO instead doing by hand: localPos in mm, theta in radians, optional translation (mm)
+ROOT::Math::XYZVector ApplyYRotationWithTGeo(const ROOT::Math::XYZVector &localPos_mm, double theta_rad, 
+                                             double tx_mm = 0.0, double ty_mm = 0.0, double tz_mm = 0.0)
+{
+    double theta_deg = -1 * theta_rad * 180.0 / M_PI; // to match the tilt in geometry i need to invert the angle
+
+    TGeoRotation rot;
+    rot.RotateY(theta_deg);
+    TGeoCombiTrans combi(tx_mm/10.0, ty_mm/10.0, tz_mm/10.0, &rot);
+    double local_cm[3] = { localPos_mm.x() / 10.0, localPos_mm.y() / 10.0, localPos_mm.z() / 10.0 };
+    double global_cm[3] = {0,0,0};
+    combi.LocalToMaster(local_cm, global_cm);
+    return ROOT::Math::XYZVector(global_cm[0]*10.0, global_cm[1]*10.0, global_cm[2]*10.0);
+}
+
 ROOT::Math::XYZVector TcalEvent::getChannelXYZfromID(long ID) const
 {
     long hittype = ID / 100000000000LL;
@@ -286,10 +386,12 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZfromID(long ID) const
             + geom_detector.fScintillatorVoxelSize/2.0;
         double y = iy * geom_detector.fScintillatorVoxelSize - geom_detector.fScintillatorSizeY / 2.0
             + geom_detector.fScintillatorVoxelSize/2.0;
-        x += geom_detector.fFASERCal_LOS_shiftX;
-        y += geom_detector.fFASERCal_LOS_shiftY;
+        // i needed to comment the following lines to match the positions correctly
+        //x += geom_detector.fFASERCal_LOS_shiftX;
+        //y += geom_detector.fFASERCal_LOS_shiftY;
         double z = getZofLayer(ilayer, iz);
-        return ROOT::Math::XYZVector(x, y, z);
+         ROOT::Math::XYZVector localPos(x, y, z);
+        return ApplyYRotationWithTGeo(localPos, geom_detector.fTiltAngleY /*rad*/, 0.0, 0.0, 0.0);
     } else if (hittype == 1) {
 
         long ix = ID % 10000;
@@ -298,25 +400,28 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZfromID(long ID) const
         long icopy = (ID / 10000000000LL) % 10;
         double x = ix * geom_detector.fSiTrackerPixelSize - geom_detector.fScintillatorSizeX / 2.0;
         double y = iy * geom_detector.fSiTrackerPixelSize - geom_detector.fScintillatorSizeY / 2.0;
-        x += geom_detector.fFASERCal_LOS_shiftX;
-        y += geom_detector.fFASERCal_LOS_shiftY;
+        // i needed to comment the following lines to match the positions correctly
+        //x += geom_detector.fFASERCal_LOS_shiftX;
+        //y += geom_detector.fFASERCal_LOS_shiftY;
         double z = ilayer * geom_detector.fSandwichLength + geom_detector.fSandwichLength
             - (geom_detector.NRep * geom_detector.fSandwichLength) / 2.0;
         if(icopy == 1) z -= geom_detector.fAirGap;
-        return ROOT::Math::XYZVector(x, y, z);
+        
+        ROOT::Math::XYZVector localPos(x, y, z);
+        return ApplyYRotationWithTGeo(localPos, geom_detector.fTiltAngleY /*rad*/, 0.0, 0.0, 0.0);
     } else {
         std::cerr << " TcalEvent::getChannelXYZfromID - hit of unknown type" << hittype << std::endl;
         return ROOT::Math::XYZVector(0,0,0);
     }
 }
 
-ROOT::Math::XYZVector TcalEvent::getChannelXYZRearCal(int moduleID) const {
+ROOT::Math::XYZVector TcalEvent::getChannelXYZRearCal(int moduleID) const { // the following works well
     double x = (moduleID%geom_detector.rearCalNxy - geom_detector.rearCalNxy/2.0 + 0.5)*geom_detector.rearCalSizeX;
     double y = (moduleID/geom_detector.rearCalNxy - geom_detector.rearCalNxy/2.0 + 0.5)*geom_detector.rearCalSizeY;
     x += geom_detector.fFASERCal_LOS_shiftX;
     y += geom_detector.fFASERCal_LOS_shiftY;
     double z = geom_detector.rearCalLocZ;
-    return ROOT::Math::XYZVector(x, y, z);
+    return ApplyYRotationWithTGeo(ROOT::Math::XYZVector(x,y,z), geom_detector.fTiltAngleY /*rad*/, 0.0, 0.0, 0.0);
 }
 
 ROOT::Math::XYZVector TcalEvent::getChannelXYZRearHCal(int moduleID) const
@@ -330,20 +435,25 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZRearHCal(int moduleID) const
     //    std::cout << "HCal moduleID " << moduleID << " ix " << ix << " iy " << iy << " iz " << iz << " x " << x << " y " << y << " z " << z << std::endl;
 
     // Compute local coordinates
-    double x = (ix - geom_detector.rearHCalNxy / 2.0 + 0.5) * geom_detector.rearHCalVoxelSize;
-    double y = (iy - geom_detector.rearHCalNxy / 2.0 + 0.5) * geom_detector.rearHCalVoxelSize;
-    double z = (iz - geom_detector.rearHCalNlayer / 2.0 + 0.5) * geom_detector.rearHCalSizeZ;
+    // i need to use shift in LoS geom_detector.fFASERCal_LOS_shiftX; geom_detector.fFASERCal_LOS_shiftY; as in rearCal !!
+    double x = geom_detector.fFASERCal_LOS_shiftX + (ix - geom_detector.rearHCalNxy / 2.0 + 0.5) * geom_detector.rearHCalVoxelSize;
+    double y = geom_detector.fFASERCal_LOS_shiftY + (iy - geom_detector.rearHCalNxy / 2.0 + 0.5) * geom_detector.rearHCalVoxelSize;
+    double z = geom_detector.rearHCalLocZ + (iz - geom_detector.rearHCalNlayer / 2.0 + 0.5) * geom_detector.rearHCalSizeZ;
+    std::cout << "HCal moduleID " << moduleID << " ix " << ix << " iy " << iy << " iz " << iz << " x " << x << " y " << y << " z " << z << " " << geom_detector.rearHCalLocZ << " " << geom_detector.rearHCalNlayer << " " << geom_detector.rearHCalVoxelSize << std::endl;
+    
+    ROOT::Math::XYZVector localPos(x, y, z);
 
     // Get the transformation matrix of the HCAL mother node
     TGeoMatrix *matrix = frearHCalTGeomNode->GetMatrix();
     // Transform the point using the matrix
-    double local[3] = {x / 10.0, y / 10.0, z / 10.0}; // Convert mm to cm for TGeo
+    double local[3] = {localPos.x() / 10.0, localPos.y() / 10.0, localPos.z() / 10.0}; // Convert mm to cm for TGeo
     double global[3] = {0, 0, 0};
     matrix->LocalToMaster(local, global);
-    //std::cout << "Local (" << local[0] << ", " << local[1] << ", " << local[2] << ") -> Global ("
-    //          << global[0] << ", " << global[1] << ", " << global[2] << ")" << std::endl;
+    ROOT::Math::XYZVector globalPos(global[0] * 10.0, global[1] * 10.0, global[2] * 10.0);
+    std::cout << "Local (" << local[0] << ", " << local[1] << ", " << local[2] << ") -> Global ("
+              << global[0] << ", " << global[1] << ", " << global[2] << ")" << std::endl;
 
-    return ROOT::Math::XYZVector(global[0] * 10.0, global[1] * 10.0, global[2] * 10.0);
+    return ApplyYRotationWithTGeo(globalPos, geom_detector.fTiltAngleY /*rad*/, 0.0, 0.0, 0.0); // i still need to rotate to world frame
 }
 
 void TcalEvent::fillTree()
@@ -351,6 +461,25 @@ void TcalEvent::fillTree()
     m_rootFile->cd();
     m_calEventTree->Fill();
 }
+
+void TcalEvent::DumpFaserCalNodeCandidates() const {
+    if (gGeoManager == nullptr) return;
+    TGeoVolume* top = gGeoManager->GetTopVolume();
+    TGeoIterator it(top);
+    TGeoNode* n;
+    std::cout << "[TcalEvent] Listing candidate nodes (name : volume) and matrix info:\n";
+    while ((n = (TGeoNode*)it.Next())) {
+        if (!n || !n->GetVolume()) continue;
+        std::string vname = n->GetVolume()->GetName();
+        if (vname.find("Container") != std::string::npos || vname.find("rear") != std::string::npos || vname.find("HCal") != std::string::npos) {
+            std::cout << " node: " << n->GetName() << "  volume: " << vname << "  ndaughters=" << n->GetNdaughters() << "\n";
+            if (n->GetMatrix()) {
+                n->GetMatrix()->Print();
+            }
+        }
+    }
+}
+
 
 ClassImp(DigitizedTrack)
 

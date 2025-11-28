@@ -1,0 +1,9 @@
+method,param,entries,mean_bias,sigma
+genfit,p_rel,6387,0.167716,0.360571
+taubin,p_rel,6286,0.204509,0.295755
+genfit,px_abs,6387,0.559908,4.90979
+taubin,px_abs,6286,-1.9239,6.38187
+genfit,py_abs,6387,-0.214871,5.61463
+taubin,py_abs,6286,1.45537,5.99546
+genfit,pz_abs,6387,24.0671,34.0994
+taubin,pz_abs,6286,22.7111,35.5045

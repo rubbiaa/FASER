@@ -57,6 +57,62 @@ void DBScan::scan(std::vector<Point>& points, double eps, int minPts) {
     }
 }
 
+//////////////////////
+// ---------- 3D DBSCAN ----------
+
+
+double DBScan::distance3D(const Point3D& p1, const Point3D& p2) {
+  return std::sqrt(std::pow(p1.x - p2.x, 2) + std::pow(p1.y - p2.y, 2) + std::pow(p1.z - p2.z, 2));
+}
+
+
+std::vector<int> DBScan::regionQuery3D(const std::vector<Point3D>& points, int index, double eps) {
+  std::vector<int> neighbors;
+  for (int i = 0; i < points.size(); ++i) {
+    if (distance3D(points[index], points[i]) <= eps) {
+      neighbors.push_back(i);
+    }
+  }
+  return neighbors;
+}
+
+void DBScan::expandCluster3D(std::vector<Point3D>& points, int index, std::vector<int>& neighbors, int clusterID, double eps, int minPts) {
+  points[index].clusterID = clusterID;
+  int i = 0;
+  while (i < neighbors.size()) {
+    int neighborIndex = neighbors[i];
+    if (!points[neighborIndex].visited) {
+      points[neighborIndex].visited = true;
+      std::vector<int> newNeighbors = regionQuery3D(points, neighborIndex, eps);
+      if (newNeighbors.size() >= minPts) {
+        neighbors.insert(neighbors.end(), newNeighbors.begin(), newNeighbors.end());
+      }
+    }
+    if (points[neighborIndex].clusterID == -1) {
+      points[neighborIndex].clusterID = clusterID;
+    }
+    ++i;
+  }
+}
+
+void DBScan::scan3D(std::vector<Point3D>& points, double eps, int minPts) {
+  int clusterID = 0;
+  for (int i = 0; i < points.size(); ++i) {
+    if (points[i].visited) continue;
+
+    points[i].visited = true;
+    std::vector<int> neighbors = regionQuery3D(points, i, eps);
+
+    if (neighbors.size() < minPts) {
+      points[i].clusterID = 0;
+    } else {
+      ++clusterID;
+      expandCluster3D(points, i, neighbors, clusterID, eps, minPts);
+    }
+  }
+}
+
+
 #if 0
 int main() {
     // Example points
