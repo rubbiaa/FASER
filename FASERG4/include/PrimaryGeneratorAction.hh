@@ -40,14 +40,8 @@ public:
   
   void SetRandomFlag(G4bool flag);
 
-  // added by Umut
   void SetWantMuonBackground(G4bool flag) { fWantMuonBackground = flag; }
   void SetWantSingleParticle(G4bool flag) { fWantSingleParticle = flag; }
-  
-  // added by Umut
-  void SetWantMuonBackground(G4bool flag) { fWantMuonBackground = flag; }
-  void SetWantSingleParticle(G4bool flag) { fWantSingleParticle = flag; }
- 
   
   void SetROOTInputFileName(G4String name); ///< Set the name of the ROOT input file for the primary particles
   G4String fROOTInputFileName = "def";    ///< Name of the ROOT input file for the primary particles - default value
@@ -62,10 +56,7 @@ public:
 
   const TPOEvent* GetTPOEvent() const { return &fTPOEvent; };
 
-  // added by Umut: set single-particle momentum (GeV) from messenger
-  void SetSingleParticleMomentum(double gev);
-  
-  // added by Umut: set single-particle momentum (GeV) from messenger
+  // set single-particle momentum (GeV) from messenger
   void SetSingleParticleMomentum(double gev);
 
 private:

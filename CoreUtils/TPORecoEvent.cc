@@ -3423,8 +3423,3 @@ void TPORecoEvent::Reconstruct3DClusters()
     }
    }
 }
-<<<<<<< HEAD
-=======
-
-//////
->>>>>>> f8654a26e5d708a879e2b38409e3ef556e554576

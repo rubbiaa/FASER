@@ -37,7 +37,7 @@ PrimaryGeneratorAction::PrimaryGeneratorAction(ParticleManager* f_particleManage
 	}
 }
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-//Umut::adding for single particle momentum command
+//adding for single particle momentum command
 void PrimaryGeneratorAction::SetSingleParticleMomentum(double gev) {
 	// Input is expected in GeV (UI command has default unit GeV). 
 	G4cout << "PrimaryGeneratorAction::SetSingleParticleMomentum(" << gev << " GeV) called." << G4endl;
@@ -63,25 +63,6 @@ PrimaryGeneratorAction::~PrimaryGeneratorAction()
 	if(m_ROOTInputFile != nullptr) m_ROOTInputFile->Close();
 	delete fMessenger;
   	
-}
-
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-//Umut::adding for single particle momentum command
-void PrimaryGeneratorAction::SetSingleParticleMomentum(double gev) {
-	// Input is expected in GeV (UI command has default unit GeV). 
-	G4cout << "PrimaryGeneratorAction::SetSingleParticleMomentum(" << gev << " GeV) called." << G4endl;
-	if (std::isnan(gev) || std::isinf(gev)) {
-		G4cout << "  Warning: invalid momentum provided, keeping previous value: " << fSingleParticleMomentum << " GeV" << G4endl;
-		return;
-	}
-	// to avoid accidental unit mistakes (e.g. giving MeV without units).
-	const double kMaxMomentumGeV = 1e6;
-	if (std::abs(gev) > kMaxMomentumGeV) {
-		G4cout << "  Warning: requested single-particle momentum is very large (" << gev << " GeV). Clamping to " << kMaxMomentumGeV << " GeV." << G4endl;
-		fSingleParticleMomentum = (gev > 0) ? kMaxMomentumGeV : -kMaxMomentumGeV;
-	} else {
-		fSingleParticleMomentum = gev;
-	}
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
