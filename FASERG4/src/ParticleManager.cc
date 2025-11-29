@@ -50,6 +50,17 @@ void ParticleManager::processParticleHit(G4Track *track, XYZVector const& positi
 
 		const DetectorConstruction *detector = static_cast<const DetectorConstruction *>(G4RunManager::GetRunManager()->GetUserDetectorConstruction());
 		const XYZVector pos = local_position;
+		//////////
+    	// Added by Umut: Check that the local position is within expected bounds
+		double halfX = detector->fRearHCalSizeX/2.0;
+    	double halfY = detector->fRearHCalSizeY/2.0;
+    	if (pos.X() < -halfX || pos.X() > halfX || pos.Y() < -halfY || pos.Y() > halfY) {
+        	G4cout << "[WARN] rearHCAL 'local_position' out of local bounds: "
+               << "pos=(" << pos.X() << "," << pos.Y() << "," << pos.Z() << ") "
+               << " expected X in [" << -halfX << "," << halfX << "]"
+               << " Y in [" << -halfY << "," << halfY << "]" << G4endl;
+    	}
+		/////////
 		G4long moduleID = detector->getHCalChannelIDfromXYZ(CopyNumber, pos);
 
 		auto it = std::find_if(fTcalEvent->rearHCalDeposit.begin(), fTcalEvent->rearHCalDeposit.end(),
