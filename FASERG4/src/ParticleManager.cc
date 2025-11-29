@@ -52,17 +52,102 @@ void ParticleManager::processParticleHit(G4Track *track, XYZVector const& positi
 		const XYZVector pos = local_position;
 		//////////
     	// Added by Umut: Check that the local position is within expected bounds
-		double halfX = detector->fRearHCalSizeX/2.0;
-    	double halfY = detector->fRearHCalSizeY/2.0;
-    	if (pos.X() < -halfX || pos.X() > halfX || pos.Y() < -halfY || pos.Y() > halfY) {
-        	G4cout << "[WARN] rearHCAL 'local_position' out of local bounds: "
-               << "pos=(" << pos.X() << "," << pos.Y() << "," << pos.Z() << ") "
-               << " expected X in [" << -halfX << "," << halfX << "]"
-               << " Y in [" << -halfY << "," << halfY << "]" << G4endl;
-    	}
+		if(!m_verbose) {
+			double halfX = detector->fRearHCalSizeX/2.0;
+			double halfY = detector->fRearHCalSizeY/2.0;
+			if (pos.X() < -halfX || pos.X() > halfX || pos.Y() < -halfY || pos.Y() > halfY) {
+				G4cout << "[WARN] rearHCAL 'local_position' out of local bounds: "
+				<< "pos=(" << pos.X() << "," << pos.Y() << "," << pos.Z() << ") "
+				<< " expected X in [" << -halfX << "," << halfX << "]"
+				<< " Y in [" << -halfY << "," << halfY << "]" << G4endl;
+			}
+		}
 		/////////
 		G4long moduleID = detector->getHCalChannelIDfromXYZ(CopyNumber, pos);
+		// DEBUG DUMP for moduleID == 0 (ix=0, iy=0, iz=0)
+        if (moduleID == 0 && m_verbose) {
+            auto &g = fTcalEvent->geom_detector;
+            // Decode indices from moduleID (ix + iy*1000 + iz*1000000)
+            long ix = moduleID % 1000;
+            long iy = (moduleID / 1000) % 1000;
+            long iz = (moduleID / 1000000LL) % 1000;
 
+            // Expected local center using both shift conventions
+			double expX_FASER = g.fFASERCal_LOS_shiftX + (ix - g.rearHCalNxy/2.0 + 0.5) * g.rearHCalVoxelSize;
+			double expY_FASER = g.fFASERCal_LOS_shiftY + (iy - g.rearHCalNxy/2.0 + 0.5) * g.rearHCalVoxelSize;
+			double expZ       = g.rearHCalLocZ + (iz - g.rearHCalNlayer/2.0 + 0.5) * g.rearHCalSizeZ;
+
+			double expX_rear  = g.frearHCal_LOS_shiftX + (ix - g.rearHCalNxy/2.0 + 0.5) * g.rearHCalVoxelSize;
+			double expY_rear  = g.frearHCal_LOS_shiftY + (iy - g.rearHCalNxy/2.0 + 0.5) * g.rearHCalVoxelSize;
+
+			// Deltas of the (supposed) local hit vs expected centers
+			double dXFASER = pos.X() - expX_FASER;
+			double dYFASER = pos.Y() - expY_FASER;
+			double dXrear  = pos.X() - expX_rear;
+			double dYrear  = pos.Y() - expY_rear;
+
+			// Bounds check for local
+			double halfX = g.rearHCalSizeX/2.0;
+			double halfY = g.rearHCalSizeY/2.0;
+			bool inLocalBounds = (pos.X() >= -halfX && pos.X() <= halfX &&
+								pos.Y() >= -halfY && pos.Y() <= halfY);
+
+			// World position from Geant4 tracking step
+			const G4ThreeVector worldPosG4(position.x(), position.y(), position.z());
+
+			// Simple Y-tilt rotation (det-frame -> world) using rear HCal shift center
+			double theta = g.fTiltAngleY;   // radians
+			double c = std::cos(-theta);    // match TcalEvent’s sign convention
+			double s = std::sin(-theta);
+			double x_det = expX_rear;
+			double y_det = expY_rear;
+			double z_det = expZ;
+			double x_rot =  c * x_det + s * z_det;
+			double z_rot = -s * x_det + c * z_det;
+			double y_rot =  y_det;
+
+			// World position per display reconstruction (TcalEvent): matrix if available, else Y-tilt helper
+			ROOT::Math::XYZVector worldFromTcal = fTcalEvent->getChannelXYZRearHCal(moduleID);
+
+			// Deltas to the Geant4 world
+			double dWx_rot = worldPosG4.x()/mm - x_rot;
+			double dWy_rot = worldPosG4.y()/mm - y_rot;
+			double dWz_rot = worldPosG4.z()/mm - z_rot;
+
+			double dWx_tcal = worldPosG4.x()/mm - worldFromTcal.x();
+			double dWy_tcal = worldPosG4.y()/mm - worldFromTcal.y();
+			double dWz_tcal = worldPosG4.z()/mm - worldFromTcal.z();
+
+			G4cout
+			<< "\n[HCal DEBUG] moduleID=" << moduleID
+			<< " ix=" << ix << " iy=" << iy << " iz=" << iz << "\n"
+			<< "  Region ranges: ix[0," << (g.rearHCalNxy-1) << "]"
+			<< " iy[0," << (g.rearHCalNxy-1) << "]"
+			<< " iz[0," << (g.rearHCalNlayer-1) << "]\n"
+			<< "  SizeX=" << g.rearHCalSizeX << " mm  SizeY=" << g.rearHCalSizeY << " mm"
+			<< "  VoxelSize=" << g.rearHCalVoxelSize << " mm  LayerThickness=" << g.rearHCalSizeZ << " mm\n"
+			<< "  CopyNumber(=iz from SD)=" << CopyNumber << "  MotherCopy=" << MotherCopyNumber
+			<< "  Volume=" << VolumeName << "\n"
+			<< "  LocalPos (from SD)  = (" << pos.X() << ", " << pos.Y() << ", " << pos.Z() << ") mm"
+			<< "  inLocalBounds=" << (inLocalBounds ? "yes" : "NO") << "\n"
+			<< "  ExpectedLocal(FASERCalLOS)= (" << expX_FASER << ", " << expY_FASER << ", " << expZ << ") mm"
+			<< "  d=( " << dXFASER << ", " << dYFASER << " )\n"
+			<< "  ExpectedLocal(rearHCalLOS)= (" << expX_rear  << ", " << expY_rear  << ", " << expZ << ") mm"
+			<< "  d=( " << dXrear  << ", " << dYrear  << " )\n"
+			<< "  WorldPos (G4 step)         = (" << worldPosG4.x()/mm << ", "
+													<< worldPosG4.y()/mm << ", "
+													<< worldPosG4.z()/mm << ") mm\n"
+			<< "  World (Y-tilt on det ctr)  = (" << x_rot << ", " << y_rot << ", " << z_rot << ") mm"
+			<< "  Δ(G4 - Y-tilt)=(" << dWx_rot << ", " << dWy_rot << ", " << dWz_rot << ") mm\n"
+			<< "  World (TcalEvent recon)    = (" << worldFromTcal.x() << ", "
+													<< worldFromTcal.y() << ", "
+													<< worldFromTcal.z() << ") mm"
+			<< "  Δ(G4 - Tcal)=(" << dWx_tcal << ", " << dWy_tcal << ", " << dWz_tcal << ") mm\n"
+			<< "  Note: TcalEvent uses TGeo matrix if available; else a Y-tilt fallback.\n"
+			<< "--------------------------------------------------------------\n"
+			<< G4endl;
+
+        }
 		auto it = std::find_if(fTcalEvent->rearHCalDeposit.begin(), fTcalEvent->rearHCalDeposit.end(),
                        [moduleID](const TcalEvent::REARCALDEPOSIT& deposit) {
                            return deposit.moduleID == moduleID;
