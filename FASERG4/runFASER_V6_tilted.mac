@@ -1,0 +1,45 @@
+# Macro example
+# V6 geometry
+/FASER/scint/material PVT
+/FASER/scint/lightYield 12000.
+/FASER/scint/sizeX 48 cm
+/FASER/scint/sizeY 48 cm
+/FASER/scint/sizeZ 20 cm
+/FASER/scint/voxel 10 mm
+/FASER/targetW/sizeX 48 cm
+/FASER/targetW/sizeY 48 cm
+#/FASER/targetW/sizeZ 1 mm
+/FASER/targetW/sizeZ 1 mm
+/FASER/layers 10
+# line of sight shift (x negative, y positive to go off-axis)
+/FASER/LOS/shiftX 22 cm
+/FASER/LOS/shiftY 17 cm
+/FASER/tiltY -5 deg
+#/FASER/LOS/shiftX 0 cm
+#/FASER/LOS/shiftY 0 cm
+#
+/tracking/verbose 0
+#/process/optical/processActivation Cerenkov false
+/run/numberOfThreads 1
+/run/initialize
+#/generator/rootinputfilename /home/rubbiaa/FASER/ConvertGENIE/FASERMC-PO-Run135-0_2253416.root
+#/generator/rootinputfilename /home/rubbiaa/FASER/ConvertGENIE/FASERMC-PO-Run133-0_1129237.root
+#/generator/rootinputfilename /home/rubbiaa/FASERV6/FASER/ConvertGENIE/FASERMC-PO-Run202-0_260783.root
+#/generator/rootinputfilename /home/rubbiaa/FASERV6/FASER/ConvertGENIE/FASERMC-PO-Run320-0_280365.root
+#/generator/rootinputfilename /home/rubbiaa/FASERV6/FASER/ConvertGENIE/FASERMC-PO-Run310-0_214979.root
+#/generator/rootinputfilename /home/rubbiaa/FASERV6/FASER/ConvertGENIE/FASERMC-PO-Run300-0_162637.root
+#/generator/rootinputfilename /home/rubbiaa/FASERV6/FASER/ConvertGENIE/FASERMC-PO-Run301-0_1626589.root
+/generator/rootinputfilename /home/rubbiaa/FASERV6/TILTED/FASER/ConvertGENIE/FASERMC-PO-Run500-0_99261.root
+/generator/singleMomentum 100 GeV
+/generator/startevent 0
+/run/beamOn 100
+#/run/beamOn 175313
+#/run/beamOn 74064
+
+
+
+
+
+
+
+

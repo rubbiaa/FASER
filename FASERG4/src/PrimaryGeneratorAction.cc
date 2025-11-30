@@ -186,7 +186,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 	// single particle gun mode
 	if(want_single_particle) {
 
-		int popt = 3;
+		int popt = 2;
 		// 0 = electron
 		// 1 = photon
 		// 2 = muon
@@ -199,8 +199,9 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 		fTPOEvent.clear_event();
 		fTPOEvent.POs.clear();
 		fTPOEvent.setVtxTarget(TPOEvent::kVtx_in_Scint);
-		vtxpos.SetX(0);
-		vtxpos.SetY(0);
+		// set vertex position for single particle gun (global coordinates so must adjust for tilted detector)
+		vtxpos.SetX(240.0);
+		vtxpos.SetY(240.0);
 		vtxpos.SetZ(-800); // in mm, in front of the detector
 		fTPOEvent.setPrimaryVtx(vtxpos.x(), vtxpos.y(), vtxpos.z());
 		fParticleManager->setVertexInformation(vtxpos);

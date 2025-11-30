@@ -57,13 +57,19 @@ G4bool TrackerSD::ProcessHits(G4Step* aStep, G4TouchableHistory*)
 
 		XYZVector local_position = XYZVector(touchable->GetHistory()->GetTopTransform().TransformPoint(
 		    aStep->GetPreStepPoint()->GetPosition()));
+	//		std::cout << " Local position: " << local_position.X() << ", " << local_position.Y() << ", " << local_position.Z() << std::endl;
 	
 		G4int motherCopyNumber = -1;
         if (touchable->GetHistoryDepth() > 0) {
             motherCopyNumber = touchable->GetCopyNumber(1); // 1 indicates one level up
-			local_position = XYZVector(touchable->GetHistory()->GetTransform(1)
+			int stepsUp = 1; // go two levels up to get to the top volume since everything is in the detector assembly
+			if(volumeName == "rearHCalscintillatorLogical") {
+				stepsUp = 2;
+			}
+			local_position = XYZVector(touchable->GetHistory()->GetTransform(stepsUp)
 			.TransformPoint(
 				aStep->GetPreStepPoint()->GetPosition()));
+	//		std::cout << " Mother Local position: " << local_position.X() << ", " << local_position.Y() << ", " << local_position.Z() << std::endl;
         }
 
 		// std::cout << process << std::endl;
