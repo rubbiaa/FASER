@@ -523,7 +523,7 @@ void MyMainFrame::Draw_event() {
     // draw rear Muon Cal hits
     if (true)
     {
-        ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZRearHCal(41); // rear mucal is behind rear hcal module 41
+       // ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZRearHCal(41); // rear mucal is behind rear hcal module 41
         double zBox = fTcalEvent->rearMuCalDeposit * 10.0;                      // 1mm is 100 MeV
         #if 0
         TGeoShape *box = new TGeoBBox("rearmucalbox", fTcalEvent->geom_detector.rearHCalSizeX / 20.0,

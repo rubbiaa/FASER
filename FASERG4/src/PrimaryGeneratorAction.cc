@@ -37,7 +37,7 @@ PrimaryGeneratorAction::PrimaryGeneratorAction(ParticleManager* f_particleManage
 	}
 }
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-//Umut::adding for single particle momentum command
+//adding for single particle momentum command
 void PrimaryGeneratorAction::SetSingleParticleMomentum(double gev) {
 	// Input is expected in GeV (UI command has default unit GeV). 
 	G4cout << "PrimaryGeneratorAction::SetSingleParticleMomentum(" << gev << " GeV) called." << G4endl;
@@ -63,25 +63,6 @@ PrimaryGeneratorAction::~PrimaryGeneratorAction()
 	if(m_ROOTInputFile != nullptr) m_ROOTInputFile->Close();
 	delete fMessenger;
   	
-}
-
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
-//Umut::adding for single particle momentum command
-void PrimaryGeneratorAction::SetSingleParticleMomentum(double gev) {
-	// Input is expected in GeV (UI command has default unit GeV). 
-	G4cout << "PrimaryGeneratorAction::SetSingleParticleMomentum(" << gev << " GeV) called." << G4endl;
-	if (std::isnan(gev) || std::isinf(gev)) {
-		G4cout << "  Warning: invalid momentum provided, keeping previous value: " << fSingleParticleMomentum << " GeV" << G4endl;
-		return;
-	}
-	// to avoid accidental unit mistakes (e.g. giving MeV without units).
-	const double kMaxMomentumGeV = 1e6;
-	if (std::abs(gev) > kMaxMomentumGeV) {
-		G4cout << "  Warning: requested single-particle momentum is very large (" << gev << " GeV). Clamping to " << kMaxMomentumGeV << " GeV." << G4endl;
-		fSingleParticleMomentum = (gev > 0) ? kMaxMomentumGeV : -kMaxMomentumGeV;
-	} else {
-		fSingleParticleMomentum = gev;
-	}
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -205,7 +186,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 	// single particle gun mode
 	if(want_single_particle) {
 
-		int popt = 3;
+		int popt = 2;
 		// 0 = electron
 		// 1 = photon
 		// 2 = muon
@@ -218,8 +199,9 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 		fTPOEvent.clear_event();
 		fTPOEvent.POs.clear();
 		fTPOEvent.setVtxTarget(TPOEvent::kVtx_in_Scint);
-		vtxpos.SetX(0);
-		vtxpos.SetY(0);
+		// set vertex position for single particle gun (global coordinates so must adjust for tilted detector)
+		vtxpos.SetX(240.0);
+		vtxpos.SetY(240.0);
 		vtxpos.SetZ(-800); // in mm, in front of the detector
 		fTPOEvent.setPrimaryVtx(vtxpos.x(), vtxpos.y(), vtxpos.z());
 		fParticleManager->setVertexInformation(vtxpos);

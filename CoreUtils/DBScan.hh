@@ -15,16 +15,7 @@ struct Point {
     bool visited = false;
     int clusterID = -1; // -1 means not yet assigned to any cluster
 };
-// Added by Umut
-struct Point3D {
-    long ID;
-    double ehit;
-    double x, y, z;
-    int clusterID = -1;
-    bool visited = false;
-  };
 
- // Added by Umut
 struct Point3D {
     long ID;
     double ehit;
