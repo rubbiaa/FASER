@@ -186,6 +186,7 @@ public:
     struct GEOM_DETECTOR geom_detector;
 
     // TGeom declarations
+    TGeoNode *fdetectorAssemblyTGeomNode = nullptr;  //! the TGeoNode of the detector assembly mother volume
     TGeoNode *frearHCalTGeomNode = nullptr;  //! the TGeoNode of the rear HCal mother volume
     TGeoNode *frearMuSpectTGeomNode = nullptr;  //! the TGeoNode of the rear Muon Spectrometer mother volume
     std::vector<TGeoNode*> frearCalTGeomNodes;

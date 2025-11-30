@@ -20,74 +20,50 @@ TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fMuTagTracks() ,
     }
 
     // Find the TGeoNode corresponding to the rear HCal
-    /*TGeoNode *node = gGeoManager->GetTopNode();
+    TGeoNode *node = gGeoManager->GetTopNode();
     // loop over all daughters
     int ndaughters = node->GetNdaughters();
     for(int i=0; i<ndaughters; i++) {
         TGeoNode *dnode = node->GetDaughter(i);
         std::string name = dnode->GetName();
-//        std::cout << "Daughter " << i << " name: " << name << std::endl;
+        std::cout << "Daughter " << i << " name: " << name << std::endl;
+//        if(name.find("rearHCal")!=std::string::npos) {
+        if(name.find("DetectorAssembly")!=std::string::npos) {
+            fdetectorAssemblyTGeomNode = dnode;
+            TGeoMatrix *matrix = dnode->GetMatrix();
+            matrix->Print();
+            break;
+        }
+    }
+    // check if found detector assembly node
+    if(fdetectorAssemblyTGeomNode == nullptr) {
+        std::cerr << "FATAL error: Could not find DetectorAssembly TGeoNode in Geometry!" << std::endl;
+        throw std::runtime_error("Could not find DetectorAssembly TGeoNode");
+    }
+
+    // now iterate over all nodes to find rearHCal node
+    ndaughters = fdetectorAssemblyTGeomNode->GetNdaughters();
+    for(int i=0; i<ndaughters; i++) {
+        TGeoNode *dnode = fdetectorAssemblyTGeomNode->GetDaughter(i);
+        std::string name = dnode->GetName();
+        std::cout << "  Daughter " << i << " name: " << name << std::endl;
         if(name.find("rearHCal")!=std::string::npos) {
             frearHCalTGeomNode = dnode;
             TGeoMatrix *matrix = dnode->GetMatrix();
-//            matrix->Print();
+            matrix->Print();
             break;
         }
-    }*/
-   // UMUT: To solve issue with FATAL on finding rearHCal, the following introduce
-    TGeoVolume *topVol = gGeoManager->GetTopVolume();
-    if (!topVol) {
-        std::cerr << "[TcalEvent] ERROR: Top volume is null!" << std::endl;
-    } else {
-        std::cout << "[TcalEvent] Scanning geometry for rear HCal node..." << std::endl;
-
-        // Recursively iterate over ALL nodes in the geometry
-        TGeoIterator it(topVol);
-        TGeoNode *current = nullptr;
-
-        while ((current = (TGeoNode*) it.Next())) {
-            if (!current || !current->GetVolume()) continue;
-
-            std::string nodeName   = current->GetName();               // placement name
-            std::string volumeName = current->GetVolume()->GetName();  // logical volume name
-
-            if (volumeName.find("ContainerLogical") != std::string::npos) {
-                fFaserCalTGeomNode = current;
-                //std::cout << "[TcalEvent] Using FASER Calorimeter node: " << nodeName
-                //          << " (volume " << volumeName << ")" << std::endl;
-            }
-
-            if(volumeName.find("rearCalscintillatorLogical") != std::string::npos ||
-               volumeName.find("rearCalmoduleLogical") != std::string::npos ){
-                frearCalTGeomNodes.push_back(current);
-                //std::cout << "[TcalEvent] Using rear Cal node: " << nodeName
-                 //         << " (volume " << volumeName << ")" << std::endl;
-            }
-            // Debug: show candidates that look like rear/HCal
-            if (volumeName.find("rear") != std::string::npos ||
-                volumeName.find("HCal") != std::string::npos) {
-                //std::cout << "  [candidate] node=" << nodeName
-                //          << "  volume=" << volumeName << std::endl;
-            }
-
-            // *** Actual selection: pick the rear HCal volume ***
-            if (volumeName.find("rearHCalscintillatorLogical") != std::string::npos ||
-                volumeName.find("HCalContainerLogical")        != std::string::npos) {
-                frearHCalTGeomNode = current;
-                //std::cout << "[TcalEvent] Using rear HCal node: " << nodeName
-                         // << " (volume " << volumeName << ")" << std::endl;
-                //break;
-            }
-        }
-    } 
-    // if not found, fatal error
+    }
+    // check if found rearHCal node
     if(frearHCalTGeomNode == nullptr) {
         std::cerr << "FATAL error: Could not find rearHCal TGeoNode in Geometry!" << std::endl;
         throw std::runtime_error("Could not find rearHCal TGeoNode");
     }
-    TGeoNode *node = gGeoManager->GetTopNode();
+
+    // Find the TGeoNode corresponding to the rear Muon Spectrometer
+    TGeoNode *nodem = gGeoManager->GetTopNode();
     // loop over all daughters
-    int ndaughters = node->GetNdaughters();
+    ndaughters = node->GetNdaughters();
     for(int i=0; i<ndaughters; i++) {
         TGeoNode *dnode = node->GetDaughter(i);
         std::string name = dnode->GetName();
@@ -434,17 +410,18 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZRearHCal(int moduleID) const
     //    double z = geom_detector.rearHCalLocZ + iz * geom_detector.rearHCalSizeZ + geom_detector.rearHCalSizeZ/2.0;
     //    std::cout << "HCal moduleID " << moduleID << " ix " << ix << " iy " << iy << " iz " << iz << " x " << x << " y " << y << " z " << z << std::endl;
 
-    // Compute local coordinates
-    // i need to use shift in LoS geom_detector.fFASERCal_LOS_shiftX; geom_detector.fFASERCal_LOS_shiftY; as in rearCal !!
-    double x = geom_detector.fFASERCal_LOS_shiftX + (ix - geom_detector.rearHCalNxy / 2.0 + 0.5) * geom_detector.rearHCalVoxelSize;
-    double y = geom_detector.fFASERCal_LOS_shiftY + (iy - geom_detector.rearHCalNxy / 2.0 + 0.5) * geom_detector.rearHCalVoxelSize;
-    double z = geom_detector.rearHCalLocZ + (iz - geom_detector.rearHCalNlayer / 2.0 + 0.5) * geom_detector.rearHCalSizeZ;
+    // Compute local coordinates 
+    double x = (ix - geom_detector.rearHCalNxy / 2.0 + 0.5) * geom_detector.rearHCalVoxelSize;
+    double y = (iy - geom_detector.rearHCalNxy / 2.0 + 0.5) * geom_detector.rearHCalVoxelSize;
+    double z = (iz - geom_detector.rearHCalNlayer / 2.0 + 0.5) * geom_detector.rearHCalSizeZ;
     std::cout << "HCal moduleID " << moduleID << " ix " << ix << " iy " << iy << " iz " << iz << " x " << x << " y " << y << " z " << z << " " << geom_detector.rearHCalLocZ << " " << geom_detector.rearHCalNlayer << " " << geom_detector.rearHCalVoxelSize << std::endl;
     
     ROOT::Math::XYZVector localPos(x, y, z);
 
     // Get the transformation matrix of the HCAL mother node
     TGeoMatrix *matrix = frearHCalTGeomNode->GetMatrix();
+    matrix->Print();
+
     // Transform the point using the matrix
     double local[3] = {localPos.x() / 10.0, localPos.y() / 10.0, localPos.z() / 10.0}; // Convert mm to cm for TGeo
     double global[3] = {0, 0, 0};
@@ -453,7 +430,30 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZRearHCal(int moduleID) const
     std::cout << "Local (" << local[0] << ", " << local[1] << ", " << local[2] << ") -> Global ("
               << global[0] << ", " << global[1] << ", " << global[2] << ")" << std::endl;
 
-    return ApplyYRotationWithTGeo(globalPos, geom_detector.fTiltAngleY /*rad*/, 0.0, 0.0, 0.0); // i still need to rotate to world frame
+    // now go from HCAL local to the detector assembly local
+    TGeoMatrix *parentMatrix = fdetectorAssemblyTGeomNode->GetMatrix();
+    parentMatrix->Print();
+    double hcal_local[3] = {globalPos.x() / 10.0, globalPos.y() / 10.0, globalPos.z() / 10.0}; // Convert mm to cm for TGeo
+    double hcal_global[3] = {0, 0, 0};
+    parentMatrix->LocalToMaster(hcal_local, hcal_global);
+
+    ROOT::Math::XYZVector finalGlobalPos(hcal_global[0] * 10.0, hcal_global[1] * 10.0, hcal_global[2] * 10.0);
+    std::cout << "HCal Local (" << hcal_local[0] << ", " << hcal_local[1] << ", " << hcal_local[2] << ") -> World ("
+              << hcal_global[0] << ", " << hcal_global[1] << ", " << hcal_global[2] << ")" << std::endl;    
+
+/*    // now go from detector assembly local to world
+    TGeoMatrix *worldMatrix = fdetectorAssemblyTGeomNode->GetMatrix();
+   // worldMatrix->Inverse();
+    worldMatrix->Print(); **/
+    double assembly_local[3] = {hcal_global[0], hcal_global[1], hcal_global[2]}; // Convert mm to cm for TGeo
+    double assembly_global[3] = {assembly_local[0], assembly_local[1], assembly_local[2]};
+    //worldMatrix->LocalToMaster(assembly_local, assembly_global);
+
+    ROOT::Math::XYZVector worldGlobalPos(assembly_global[0] * 10.0, assembly_global[1] * 10.0, assembly_global[2] * 10.0);
+    std::cout << "Detector Assembly Local (" << assembly_local[0] << ", " << assembly_local[1] << ", " << assembly_local[2] << ") -> World ("
+              << assembly_global[0] << ", " << assembly_global[1] << ", " << assembly_global[2] << ")" << std::endl;
+
+    return worldGlobalPos;
 }
 
 void TcalEvent::fillTree()
