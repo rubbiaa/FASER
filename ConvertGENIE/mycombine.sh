@@ -1,0 +1,3 @@
+./CombineFluxes -o FASERCal_tilted_5deg_1abInv_500.gfaser.root FASERCal_tilted_5deg__1abInv_charm.500.gfaser.root FASERCal_tilted_5deg__1abInv_light.500.gfaser.root
+./CombineFluxes -o FASERCal_tilted_0deg_Los82_17_1abInv_501.gfaser.root FASERCal_tilted_0deg_Los82_17_1abInv_charm.501.gfaser.root FASERCal_tilted_0deg_Los82_17_1abInv_light.501.gfaser.root
+./CombineFluxes -o FASERCal_tilted_2deg_Los50_17_1abInv_502.gfaser.root FASERCal_tilted_2deg_Los50_17_1abInv_charm.502.gfaser.root FASERCal_tilted_2deg_Los50_17_1abInv_light.502.gfaser.root
