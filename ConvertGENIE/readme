@@ -1,0 +1,33 @@
+
+
+
+root -l -b -q 'dumpPOEvents.C("FASERMC-PO-Run500-0_99261.root",5,true,"numuCC,nueCC")' | head -n 80
+
+
+Usage examples:
+
+Dump first 8 numuCC events:
+root -l -b -q 'dumpPOEvents.C("FASERMC-PO-Run500-0_99261.root",8,true,"numuCC")'
+
+Dump up to 5 nueCC or numuCC (summary only, no particle list):
+root -l -b -q 'dumpPOEvents.C("FASERMC-PO-Run500-0_99261.root",5,false,"nueCC,numuCC")'
+
+Dump 10 events of any type (no filter):
+root -l -b -q 'dumpPOEvents.C("FASERMC-PO-Run500-0_99261.root",10,true,"")'
+
+Filter tokens accepted are the strings returned by reaction_desc():
+nueCC, numuCC, nutauCC, antinueCC, antinumuCC, antinutauCC, nuNC, nuES.
+
+
+
+
+root -l -b -q 'plotPO.C("FASERMC-PO-Run500-0_99261.root")'
+getting the following
+POEventNuE.pdf
+POEventSummary.pdf
+POEventSummary.root
+POEventVertex.pdf
+
+
+
+
