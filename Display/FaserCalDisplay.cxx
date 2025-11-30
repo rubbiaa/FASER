@@ -3035,9 +3035,22 @@ void FaserCalDisplay::LoadAllEvents()
             hitVolume->SetLineColor(kOrange);
         else
             hitVolume->SetLineColor(kRed);
-      TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0,
-                                                  (position.Y()) / 10.0, (position.Z()+ zBox / 2.0) / 10.0);
-      rearhcal->AddNode(hitVolume, it.moduleID, trans);
+      // --- rotation for the tilt ---
+      static TGeoRotation rot;
+      static bool rotInit = false;
+      if (!rotInit) {
+          double thetaY = fTcalEvent->geom_detector.fTiltAngleY; // radians
+          double theta_deg = -thetaY * 180.0 / M_PI;
+          rot.RotateY(theta_deg);
+          rotInit = true;
+      }
+      double x = position.X() / 10.0;
+      double y = position.Y() / 10.0;
+      double z = (position.Z() + zBox / 2.0) / 10.0;
+
+      // combine translation + rotation
+      TGeoCombiTrans *tr = new TGeoCombiTrans(x, y, z, &rot);
+      rearhcal->AddNode(hitVolume, it.moduleID, tr);
     }
     // rearMuCAL
    /*
@@ -3103,13 +3116,14 @@ void FaserCalDisplay::LoadAllEvents()
 	      TGeoNode* node = rearhcal->GetNode(i);
 	      if (!node) continue;
 	      TGeoVolume* vol = node->GetVolume();
-	      TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
-        if (vol && trans) 
+	      //TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
+        TGeoMatrix* mat = node->GetMatrix();
+        if (vol && mat) 
         {
           TEveGeoShape* eveShape = new TEveGeoShape(vol->GetName());
           eveShape->SetShape(vol->GetShape());
           eveShape->SetMainColor(vol->GetLineColor());
-          eveShape->SetTransMatrix(*trans);
+          eveShape->SetTransMatrix(*mat);
           rearhcalList->AddElement(eveShape);
         }
       }
