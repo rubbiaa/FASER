@@ -140,6 +140,12 @@ int main(int argc, char **argv)
     TH2D *h_xz_ahcal  = new TH2D("h_xz_ahcal",  "x vs z (AHCAL);z [mm];x [mm]",                       200, -3000., 7000., 100, -2000., 2000.);
     TH2D *h_xz_muspec = new TH2D("h_xz_muspec", "x vs z (MuonSpec);z [mm];x [mm]",                    200, -3000., 7000., 100, -2000., 2000.);
 
+    // XY plots (transverse view)
+    TH2D *h_xy_all      = new TH2D("h_xy_all",      "x vs y (all);x [mm];y [mm]", 100, -500., 1500., 100, -500., 1500.);
+    TH2D *h_xy_3dcal    = new TH2D("h_xy_3dcal",    "x vs y (3DCAL);x [mm];y [mm]", 100, -500., 1500., 100, -500., 1500.);
+    TH2D *h_xy_ecal     = new TH2D("h_xy_ecal",     "x vs y (rear ECAL);x [mm];y [mm]", 100, -500., 1500., 100, -500., 1500.);
+    TH2D *h_xy_ahcal    = new TH2D("h_xy_ahcal",    "x vs y (AHCAL);x [mm];y [mm]", 100, -500., 1500., 100, -500., 1500.);
+    TH2D *h_xy_muspec   = new TH2D("h_xy_muspec",   "x vs y (MuonSpec);x [mm];y [mm]", 100, -500., 1500., 100, -500., 1500.);
     // Loop over events
     for (Long64_t ievt = 0; ievt < n_entries; ++ievt)
     {
@@ -154,22 +160,27 @@ int main(int argc, char **argv)
 
         h_z_all->Fill(z_mm);
         h_xz_all->Fill(z_mm, x_mm);
+        h_xy_all->Fill(x_mm, y_mm);
 
         if (z_mm >= Z_3DCAL_MIN_MM && z_mm < Z_3DCAL_MAX_MM) {
             h_z_3dcal->Fill(z_mm);
             h_xz_3dcal->Fill(z_mm, x_mm);
+            h_xy_3dcal->Fill(x_mm, y_mm);
         }
         if (z_mm >= Z_ECAL_MIN_MM && z_mm < Z_ECAL_MAX_MM) {
             h_z_ecal->Fill(z_mm);
             h_xz_ecal->Fill(z_mm, x_mm);
+            h_xy_ecal->Fill(x_mm, y_mm);
         }
         if (z_mm >= Z_AHCAL_MIN_MM && z_mm < Z_AHCAL_MAX_MM) {
             h_z_ahcal->Fill(z_mm);
             h_xz_ahcal->Fill(z_mm, x_mm);
+            h_xy_ahcal->Fill(x_mm, y_mm);
         }
         if (z_mm >= Z_MS_MIN_MM && z_mm < Z_MS_MAX_MM) {
             h_z_muspec->Fill(z_mm);
             h_xz_muspec->Fill(z_mm, x_mm);
+            h_xy_muspec->Fill(x_mm, y_mm);
         }
     }
 
@@ -185,6 +196,11 @@ int main(int argc, char **argv)
     h_xz_ecal->Write();
     h_xz_ahcal->Write();
     h_xz_muspec->Write();
+    h_xy_all->Write();
+    h_xy_3dcal->Write();
+    h_xy_ecal->Write();
+    h_xy_ahcal->Write();
+    h_xy_muspec->Write();
     fout->Close();
 
     /*
@@ -346,6 +362,13 @@ int main(int argc, char **argv)
     savePlot2D(h_xz_ecal,     "vertex_xz_ecal.png");
     savePlot2D(h_xz_ahcal,    "vertex_xz_ahcal.png");
     savePlot2D(h_xz_muspec,   "vertex_xz_muspec.png");
+
+    // 2D x–y per-region
+    savePlot2D(h_xy_all,      "vertex_xy_all.png");
+    savePlot2D(h_xy_3dcal,    "vertex_xy_3dcal.png");
+    savePlot2D(h_xy_ecal,     "vertex_xy_ecal.png");
+    savePlot2D(h_xy_ahcal,    "vertex_xy_ahcal.png");
+    savePlot2D(h_xy_muspec,   "vertex_xy_muspec.png");
 
     std::cout << "Plots saved in ./plots/" << std::endl;
     std::cout << "Done." << std::endl;
