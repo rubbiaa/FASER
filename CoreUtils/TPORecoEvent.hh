@@ -300,7 +300,8 @@ public:
     void ReconstructRearCals();
 
     /// @brief Reconstruct the muon spectrometer's tracks
-    void ReconstructMuonSpectrometer();
+    void ReconstructMuonSpectrometer(); // added by Umut
+    void ReconstructMuonSpectrometer_obs(); 
 
     /// @brief Dump PORecs to the screen
     void Dump();

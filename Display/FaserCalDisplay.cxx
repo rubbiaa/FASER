@@ -2219,7 +2219,8 @@ void FaserCalDisplay::IdentifyTauDecayMode(const std::vector<std::pair<int, int>
        fPORecoEvent->ReconstructRearCals();
        // added for muon spectrometer
        std::cout << "Start reconstruction of muon spectrometer..." << std::endl;
-       fPORecoEvent->ReconstructMuonSpectrometer();
+       //fPORecoEvent->ReconstructMuonSpectrometer_obs();
+       fPORecoEvent->ReconstructMuonSpectrometer();  
        //fPORecoEvent->ReconstructMuonSpectrometerKasaKalman();
 
       fPORecoEvent->ReconstructClusters(0);   
