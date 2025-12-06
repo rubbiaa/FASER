@@ -363,8 +363,8 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZfromID(long ID) const
         double y = iy * geom_detector.fScintillatorVoxelSize - geom_detector.fScintillatorSizeY / 2.0
             + geom_detector.fScintillatorVoxelSize/2.0;
         // i needed to comment the following lines to match the positions correctly
-        //x += geom_detector.fFASERCal_LOS_shiftX;
-        //y += geom_detector.fFASERCal_LOS_shiftY;
+        x += geom_detector.fFASERCal_LOS_shiftX;
+        y += geom_detector.fFASERCal_LOS_shiftY;
         double z = getZofLayer(ilayer, iz);
          ROOT::Math::XYZVector localPos(x, y, z);
         return ApplyYRotationWithTGeo(localPos, geom_detector.fTiltAngleY /*rad*/, 0.0, 0.0, 0.0);
@@ -377,8 +377,8 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZfromID(long ID) const
         double x = ix * geom_detector.fSiTrackerPixelSize - geom_detector.fScintillatorSizeX / 2.0;
         double y = iy * geom_detector.fSiTrackerPixelSize - geom_detector.fScintillatorSizeY / 2.0;
         // i needed to comment the following lines to match the positions correctly
-        //x += geom_detector.fFASERCal_LOS_shiftX;
-        //y += geom_detector.fFASERCal_LOS_shiftY;
+        x += geom_detector.fFASERCal_LOS_shiftX;
+        y += geom_detector.fFASERCal_LOS_shiftY;
         double z = ilayer * geom_detector.fSandwichLength + geom_detector.fSandwichLength
             - (geom_detector.NRep * geom_detector.fSandwichLength) / 2.0;
         if(icopy == 1) z -= geom_detector.fAirGap;
