@@ -268,16 +268,16 @@ int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
         exit(1);
     }
 
-    std::cout << "[TcalEvent] TcalEvent initialized and event loaded." << std::endl;
-    std::cout << "Check LoS shifts: FASERCal ("
-              << geom_detector.fFASERCal_LOS_shiftX << ", "
-              << geom_detector.fFASERCal_LOS_shiftY << "), RearHCal ("
-              << geom_detector.frearHCal_LOS_shiftX << ", "
-              << geom_detector.frearHCal_LOS_shiftY << "), RearMuSpect ("
-              << geom_detector.fRearMuSpect_LOS_shiftX << ", "
-              << geom_detector.fRearMuSpect_LOS_shiftY << "), Tilt Angle Y ("
-              << geom_detector.fTiltAngleY << " rad)"
-              << std::endl;
+    //std::cout << "[TcalEvent] TcalEvent initialized and event loaded." << std::endl;
+    //std::cout << "Check LoS shifts: FASERCal ("
+    //          << geom_detector.fFASERCal_LOS_shiftX << ", "
+    //          << geom_detector.fFASERCal_LOS_shiftY << "), RearHCal ("
+    //          << geom_detector.frearHCal_LOS_shiftX << ", "
+    //          << geom_detector.frearHCal_LOS_shiftY << "), RearMuSpect ("
+    //          << geom_detector.fRearMuSpect_LOS_shiftX << ", "
+    //          << geom_detector.fRearMuSpect_LOS_shiftY << "), Tilt Angle Y ("
+    //          << geom_detector.fTiltAngleY << " rad)"
+    //          << std::endl;
 
     //DumpFaserCalNodeCandidates();   
 
@@ -414,7 +414,7 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZRearHCal(int moduleID) const
     double x = (ix - geom_detector.rearHCalNxy / 2.0 + 0.5) * geom_detector.rearHCalVoxelSize;
     double y = (iy - geom_detector.rearHCalNxy / 2.0 + 0.5) * geom_detector.rearHCalVoxelSize;
     double z = (iz - geom_detector.rearHCalNlayer / 2.0 + 0.5) * geom_detector.rearHCalSizeZ;
-    std::cout << "HCal moduleID " << moduleID << " ix " << ix << " iy " << iy << " iz " << iz << " x " << x << " y " << y << " z " << z << " " << geom_detector.rearHCalLocZ << " " << geom_detector.rearHCalNlayer << " " << geom_detector.rearHCalVoxelSize << std::endl;
+    //std::cout << "HCal moduleID " << moduleID << " ix " << ix << " iy " << iy << " iz " << iz << " x " << x << " y " << y << " z " << z << " " << geom_detector.rearHCalLocZ << " " << geom_detector.rearHCalNlayer << " " << geom_detector.rearHCalVoxelSize << std::endl;
     
     ROOT::Math::XYZVector localPos(x, y, z);
 
@@ -427,8 +427,8 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZRearHCal(int moduleID) const
     double global[3] = {0, 0, 0};
     matrix->LocalToMaster(local, global);
     ROOT::Math::XYZVector globalPos(global[0] * 10.0, global[1] * 10.0, global[2] * 10.0);
-    std::cout << "Local (" << local[0] << ", " << local[1] << ", " << local[2] << ") -> Global ("
-              << global[0] << ", " << global[1] << ", " << global[2] << ")" << std::endl;
+    //std::cout << "Local (" << local[0] << ", " << local[1] << ", " << local[2] << ") -> Global ("
+    //          << global[0] << ", " << global[1] << ", " << global[2] << ")" << std::endl;
 
     // now go from HCAL local to the detector assembly local
     TGeoMatrix *parentMatrix = fdetectorAssemblyTGeomNode->GetMatrix();
@@ -438,8 +438,8 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZRearHCal(int moduleID) const
     parentMatrix->LocalToMaster(hcal_local, hcal_global);
 
     ROOT::Math::XYZVector finalGlobalPos(hcal_global[0] * 10.0, hcal_global[1] * 10.0, hcal_global[2] * 10.0);
-    std::cout << "HCal Local (" << hcal_local[0] << ", " << hcal_local[1] << ", " << hcal_local[2] << ") -> World ("
-              << hcal_global[0] << ", " << hcal_global[1] << ", " << hcal_global[2] << ")" << std::endl;    
+    //std::cout << "HCal Local (" << hcal_local[0] << ", " << hcal_local[1] << ", " << hcal_local[2] << ") -> World ("
+    //          << hcal_global[0] << ", " << hcal_global[1] << ", " << hcal_global[2] << ")" << std::endl;    
 
 /*    // now go from detector assembly local to world
     TGeoMatrix *worldMatrix = fdetectorAssemblyTGeomNode->GetMatrix();
@@ -450,8 +450,8 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZRearHCal(int moduleID) const
     //worldMatrix->LocalToMaster(assembly_local, assembly_global);
 
     ROOT::Math::XYZVector worldGlobalPos(assembly_global[0] * 10.0, assembly_global[1] * 10.0, assembly_global[2] * 10.0);
-    std::cout << "Detector Assembly Local (" << assembly_local[0] << ", " << assembly_local[1] << ", " << assembly_local[2] << ") -> World ("
-              << assembly_global[0] << ", " << assembly_global[1] << ", " << assembly_global[2] << ")" << std::endl;
+   // std::cout << "Detector Assembly Local (" << assembly_local[0] << ", " << assembly_local[1] << ", " << assembly_local[2] << ") -> World ("
+   //           << assembly_global[0] << ", " << assembly_global[1] << ", " << assembly_global[2] << ")" << std::endl;
 
     return worldGlobalPos;
 }
