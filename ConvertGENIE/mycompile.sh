@@ -6,6 +6,8 @@ g++ -o plotInteractionVertices plotInteractionVertices.cc `root-config --cflags 
 
 g++ -o etaCoverage etaCoverage.cc `root-config --cflags --libs`
 
+g++ -o etaCoverage_geometry etaCoverage_geometry.cc `root-config --cflags --libs`
+
 
 rootcling -f dict.cxx -c LinkDef.h -I../CoreUtils -I${PYTHIA8}/include
 
