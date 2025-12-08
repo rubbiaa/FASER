@@ -497,8 +497,8 @@ static int getchannelIDerrorcount = 0;
 G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, int CopyNumber, int MotherCopyNumber, XYZVector const& position) const {
 
 	// position is given in the local coordinate system of the volume
-	G4double dx = position.X()+fScintillatorSizeX/2.0- fFASERCal_LOS_shiftX ;
-	G4double dy = position.Y()+fScintillatorSizeY/2.0- fFASERCal_LOS_shiftY ;
+	G4double dx = position.X()+fScintillatorSizeX/2.0-fFASERCal_LOS_shiftX ;
+	G4double dy = position.Y()+fScintillatorSizeY/2.0-fFASERCal_LOS_shiftY ;
 	G4double epsilon = 1e-4;   // avoid rounding errors at volume boundary
 	G4double dz = position.Z()+fTotalLength/2.0+epsilon;
 

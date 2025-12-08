@@ -52,7 +52,7 @@ void ParticleManager::processParticleHit(G4Track *track, XYZVector const& positi
 		const XYZVector pos = local_position;
 		//////////
     	// Added by Umut: Check that the local position is within expected bounds
-		if(!m_verbose) {
+		if(m_verbose) {
 			double halfX = detector->fRearHCalSizeX/2.0;
 			double halfY = detector->fRearHCalSizeY/2.0;
 			if (pos.X() < -halfX || pos.X() > halfX || pos.Y() < -halfY || pos.Y() > halfY) {
@@ -118,6 +118,7 @@ void ParticleManager::processParticleHit(G4Track *track, XYZVector const& positi
 			double dWy_tcal = worldPosG4.y()/mm - worldFromTcal.y();
 			double dWz_tcal = worldPosG4.z()/mm - worldFromTcal.z();
 
+			#if 0
 			G4cout
 			<< "\n[HCal DEBUG] moduleID=" << moduleID
 			<< " ix=" << ix << " iy=" << iy << " iz=" << iz << "\n"
@@ -146,6 +147,7 @@ void ParticleManager::processParticleHit(G4Track *track, XYZVector const& positi
 			<< "  Note: TcalEvent uses TGeo matrix if available; else a Y-tilt fallback.\n"
 			<< "--------------------------------------------------------------\n"
 			<< G4endl;
+			#endif
 
         }
 		auto it = std::find_if(fTcalEvent->rearHCalDeposit.begin(), fTcalEvent->rearHCalDeposit.end(),
