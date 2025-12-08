@@ -2219,7 +2219,8 @@ void FaserCalDisplay::IdentifyTauDecayMode(const std::vector<std::pair<int, int>
        fPORecoEvent->ReconstructRearCals();
        // added for muon spectrometer
        std::cout << "Start reconstruction of muon spectrometer..." << std::endl;
-       fPORecoEvent->ReconstructMuonSpectrometer();
+       //fPORecoEvent->ReconstructMuonSpectrometer_obs();
+       fPORecoEvent->ReconstructMuonSpectrometer();  
        //fPORecoEvent->ReconstructMuonSpectrometerKasaKalman();
 
       fPORecoEvent->ReconstructClusters(0);   
@@ -3024,7 +3025,8 @@ void FaserCalDisplay::LoadAllEvents()
       std::cout << "ïnside RearHCAL" << std::endl;
       std::cout << position << " " << it.energyDeposit << std::endl;
 
-      double zBox = it.energyDeposit*10; // 1mm is 100 MeV                 
+      double zBox = it.energyDeposit*10; // 1mm is 100 MeV  
+      double dz   = zBox / 20.0;                        
 	    TGeoShape *box = new TGeoBBox("rearHCALbox", fTcalEvent->geom_detector.rearHCalVoxelSize / 20.0, 
                                       fTcalEvent->geom_detector.rearHCalVoxelSize / 20.0, 
                                       zBox / 20.0);
@@ -3035,8 +3037,38 @@ void FaserCalDisplay::LoadAllEvents()
             hitVolume->SetLineColor(kOrange);
         else
             hitVolume->SetLineColor(kRed);
-      TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0,
-                                                  (position.Y()) / 10.0, (position.Z()+ zBox / 2.0) / 10.0);
+ // --- rotation for the tilt ---
+      static TGeoRotation rot;
+      static bool rotInit = false;
+      if (!rotInit) {
+          double thetaY   = fTcalEvent->geom_detector.fTiltAngleY; // rad
+           double theta_deg = -thetaY * 180.0 / M_PI;
+           rot.RotateY(theta_deg);
+          rotInit = true;
+      }
+
+      double thetaY = fTcalEvent->geom_detector.fTiltAngleY; // same angle in rad
+      double sinT = std::sin(-thetaY);
+      double cosT = std::cos(-thetaY);
+
+      // desired start point in world [cm]
+      double Px = position.X() / 10.0;
+      double Py = position.Y() / 10.0;
+      double Pz = position.Z() / 10.0;
+
+      // rotated local start point (0,0,-dz)
+      double xStartRot = -dz * sinT;
+      double zStartRot = -dz * cosT;
+
+       // translation so that start face stays fixed
+      double tx = Px - xStartRot;
+      double ty = Py;
+      double tz = Pz - zStartRot;
+
+      TGeoCombiTrans *trans = new TGeoCombiTrans(tx, ty, tz, &rot);
+      //TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0,
+      //                 (position.Y()) / 10.0, (position.Z()+ zBox / 2.0) / 10.0);
+
       rearhcal->AddNode(hitVolume, it.moduleID, trans);
     }
     // rearMuCAL
@@ -3103,7 +3135,8 @@ void FaserCalDisplay::LoadAllEvents()
 	      TGeoNode* node = rearhcal->GetNode(i);
 	      if (!node) continue;
 	      TGeoVolume* vol = node->GetVolume();
-	      TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
+	      //TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
+        TGeoMatrix* trans = node->GetMatrix();
         if (vol && trans) 
         {
           TEveGeoShape* eveShape = new TEveGeoShape(vol->GetName());

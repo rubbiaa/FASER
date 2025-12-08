@@ -156,9 +156,9 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	//G4double WorldSizeY = 2.5* sizeY;
 	//G4double WorldSizeZ = 9*m; // 1.2* NRep*(sizetargetWZ + sizeScintillatorZ);
 	// UMUT: tilt the assembly by 5° around Y, the corners move a bit in X and Z.
-	G4double WorldSizeX = 3* sizeX;
-	G4double WorldSizeY = 3* sizeY;
-	G4double WorldSizeZ = 10.*m; // 1.2* NRep*(sizetargetWZ + sizeScintillatorZ);
+	G4double WorldSizeX = 5* sizeX;
+	G4double WorldSizeY = 5* sizeY;
+	G4double WorldSizeZ = 12.*m; // 1.2* NRep*(sizetargetWZ + sizeScintillatorZ);
 	
 	G4cout << "Size of the world " << WorldSizeX << " " << WorldSizeY << " " << WorldSizeZ << " mm" << G4endl;
 
@@ -497,8 +497,8 @@ static int getchannelIDerrorcount = 0;
 G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, int CopyNumber, int MotherCopyNumber, XYZVector const& position) const {
 
 	// position is given in the local coordinate system of the volume
-	G4double dx = position.X()+fScintillatorSizeX/2.0;
-	G4double dy = position.Y()+fScintillatorSizeY/2.0;
+	G4double dx = position.X()+fScintillatorSizeX/2.0-fFASERCal_LOS_shiftX ;
+	G4double dy = position.Y()+fScintillatorSizeY/2.0-fFASERCal_LOS_shiftY ;
 	G4double epsilon = 1e-4;   // avoid rounding errors at volume boundary
 	G4double dz = position.Z()+fTotalLength/2.0+epsilon;
 
@@ -507,6 +507,8 @@ G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, 
 		getchannelIDerrorcount++;
 		if(getchannelIDerrorcount < 100) {
 			G4cerr << "ERROR : getCHannelIDfromXYZ problem dx:" << dx << " dy:" << dy << " dz:" << dz << G4endl;
+			G4cerr << "VolumeName: " << VolumeName << " CopyNumber: " << CopyNumber << " MotherCopyNumber: " << MotherCopyNumber << G4endl;
+			G4cerr << "Position: " << position.X() << ", " << position.Y() << ", " << position.Z() << G4endl;
 		}
 		return 0;
 	}

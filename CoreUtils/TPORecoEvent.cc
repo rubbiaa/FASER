@@ -3221,7 +3221,7 @@ void TPORecoEvent::ReconstructRearCals() {
 }
 
 
-void TPORecoEvent::ReconstructMuonSpectrometer() {
+void TPORecoEvent::ReconstructMuonSpectrometer_obs() { // Andre version
     // print tracks in mutag
     if(verbose>0) {
         std::cout << " ------------ MUTAG truth tracks" << std::endl;
@@ -3300,7 +3300,219 @@ void TPORecoEvent::ReconstructMuonSpectrometer() {
     }
 
 }
+// added by Umut: seems working
+void TPORecoEvent::ReconstructMuonSpectrometer() {
+    // print tracks in mutag
+    if(verbose>0) {
+        std::cout << " ------------ MUTAG truth tracks" << std::endl;
+        for (const auto &it : fTcalEvent->fMuTagTracks) {
+            std::cout << it->ftrackID << " " << it->fPDG << " Mom:" << it->mom[0].x() << " " << it->mom[0].y() << " " << it->mom[0].z() << std::endl;
+        }
+    }
+    
+    //std::vector<TMuTrack> fMuTracks;
 
+    // Build temp tracks: smear each raw hit by 100 μm (x,y) BEFORE station averaging
+    std::vector<TMuTrack> tempMuTracks;
+    {
+      std::random_device rd_hits;
+      std::mt19937 gen_hits(rd_hits());
+      std::normal_distribution<> smear_xy_mm(0.0, 0.1); // 0.1 mm = 100 μm
+      for (const auto &it : fTcalEvent->fMuTagTracks) 
+      {
+        if(it->fPDG != 13 && it->fPDG != -13) continue;
+        TMuTrack mutrack;
+        mutrack.ftrackID = it->ftrackID;
+        mutrack.fPDG = it->fPDG;
+        mutrack.layerID = it->layerID;
+        mutrack.fpos.reserve(it->pos.size());
+        for (size_t ih = 0; ih < it->pos.size(); ++ih) {
+          ROOT::Math::XYZVector p = it->pos[ih];
+          p.SetX(p.x() + smear_xy_mm(gen_hits));
+          p.SetY(p.y() + smear_xy_mm(gen_hits));
+          // z is not smeared
+          mutrack.fpos.push_back(p);
+        }
+        tempMuTracks.push_back(std::move(mutrack));
+      }
+    }
+    // now loop over tempMuTracks and create MuTrack with average hits in the same station
+    fMuTracks.clear();
+    for(auto &it : tempMuTracks) {
+        TMuTrack mutrack;
+        mutrack.ftrackID = it.ftrackID;
+        mutrack.fPDG = it.fPDG;
+        // loop over all hits and average position over hits in the same station
+        size_t nhits = it.fpos.size();
+        int currentStation = -1;
+        int nstation = 0;
+        int hitsInCurrentStation = 0;
+        for(size_t i = 0; i < nhits; i++) {
+            int stationID = it.layerID[i] / 4;
+            ROOT::Math::XYZVector pos = it.fpos[i];
+            if(stationID == currentStation) {
+                // average position with existing position in current station
+                hitsInCurrentStation++;
+                std::cout << "  Averaging hit " << hitsInCurrentStation << " in station " << stationID 
+                         << " for track " << mutrack.ftrackID << std::endl;
+                std::cout << "    Before averaging: (" << mutrack.fpos[nstation-1].x() << ", " 
+                         << mutrack.fpos[nstation-1].y() << ", " << mutrack.fpos[nstation-1].z() << ")" << std::endl;
+                std::cout << "    New hit position: (" << pos.x() << ", " << pos.y() << ", " << pos.z() << ")" << std::endl;
+                
+                mutrack.fpos[nstation-1].SetX( (mutrack.fpos[nstation-1].x()*float(hitsInCurrentStation-1) + pos.x())/float(hitsInCurrentStation) );
+                mutrack.fpos[nstation-1].SetY( (mutrack.fpos[nstation-1].y()*float(hitsInCurrentStation-1) + pos.y())/float(hitsInCurrentStation) );
+                mutrack.fpos[nstation-1].SetZ( (mutrack.fpos[nstation-1].z()*float(hitsInCurrentStation-1) + pos.z())/float(hitsInCurrentStation) );
+                
+                std::cout << "    After averaging:  (" << mutrack.fpos[nstation-1].x() << ", " 
+                         << mutrack.fpos[nstation-1].y() << ", " << mutrack.fpos[nstation-1].z() << ")" << std::endl;
+            } else {
+                // new station - add the first hit position
+                std::cout << "  New station " << stationID << " for track " << mutrack.ftrackID 
+                         << " at position (" << pos.x() << ", " << pos.y() << ", " << pos.z() << ")" << std::endl;
+                mutrack.fpos.push_back(pos);
+                mutrack.layerID.push_back(stationID * 4);
+                currentStation = stationID;
+                nstation++;
+                hitsInCurrentStation = 1;
+            }
+        }
+        fMuTracks.push_back(mutrack);        
+        // Summary of averaging for this track
+        std::cout << "Track " << mutrack.ftrackID << " averaging complete: " 
+                 << mutrack.fpos.size() << " averaged positions from " << nhits << " original hits" << std::endl;
+        for (size_t j = 0; j < mutrack.fpos.size(); j++) {
+            int stationID = mutrack.layerID[j] / 4;
+            std::cout << "  Station " << stationID << ": averaged position (" 
+                     << mutrack.fpos[j].x() << ", " << mutrack.fpos[j].y() << ", " << mutrack.fpos[j].z() << ")" << std::endl;
+        }
+    }
+    // Field unit sanity check at first hit (Tesla) --> GenFit expects kGauss; convert to Tesla for print.
+    if (!fMuTracks.empty() && !fMuTracks.front().fpos.empty()) {
+        auto &trk0 = fMuTracks.front();
+        TVector3 pos_cm(trk0.fpos.front().x()/10.0, trk0.fpos.front().y()/10.0, trk0.fpos.front().z()/10.0);
+        genfit::AbsBField* field = genfit::FieldManager::getInstance()->getField();
+        //////////(o^o)///////////
+        // Provide per-event station Zs to the magnetic field for correct gating when geometry is misaligned
+        if (auto* gfield = dynamic_cast<GenMagneticField*>(field)) {
+            std::vector<double> zs_cm;
+            // Use the first muon track's averaged station positions as representatives
+            for (const auto& p : trk0.fpos) zs_cm.push_back(p.z()/10.0);
+            std::sort(zs_cm.begin(), zs_cm.end());
+            gfield->SetEventStationZsCm(zs_cm);
+        }
+        //////////(o^o)///////////
+        TVector3 BkG = field->get(pos_cm);
+        std::cout << "[Field] First-hit field (Tesla): Bx=" << BkG.X()/10.0
+                << " By=" << BkG.Y()/10.0
+                << " Bz=" << BkG.Z()/10.0 << std::endl;
+    }
+    // No smearing here: already applied per-hit before averaging
+    // dump fMuTracks
+    // Verbosity for GenFit prints: set MS_VERBOSE=1 (or higher) in env to enable
+    int verbose = 0;
+    if (const char* v = std::getenv("MS_VERBOSE")) {
+      try { verbose = std::stoi(v); } catch (...) { verbose = 1; }
+    }
+    //////////(o^o)///////////
+    // just for diagnostic: compute sum B_perp · dl along the averaged hit polyline and a quick p estimate
+    int diag_bdl = 0; if (const char* d = std::getenv("MS_DIAG_BDL")) { try { diag_bdl = std::stoi(d); } catch(...) { diag_bdl = 1; } }
+    auto computeSigmaBdl = [&](const TMuTrack& trk) {
+      struct BdlResult { double bdl_kG_cm{0.0}; double bdl_T_m{0.0}; double theta_rad{0.0}; double p_est_GeV{0.0}; } res;
+      if (trk.fpos.size() < 2) return res;
+      genfit::AbsBField* field = genfit::FieldManager::getInstance()->getField();
+      // Deflection angle from first and last segment
+      auto vdir = [&](size_t i0, size_t i1) {
+        ROOT::Math::XYZVector d = trk.fpos[i1] - trk.fpos[i0];
+        double n = d.R();
+        if (n == 0) return ROOT::Math::XYZVector(0,0,1);
+        return (1.0/n) * d; // unit
+      };
+      ROOT::Math::XYZVector u_in  = vdir(0, 1);
+      ROOT::Math::XYZVector u_out = vdir(trk.fpos.size()-2, trk.fpos.size()-1);
+      double dot = u_in.Dot(u_out);
+      dot = std::max(-1.0, std::min(1.0, dot));
+      res.theta_rad = std::acos(dot);
+      // Integrate along polyline
+      for (size_t i = 0; i + 1 < trk.fpos.size(); ++i) {
+        ROOT::Math::XYZVector p0_mm = trk.fpos[i];
+        ROOT::Math::XYZVector p1_mm = trk.fpos[i+1];
+        ROOT::Math::XYZVector seg = p1_mm - p0_mm;
+        double seg_len_mm = seg.R();
+        if (seg_len_mm <= 0) continue;
+        int nSteps = std::max(1, (int)std::ceil(seg_len_mm / 2.0)); // about 2 mm per step
+        ROOT::Math::XYZVector u_seg = (1.0/seg_len_mm) * seg; // unit in mm basis
+        for (int s = 0; s < nSteps; ++s) {
+          double t0 = (double)s / nSteps;
+          double t1 = (double)(s+1) / nSteps;
+          // Midpoint for field query (convert to cm)
+          ROOT::Math::XYZVector pmid_mm = p0_mm + (t0 + t1)*0.5 * seg;
+          TVector3 pos_cm(pmid_mm.x()/10.0, pmid_mm.y()/10.0, pmid_mm.z()/10.0);
+          TVector3 B_kG = field->get(pos_cm);
+          // Convert to XYZVector for cross product with direction
+          ROOT::Math::XYZVector B(B_kG.X(), B_kG.Y(), B_kG.Z());
+          // v_hat ~ segment direction in mm; use same unitless direction
+          ROOT::Math::XYZVector vhat = u_seg;
+          ROOT::Math::XYZVector BcrossV = ROOT::Math::XYZVector(
+            B.y()*vhat.z() - B.z()*vhat.y(),
+            B.z()*vhat.x() - B.x()*vhat.z(),
+            B.x()*vhat.y() - B.y()*vhat.x());
+          double Bperp_kG = BcrossV.R();
+          double dl_cm = (t1 - t0) * seg_len_mm / 10.0; // step length in cm
+          res.bdl_kG_cm += Bperp_kG * dl_cm;
+        }
+      }
+      res.bdl_T_m = res.bdl_kG_cm * 1e-3; // 1 kG*cm = 1e-3 T*m
+      if (res.theta_rad > 1e-6) res.p_est_GeV = 0.3 * (res.bdl_T_m) / res.theta_rad;
+      return res;
+    };
+    std::cout << " ------------ Spectrometer reconstructed muon tracks" << std::endl;
+    for (const auto &it : fMuTracks) 
+    {
+      std::cout << it.ftrackID << " " << it.fPDG << " Smearred Positions: " << it.fpos.size() << " hits" << std::endl;
+      for (size_t i = 0; i < it.fpos.size(); i++) {
+        std::cout << "   Hit " << i << " LayerID: " << it.layerID[i] << " Pos: (" << it.fpos[i].x() << "," << it.fpos[i].y() << "," << it.fpos[i].z() << ")" << std::endl;
+      }
+    }
+
+    for(auto &it : fMuTracks) {
+        // Count unique stations for this track
+        std::set<int> stationSet;
+        for (size_t i = 0; i < it.layerID.size(); i++) {
+            int stationID = it.layerID[i] / 4;
+            stationSet.insert(stationID);
+        }
+        int nstations = stationSet.size();
+        //
+        // Fitting if we have at least 3 stations
+        bool attemptFit = (nstations >= 3);
+        
+        // Containers for both fits
+        //double g_px=0, g_py=0, g_pz=0, g_p=0, g_chi2=-1, g_ndf=0, g_pval=0; bool g_ok=false;
+        //double t_px=0, t_py=0, t_pz=0, t_p=0, t_perr=0, t_chi2=-1, t_ndf=0, t_pval=0; int t_q=0; bool t_ok=false;
+
+        if (attemptFit) {
+          std::cout << "Fitting track " << it.ftrackID << " with " << nstations << " stations..." << std::endl;
+          // Run Taubin first
+          //it.CircleFitTaubin(verbose, 0.1);
+          //t_px = it.fpx; t_py = it.fpy; t_pz = it.fpz; t_p = it.fp; t_perr = it.fpErr;
+          //t_chi2 = it.fchi2; t_ndf = it.fnDoF; t_pval = it.fpval; t_q = (int)it.fcharge;
+          //t_ok = (t_ndf > 0 ? (t_chi2 / t_ndf) < 20.0 : true);
+          // Run GenFit next
+          it.GenFitTrackFit(verbose, 0.1);
+          //g_px = it.fpx; g_py = it.fpy; g_pz = it.fpz; g_p = it.fp;
+          //g_chi2 = it.fchi2; g_ndf = it.fnDoF; g_pval = it.fpval;
+          //g_ok = (it.fpval > 0.01);
+          if (diag_bdl > 0) {
+            auto res = computeSigmaBdl(it);
+            std::cout << "[Diag] Σ B_perp·dl = " << res.bdl_T_m << " T·m (" << res.bdl_kG_cm
+                    << " kG·cm), deflection θ = " << res.theta_rad
+                    << " rad, p_est ≈ " << res.p_est_GeV << " GeV/c" << std::endl;
+          }
+        } else {
+            std::cout << "Skipping track " << it.ftrackID << " - only " << nstations << " stations (minimum 3 required)" << std::endl;
+        }   
+    }
+}
 
 /////////////////////////////////////
 // added by Umut

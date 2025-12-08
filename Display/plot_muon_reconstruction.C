@@ -16,9 +16,9 @@ void plot_muon_reconstruction() {
     gStyle->SetOptFit(1111);
     
     // Open the ROOT file
-    TFile* file = TFile::Open("build/scifi_hits.root");
+    TFile* file = TFile::Open("build/scifi_hits_all.root");
     if (!file || file->IsZombie()) {
-        std::cout << "Error: Cannot open file build/scifi_hits.root" << std::endl;
+        std::cout << "Error: Cannot open file build/scifi_hits_all.root" << std::endl;
         return;
     }
     

@@ -1,0 +1,32 @@
+Genie event generation:
+
+important in the following i have included all subdetectors: 3DCAL+ECAL+AHCAL+MuSpect
+
+[1] Franck's placement
+FASERCal_tilted_0deg_Los82_17_1abInv_charm.501.gfaser.root
+FASERMC-PO-Run501-0_14566.root
+FASERCal_tilted_0deg_Los82_17_1abInv_light.501.gfaser.root
+FASERMC-PO-Run501-0_35528.root
+
+total:
+FASERMC-PO-Run501-0_50094.root
+
+[2] intermaediate placement
+FASERCal_tilted_2deg_Los50_17_1abInv_charm.502.gfaser.root
+FASERMC-PO-Run502-0_18091.root
+FASERCal_tilted_2deg_Los50_17_1abInv_light.502.gfaser.root
+FASERMC-PO-Run502-0_61698.root
+
+total:
+FASERMC-PO-Run502-0_79789.root
+
+
+[3] baseline placement
+FASERCal_tilted_5deg__1abInv_charm.500.gfaser.root
+FASERMC-PO-Run500-0_21239.root
+FASERCal_tilted_5deg__1abInv_light.500.gfaser.root
+FASERMC-PO-Run500-0_99261.root
+
+total:
+FASERMC-PO-Run500-0_120500.root
+

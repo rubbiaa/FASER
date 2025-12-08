@@ -71,9 +71,9 @@ add_executable(DumpEventList DumpEventList.cxx)
 target_include_directories(DumpEventList PRIVATE ${ROOT_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR} ../CoreUtils ${GENFITINCDIR})
 target_link_libraries(DumpEventList FaserCalDisplay ${ROOT_LIBRARIES} genfit2)
 
-#add_executable(FaserCalMuonSpectrometer FaserCalMuonSpectrometer.cxx)
-#target_include_directories(FaserCalMuonSpectrometer PRIVATE ${ROOT_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR} ../CoreUtils ${GENFITINCDIR})
-#target_link_libraries(FaserCalMuonSpectrometer FaserCalDisplay ${ROOT_LIBRARIES} genfit2)
+add_executable(FaserCalMuonSpectrometer FaserCalMuonSpectrometer.cxx)
+target_include_directories(FaserCalMuonSpectrometer PRIVATE ${ROOT_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR} ../CoreUtils ${GENFITINCDIR})
+target_link_libraries(FaserCalMuonSpectrometer FaserCalDisplay ${ROOT_LIBRARIES} genfit2)
 
 
 add_executable(DumpMuonSpectrometer DumpMuonSpectrometer.cxx)
