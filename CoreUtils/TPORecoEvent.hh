@@ -185,7 +185,9 @@ public:
         std::vector<struct TcalEvent::REARCALDEPOSIT> rearHCalModule; //! (NO ROOT I/O) individual module deposits
     };
     struct REARCALS rearCals;
-
+    // Umut: to understand whats happening at rear hadron calorimeter
+    void DumpRearHCalTruth(int maxPrint = 200, bool uniquePerModuleAndTrack = true);
+    
     // muon tracks
     std::vector<TMuTrack> fMuTracks;
 

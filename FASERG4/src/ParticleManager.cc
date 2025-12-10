@@ -46,7 +46,7 @@ void ParticleManager::processParticleHit(G4Track *track, XYZVector const& positi
 	} else if(VolumeName == "rearHCalscintillatorLogical") {
 		if(particledef->GetPDGCharge() == 0) return;
 		// special treatment for the rear hadronic calorimeter hits
-//		std::cout << VolumeName << " copy=" << CopyNumber << " MotherCopy = " << MotherCopyNumber << std::endl;
+		std::cout << VolumeName << " copy=" << CopyNumber << " MotherCopy = " << MotherCopyNumber << std::endl;
 
 		const DetectorConstruction *detector = static_cast<const DetectorConstruction *>(G4RunManager::GetRunManager()->GetUserDetectorConstruction());
 		const XYZVector pos = local_position;
@@ -167,6 +167,20 @@ void ParticleManager::processParticleHit(G4Track *track, XYZVector const& positi
 		G4cout << "  Kinetic Energy: " << kineticEnergy / MeV << " MeV" << G4endl;
 		G4cout << "  Momentum: " << momentum / MeV << " MeV/c" << G4endl;
 		#endif
+		// Added by Umut: store hit truth info for rear HCal
+		TcalEvent::REARHCALHITTRUTH th{moduleID, track->GetTrackID(), pdg,
+                               position.x(), position.y(), position.z(),
+                               energydeposit};
+		fTcalEvent->rearHCalTruth.push_back(th);
+		// Added by Umut for debugging RearHCal truth hits
+		std::cout << " ------> RearHCalTruth: moduleID=" << moduleID 
+				  << " trackID=" << track->GetTrackID() 
+				  << " pdg=" << pdg 
+				  << " x=" << position.x() 
+				  << " y=" << position.y()
+				  << " z=" << position.z() 
+				  << " edep=" << energydeposit << std::endl;
+
 		return;
 	} else if(VolumeName == "muCalscintillatorLogical" || VolumeName == "SciFiLayerLV") {
 		// special treatment for the rear muon calorimeter hits

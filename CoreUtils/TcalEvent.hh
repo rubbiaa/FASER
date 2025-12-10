@@ -134,6 +134,15 @@ public:
         Long_t moduleID;
         Double_t energyDeposit;
     };
+    // Umut: to understand whats happening at rear hadron calorimeter
+    struct REARHCALHITTRUTH {
+        Long_t moduleID;
+        Int_t  trackID;
+        Int_t  pdg;
+        Double_t x_mm, y_mm, z_mm;   // world position (mm)
+        Double_t energyDeposit;      // MeV (per step)
+    };
+    std::vector<REARHCALHITTRUTH> rearHCalTruth; // Rear HCAL hit truth
     std::vector<struct REARCALDEPOSIT> rearCalDeposit;    // energy deposited in rear calorimeter
     std::vector<struct REARCALDEPOSIT> rearHCalDeposit;     // energy in the rear HCal scintillator
 

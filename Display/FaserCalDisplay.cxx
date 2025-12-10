@@ -65,7 +65,10 @@ namespace display
     //TGeoManager::Import("/data/sw/FASERCAL/FASER/GeomGDML/geometry.gdml");
     // use for Run120 and v5.0
     //TGeoManager::Import("/home/hyperk/sw/FASERCAL/FASER_March2025/GeomGDML/geometry_v5.gdml");
-    TGeoManager::Import("../../GeomGDML/geometry_tilted_5degree.gdml");
+    //TGeoManager::Import("../../GeomGDML/geometry_tilted_5degree.gdml");
+    TGeoManager::Import("../../FASERG4/build/geometry_tilted_5degree.gdml");
+    //TGeoManager::Import("../../GeomGDML/geometry_0degree.gdml");
+    //TGeoManager::Import("../../GeomGDML/geometry_0degree_shiftLoS.gdml");
     //
     if (!gGeoManager) {
       std::cerr << "Failed to import GDML file." << std::endl;
@@ -125,7 +128,7 @@ namespace display
       fDetectorElements->AddElement(eveShape);
     }
     gEve->AddGlobalElement(fDetectorElements);
-    gEve->Redraw3D(kTRUE);
+    gEve->Redraw3D(kFALSE);
     std::cout << "GetDetector() completed." << std::endl;
   }
   //////////////////////////////////////////////////////////
@@ -146,6 +149,18 @@ namespace display
     TEveRGBAPalette* pal = new TEveRGBAPalette(0, 1000);
     TEveViewer* ev = gEve->GetDefaultViewer();
     //ev->GetPickEvent()->Connect(this, "OnPick(TGLPhysicalShape*, TObject*, Int_t)");
+    TEveSelection* sel = gEve->GetSelection();
+    sel->SetPickToSelect(TEveSelection::kPS_Element);
+
+    // When a new element becomes selected, call OnShapeSelected
+    sel->Connect("SelectionAdded(TEveElement*)",
+             "display::FaserCalDisplay", this,
+             "OnShapeSelected(TEveElement*)");
+
+    // React when the same element is re-selected
+    sel->Connect("SelectionRepeated(TEveElement*)",
+             "display::FaserCalDisplay", this,
+             "OnShapeSelected(TEveElement*)");
     
     TEveWindowSlot* slot = TEveWindow::CreateWindowInTab(gEve->GetBrowser()->GetTabRight());
     TEveWindowPack* pack = slot->MakePack();
@@ -447,7 +462,7 @@ namespace display
     browser->SetTabTitle("Main", 0);
     gEve->GetBrowser()->GetTabRight()->SetTab(1);
 
-    gEve->Redraw3D(kTRUE);
+    gEve->Redraw3D(kFALSE);
 
     GetDetector();
     ShowAxis();
@@ -513,7 +528,7 @@ namespace display
     axis->AddElement(zAxisLabel);
 
     gEve->AddGlobalElement(axis);
-    gEve->Redraw3D(kTRUE);
+    gEve->Redraw3D(kFALSE);
 
  
   }
@@ -522,7 +537,7 @@ namespace display
   {
     gStyle->SetPalette(-1);
     gEve->GetDefaultGLViewer()->SetClearColor(0);
-    gEve->FullRedraw3D(kTRUE);
+    gEve->FullRedraw3D(kFALSE);
   }
   //////////////////////////////////////////////////////////  
   void FaserCalDisplay::DoExit()
@@ -567,7 +582,7 @@ namespace display
       //fRearHCALElements->SetRnrSelf(kTRUE);  // Ensure hits are shown
       //fRearMuCALElements->SetRnrSelf(kTRUE);  // Ensure hits are shown 
       gStyle->SetPalette(-1);
-      gEve->FullRedraw3D(kTRUE);
+      gEve->FullRedraw3D(kFALSE);
       std::cout << "Detector geometry will be shown" << std::endl;
     } else {
       ApplyIsolation = kTRUE;
@@ -578,7 +593,7 @@ namespace display
       //fRearHCALElements->SetRnrSelf(kTRUE);  // Ensure hits are shown 
       //fRearMuCALElements->SetRnrSelf(kTRUE);  // Ensure hits are shown 
       gStyle->SetPalette(-1);
-      gEve->FullRedraw3D(kTRUE);
+      gEve->FullRedraw3D(kFALSE);
       std::cout << "Detector geometry will be isolated" << std::endl;
     }
   }
@@ -602,6 +617,7 @@ namespace display
       fMuonHitElements->SetRnrState(kFALSE);
       fMuTagHitElements->SetRnrState(kFALSE);
       fMuSpectHitElements->SetRnrState(kFALSE);
+      fMuonSpectFitElements->SetRnrState(kFALSE);
       if(!fIsolate->IsOn())
 	      fDetectorElements->SetRnrState(kTRUE);
       else
@@ -614,14 +630,14 @@ namespace display
       fRearHCALElements->SetRnrState(kTRUE);
       fRearMuCALElements->SetRnrState(kTRUE);
       gStyle->SetPalette(-1);
-      gEve->FullRedraw3D(kTRUE);
+      gEve->FullRedraw3D(kFALSE);
     } else {
       fHitElements->SetRnrState(kTRUE);
-      fRearECALElements->SetRnrState(kFALSE);
-      fRearHCALElements->SetRnrState(kFALSE);
-      fRearMuCALElements->SetRnrState(kFALSE);
+      fRearECALElements->SetRnrState(kTRUE);
+      fRearHCALElements->SetRnrState(kTRUE);
+      fRearMuCALElements->SetRnrState(kTRUE);
       gStyle->SetPalette(-1);
-      gEve->FullRedraw3D(kTRUE);    
+      gEve->FullRedraw3D(kFALSE);
 
     }
   }
@@ -647,7 +663,7 @@ namespace display
       fProtonHitElements->SetRnrState(kFALSE);
       fMuTagHitElements->SetRnrState(kFALSE);
       fMuSpectHitElements->SetRnrState(kFALSE);
-
+      fMuonSpectFitElements->SetRnrState(kFALSE);
       if(!fIsolate->IsOn())
 	      fDetectorElements->SetRnrState(kTRUE);
       else
@@ -656,11 +672,14 @@ namespace display
       gEve->AddGlobalElement(fPrimaryElements);
       fPrimaryElements->SetRnrState(kTRUE);  
       gStyle->SetPalette(-1);
-      gEve->FullRedraw3D(kTRUE);
+      gEve->FullRedraw3D(kFALSE);
     } else {
       fHitElements->SetRnrState(kTRUE);
+      fRearECALElements->SetRnrState(kTRUE);
+      fRearHCALElements->SetRnrState(kTRUE);
+      fRearMuCALElements->SetRnrState(kTRUE);
       gStyle->SetPalette(-1);
-      gEve->FullRedraw3D(kTRUE);    
+      gEve->FullRedraw3D(kFALSE);    
     }
   }
   //////////////////////////////////////////////////////////
@@ -684,7 +703,7 @@ namespace display
       fKaonHitElements->SetRnrState(kFALSE);
       fProtonHitElements->SetRnrState(kFALSE);
       fMuTagHitElements->SetRnrState(kFALSE);
-
+      fMuonSpectFitElements->SetRnrState(kFALSE);
       if(!fIsolate->IsOn())
 	      fDetectorElements->SetRnrState(kTRUE);
 	    else
@@ -697,11 +716,14 @@ namespace display
       gEve->AddGlobalElement(fMuonSpectFitElements);
       fMuonSpectFitElements->SetRnrState(kTRUE);
 	    gStyle->SetPalette(-1);
-	    gEve->FullRedraw3D(kTRUE);
+	    gEve->FullRedraw3D(kFALSE);
     } else {
       fHitElements->SetRnrState(kTRUE);
+      fRearECALElements->SetRnrState(kTRUE);
+      fRearHCALElements->SetRnrState(kTRUE);
+      fRearMuCALElements->SetRnrState(kTRUE);
       gStyle->SetPalette(-1);
-      gEve->FullRedraw3D(kTRUE);    
+      gEve->FullRedraw3D(kFALSE);    
     }
   }
 
@@ -727,6 +749,7 @@ namespace display
   fKaonHitElements->SetRnrState(kFALSE);
   fMuTagHitElements->SetRnrState(kFALSE);
   fMuSpectHitElements->SetRnrState(kFALSE);
+  fMuonSpectFitElements->SetRnrState(kFALSE);
 	if(!fIsolate->IsOn())
 	  fDetectorElements->SetRnrState(kTRUE);
 	else
@@ -735,11 +758,14 @@ namespace display
 	gEve->AddGlobalElement(fPionHitElements);
 	fPionHitElements->SetRnrState(kTRUE);  
 	gStyle->SetPalette(-1);
-	gEve->FullRedraw3D(kTRUE);
+	gEve->FullRedraw3D(kFALSE);
       } else {
       fHitElements->SetRnrState(kTRUE);
+      fRearECALElements->SetRnrState(kTRUE);
+      fRearHCALElements->SetRnrState(kTRUE);
+      fRearMuCALElements->SetRnrState(kTRUE);
       gStyle->SetPalette(-1);
-      gEve->FullRedraw3D(kTRUE);    
+      gEve->FullRedraw3D(kFALSE);    
     }
   }
   
@@ -765,6 +791,7 @@ namespace display
   fPionHitElements->SetRnrState(kFALSE);
   fMuTagHitElements->SetRnrState(kFALSE);
   fMuSpectHitElements->SetRnrState(kFALSE);
+  fMuonSpectFitElements->SetRnrState(kFALSE);
 	if(!fIsolate->IsOn())
 	  fDetectorElements->SetRnrState(kTRUE);
 	else
@@ -773,11 +800,14 @@ namespace display
 	gEve->AddGlobalElement(fKaonHitElements);
 	fKaonHitElements->SetRnrState(kTRUE);  
 	gStyle->SetPalette(-1);
-	gEve->FullRedraw3D(kTRUE);
+	gEve->FullRedraw3D(kFALSE);
       } else {
       fHitElements->SetRnrState(kTRUE);
+      fRearECALElements->SetRnrState(kTRUE);
+      fRearHCALElements->SetRnrState(kTRUE);
+      fRearMuCALElements->SetRnrState(kTRUE);
       gStyle->SetPalette(-1);
-      gEve->FullRedraw3D(kTRUE);    
+      gEve->FullRedraw3D(kFALSE);    
     }
   }
   
@@ -803,6 +833,7 @@ namespace display
   fKaonHitElements->SetRnrState(kFALSE);
   fMuTagHitElements->SetRnrState(kFALSE);
   fMuSpectHitElements->SetRnrState(kFALSE);
+  fMuonSpectFitElements->SetRnrState(kFALSE);
 	if(!fIsolate->IsOn())
 	  fDetectorElements->SetRnrState(kTRUE);
 	else
@@ -811,11 +842,14 @@ namespace display
 	gEve->AddGlobalElement(fProtonHitElements);
 	fProtonHitElements->SetRnrState(kTRUE);  
 	gStyle->SetPalette(-1);
-	gEve->FullRedraw3D(kTRUE);
+	gEve->FullRedraw3D(kFALSE);
       } else {
       fHitElements->SetRnrState(kTRUE);
+      fRearECALElements->SetRnrState(kTRUE);
+      fRearHCALElements->SetRnrState(kTRUE);
+      fRearMuCALElements->SetRnrState(kTRUE);
       gStyle->SetPalette(-1);
-      gEve->FullRedraw3D(kTRUE);    
+      gEve->FullRedraw3D(kFALSE);    
     }
   }
   
@@ -842,7 +876,7 @@ namespace display
       fRearMuCALElements->SetRnrState(kFALSE);
       fMuTagHitElements->SetRnrState(kFALSE);
       fMuSpectHitElements->SetRnrState(kFALSE);
-
+      fMuonSpectFitElements->SetRnrState(kFALSE);
       if(!fIsolate->IsOn())
 	fDetectorElements->SetRnrState(kTRUE);
       else
@@ -851,11 +885,14 @@ namespace display
       gEve->AddGlobalElement(fShortLivedParticleHitElements);
       fShortLivedParticleHitElements->SetRnrState(kTRUE);  
       gStyle->SetPalette(-1);
-      gEve->FullRedraw3D(kTRUE);
+      gEve->FullRedraw3D(kFALSE);
     } else {
       fHitElements->SetRnrState(kTRUE);
+      fRearECALElements->SetRnrState(kTRUE);
+      fRearHCALElements->SetRnrState(kTRUE);
+      fRearMuCALElements->SetRnrState(kTRUE);
       gStyle->SetPalette(-1);
-      gEve->FullRedraw3D(kTRUE);    
+      gEve->FullRedraw3D(kFALSE);    
     }
   }
   //////////////////////////////////////////////////////////
@@ -880,20 +917,23 @@ namespace display
       fRearMuCALElements->SetRnrState(kFALSE);
       fMuTagHitElements->SetRnrState(kFALSE);
       fMuSpectHitElements->SetRnrState(kFALSE);
-
+      fMuonSpectFitElements->SetRnrState(kFALSE);
       if(!fIsolate->IsOn())
-	fDetectorElements->SetRnrState(kTRUE);
+	      fDetectorElements->SetRnrState(kTRUE);
       else
-	fDetectorElements->SetRnrState(kFALSE);
+	      fDetectorElements->SetRnrState(kFALSE);
 
       gEve->AddGlobalElement(fSecondaryShowerElements);
       fSecondaryShowerElements->SetRnrState(kTRUE);  
       gStyle->SetPalette(-1);
-      gEve->Redraw3D(kTRUE);
+      gEve->Redraw3D(kFALSE);
     } else {
       fHitElements->SetRnrState(kTRUE);
+      fRearECALElements->SetRnrState(kTRUE);
+      fRearHCALElements->SetRnrState(kTRUE);
+      fRearMuCALElements->SetRnrState(kTRUE);
       gStyle->SetPalette(-1);
-      gEve->FullRedraw3D(kTRUE);    
+      gEve->FullRedraw3D(kFALSE);    
     }
   }
   //////////////////////////////////////////////////////////
@@ -915,7 +955,7 @@ namespace display
       fRearMuCALElements->SetRnrState(kFALSE);
       fMuTagHitElements->SetRnrState(kFALSE);
       fMuSpectHitElements->SetRnrState(kFALSE);
-      
+      fMuonSpectFitElements->SetRnrState(kFALSE);
       if(!fIsolate->IsOn())
 	      fDetectorElements->SetRnrState(kTRUE);
       else
@@ -924,11 +964,14 @@ namespace display
       gEve->AddGlobalElement(fSecondaryHadShowerElements);
       fSecondaryHadShowerElements->SetRnrState(kTRUE);  
       gStyle->SetPalette(-1);
-      gEve->FullRedraw3D(kTRUE);      
+      gEve->FullRedraw3D(kFALSE);      
     } else {
       fHitElements->SetRnrState(kTRUE);
+      fRearECALElements->SetRnrState(kTRUE);
+      fRearHCALElements->SetRnrState(kTRUE);
+      fRearMuCALElements->SetRnrState(kTRUE);
       gStyle->SetPalette(-1);
-      gEve->FullRedraw3D(kTRUE);    
+      gEve->FullRedraw3D(kFALSE);    
     }
   }
   //////////////////////////////////////////////////////////
@@ -944,6 +987,13 @@ namespace display
 	fRearMuCALElements->SetRnrState(kTRUE);
 	fMuTagHitElements->SetRnrState(kTRUE);
 	fMuSpectHitElements->SetRnrState(kTRUE);
+  fSecondaryShowerElements->SetRnrState(kFALSE);
+  fPrimaryElements->SetRnrState(kFALSE);
+  fSecondaryHadShowerElements->SetRnrState(kFALSE);
+  fShortLivedParticleHitElements->SetRnrState(kFALSE);
+  fMuonHitElements->SetRnrState(kFALSE);  
+  fPixelRecoTrackElements->SetRnrState(kFALSE); 
+  fMuonSpectFitElements->SetRnrState(kFALSE);
 	if(!fIsolate->IsOn())
 	  fDetectorElements->SetRnrState(kTRUE);
 	else
@@ -952,7 +1002,7 @@ namespace display
 	gEve->AddGlobalElement(fPixelHitElements);
 	fPixelHitElements->SetRnrState(kTRUE);  
 	gStyle->SetPalette(-1);
-	gEve->FullRedraw3D(kTRUE);      
+	gEve->FullRedraw3D(kFALSE);      
       } else {
       fPixelHitElements->SetRnrState(kFALSE);  
       fHitElements->SetRnrState(kTRUE);
@@ -962,7 +1012,7 @@ namespace display
 	    fMuTagHitElements->SetRnrState(kTRUE);
 	    fMuSpectHitElements->SetRnrState(kTRUE);
       gStyle->SetPalette(-1);
-      gEve->FullRedraw3D(kTRUE);    
+      gEve->FullRedraw3D(kFALSE);    
     }
   }
   //////////////////////////////////////////////////////////
@@ -985,6 +1035,7 @@ namespace display
 	fRearMuCALElements->SetRnrState(kFALSE);
   fMuTagHitElements->SetRnrState(kFALSE);
   fMuSpectHitElements->SetRnrState(kFALSE);
+  fMuonSpectFitElements->SetRnrState(kFALSE);
 	if(!fIsolate->IsOn())
 	  fDetectorElements->SetRnrState(kTRUE);
 	else
@@ -993,13 +1044,16 @@ namespace display
 	gEve->AddGlobalElement(fPixelRecoTrackElements);
 	fPixelRecoTrackElements->SetRnrState(kTRUE);
 	gStyle->SetPalette(-1);
-	gEve->FullRedraw3D(kTRUE);
+	gEve->FullRedraw3D(kFALSE);
 	EnablePicking();
       } else {
       fPixelRecoTrackElements->SetRnrState(kFALSE);
       fHitElements->SetRnrState(kTRUE);
+      fRearECALElements->SetRnrState(kTRUE);
+      fRearHCALElements->SetRnrState(kTRUE);
+      fRearMuCALElements->SetRnrState(kTRUE);
       gStyle->SetPalette(-1);
-      gEve->FullRedraw3D(kTRUE);
+      gEve->FullRedraw3D(kFALSE);
     }
   }
   //////////////////////////////////////////////////////////
@@ -1023,7 +1077,7 @@ namespace display
 	fPixelRecoTrackElements->SetRnrState(kFALSE);
 	fMuTagHitElements->SetRnrState(kFALSE);
   fMuSpectHitElements->SetRnrState(kFALSE);
-
+  fMuonSpectFitElements->SetRnrState(kFALSE);
 	if(!fIsolate->IsOn())
 	  fDetectorElements->SetRnrState(kTRUE);
 	else
@@ -1033,13 +1087,16 @@ namespace display
 	gEve->AddGlobalElement(fVoxHitElements);
 	fVoxHitElements->SetRnrState(kTRUE);
 	gStyle->SetPalette(-1);
-	gEve->FullRedraw3D(kTRUE);
+	gEve->FullRedraw3D(kFALSE);
 	EnablePicking();
       } else {
       fVoxHitElements->SetRnrState(kFALSE);
       fHitElements->SetRnrState(kTRUE);
+      fRearECALElements->SetRnrState(kTRUE);
+      fRearHCALElements->SetRnrState(kTRUE);
+      fRearMuCALElements->SetRnrState(kTRUE);
       gStyle->SetPalette(-1);
-      gEve->FullRedraw3D(kTRUE);
+      gEve->FullRedraw3D(kFALSE);
     }
   }  
    //////////////////////////////////////////////////////////
@@ -1064,7 +1121,7 @@ namespace display
 	fVoxHitElements->SetRnrState(kFALSE);
 	fMuTagHitElements->SetRnrState(kFALSE);
   fMuSpectHitElements->SetRnrState(kFALSE);
-
+  fMuonSpectFitElements->SetRnrState(kFALSE);
 	if(!fIsolate->IsOn())
 	  fDetectorElements->SetRnrState(kTRUE);
 	else
@@ -1074,13 +1131,16 @@ namespace display
 	gEve->AddGlobalElement(fVoxGhostElements);
 	fVoxGhostElements->SetRnrState(kTRUE);
 	gStyle->SetPalette(-1);
-	gEve->FullRedraw3D(kTRUE);
+	gEve->FullRedraw3D(kFALSE);
 	EnablePicking();
       } else {
       fVoxGhostElements->SetRnrState(kFALSE);
       fHitElements->SetRnrState(kTRUE);
+      fRearECALElements->SetRnrState(kTRUE);
+      fRearHCALElements->SetRnrState(kTRUE);
+      fRearMuCALElements->SetRnrState(kTRUE);
       gStyle->SetPalette(-1);
-      gEve->FullRedraw3D(kTRUE);
+      gEve->FullRedraw3D(kFALSE);
     }
   }   
 
@@ -1124,54 +1184,66 @@ namespace display
   //////////////////////////////////////////////////////////  
   void FaserCalDisplay::EnablePicking()
   {
-    gEve->GetSelection()->SetPickToSelect(TEveSelection::kPS_Element);
-    get_selected(1);
-    
+    if (!gEve) return;
+    TEveSelection* sel = gEve->GetSelection();
+    sel->SetPickToSelect(TEveSelection::kPS_Element);
+    std::cout << "[EnablePicking] Picking on TEve elements enabled." << std::endl;
   }
-  ////////////////
+  ////////////////////////////////////////////////////////////
   TObjArray *FaserCalDisplay::get_selected(int printSel)
   {
+    std::cout << "Getting selected elements..." << std::endl;
+    if (!selected) selected = new TObjArray();
     selected->Clear(); // Clear any previously selected items
     
-    if (gEve->GetCurrentEvent() != NULL)
-      {
-        TEveSelection* sel = gEve->GetSelection();
-        for (TEveElement::List_i it = sel->BeginChildren(); it != sel->EndChildren(); ++it)
-	  {
-            TEveElement* e = *it;
-            if (!e) continue; // Skip null elements
-	    
-            // Print the element's name
-            if (printSel)
-	      printf("Selected Element: %s\n", e->GetElementName());
-	    
-            // Access the user data if available
-            TObject* obj = static_cast<TObject*>(e->GetUserData());
-            if (obj)
-	      {
-		std::cout << "User Data: " << obj->ClassName() << std::endl;
-                selected->Add(obj); // Add to the selected list
-	        
-		// Check if the object is a TGeoVolume and look up the track information
-                TGeoVolume* volume = dynamic_cast<TGeoVolume*>(obj);
-                if (volume)
-		  {
-                    auto it = volumeTrackMap.find(volume);
-                    if (it != volumeTrackMap.end())
-		      {
-                        DigitizedTrack* track = it->second;
-                        std::cout << "Track ID: " << track->fhitIDs[0] << std::endl; // Example of accessing track information
-		      }
-		  }
-		
-	      }
-	  }
-      }
+    if (!gEve)
+      return selected;
+
+  TEveSelection* sel = gEve->GetSelection();
+  if (!sel)
+    return selected;
+  
+  for (TEveElement::List_i it = sel->BeginChildren(); it != sel->EndChildren(); ++it)
+  {
+    TEveElement* e = *it;
+    if (!e) continue;
+
+    if (printSel)
+      printf("Selected Element: %s\n", e->GetElementName());
+
+    auto *info = dynamic_cast<HitInfo*>(static_cast<TObject*>(e->GetUserData()));
+    if (!info) {
+      if (printSel)
+        std::cout << "  [no HitInfo attached]\n";
+      continue;
+    }
+
+    selected->Add(info);
+
+    if (printSel) {
+      std::cout << "  Type      : " << info->fType << std::endl;
+      std::cout << "  PDG       : " << info->fPDG << std::endl;
+      std::cout << "  TrackID   : " << info->fTrackID
+                << "  ParentID: " << info->fParentID
+                << "  PrimaryID: " << info->fPrimaryID << std::endl;
+      std::cout << "  ChannelID : " << info->fChannelID << std::endl;
+      std::cout << "  Edep      : " << info->fEDep << std::endl;
+      std::cout << "  Position  : ("
+                << info->fX << ", "
+                << info->fY << ", "
+                << info->fZ << ") mm" << std::endl;
+    }
+  }
+
     
     return selected; // Return the list of selected objects 
   }
-  //////////////////////////////////////////////////////////
-
+//////////////////////////////////////////////////////////
+void FaserCalDisplay::OnSelectionChanged()
+{
+  auto* sel = get_selected(/*printSel=*/1);
+  delete sel;
+}
   //////////////////////////////////////////////////////////  
   void FaserCalDisplay::OnPick(TGLPhysicalShape *shape, TObject *obj, Int_t ) 
   {
@@ -1180,32 +1252,21 @@ namespace display
   //////////////////////////////////////////////////////////  
   void FaserCalDisplay::OnShapeSelected(TEveElement* selectedElement) 
   {
-    // Cast the selected element to TEveGeoShape
-    TEveGeoShape* selectedShape = dynamic_cast<TEveGeoShape*>(selectedElement);
-    if (!selectedShape) {
-      std::cerr << "No valid shape selected!" << std::endl;
-      return;
-    }
-    std::cout << "Selected shape pointer: " << selectedShape << std::endl;
-    
-    std::cout << "Here i am" << std::endl;
-    // Highlight the selected shape
-    selectedShape->SetMainColor(kYellow); // Change color to yellow
-    gEve->Redraw3D(kTRUE); // Redraw the display for immediate feedback
-    
-    // Retrieve associated metadata from the map
-    auto it = shapeTrackMap.find(selectedShape);
-    if (it != shapeTrackMap.end()) {
-      DigitizedTrack* curtrack = it->second;
-      // Print track information
-      std::cout << "Selected Track Information:" << std::endl;
-      std::cout << "  PDG Code: " << curtrack->fPDG << std::endl;
-      std::cout << "  Energy Deposits: " << curtrack->fEnergyDeposits[0] << std::endl;
-      std::cout << "  First Hit Position: " << curtrack->fhitIDs[0] << std::endl;
-      std::cout << "  Number of Hits: " << curtrack->fhitIDs.size() << std::endl;
-    } else {
-      std::cerr << "No track associated with the selected shape!" << std::endl;
-    }
+    std::cout << "[OnShapeSelected] called for element: "
+          << selectedElement->GetElementName() << std::endl;
+
+    if (!selectedElement) {
+    std::cerr << "No valid element selected!" << std::endl;
+    return;
+  }
+
+  // visually highlight
+  if (auto *shape = dynamic_cast<TEveGeoShape*>(selectedElement)) {
+    shape->SetMainColor(kYellow);
+  }
+  gEve->Redraw3D(kFALSE);
+
+  get_selected(1);
   }
   //////////////////////////////////////////////////////////  
   void FaserCalDisplay::DoSlider(Int_t position)
@@ -1253,7 +1314,7 @@ namespace display
         processElement(*element, processElement); 
       }
     
-    gEve->FullRedraw3D(kTRUE);
+    gEve->FullRedraw3D(kFALSE);
   }
   //////////////////////////////////////////////////////////  
   void FaserCalDisplay::CleanViewer()
@@ -1264,7 +1325,7 @@ namespace display
     gEve->GetGlobalScene()->SetRnrSelf(kFALSE);
     TEveRGBAPalette* pal = new TEveRGBAPalette(0, 50);
     gGeoManager->GetTopVolume()->SetVisRaytrace(true);
-    gEve->Redraw3D(kTRUE);
+    gEve->Redraw3D(kFALSE);
   }
   //////////////////////////////////////////////////////////  
   TCanvas* FaserCalDisplay::CreateCanvas(const char* plot_name, int tb)
@@ -2231,14 +2292,14 @@ void FaserCalDisplay::IdentifyTauDecayMode(const std::vector<std::pair<int, int>
       //fPORecoEvent->Reconstruct3DClusters();
 
       fPORecoEvent->Reconstruct3DPS_Eflow();
-      fPORecoEvent->TrackReconstruct();
+      //fPORecoEvent->TrackReconstruct();
       fPORecoEvent->PSVoxelParticleFilter();
       //
       if(fPORecoEvent->GetPOFullRecoEvent()!=nullptr) 
-	{
-	  fVisibleEnergy = fPORecoEvent->GetPOFullRecoEvent()->TotalEvis();
-	  fTotalEnergy = fPORecoEvent->GetPOFullRecoEvent()->TotalET();
-	}
+	    {
+	      fVisibleEnergy = fPORecoEvent->GetPOFullRecoEvent()->TotalEvis();
+	      fTotalEnergy = fPORecoEvent->GetPOFullRecoEvent()->TotalET();
+	    }
       fRearECalEnergy = fPORecoEvent->rearCals.rearCalDeposit;
       fRearHCalEnergy = fPORecoEvent->rearCals.rearHCalDeposit;
       fRearMuCalEnergy = fPORecoEvent->rearCals.rearMuCalDeposit;
@@ -2248,7 +2309,12 @@ void FaserCalDisplay::IdentifyTauDecayMode(const std::vector<std::pair<int, int>
 		<< fRearHCalEnergy << " "
 		<< fRearMuCalEnergy << " "
 		<< std::endl;
-		
+
+
+		// Dump truth information at rear HCal
+    std::cout << "Dumping MC Truth Information at rearHCAL..." << std::endl;
+    fPORecoEvent->DumpRearHCalTruth(/*maxPrint=*/1000000, /*uniquePerModuleAndTrack=*/true);
+
     // FastJet
     //std::cout << "##############################################" << std::endl;
     //std::cout << "Start FastJet reconstruction..." << std::endl;
@@ -2695,13 +2761,13 @@ void FaserCalDisplay::LoadAllEvents()
         for ( size_t i = 0; i < nhits; i++)
           {
             long hittype = fTcalEvent->getChannelTypefromID(track->fhitIDs[i]);
-            
             // apply energy cut on scintillator voxel
             if(hittype == 0 && track->fEnergyDeposits[i] < 0.5)continue;
             // apply cut on pixel hit
             if(hittype == 1 && track->fEnergyDeposits[i] < 1e-3)continue;
             //
             ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZfromID(track->fhitIDs[i]);
+            //std::cout << "hit type " << hittype << " Hit ids " << track->fhitIDs[i] << std::endl;
             //
             // Create a translation matrix for the hit position
             TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0, position.Y() / 10.0, position.Z() / 10.0);
@@ -2784,7 +2850,22 @@ void FaserCalDisplay::LoadAllEvents()
               eveShape->SetMainColor(hitVolume->GetLineColor());
               eveShape->SetTransMatrix(*trans);
               eveShape->SetPickable(kTRUE); // Enable selection
-              eveShape->SetUserData((void*)&track);
+              // --- attach MC-truth payload ---
+              auto info = std::make_unique<HitInfo>();
+              info->fType      = HitInfo::kCalVoxel;
+              info->fPDG       = track->fPDG;
+              info->fTrackID   = track->ftrackID;
+              info->fParentID  = track->fparentID;
+              info->fPrimaryID = track->fprimaryID;
+              info->fChannelID = track->fhitIDs[i];
+              info->fEDep      = track->fEnergyDeposits[i];
+              info->fX         = position.X();
+              info->fY         = position.Y();
+              info->fZ         = position.Z();
+
+              eveShape->SetUserData(info.get());
+              fHitInfos.emplace_back(std::move(info));
+              //eveShape->SetUserData((void*)&track);
               //std::cout << "Created shape: " << eveShape << ", pickable: " << eveShape->IsPickable() << std::endl;
               hitList->AddElement(eveShape);
               // Store the association between shape and track
@@ -3000,14 +3081,15 @@ void FaserCalDisplay::LoadAllEvents()
     GetRecoTracks();
     //////
     // rearECAL
+    std::cout << " Drawing rear ECAL and HCAL deposits " << fTcalEvent->rearCalDeposit.size() << " " << fTcalEvent->rearHCalDeposit.size() << std::endl;
     for (const auto &it : fTcalEvent->rearCalDeposit)
     {
-	    std::cout << "ïnside RearECAL" << std::endl;
+	    //std::cout << "ïnside RearECAL" << std::endl;
 	    ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZRearCal(it.moduleID);
       double zBox = it.energyDeposit / 1e2; // 1cm is 1 GeV
-	    std::cout << position << std::endl;
-	    std::cout << it.energyDeposit << " " << zBox << std::endl;
-	    std::cout << it.moduleID << std::endl;
+	    //std::cout << position << std::endl;
+	    //std::cout << it.energyDeposit << " " << zBox << std::endl;
+	    //std::cout << it.moduleID << std::endl;
    
       TGeoShape *box = new TGeoBBox("RearCALBox", fTcalEvent->geom_detector.rearCalSizeX / 20.0,
                                     fTcalEvent->geom_detector.rearCalSizeY / 20.0, zBox / 20.0);
@@ -3022,8 +3104,8 @@ void FaserCalDisplay::LoadAllEvents()
     {
       //if(it.energyDeposit < 0.25) continue; // skip small deposits
 	    ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZRearHCal(it.moduleID);
-      std::cout << "ïnside RearHCAL" << std::endl;
-      std::cout << position << " " << it.energyDeposit << std::endl;
+      //std::cout << "ïnside RearHCAL" << std::endl;
+      //std::cout << position << " " << it.energyDeposit << std::endl;
 
       double zBox = it.energyDeposit*10; // 1mm is 100 MeV  
       double dz   = zBox / 20.0;                        
@@ -3050,25 +3132,20 @@ void FaserCalDisplay::LoadAllEvents()
       double thetaY = fTcalEvent->geom_detector.fTiltAngleY; // same angle in rad
       double sinT = std::sin(-thetaY);
       double cosT = std::cos(-thetaY);
-
       // desired start point in world [cm]
       double Px = position.X() / 10.0;
       double Py = position.Y() / 10.0;
       double Pz = position.Z() / 10.0;
-
       // rotated local start point (0,0,-dz)
       double xStartRot = -dz * sinT;
       double zStartRot = -dz * cosT;
-
        // translation so that start face stays fixed
       double tx = Px - xStartRot;
       double ty = Py;
       double tz = Pz - zStartRot;
-
       TGeoCombiTrans *trans = new TGeoCombiTrans(tx, ty, tz, &rot);
       //TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0,
       //                 (position.Y()) / 10.0, (position.Z()+ zBox / 2.0) / 10.0);
-
       rearhcal->AddNode(hitVolume, it.moduleID, trans);
     }
     // rearMuCAL
@@ -3089,14 +3166,14 @@ void FaserCalDisplay::LoadAllEvents()
       if (!mt) continue;
       int hitsize = static_cast<int>(mt->pos.size());
       if (hitsize == 0) continue;
-      std::cout << "ïnside RearMuCAL" << std::endl;
+      //std::cout << "ïnside RearMuCAL" << std::endl;
       for (const auto &hit : mt->pos)
       {
         // ROOT::Math::XYZVector accessors
         double x = hit.X() / 10.0;
         double y = hit.Y() / 10.0;
         double z = hit.Z() / 10.0;
-        std::cout << x << " " << y << " " << z << std::endl;
+        //std::cout << x << " " << y << " " << z << std::endl;
         TGeoShape *mubox = new TGeoBBox("rearmucalbox", 0.5, 0.5, 0.5);
         TGeoVolume *hitVolume = new TGeoVolume("RearMuCalVolume", mubox, air);
         hitVolume->SetLineColor(kMagenta);
@@ -3212,7 +3289,21 @@ void FaserCalDisplay::LoadAllEvents()
 	      eveShape->SetMainColor(vol->GetLineColor());
 	      eveShape->SetTransMatrix(*trans);
 	      eveShape->SetPickable(kTRUE);
-	      eveShape->SetUserData((void*)it);
+        // --- attach MC-truth payload ---
+        auto info = std::make_unique<HitInfo>();
+        info->fType      = HitInfo::kCalVoxel;
+        info->fPDG       = it->fPDG;
+        info->fTrackID   = it->ftrackID;
+        info->fParentID  = momentum.x();
+        info->fPrimaryID = momentum.y();
+        info->fChannelID = it->layerID[i];
+        info->fEDep      = momentum.mag2();
+        info->fX         = position.X();
+        info->fY         = position.Y();
+        info->fZ         = position.Z();
+        eveShape->SetUserData(info.get());
+        fHitInfos.emplace_back(std::move(info));
+	      //eveShape->SetUserData((void*)it);
         if (abs(it->fPDG)==13)
           muonSpectList->AddElement(eveShape);
 	      muTagHitList->AddElement(eveShape);
@@ -3238,7 +3329,7 @@ void FaserCalDisplay::LoadAllEvents()
     gEve->AddGlobalElement(fMuonSpectFitElements);
   
     //
-    gEve->FullRedraw3D(kTRUE);
+    gEve->FullRedraw3D(kFALSE);
   }
   //////////////////////////////////////////////////////////
   void FaserCalDisplay::GetMuonSpectrometerInfo(TGeoShape* bigbox, TGeoMedium* air, TGeoShape* box)

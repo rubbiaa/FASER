@@ -13,6 +13,8 @@ TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fMuTagTracks() ,
     rearCalDeposit = {};
     rearHCalDeposit = {};
     rearMuCalDeposit = {};
+    // Umut: to understand whats happening at rear hadron calorimeter
+    rearHCalTruth = {};
 
     if(gGeoManager == nullptr) {
 //        std::cerr << "Warning: gGeoManager is null! Cannot initialize TcalEvent TGeom nodes." << std::endl;
@@ -31,7 +33,7 @@ TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fMuTagTracks() ,
         if(name.find("DetectorAssembly")!=std::string::npos) {
             fdetectorAssemblyTGeomNode = dnode;
             TGeoMatrix *matrix = dnode->GetMatrix();
-            matrix->Print();
+            //matrix->Print();
             break;
         }
     }
@@ -50,7 +52,7 @@ TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fMuTagTracks() ,
         if(name.find("rearHCal")!=std::string::npos) {
             frearHCalTGeomNode = dnode;
             TGeoMatrix *matrix = dnode->GetMatrix();
-            matrix->Print();
+            //matrix->Print();
             break;
         }
     }
@@ -105,6 +107,8 @@ TcalEvent::TcalEvent(int run_number, long event_number, int event_mask) : TcalEv
     m_calEventTree->Branch("rearcal", &rearCalDeposit);
     m_calEventTree->Branch("rearhcal", &rearHCalDeposit);
     m_calEventTree->Branch("rearmucal", &rearMuCalDeposit);
+    // Umut: to understand whats happening at rear hadron calorimeter
+    m_calEventTree->Branch("rearhcaltruth", &rearHCalTruth);
 
     //    fTracks = new std::vector<DigitizedTrack*>;
 }
@@ -210,6 +214,10 @@ int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
     event_tree -> SetBranchAddress("rearhcal", &g_h);
 
     event_tree -> SetBranchAddress("rearmucal", &rearMuCalDeposit);
+
+    // Umut: to understand whats happening at rear hadron calorimeter
+    std::vector<struct REARHCALHITTRUTH>* g_htruth = &rearHCalTruth;
+    event_tree->SetBranchAddress("rearhcaltruth", &g_htruth);
 
     // Read the first entry
     event_tree->GetEntry(0);
@@ -409,7 +417,10 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZRearHCal(int moduleID) const
     //    double y = geom_detector.frearHCal_LOS_shiftY + (iy - geom_detector.rearHCalNxy/2.0 + 0.5)*geom_detector.rearHCalVoxelSize;
     //    double z = geom_detector.rearHCalLocZ + iz * geom_detector.rearHCalSizeZ + geom_detector.rearHCalSizeZ/2.0;
     //    std::cout << "HCal moduleID " << moduleID << " ix " << ix << " iy " << iy << " iz " << iz << " x " << x << " y " << y << " z " << z << std::endl;
-
+    std::cout << "[HCAL DECODE] moduleID=" << moduleID
+          << " ix_dec=" << ix
+          << " iy_dec=" << iy
+          << " iz_dec=" << iz << std::endl;
     // Compute local coordinates 
     double x = (ix - geom_detector.rearHCalNxy / 2.0 + 0.5) * geom_detector.rearHCalVoxelSize;
     double y = (iy - geom_detector.rearHCalNxy / 2.0 + 0.5) * geom_detector.rearHCalVoxelSize;
@@ -420,26 +431,26 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZRearHCal(int moduleID) const
 
     // Get the transformation matrix of the HCAL mother node
     TGeoMatrix *matrix = frearHCalTGeomNode->GetMatrix();
-    matrix->Print();
+    //matrix->Print();
 
     // Transform the point using the matrix
     double local[3] = {localPos.x() / 10.0, localPos.y() / 10.0, localPos.z() / 10.0}; // Convert mm to cm for TGeo
     double global[3] = {0, 0, 0};
     matrix->LocalToMaster(local, global);
     ROOT::Math::XYZVector globalPos(global[0] * 10.0, global[1] * 10.0, global[2] * 10.0);
-    //std::cout << "Local (" << local[0] << ", " << local[1] << ", " << local[2] << ") -> Global ("
-    //          << global[0] << ", " << global[1] << ", " << global[2] << ")" << std::endl;
+    std::cout << "Local (" << local[0] << ", " << local[1] << ", " << local[2] << ") -> Global ("
+              << global[0] << ", " << global[1] << ", " << global[2] << ")" << std::endl;
 
     // now go from HCAL local to the detector assembly local
     TGeoMatrix *parentMatrix = fdetectorAssemblyTGeomNode->GetMatrix();
-    parentMatrix->Print();
+    //parentMatrix->Print();
     double hcal_local[3] = {globalPos.x() / 10.0, globalPos.y() / 10.0, globalPos.z() / 10.0}; // Convert mm to cm for TGeo
     double hcal_global[3] = {0, 0, 0};
     parentMatrix->LocalToMaster(hcal_local, hcal_global);
 
     ROOT::Math::XYZVector finalGlobalPos(hcal_global[0] * 10.0, hcal_global[1] * 10.0, hcal_global[2] * 10.0);
-    //std::cout << "HCal Local (" << hcal_local[0] << ", " << hcal_local[1] << ", " << hcal_local[2] << ") -> World ("
-    //          << hcal_global[0] << ", " << hcal_global[1] << ", " << hcal_global[2] << ")" << std::endl;    
+    std::cout << "HCal Local (" << hcal_local[0] << ", " << hcal_local[1] << ", " << hcal_local[2] << ") -> World ("
+              << hcal_global[0] << ", " << hcal_global[1] << ", " << hcal_global[2] << ")" << std::endl;    
 
 /*    // now go from detector assembly local to world
     TGeoMatrix *worldMatrix = fdetectorAssemblyTGeomNode->GetMatrix();
@@ -450,8 +461,8 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZRearHCal(int moduleID) const
     //worldMatrix->LocalToMaster(assembly_local, assembly_global);
 
     ROOT::Math::XYZVector worldGlobalPos(assembly_global[0] * 10.0, assembly_global[1] * 10.0, assembly_global[2] * 10.0);
-   // std::cout << "Detector Assembly Local (" << assembly_local[0] << ", " << assembly_local[1] << ", " << assembly_local[2] << ") -> World ("
-   //           << assembly_global[0] << ", " << assembly_global[1] << ", " << assembly_global[2] << ")" << std::endl;
+    std::cout << "Detector Assembly Local (" << assembly_local[0] << ", " << assembly_local[1] << ", " << assembly_local[2] << ") -> World ("
+              << assembly_global[0] << ", " << assembly_global[1] << ", " << assembly_global[2] << ")" << std::endl;
 
     return worldGlobalPos;
 }

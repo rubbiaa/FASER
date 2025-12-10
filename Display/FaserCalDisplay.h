@@ -97,6 +97,28 @@
 #include <map>
 #include <set>
 
+
+struct HitInfo : public TObject
+{
+  enum EType {
+    kCalVoxel,
+    kPixelHit,
+    kMuTagHit,
+    kMuonSpectHit
+  };
+
+  EType     fType;
+  int       fPDG      = 0;
+  int       fTrackID  = -1;
+  int       fParentID = -1;
+  int       fPrimaryID= -1;
+  long      fChannelID= -1;
+  double    fEDep     = 0.0;
+  double    fX = 0.0, fY = 0.0, fZ = 0.0;
+
+  HitInfo() = default;
+};
+
 namespace display 
 {
     class FaserCalDisplay
@@ -111,6 +133,7 @@ namespace display
       //const std::vector<fastjet::PseudoJet>& GetJets() const { return fJets; }
       //fastjet::PseudoJet computeMomentumFromVoxel(ROOT::Math::XYZVector position, double totalEnergy);
 
+    std::vector<std::unique_ptr<HitInfo>> fHitInfos;  // Store hit information for selection
 
       void EventDisplay();
       void GetEventDisplay();
@@ -171,9 +194,11 @@ namespace display
 
       void SetMyStyle();
       void BackgroundColor();
+
       void EnablePicking();
       void OnPick(TGLPhysicalShape *shape, TObject *obj, Int_t event);
       void OnShapeSelected(TEveElement* selectedElement);
+      
       void PlotHistogramsFromRootFile();
       void CleanViewer();
       void CleanCanvas();
@@ -197,9 +222,10 @@ namespace display
       void GetMuonSpectrometerInfo(TGeoShape *bigbox, TGeoMedium *air, TGeoShape *box);
 
 
-      TObjArray *get_selected(int printsel);
+      TObjArray *get_selected(int printsel = 0);
       TObjArray *selected = new TObjArray;
       void print_selected();
+      void OnSelectionChanged();
 
       TGCheckButton *fPrimary;
       TGCheckButton *fMuons;
@@ -345,7 +371,8 @@ std::vector<int> fSLPParentIDs;
       TText *energyText = nullptr;
       
       
-  
+      TEveSelection* fSelMgr = nullptr; // EVE selection manager
+
 
 
 
