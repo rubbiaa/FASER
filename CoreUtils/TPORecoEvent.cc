@@ -3635,3 +3635,81 @@ void TPORecoEvent::Reconstruct3DClusters()
     }
    }
 }
+
+// Added by Umut for debugging RearHCal truth hits
+void TPORecoEvent::DumpRearHCalTruth(int maxPrint, bool uniquePerModuleAndTrack) {
+  if (!fTcalEvent) { printf("[RearHCAL] No TcalEvent.\n"); return; }
+  auto& vec = fTcalEvent->rearHCalTruth;
+  if (vec.empty()) { printf("[RearHCAL] No truth hits recorded.\n"); return; }
+
+  TDatabasePDG* db = TDatabasePDG::Instance();
+  std::set<std::pair<Long_t, Int_t>> seen;
+  int printed = 0;
+
+  size_t nDedupDropped = 0;
+  size_t nCenterFail = 0;
+
+  printf("=== RearHCAL truth hits: %zu entries ===\n", vec.size());
+
+  // First pass: compute filtered stats
+  std::vector<const TcalEvent::REARHCALHITTRUTH*> filtered;
+  filtered.reserve(vec.size());
+  for (const auto& h : vec) {
+    if (uniquePerModuleAndTrack) {
+      auto key = std::make_pair(h.moduleID, h.trackID);
+      if (seen.count(key)) { nDedupDropped++; continue; }
+      seen.insert(key);
+    }
+    // Validate center lookup; guard against invalid module IDs
+    bool centerOK = true;
+    ROOT::Math::XYZVector center;
+    try {
+      center = fTcalEvent->getChannelXYZRearHCal(h.moduleID);
+      // Optionally, sanity-check center values (finite)
+      if (!std::isfinite(center.x()) || !std::isfinite(center.y()) || !std::isfinite(center.z())) centerOK = false;
+    } catch (...) {
+      centerOK = false;
+    }
+    if (!centerOK) { nCenterFail++; continue; }
+
+    filtered.push_back(&h);
+  }
+
+  printf("[RearHCAL] Filtered: %zu (dedup dropped=%zu, center-lookup failed=%zu)\n",
+         filtered.size(), nDedupDropped, nCenterFail);
+
+  // Print up to maxPrint entries
+  for (const auto* ph : filtered) {
+    const auto& h = *ph;
+    const char* name = "unknown";
+    if (db) { if (auto p = db->GetParticle(h.pdg)) name = p->GetName(); }
+
+    auto center = fTcalEvent->getChannelXYZRearHCal(h.moduleID);
+    printf("mod=%ld track=%d pdg=%d (%s) pos=(%.2f,%.2f,%.2f)mm  center=(%.2f,%.2f,%.2f)mm  edep=%.3f MeV\n",
+           h.moduleID, h.trackID, h.pdg, name,
+           h.x_mm, h.y_mm, h.z_mm, center.x(), center.y(), center.z(), h.energyDeposit);
+
+    if (++printed >= maxPrint) break;
+  }
+
+  if (printed == 0) {
+    printf("[RearHCAL] Nothing to print under current filters.\n");
+  } else if (filtered.size() > static_cast<size_t>(printed)) {
+    printf("[RearHCAL] ... %zu additional hits not printed due to maxPrint=%d\n",
+           filtered.size() - static_cast<size_t>(printed), maxPrint);
+  }
+
+  // Optional: quick above/below X=400 mm summary to match your macro checks
+  size_t nAbove=0, nBelowEq=0;
+  double xminAbove=1e9, xmaxAbove=-1e9, xminBelowEq=1e9, xmaxBelowEq=-1e9;
+  for (const auto* ph : filtered) {
+    double x = ph->x_mm;
+    if (x > 400.0) { nAbove++; xminAbove = std::min(xminAbove, x); xmaxAbove = std::max(xmaxAbove, x); }
+    else { nBelowEq++; xminBelowEq = std::min(xminBelowEq, x); xmaxBelowEq = std::max(xmaxBelowEq, x); }
+  }
+  printf("[RearHCAL] X>400mm: %zu", nAbove);
+  if (nAbove) printf(" range=[%.2f,%.2f]mm", xminAbove, xmaxAbove);
+  printf(" | X<=400mm: %zu", nBelowEq);
+  if (nBelowEq) printf(" range=[%.2f,%.2f]mm", xminBelowEq, xmaxBelowEq);
+  printf("\n");
+}
