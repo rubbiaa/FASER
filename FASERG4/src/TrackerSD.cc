@@ -57,19 +57,19 @@ G4bool TrackerSD::ProcessHits(G4Step* aStep, G4TouchableHistory*)
 
 		XYZVector local_position = XYZVector(touchable->GetHistory()->GetTopTransform().TransformPoint(
 		    aStep->GetPreStepPoint()->GetPosition()));
-	//		std::cout << " Local position: " << local_position.X() << ", " << local_position.Y() << ", " << local_position.Z() << std::endl;
+			// std::cout << " Local position: " << local_position.X() << ", " << local_position.Y() << ", " << local_position.Z() << std::endl;
 	
 		G4int motherCopyNumber = -1;
+		int stepsUp = 1; // go two levels up to get to the top volume since everything is in the detector assembly
         if (touchable->GetHistoryDepth() > 0) {
             motherCopyNumber = touchable->GetCopyNumber(1); // 1 indicates one level up
-			int stepsUp = 1; // go two levels up to get to the top volume since everything is in the detector assembly
 			if(volumeName == "rearHCalscintillatorLogical") {
 				stepsUp = 2;
 			}
 			local_position = XYZVector(touchable->GetHistory()->GetTransform(stepsUp)
 			.TransformPoint(
 				aStep->GetPreStepPoint()->GetPosition()));
-	//		std::cout << " Mother Local position: " << local_position.X() << ", " << local_position.Y() << ", " << local_position.Z() << std::endl;
+			// std::cout << " Mother Local position: " << local_position.X() << ", " << local_position.Y() << ", " << local_position.Z() << std::endl;
         }
 
 		// std::cout << process << std::endl;
@@ -86,7 +86,9 @@ G4bool TrackerSD::ProcessHits(G4Step* aStep, G4TouchableHistory*)
 			// Add another photon hit with the post step point
 			XYZVector position = XYZVector(aStep->GetPostStepPoint()->GetPosition().x(), aStep->GetPostStepPoint()->GetPosition().y(),
 						     aStep->GetPostStepPoint()->GetPosition().z());
-			XYZVector local_position = XYZVector(position);
+			XYZVector local_position = XYZVector(touchable->GetHistory()->GetTransform(stepsUp)
+			.TransformPoint(
+				aStep->GetPreStepPoint()->GetPosition()));
 			XYZVector direction =
 			    XYZVector(aStep->GetPostStepPoint()->GetMomentumDirection().x(), aStep->GetPostStepPoint()->GetMomentumDirection().y(),
 				     aStep->GetPostStepPoint()->GetMomentumDirection().z());
@@ -97,6 +99,7 @@ G4bool TrackerSD::ProcessHits(G4Step* aStep, G4TouchableHistory*)
 			int parentID = aStep->GetTrack()->GetParentID();
 			int trackID = aStep->GetTrack()->GetTrackID();
 			int pdgCode = aStep->GetTrack()->GetDefinition()->GetPDGEncoding();
+			
 			if (!aStep->GetTrack()->GetNextVolume()) {
 				fParticleManager->processParticleHit(aStep->GetTrack(), position, local_position, direction, time, 
 				energyDeposit, parentID, pdgCode,
@@ -126,10 +129,13 @@ G4bool TrackerSD::ProcessHits(G4Step* aStep, G4TouchableHistory*)
 					motherCopyNumber = touchable->GetCopyNumber(1); // 1 indicates one level up
 				}
 
+				// std::cout << " +++++++++++++++++++++++ particle killed : " << VolumeName_ << std::endl;
 				fParticleManager->processParticleHit(aStep->GetTrack(), position, local_position, direction, time, 
 						energyDeposit, parentID, pdgCode,
 								     volumeName,copyNumber, motherCopyNumber);
 			}
+									
+		
 
 			// fParticleManager->processParticleHit(trackID, position, direction, time, energyDeposit, process, parentID, pdgCode,
 			// VolumeName);
