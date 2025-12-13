@@ -2312,8 +2312,8 @@ void FaserCalDisplay::IdentifyTauDecayMode(const std::vector<std::pair<int, int>
 
 
 		// Dump truth information at rear HCal
-    std::cout << "Dumping MC Truth Information at rearHCAL..." << std::endl;
-    fPORecoEvent->DumpRearHCalTruth(/*maxPrint=*/1000000, /*uniquePerModuleAndTrack=*/true);
+    //std::cout << "Dumping MC Truth Information at rearHCAL..." << std::endl;
+    //fPORecoEvent->DumpRearHCalTruth(/*maxPrint=*/1000000, /*uniquePerModuleAndTrack=*/true);
 
     // FastJet
     //std::cout << "##############################################" << std::endl;
@@ -2664,6 +2664,36 @@ void FaserCalDisplay::LoadAllEvents()
   
 //////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////
+void FaserCalDisplay::DrawMCTruthVertexPoint()
+{
+    if (!POevent) return;
+    
+    // Remove old vertex from previous event, if any
+    if (fTruthVertex) {
+        fTruthVertex->Destroy();
+        fTruthVertex = nullptr;
+    }
+    // Create a new point set for the truth vertex
+    fTruthVertex = new TEvePointSet("MC Truth Vertex");
+    fTruthVertex->SetOwnIds(kTRUE);
+    fTruthVertex->SetMarkerStyle(3);   // start shape
+    fTruthVertex->SetMarkerSize(5.0);   // size in pixels
+    fTruthVertex->SetMarkerColor(kRed);
+
+    double x = POevent->prim_vx.x();  // if these are in mm and geometry in cm, use /10.0
+    double y = POevent->prim_vx.y();
+    double z = POevent->prim_vx.z();
+
+    // If your geometry is in cm and POevent is in mm:
+    x /= 10.0;
+    y /= 10.0;
+    z /= 10.0;
+
+    fTruthVertex->SetNextPoint(x, y, z);
+
+    gEve->AddGlobalElement(fTruthVertex);
+
+}
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   void FaserCalDisplay::DrawEvent(int irun, int ievent, int imask)
   {
@@ -3322,6 +3352,8 @@ void FaserCalDisplay::LoadAllEvents()
     GetReconstructedVoxels(bigbox, air, box);
     //
     GetMuonSpectrometerInfo(bigbox, air, box);
+    //
+    DrawMCTruthVertexPoint();
     //
     gEve->AddGlobalElement(fHitElements);
     gEve->AddGlobalElement(fRearECALElements);

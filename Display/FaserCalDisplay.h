@@ -173,6 +173,7 @@ namespace display
       void ShowShortLivedParticle();
       void JetReconstructions();
       void ShowJetHits();
+      void DrawMCTruthVertexPoint();
 
       void ShowClusterHits();
       void ShowRecoVoxelHits();
@@ -419,6 +420,7 @@ std::vector<int> fSLPParentIDs;
       TEveElementList* fVoxHitElements;
       TEveElementList* fVoxGhostElements;
 
+      TEvePointSet* fTruthVertex = nullptr; 
 
       TCanvas* fEventInfoCanvas;
       ClassDef(FaserCalDisplay, 1)
