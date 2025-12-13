@@ -3637,6 +3637,7 @@ void TPORecoEvent::Reconstruct3DClusters()
 }
 
 // Added by Umut for debugging RearHCal truth hits
+#if 0
 void TPORecoEvent::DumpRearHCalTruth(int maxPrint, bool uniquePerModuleAndTrack) {
   if (!fTcalEvent) { printf("[RearHCAL] No TcalEvent.\n"); return; }
   auto& vec = fTcalEvent->rearHCalTruth;
@@ -3713,3 +3714,4 @@ void TPORecoEvent::DumpRearHCalTruth(int maxPrint, bool uniquePerModuleAndTrack)
   if (nBelowEq) printf(" range=[%.2f,%.2f]mm", xminBelowEq, xmaxBelowEq);
   printf("\n");
 }
+#endif
