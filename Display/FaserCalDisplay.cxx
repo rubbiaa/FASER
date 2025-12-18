@@ -3362,6 +3362,9 @@ void FaserCalDisplay::DrawMCTruthVertexPoint()
   
     //
     gEve->FullRedraw3D(kFALSE);
+    
+    AnalyzeScintVoxelsAndLayerOccupancy(false,false,20);
+
   }
   //////////////////////////////////////////////////////////
   void FaserCalDisplay::GetMuonSpectrometerInfo(TGeoShape* bigbox, TGeoMedium* air, TGeoShape* box)
@@ -3588,6 +3591,21 @@ void FaserCalDisplay::DrawMCTruthVertexPoint()
           eveShape->SetShape(vol->GetShape());
           eveShape->SetMainColor(vol->GetLineColor());
           eveShape->SetTransMatrix(*trans);
+          eveShape->SetPickable(kTRUE);
+          // --- attach MC-truth payload ---
+          //auto info = std::make_unique<HitInfo>();
+          //info->fType      = HitInfo::kCalVoxel;
+          //info->fPDG       = 999;
+          //info->fTrackID   = 999;
+          //info->fParentID  = 999;
+          //info->fPrimaryID = 999;
+          //info->fChannelID = 999;
+          //info->fEDep      = 999;
+          //info->fX         = position.X();
+          //info->fY         = position.Y();
+          //info->fZ         = position.Z();
+          //eveShape->SetUserData(info.get());
+          //fHitInfos.emplace_back(std::move(info));
           voxHitList->AddElement(eveShape);
 	        if(std::string(vol->GetName())=="GhostHitVolume")
 	        {
@@ -3977,7 +3995,207 @@ void FaserCalDisplay::PlotParticleFractionsAndHitsInCubes() {
     canvas->Update();
 }
 
+void FaserCalDisplay::AnalyzeScintVoxelsAndLayerOccupancy(bool drawPlots, bool clampOutOfRange, int expectedNz)
+{
+    if (!fTcalEvent) {
+        std::cout << "[ScintAnalysis] No event loaded." << std::endl;
+        return;
+    }
 
+    auto decode = [](long ID, int &ix, int &iy, int &iz, int &ilayer, int &hittype) {
+        hittype = static_cast<int>(ID / 100000000000LL);
+        ix      = static_cast<int>(ID % 1000);
+        iy      = static_cast<int>((ID / 1000) % 1000);
+        iz      = static_cast<int>((ID / 1000000) % 1000);
+        ilayer  = static_cast<int>(ID / 1000000000LL);
+    };
+
+    const auto &g = fTcalEvent->geom_detector;
+    const double vx = g.fScintillatorVoxelSize;
+    const double sizX = g.fScintillatorSizeX;
+    const double sizY = g.fScintillatorSizeY;
+
+    const int Nx = static_cast<int>(std::lround(sizX / vx));
+    const int Ny = static_cast<int>(std::lround(sizY / vx));
+
+    if (std::fabs(Nx * vx - sizX) > 1e-6 || std::fabs(Ny * vx - sizY) > 1e-6) {
+        std::cout << "[ScintAnalysis] WARNING: voxel size does not divide extent exactly: "
+                  << "Nx=" << Nx << " Ny=" << Ny << " sizeX=" << sizX << " sizeY=" << sizY
+                  << " vox=" << vx << " (mm)" << std::endl;
+    }
+
+    std::cout << "[ScintAnalysis] XY voxel grid: Nx=" << Nx << " Ny=" << Ny
+              << " (voxel=" << vx << " mm)" << std::endl;
+
+    using PlaneKey = std::pair<int,int>;
+    struct PlaneInfo {
+        double zmm = std::numeric_limits<double>::quiet_NaN();
+        long hits = 0;
+        long tracks = 0;
+        double zmin =  std::numeric_limits<double>::infinity();
+        double zmax = -std::numeric_limits<double>::infinity();
+        double zsum = 0.0;
+        long   zcnt = 0;
+    };
+
+    std::map<PlaneKey, PlaneInfo> planes;
+    std::map<int,int> izMinPerLayer;
+    std::map<int,int> izMaxPerLayer;
+    std::map<int,long> oobPerLayer;
+    auto bumpLayerRange = [&](int il, int izVal){
+        if (!izMinPerLayer.count(il)) { izMinPerLayer[il] = izVal; izMaxPerLayer[il] = izVal; }
+        izMinPerLayer[il] = std::min(izMinPerLayer[il], izVal);
+        izMaxPerLayer[il] = std::max(izMaxPerLayer[il], izVal);
+    };
+
+    long totalScintHits = 0;
+    long totalScintTracks = 0;
+
+    for (auto* trk : fTcalEvent->getfTracks()) {
+        if (!trk) continue;
+        std::set<PlaneKey> planesTouchedByThisTrack;
+        for (size_t i = 0; i < trk->fhitIDs.size(); ++i) {
+            const long ID = trk->fhitIDs[i];
+            int ix, iy, iz, ilayer, hittype;
+            decode(ID, ix, iy, iz, ilayer, hittype);
+            if (hittype != 0) continue;
+
+            if (iz < 0 || iz >= expectedNz) {
+                oobPerLayer[ilayer] += 1;
+                if (clampOutOfRange) {
+                    iz = std::max(0, std::min(iz, expectedNz - 1));
+                }
+            }
+            bumpLayerRange(ilayer, iz);
+
+            const PlaneKey key{ilayer, iz};
+            auto &info = planes[key];
+            info.hits += 1;
+            totalScintHits += 1;
+
+            if (std::isnan(info.zmm)) {
+                ROOT::Math::XYZVector wp = fTcalEvent->getChannelXYZfromID(ID);
+                info.zmm = wp.z();
+            }
+            ROOT::Math::XYZVector wp = fTcalEvent->getChannelXYZfromID(ID);
+            if (std::isnan(info.zmm)) info.zmm = wp.z();
+            info.zmin = std::min(info.zmin, wp.z());
+            info.zmax = std::max(info.zmax, wp.z());
+            info.zsum += wp.z();
+            info.zcnt += 1;
+
+            planesTouchedByThisTrack.insert(key);
+        }
+        if (!planesTouchedByThisTrack.empty()) {
+            for (const auto &k : planesTouchedByThisTrack) {
+                planes[k].tracks += 1;
+            }
+            totalScintTracks += 1;
+        }
+    }
+
+    if (!izMinPerLayer.empty()) {
+        std::cout << "[ScintAnalysis] Per-ilayer iz ranges (expectedNz=" << expectedNz
+                  << ", clamp=" << (clampOutOfRange ? "on" : "off") << "):" << std::endl;
+        for (const auto &kv : izMinPerLayer) {
+            int il = kv.first;
+            int izmin = kv.second;
+            int izmax = izMaxPerLayer[il];
+            long oob = oobPerLayer.count(il) ? oobPerLayer[il] : 0;
+            bool warn = (izmin < 0) || (izmax >= expectedNz) || (oob > 0);
+            std::cout << "  ilayer=" << std::setw(2) << il
+                      << "  iz[min,max]=[" << izmin << "," << izmax << "]"
+                      << "  oobHits=" << oob
+                      << (warn ? "  [WARN]" : "")
+                      << std::endl;
+        }
+        long totalOOB = 0;
+        for (const auto &kv : oobPerLayer) totalOOB += kv.second;
+        if (totalOOB > 0) {
+            std::cout << "[ScintAnalysis][WARN] Detected " << totalOOB
+                      << " out-of-range iz hits across layers; "
+                      << (clampOutOfRange ? "clamped for reporting." : "enable clamp to fold them into the last bin.") << std::endl;
+        }
+    }
+
+    std::vector<std::pair<PlaneKey, PlaneInfo>> ordered;
+    ordered.reserve(planes.size());
+    for (const auto &kv : planes) ordered.push_back(kv);
+    std::sort(ordered.begin(), ordered.end(),
+              [](const auto &a, const auto &b){
+                  const bool an = std::isnan(a.second.zmm);
+                  const bool bn = std::isnan(b.second.zmm);
+                  if (an != bn) return bn;
+                  if (!an && !bn && a.second.zmm != b.second.zmm) return a.second.zmm < b.second.zmm;
+                  if (a.first.first != b.first.first) return a.first.first < b.first.first;
+                  return a.first.second < b.first.second;
+              });
+
+    std::cout << "[ScintAnalysis] Unique Z planes (by (ilayer,iz)) observed: " << ordered.size()
+              << "  totalScintHits=" << totalScintHits
+              << "  totalScintTracksWithScintHits=" << totalScintTracks << std::endl;
+
+    {
+        int idx = 0;
+        double prevZ = std::numeric_limits<double>::quiet_NaN();
+        //std::cout << " idx  ilayer  iz    Z[mm]      ΔZ[mm]    tracks  hits" << std::endl;
+        std::cout << " idx  ilayer  iz    Zc[mm]     ΔZc[mm]   meanZ     zmin      zmax     tracks  hits" << std::endl;
+
+        for (const auto &kv : ordered) {
+            const auto &key = kv.first;
+            const auto &info = kv.second;
+            const double z = info.zmm;
+            const double zc = info.zmm;
+            const double meanZ = (info.zcnt > 0 ? info.zsum / info.zcnt : std::numeric_limits<double>::quiet_NaN());
+
+            double dz = std::numeric_limits<double>::quiet_NaN();
+            //if (idx > 0 && !std::isnan(z) && !std::isnan(prevZ)) dz = z - prevZ;
+            if (idx > 0 && !std::isnan(zc) && !std::isnan(prevZ)) dz = zc - prevZ;
+
+            std::cout << " " << std::setw(3) << idx
+                      << "  " << std::setw(6) << key.first
+                      << "  " << std::setw(3) << key.second
+                      << "  " << std::setw(9) << std::fixed << std::setprecision(2) << zc
+                      << "  " << std::setw(9) << (std::isnan(dz) ? 0.0 : dz)
+                      << "  " << std::setw(9) << meanZ
+                      << "  " << std::setw(9) << info.zmin
+                      << "  " << std::setw(9) << info.zmax
+                      << "  " << std::setw(6) << info.tracks
+                      << "  " << std::setw(6) << info.hits
+                      << std::endl;
+            prevZ = zc;
+            ++idx;
+        }
+    }
+
+    if (drawPlots && !ordered.empty()) {
+        const int nb = static_cast<int>(ordered.size());
+        TH1F *hOccTracks = new TH1F("hScintOccTracks", "Scintillator plane occupancy (tracks);Plane index (Z-ordered);Tracks",
+                                    nb, 0.0, static_cast<double>(nb));
+        TH1F *hOccHits   = new TH1F("hScintOccHits",   "Scintillator plane occupancy (hits);Plane index (Z-ordered);Hits",
+                                    nb, 0.0, static_cast<double>(nb));
+        for (int i = 0; i < nb; ++i) {
+            const auto &kv = ordered[i];
+            const int ilayer = kv.first.first;
+            const int iz     = kv.first.second;
+            const double z   = kv.second.zmm;
+            hOccTracks->SetBinContent(i+1, kv.second.tracks);
+            hOccHits->SetBinContent(i+1, kv.second.hits);
+            std::ostringstream lab;
+            lab << "L" << ilayer << ":" << iz << " z=" << std::fixed << std::setprecision(0) << z;
+            hOccTracks->GetXaxis()->SetBinLabel(i+1, lab.str().c_str());
+            hOccHits->GetXaxis()->SetBinLabel(i+1, lab.str().c_str());
+        }
+        hOccTracks->LabelsOption("v", "X");
+        hOccHits->LabelsOption("v", "X");
+
+        TCanvas *cOcc = new TCanvas("cScintOcc", "Scintillator occupancy", 1400, 600);
+        cOcc->Divide(2,1);
+        cOcc->cd(1); gPad->SetGrid(); hOccTracks->SetLineColor(kBlue+2); hOccTracks->Draw("HIST");
+        cOcc->cd(2); gPad->SetGrid(); hOccHits->SetLineColor(kRed+1);   hOccHits->Draw("HIST");
+        cOcc->Update();
+    }
+}
 
   /*
   // Function to compute momentum from voxel position and total energy deposited

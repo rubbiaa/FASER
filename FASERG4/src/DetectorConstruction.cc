@@ -500,8 +500,8 @@ G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, 
 	G4double dx = position.X()+fScintillatorSizeX/2.0-fFASERCal_LOS_shiftX ;
 	G4double dy = position.Y()+fScintillatorSizeY/2.0-fFASERCal_LOS_shiftY ;
 	G4double epsilon = 1e-4;   // avoid rounding errors at volume boundary
-	G4double dz = position.Z()+fTotalLength/2.0+epsilon;
-
+	G4double dz = position.Z()+fTotalLength/2.0-epsilon;
+	//G4double dz = position.Z() + fTotalLength/2.0;
 	// sanity check
 	if((dx < 0 || dx > fScintillatorSizeX) || (dy < 0 || dy > fScintillatorSizeY) || (dz < 0 || dz > fTotalLength)) {
 		getchannelIDerrorcount++;
@@ -526,6 +526,13 @@ G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, 
 		G4long ix = floor(dx / fScintillatorVoxelSize);
 		G4long iy = floor(dy / fScintillatorVoxelSize);
 		G4long iz = floor((dz-ilayer*fSandwichLength-fAlPlateThickness-ftargetWSizeZ)/ fScintillatorVoxelSize);
+		//const G4double eps = 1e-9;
+		//G4double zLocal = dz - ilayer*fSandwichLength - fAlPlateThickness - ftargetWSizeZ;
+		//G4long iz = (G4long) std::floor((zLocal / fScintillatorVoxelSize) - eps);
+		//G4long Nz = (G4long) std::floor((fScintillatorSizeZ / fScintillatorVoxelSize) + eps);
+		//if (iz < 0) iz = 0;
+		//else if (iz >= Nz) iz = Nz - 1;
+		
 		// sanity check
 		if (ix < 0 || ix > 999 || iy < 0 || iy > 999 || iz < 0 || iz > 999 || ilayer < 0) {
 			if(iz>1000)
