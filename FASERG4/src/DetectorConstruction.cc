@@ -523,8 +523,8 @@ G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, 
 
 	if(VolumeName == "ScintillatorLogical") {
 
-		G4long ix = floor(dx / fScintillatorVoxelSize);
-		G4long iy = floor(dy / fScintillatorVoxelSize);
+		G4long ix = floor((dx / fScintillatorVoxelSize) - epsilon);
+		G4long iy = floor((dy / fScintillatorVoxelSize) - epsilon);
 		G4long iz = floor((dz-ilayer*fSandwichLength-fAlPlateThickness-ftargetWSizeZ)/ fScintillatorVoxelSize);
 		//const G4double eps = 1e-9;
 		//G4double zLocal = dz - ilayer*fSandwichLength - fAlPlateThickness - ftargetWSizeZ;
