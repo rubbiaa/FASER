@@ -2312,8 +2312,8 @@ void FaserCalDisplay::IdentifyTauDecayMode(const std::vector<std::pair<int, int>
 
 
 		// Dump truth information at rear HCal
-    std::cout << "Dumping MC Truth Information at rearHCAL..." << std::endl;
-    fPORecoEvent->DumpRearHCalTruth(/*maxPrint=*/1000000, /*uniquePerModuleAndTrack=*/true);
+    //std::cout << "Dumping MC Truth Information at rearHCAL..." << std::endl;
+    //fPORecoEvent->DumpRearHCalTruth(/*maxPrint=*/1000000, /*uniquePerModuleAndTrack=*/true);
 
     // FastJet
     //std::cout << "##############################################" << std::endl;
@@ -2664,6 +2664,36 @@ void FaserCalDisplay::LoadAllEvents()
   
 //////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////
+void FaserCalDisplay::DrawMCTruthVertexPoint()
+{
+    if (!POevent) return;
+    
+    // Remove old vertex from previous event, if any
+    if (fTruthVertex) {
+        fTruthVertex->Destroy();
+        fTruthVertex = nullptr;
+    }
+    // Create a new point set for the truth vertex
+    fTruthVertex = new TEvePointSet("MC Truth Vertex");
+    fTruthVertex->SetOwnIds(kTRUE);
+    fTruthVertex->SetMarkerStyle(3);   // start shape
+    fTruthVertex->SetMarkerSize(5.0);   // size in pixels
+    fTruthVertex->SetMarkerColor(kRed);
+
+    double x = POevent->prim_vx.x();  // if these are in mm and geometry in cm, use /10.0
+    double y = POevent->prim_vx.y();
+    double z = POevent->prim_vx.z();
+
+    // If your geometry is in cm and POevent is in mm:
+    x /= 10.0;
+    y /= 10.0;
+    z /= 10.0;
+
+    fTruthVertex->SetNextPoint(x, y, z);
+
+    gEve->AddGlobalElement(fTruthVertex);
+
+}
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   void FaserCalDisplay::DrawEvent(int irun, int ievent, int imask)
   {
@@ -3323,6 +3353,8 @@ void FaserCalDisplay::LoadAllEvents()
     //
     GetMuonSpectrometerInfo(bigbox, air, box);
     //
+    DrawMCTruthVertexPoint();
+    //
     gEve->AddGlobalElement(fHitElements);
     gEve->AddGlobalElement(fRearECALElements);
     gEve->AddGlobalElement(fRearHCALElements);
@@ -3330,6 +3362,9 @@ void FaserCalDisplay::LoadAllEvents()
   
     //
     gEve->FullRedraw3D(kFALSE);
+    
+    AnalyzeScintVoxelsAndLayerOccupancy(false,false,20);
+
   }
   //////////////////////////////////////////////////////////
   void FaserCalDisplay::GetMuonSpectrometerInfo(TGeoShape* bigbox, TGeoMedium* air, TGeoShape* box)
@@ -3556,6 +3591,21 @@ void FaserCalDisplay::LoadAllEvents()
           eveShape->SetShape(vol->GetShape());
           eveShape->SetMainColor(vol->GetLineColor());
           eveShape->SetTransMatrix(*trans);
+          eveShape->SetPickable(kTRUE);
+          // --- attach MC-truth payload ---
+          //auto info = std::make_unique<HitInfo>();
+          //info->fType      = HitInfo::kCalVoxel;
+          //info->fPDG       = 999;
+          //info->fTrackID   = 999;
+          //info->fParentID  = 999;
+          //info->fPrimaryID = 999;
+          //info->fChannelID = 999;
+          //info->fEDep      = 999;
+          //info->fX         = position.X();
+          //info->fY         = position.Y();
+          //info->fZ         = position.Z();
+          //eveShape->SetUserData(info.get());
+          //fHitInfos.emplace_back(std::move(info));
           voxHitList->AddElement(eveShape);
 	        if(std::string(vol->GetName())=="GhostHitVolume")
 	        {
@@ -3945,7 +3995,445 @@ void FaserCalDisplay::PlotParticleFractionsAndHitsInCubes() {
     canvas->Update();
 }
 
+void FaserCalDisplay::AnalyzeScintVoxelsAndLayerOccupancy(bool drawPlots, bool clampOutOfRange, int expectedNz)
+{
+    if (!fTcalEvent) {
+        std::cout << "[ScintAnalysis] No event loaded." << std::endl;
+        return;
+    }
 
+    auto decode = [](long ID, int &ix, int &iy, int &iz, int &ilayer, int &hittype) {
+        hittype = static_cast<int>(ID / 100000000000LL);
+        ix      = static_cast<int>(ID % 1000);
+        iy      = static_cast<int>((ID / 1000) % 1000);
+        iz      = static_cast<int>((ID / 1000000) % 1000);
+        ilayer  = static_cast<int>(ID / 1000000000LL);
+    };
+
+    const auto &g = fTcalEvent->geom_detector;
+    const double vx = g.fScintillatorVoxelSize;
+    const double sizX = g.fScintillatorSizeX;
+    const double sizY = g.fScintillatorSizeY;
+
+    const int Nx = static_cast<int>(std::lround(sizX / vx));
+    const int Ny = static_cast<int>(std::lround(sizY / vx));
+    int expectedNx = 48;
+    int expectedNy = 48;
+    
+    if (std::fabs(Nx * vx - sizX) > 1e-6 || std::fabs(Ny * vx - sizY) > 1e-6) {
+        std::cout << "[ScintAnalysis] WARNING: voxel size does not divide extent exactly: "
+                  << "Nx=" << Nx << " Ny=" << Ny << " sizeX=" << sizX << " sizeY=" << sizY
+                  << " vox=" << vx << " (mm)" << std::endl;
+    }
+
+    std::cout << "[ScintAnalysis] XY voxel grid: Nx=" << Nx << " Ny=" << Ny
+              << " (voxel=" << vx << " mm)" << std::endl;
+
+    // If caller passes 0/negatives for expected, derive from geometry
+    if (expectedNx <= 0) expectedNx = Nx;
+    if (expectedNy <= 0) expectedNy = Ny;
+    
+    using PlaneKey = std::pair<int,int>;
+    struct PlaneInfo {
+        double zmm = std::numeric_limits<double>::quiet_NaN();
+        long hits = 0;
+        long tracks = 0;
+        double zmin =  std::numeric_limits<double>::infinity();
+        double zmax = -std::numeric_limits<double>::infinity();
+        double zsum = 0.0;
+        long   zcnt = 0;
+    };
+
+    std::map<PlaneKey, PlaneInfo> planes;
+    std::map<int,int> izMinPerLayer;
+    std::map<int,int> izMaxPerLayer;
+    std::map<int,long> oobPerLayer;
+
+    auto bumpLayerRange = [&](int il, int izVal){
+        if (!izMinPerLayer.count(il)) { izMinPerLayer[il] = izVal; izMaxPerLayer[il] = izVal; }
+        izMinPerLayer[il] = std::min(izMinPerLayer[il], izVal);
+        izMaxPerLayer[il] = std::max(izMaxPerLayer[il], izVal);
+    };
+
+     // Per-XY trackers
+    const int XYN = std::max(1, expectedNx) * std::max(1, expectedNy);
+    std::vector<std::set<int>>      ilayersPerXY(XYN);
+    std::vector<std::set<PlaneKey>> planesPerXY(XYN);
+    std::vector<int>                clampedIntoXY(XYN, 0);
+    
+    // Track original (pre-clamp) out-of-range XY indices
+    std::map<int, long> oobXHighValCounts;                 // key = original ix >= expectedNx
+    std::map<int, long> oobYHighValCounts;                 // key = original iy >= expectedNy
+    std::map<std::pair<int,int>, long> oobXYHighCounts;    // key = (ix,iy) where ix>=Nx || iy>=Ny (pre-clamp)
+
+     // Pre-clamp XY index extremes and world XY extents
+    int    minIxSeen = std::numeric_limits<int>::max();
+    int    maxIxSeen = std::numeric_limits<int>::min();
+    int    minIySeen = std::numeric_limits<int>::max();
+    int    maxIySeen = std::numeric_limits<int>::min();
+    double minXmm =  std::numeric_limits<double>::infinity();
+    double maxXmm = -std::numeric_limits<double>::infinity();
+    double minYmm =  std::numeric_limits<double>::infinity();
+    double maxYmm = -std::numeric_limits<double>::infinity();
+
+    long oobX_low = 0, oobX_high = 0, oobY_low = 0, oobY_high = 0;
+
+    long totalScintHits = 0;
+    long totalScintTracks = 0;
+
+    for (auto* trk : fTcalEvent->getfTracks()) {
+        if (!trk) continue;
+        std::set<PlaneKey> planesTouchedByThisTrack;
+        for (size_t i = 0; i < trk->fhitIDs.size(); ++i) {
+            const long ID = trk->fhitIDs[i];
+            int ix, iy, iz, ilayer, hittype;
+            decode(ID, ix, iy, iz, ilayer, hittype);
+            if (hittype != 0) continue;
+
+            // Capture original pre-clamp values
+            const int ix0 = ix;
+            const int iy0 = iy;            
+            
+            // X/Y out-of-bounds check, with optional clamp
+            bool xClamped = false, yClamped = false;
+            if (ix0 < 0) {
+                ++oobX_low;
+                if (clampOutOfRange) { ix = 0; xClamped = true; }
+            } else if (ix0 >= expectedNx) {
+                ++oobX_high;
+                oobXHighValCounts[ix0]++;  // record exact offending ix
+                if (clampOutOfRange) { ix = expectedNx - 1; xClamped = true; }
+            }
+
+            if (iy0 < 0) {
+                ++oobY_low;
+                if (clampOutOfRange) { iy = 0; yClamped = true; }
+            } else if (iy0 >= expectedNy) {
+                ++oobY_high;
+                oobYHighValCounts[iy0]++;  // record exact offending iy
+                if (clampOutOfRange) { iy = expectedNy - 1; yClamped = true; }
+            }
+
+            // If either dimension was beyond the grid, log the original pair
+            if (ix0 >= expectedNx || iy0 >= expectedNy) {
+                oobXYHighCounts[{ix0, iy0}]++;
+            }
+
+            if (iz < 0 || iz >= expectedNz) {
+                oobPerLayer[ilayer] += 1;
+                if (clampOutOfRange) {
+                    iz = std::max(0, std::min(iz, expectedNz - 1));
+                }
+            }
+            bumpLayerRange(ilayer, iz);
+
+            // per plane stats + world position
+            const PlaneKey key{ilayer, iz};
+            auto &info = planes[key];
+            info.hits += 1;
+            totalScintHits += 1;
+
+            //if (std::isnan(info.zmm)) {
+            //    ROOT::Math::XYZVector wp = fTcalEvent->getChannelXYZfromID(ID);
+            //    info.zmm = wp.z();
+            //}
+            ROOT::Math::XYZVector wp = fTcalEvent->getChannelXYZfromID(ID);
+            if (std::isnan(info.zmm)) info.zmm = wp.z();
+            info.zmin = std::min(info.zmin, wp.z());
+            info.zmax = std::max(info.zmax, wp.z());
+            info.zsum += wp.z();
+            info.zcnt += 1;
+
+            // Update pre-clamp XY index extremes
+            minIxSeen = std::min(minIxSeen, ix0);
+            maxIxSeen = std::max(maxIxSeen, ix0);
+            minIySeen = std::min(minIySeen, iy0);
+            maxIySeen = std::max(maxIySeen, iy0);
+
+            // Update observed world XY extents (mm)
+            minXmm = std::min(minXmm, wp.x());
+            maxXmm = std::max(maxXmm, wp.x());
+            minYmm = std::min(minYmm, wp.y());
+            maxYmm = std::max(maxYmm, wp.y());
+
+            // Feed per-XY trackers if indices are in-range (post-clamp)
+            if (ix >= 0 && ix < expectedNx && iy >= 0 && iy < expectedNy) {
+                const int xyIdx = ix + iy * expectedNx;
+                ilayersPerXY[xyIdx].insert(ilayer);
+                planesPerXY[xyIdx].insert(PlaneKey{ilayer, iz});
+                if (xClamped || yClamped) clampedIntoXY[xyIdx] += 1;
+            }
+
+            planesTouchedByThisTrack.insert(key);
+        }
+        if (!planesTouchedByThisTrack.empty()) {
+            for (const auto &k : planesTouchedByThisTrack) {
+                planes[k].tracks += 1;
+            }
+            totalScintTracks += 1;
+        }
+    }
+
+    // Per-layer iz range report
+    if (!izMinPerLayer.empty()) {
+        std::cout << "[ScintAnalysis] Per-ilayer iz ranges (expectedNz=" << expectedNz
+                  << ", clamp=" << (clampOutOfRange ? "on" : "off") << "):" << std::endl;
+        for (const auto &kv : izMinPerLayer) {
+            int il = kv.first;
+            int izmin = kv.second;
+            int izmax = izMaxPerLayer[il];
+            long oob = oobPerLayer.count(il) ? oobPerLayer[il] : 0;
+            bool warn = (izmin < 0) || (izmax >= expectedNz) || (oob > 0);
+            std::cout << "  ilayer=" << std::setw(2) << il
+                      << "  iz[min,max]=[" << izmin << "," << izmax << "]"
+                      << "  oobHits=" << oob
+                      << (warn ? "  [WARN]" : "")
+                      << std::endl;
+        }
+        long totalOOB = 0;
+        for (const auto &kv : oobPerLayer) totalOOB += kv.second;
+        if (totalOOB > 0) {
+            std::cout << "[ScintAnalysis][WARN] Detected " << totalOOB
+                      << " out-of-range iz hits across layers; "
+                      << (clampOutOfRange ? "clamped for reporting." : "enable clamp to fold them into the last bin.") << std::endl;
+        }
+    }
+
+    // XY bounds summary and matrix printout
+    std::cout << "[ScintAnalysis] XY bounds check (expectedNx=" << expectedNx
+              << ", expectedNy=" << expectedNy << ", clamp="
+              << (clampOutOfRange ? "on" : "off") << ")\n"
+              << "  X<0=" << oobX_low << " X>=Nx=" << oobX_high
+              << " | Y<0=" << oobY_low << " Y>=Ny=" << oobY_high << std::endl;
+
+    // Build overflow summaries for matrix augmentation
+    std::vector<long> extraColByRow(expectedNy, 0);
+    std::vector<long> extraRowByCol(expectedNx, 0);
+    long extraCornerBoth = 0;
+    for (const auto &kv : oobXYHighCounts) {
+        const int ix0 = kv.first.first;
+        const int iy0 = kv.first.second;
+        const long cnt = kv.second;
+        const bool xOverflow = (ix0 >= expectedNx);
+        const bool yOverflow = (iy0 >= expectedNy);
+        if (xOverflow && !yOverflow && iy0 >= 0 && iy0 < expectedNy) extraColByRow[iy0] += cnt;
+        if (yOverflow && !xOverflow && ix0 >= 0 && ix0 < expectedNx) extraRowByCol[ix0] += cnt;
+        if (xOverflow && yOverflow) extraCornerBoth += cnt;
+    }
+
+    std::cout << "[ScintAnalysis] Matrix of unique ilayers per (ix,iy)"
+              << " (number, '*' = at least one clamped XY hit in that cell)"
+              << "  | per-row off-grid X counts in '>X'" << std::endl;
+
+    for (int iy = expectedNy - 1; iy >= 0; --iy) {
+        std::ostringstream row;
+        row << std::setw(2) << iy << " | ";
+        for (int ix = 0; ix < expectedNx; ++ix) {
+            const int idx = ix + iy * expectedNx;
+            const int nL = static_cast<int>(ilayersPerXY[idx].size());
+            const bool hadClamp = (clampedIntoXY[idx] > 0);
+            if (nL == 0) {
+                row << " .  ";
+            } else {
+                row << std::setw(2) << nL << (hadClamp ? "*" : " ") << " ";
+            }
+        }
+        row << "| " << std::setw(3) << extraColByRow[iy];
+        std::cout << row.str() << std::endl;
+    }
+    std::cout << "     ";
+    for (int ix = 0; ix < expectedNx; ++ix) std::cout << std::setw(4) << ix;
+    std::cout << std::setw(6) << ">X" << std::endl;
+
+    std::ostringstream extraRow;
+    extraRow << " >Y | ";
+    for (int ix = 0; ix < expectedNx; ++ix) {
+        extraRow << std::setw(3) << extraRowByCol[ix] << " ";
+    }
+    extraRow << "| " << std::setw(3) << extraCornerBoth;
+    std::cout << extraRow.str() << std::endl;
+
+    // Report artificial XY indices (> expected limits), pre-clamp
+    if (!oobXHighValCounts.empty() || !oobYHighValCounts.empty()) {
+        // Compute maxima among offending values
+        int maxIxOff = expectedNx - 1;
+        int maxIyOff = expectedNy - 1;
+        if (!oobXHighValCounts.empty())
+            maxIxOff = std::max_element(oobXHighValCounts.begin(), oobXHighValCounts.end(),
+                                        [](const auto& a, const auto& b){ return a.first < b.first; })->first;
+        if (!oobYHighValCounts.empty())
+            maxIyOff = std::max_element(oobYHighValCounts.begin(), oobYHighValCounts.end(),
+                                        [](const auto& a, const auto& b){ return a.first < b.first; })->first;
+
+        std::cout << "[ScintAnalysis] Artificial XY indices detected:"
+                  << " maxIx=" << maxIxOff
+                  << " maxIy=" << maxIyOff
+                  << " (expectedNx=" << expectedNx << ", expectedNy=" << expectedNy << ")"
+                  << std::endl;
+        if (!oobXHighValCounts.empty()) {
+            std::cout << "  X>=" << expectedNx << " by value: ";
+            bool first = true; int shown = 0;
+            for (const auto& kv : oobXHighValCounts) {
+                if (!first) std::cout << ", ";
+                std::cout << "ix=" << kv.first << ":" << kv.second;
+                first = false; if (++shown >= 20) break;
+            }
+            if ((int)oobXHighValCounts.size() > shown) std::cout << ", ...";
+            std::cout << std::endl;
+        }
+        if (!oobYHighValCounts.empty()) {
+            std::cout << "  Y>=" << expectedNy << " by value: ";
+            bool first = true; int shown = 0;
+            for (const auto& kv : oobYHighValCounts) {
+                if (!first) std::cout << ", ";
+                std::cout << "iy=" << kv.first << ":" << kv.second;
+                first = false; if (++shown >= 20) break;
+            }
+            if ((int)oobYHighValCounts.size() > shown) std::cout << ", ...";
+            std::cout << std::endl;
+        }
+
+        if (!oobXYHighCounts.empty()) {
+            std::cout << "  Off-grid XY pairs (pre-clamp), counts: ";
+            int shown = 0;
+            for (const auto& kv : oobXYHighCounts) {
+                if (shown) std::cout << "; ";
+                std::cout << "(" << kv.first.first << "," << kv.first.second << ")=" << kv.second;
+                if (++shown >= 20) break;
+            }
+            if ((int)oobXYHighCounts.size() > shown) std::cout << "; ...";
+            std::cout << std::endl;
+        }
+        
+    }
+
+    // First/last voxel indices in X/Y (pre-clamp) and world XY extents (mm)
+    if (totalScintHits > 0) {
+        auto flag = [](bool b){ return b ? " [OOB]" : ""; };
+        const bool ixMinOOB = (minIxSeen < 0);
+        const bool ixMaxOOB = (maxIxSeen >= expectedNx);
+        const bool iyMinOOB = (minIySeen < 0);
+        const bool iyMaxOOB = (maxIySeen >= expectedNy);
+
+        std::cout << "[ScintAnalysis] XY voxel indices (pre-clamp): "
+                  << "ix[min,max]=[" << minIxSeen << "," << maxIxSeen << "]" << flag(ixMinOOB || ixMaxOOB)
+                  << "  iy[min,max]=[" << minIySeen << "," << maxIySeen << "]" << flag(iyMinOOB || iyMaxOOB)
+                  << "  (expectedNx=" << expectedNx << ", expectedNy=" << expectedNy << ")"
+                  << std::endl;
+
+        std::cout << "[ScintAnalysis] XY world extent (mm): "
+                  << "X[min,max]=[" << std::fixed << std::setprecision(2) << minXmm << "," << maxXmm << "]  "
+                  << "Y[min,max]=[" << minYmm << "," << maxYmm << "]"
+                  << std::endl;
+    }
+
+    // Order planes for Z-ordered occupancy output
+    std::vector<std::pair<PlaneKey, PlaneInfo>> ordered;
+    ordered.reserve(planes.size());
+    for (const auto &kv : planes) ordered.push_back(kv);
+    std::sort(ordered.begin(), ordered.end(),
+              [](const auto &a, const auto &b){
+                  const bool an = std::isnan(a.second.zmm);
+                  const bool bn = std::isnan(b.second.zmm);
+                  if (an != bn) return bn;
+                  if (!an && !bn && a.second.zmm != b.second.zmm) return a.second.zmm < b.second.zmm;
+                  if (a.first.first != b.first.first) return a.first.first < b.first.first;
+                  return a.first.second < b.first.second;
+              });
+
+    std::cout << "[ScintAnalysis] Unique Z planes (by (ilayer,iz)) observed: " << ordered.size()
+              << "  totalScintHits=" << totalScintHits
+              << "  totalScintTracksWithScintHits=" << totalScintTracks << std::endl;
+
+    {
+        int idx = 0;
+        double prevZ = std::numeric_limits<double>::quiet_NaN();
+        std::cout << " idx  ilayer  iz    Zc[mm]     ΔZc[mm]   meanZ     zmin      zmax     tracks  hits" << std::endl;
+
+        for (const auto &kv : ordered) {
+            const auto &key = kv.first;
+            const auto &info = kv.second;
+            const double zc = info.zmm;
+            const double meanZ = (info.zcnt > 0 ? info.zsum / info.zcnt : std::numeric_limits<double>::quiet_NaN());
+
+            double dz = std::numeric_limits<double>::quiet_NaN();
+            if (idx > 0 && !std::isnan(zc) && !std::isnan(prevZ)) dz = zc - prevZ;
+
+            std::cout << " " << std::setw(3) << idx
+                      << "  " << std::setw(6) << key.first
+                      << "  " << std::setw(3) << key.second
+                      << "  " << std::setw(9) << std::fixed << std::setprecision(2) << zc
+                      << "  " << std::setw(9) << (std::isnan(dz) ? 0.0 : dz)
+                      << "  " << std::setw(9) << meanZ
+                      << "  " << std::setw(9) << info.zmin
+                      << "  " << std::setw(9) << info.zmax
+                      << "  " << std::setw(6) << info.tracks
+                      << "  " << std::setw(6) << info.hits
+                      << std::endl;
+            prevZ = zc;
+            ++idx;
+        }
+    }
+
+   if (drawPlots && !ordered.empty()) {
+        // Z-plane occupancy plots
+        const int nb = static_cast<int>(ordered.size());
+        TH1F *hOccTracks = new TH1F("hScintOccTracks", "Scintillator plane occupancy (tracks);Plane index (Z-ordered);Tracks",
+                                    nb, 0.0, static_cast<double>(nb));
+        TH1F *hOccHits   = new TH1F("hScintOccHits",   "Scintillator plane occupancy (hits);Plane index (Z-ordered);Hits",
+                                    nb, 0.0, static_cast<double>(nb));
+        for (int i = 0; i < nb; ++i) {
+            const auto &kv = ordered[i];
+            const int ilayer = kv.first.first;
+            const int iz     = kv.first.second;
+            const double z   = kv.second.zmm;
+            hOccTracks->SetBinContent(i+1, kv.second.tracks);
+            hOccHits->SetBinContent(i+1, kv.second.hits);
+            std::ostringstream lab;
+            lab << "L" << ilayer << ":" << iz << " z=" << std::fixed << std::setprecision(0) << z;
+            hOccTracks->GetXaxis()->SetBinLabel(i+1, lab.str().c_str());
+            hOccHits->GetXaxis()->SetBinLabel(i+1, lab.str().c_str());
+        }
+        hOccTracks->LabelsOption("v", "X");
+        hOccHits->LabelsOption("v", "X");
+
+        TCanvas *cOcc = new TCanvas("cScintOcc", "Scintillator occupancy", 1400, 600);
+        cOcc->Divide(2,1);
+        cOcc->cd(1); gPad->SetGrid(); hOccTracks->SetLineColor(kBlue+2); hOccTracks->Draw("HIST");
+        cOcc->cd(2); gPad->SetGrid(); hOccHits->SetLineColor(kRed+1);   hOccHits->Draw("HIST");
+        cOcc->Update();
+
+        // XY heatmaps: unique ilayers per XY and number of clamped contributions
+        TCanvas *cXY = new TCanvas("cScintXYChecks", "Scintillator XY checks", 1400, 600);
+        cXY->Divide(2,1);
+
+        cXY->cd(1);
+        TH2I* hXY_ilayers = new TH2I("hXY_ilayers", "Unique ilayers per XY;ix;iy",
+                                     expectedNx, 0, expectedNx, expectedNy, 0, expectedNy);
+        for (int iy = 0; iy < expectedNy; ++iy) {
+            for (int ix = 0; ix < expectedNx; ++ix) {
+                const int idx = ix + iy * expectedNx;
+                hXY_ilayers->SetBinContent(ix+1, iy+1, static_cast<int>(ilayersPerXY[idx].size()));
+            }
+        }
+        gPad->SetGrid(); gStyle->SetOptStat(0);
+        hXY_ilayers->Draw("COLZ TEXT");
+
+        cXY->cd(2);
+        TH2I* hXY_clamped = new TH2I("hXY_clamped", "Clamped XY contributions per cell;ix;iy",
+                                     expectedNx, 0, expectedNx, expectedNy, 0, expectedNy);
+        for (int iy = 0; iy < expectedNy; ++iy) {
+            for (int ix = 0; ix < expectedNx; ++ix) {
+                const int idx = ix + iy * expectedNx;
+                hXY_clamped->SetBinContent(ix+1, iy+1, clampedIntoXY[idx]);
+            }
+        }
+        gPad->SetGrid();
+        hXY_clamped->Draw("COLZ TEXT");
+
+        cXY->Update();
+    }
+}
 
   /*
   // Function to compute momentum from voxel position and total energy deposited

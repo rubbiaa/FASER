@@ -53,6 +53,6 @@
 
 #pragma link C++ struct TcalEvent::GEOM_DETECTOR;
 
-#pragma link C++ struct TcalEvent::REARHCALHITTRUTH;
+//#pragma link C++ struct TcalEvent::REARHCALHITTRUTH;
 
 #endif

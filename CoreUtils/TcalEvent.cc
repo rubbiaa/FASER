@@ -14,7 +14,7 @@ TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fMuTagTracks() ,
     rearHCalDeposit = {};
     rearMuCalDeposit = {};
     // Umut: to understand whats happening at rear hadron calorimeter
-    rearHCalTruth = {};
+    //rearHCalTruth = {};
 
     if(gGeoManager == nullptr) {
 //        std::cerr << "Warning: gGeoManager is null! Cannot initialize TcalEvent TGeom nodes." << std::endl;
@@ -108,7 +108,7 @@ TcalEvent::TcalEvent(int run_number, long event_number, int event_mask) : TcalEv
     m_calEventTree->Branch("rearhcal", &rearHCalDeposit);
     m_calEventTree->Branch("rearmucal", &rearMuCalDeposit);
     // Umut: to understand whats happening at rear hadron calorimeter
-    m_calEventTree->Branch("rearhcaltruth", &rearHCalTruth);
+    //m_calEventTree->Branch("rearhcaltruth", &rearHCalTruth);
 
     //    fTracks = new std::vector<DigitizedTrack*>;
 }
@@ -216,8 +216,8 @@ int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
     event_tree -> SetBranchAddress("rearmucal", &rearMuCalDeposit);
 
     // Umut: to understand whats happening at rear hadron calorimeter
-    std::vector<struct REARHCALHITTRUTH>* g_htruth = &rearHCalTruth;
-    event_tree->SetBranchAddress("rearhcaltruth", &g_htruth);
+    //std::vector<struct REARHCALHITTRUTH>* g_htruth = &rearHCalTruth;
+    //event_tree->SetBranchAddress("rearhcaltruth", &g_htruth);
 
     // Read the first entry
     event_tree->GetEntry(0);

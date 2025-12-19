@@ -173,6 +173,7 @@ namespace display
       void ShowShortLivedParticle();
       void JetReconstructions();
       void ShowJetHits();
+      void DrawMCTruthVertexPoint();
 
       void ShowClusterHits();
       void ShowRecoVoxelHits();
@@ -221,6 +222,7 @@ namespace display
       void GetMuTagInfo();
       void GetMuonSpectrometerInfo(TGeoShape *bigbox, TGeoMedium *air, TGeoShape *box);
 
+      void AnalyzeScintVoxelsAndLayerOccupancy(bool drawPlots=false,bool clampOutOfRange=false, int expectedNz=20);
 
       TObjArray *get_selected(int printsel = 0);
       TObjArray *selected = new TObjArray;
@@ -419,6 +421,7 @@ std::vector<int> fSLPParentIDs;
       TEveElementList* fVoxHitElements;
       TEveElementList* fVoxGhostElements;
 
+      TEvePointSet* fTruthVertex = nullptr; 
 
       TCanvas* fEventInfoCanvas;
       ClassDef(FaserCalDisplay, 1)
