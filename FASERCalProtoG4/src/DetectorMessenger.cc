@@ -1,0 +1,231 @@
+#include "DetectorMessenger.hh"
+
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+DetectorMessenger::DetectorMessenger(DetectorConstruction* det) : fDetectorConstruction(det)
+{
+	G4cout << "DetectorMessenger::DetectorMessenger" << G4endl;
+	fDirectory = new G4UIdirectory("/FASER/");
+	fDirectory->SetGuidance("UI commands specific to this example.");
+
+	fDetDirectory = new G4UIdirectory("/FASER/scint/");
+	fDetDirectory->SetGuidance("Detector construction control");
+
+	fScintMatCmd = new G4UIcmdWithAString("/FASER/scint/material", this);
+	fScintMatCmd->SetGuidance("Select Material of the Target.");
+	fScintMatCmd->SetParameterName("choice", false);
+	fScintMatCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+	fLightYieldCmd = new G4UIcmdWithADouble("/FASER/scint/lightYield", this);
+	fLightYieldCmd->SetGuidance("Set scintillation light yield");
+	fLightYieldCmd->SetParameterName("lightYield", false);
+	fLightYieldCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+	fScintillationDecayTimeCmd = new G4UIcmdWithADouble("/FASER/scint/decayTime", this);
+	fScintillationDecayTimeCmd->SetGuidance("Set scintillation decay time");
+	fScintillationDecayTimeCmd->SetParameterName("decayTime", false);
+	fScintillationDecayTimeCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+	fScintillatorSizeXCmd = new G4UIcmdWithADoubleAndUnit("/FASER/scint/sizeX", this);
+	fScintillatorSizeXCmd->SetGuidance("Set scintillator size");
+	fScintillatorSizeXCmd->SetParameterName("size", false);
+	fScintillatorSizeXCmd->SetUnitCategory("Length");
+	fScintillatorSizeXCmd->SetDefaultUnit("mm");
+	fScintillatorSizeXCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+	fScintillatorSizeYCmd = new G4UIcmdWithADoubleAndUnit("/FASER/scint/sizeY", this);
+	fScintillatorSizeYCmd->SetGuidance("Set scintillator size");
+	fScintillatorSizeYCmd->SetParameterName("size", false);
+	fScintillatorSizeYCmd->SetUnitCategory("Length");
+	fScintillatorSizeYCmd->SetDefaultUnit("mm");
+	fScintillatorSizeYCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+	fScintillatorSizeZCmd = new G4UIcmdWithADoubleAndUnit("/FASER/scint/sizeZ", this);
+	fScintillatorSizeZCmd->SetGuidance("Set scintillator size");
+	fScintillatorSizeZCmd->SetParameterName("size", false);
+	fScintillatorSizeZCmd->SetUnitCategory("Length");
+	fScintillatorSizeZCmd->SetDefaultUnit("mm");
+	fScintillatorSizeZCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+	fScintillatorGranuCmd = new G4UIcmdWithADoubleAndUnit("/FASER/scint/voxel", this);
+	fScintillatorGranuCmd->SetGuidance("Set scintillator readout voxel size");
+	fScintillatorGranuCmd->SetParameterName("size", false);
+	fScintillatorGranuCmd->SetUnitCategory("Length");
+	fScintillatorGranuCmd->SetDefaultUnit("mm");
+	fScintillatorGranuCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+
+	ftargetWSizeXCmd = new G4UIcmdWithADoubleAndUnit("/FASER/targetW/sizeX", this);
+	ftargetWSizeXCmd->SetGuidance("Set targetW size");
+	ftargetWSizeXCmd->SetParameterName("size", false);
+	ftargetWSizeXCmd->SetUnitCategory("Length");
+	ftargetWSizeXCmd->SetDefaultUnit("mm");
+	ftargetWSizeXCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+	ftargetWSizeYCmd = new G4UIcmdWithADoubleAndUnit("/FASER/targetW/sizeY", this);
+	ftargetWSizeYCmd->SetGuidance("Set targetW size");
+	ftargetWSizeYCmd->SetParameterName("size", false);
+	ftargetWSizeYCmd->SetUnitCategory("Length");
+	ftargetWSizeYCmd->SetDefaultUnit("mm");
+	ftargetWSizeYCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+	ftargetWSizeZCmd = new G4UIcmdWithADoubleAndUnit("/FASER/targetW/sizeZ", this);
+	ftargetWSizeZCmd->SetGuidance("Set targetW size");
+	ftargetWSizeZCmd->SetParameterName("size", false);
+	ftargetWSizeZCmd->SetUnitCategory("Length");
+	ftargetWSizeZCmd->SetDefaultUnit("mm");
+	ftargetWSizeZCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+	fNumberReplicasCmd = new G4UIcmdWithAnInteger("/FASER/layers", this);
+	fNumberReplicasCmd->SetGuidance("Set number of targetW-scintillator layers");
+	fNumberReplicasCmd->SetParameterName("size", false);
+	fNumberReplicasCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+	fSingleModulePrototypeCmd = new G4UIcmdWithABool("/FASER/prototypeMode", this);
+	fSingleModulePrototypeCmd->SetGuidance("Enable single module prototype with 90-degree rotation");
+	fSingleModulePrototypeCmd->SetParameterName("mode", false);
+	fSingleModulePrototypeCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+	fLOSShiftXCmd = new G4UIcmdWithADoubleAndUnit("/FASER/LOS/shiftX", this);
+	fLOSShiftXCmd->SetGuidance("Set LOS sjhift X");
+	fLOSShiftXCmd->SetParameterName("shift", false);
+	fLOSShiftXCmd->SetUnitCategory("Length");
+	fLOSShiftXCmd->SetDefaultUnit("cm");
+	fLOSShiftXCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+	fLOSShiftYCmd = new G4UIcmdWithADoubleAndUnit("/FASER/LOS/shiftY", this);
+	fLOSShiftYCmd->SetGuidance("Set LOS sjhift Y");
+	fLOSShiftYCmd->SetParameterName("shift", false);
+	fLOSShiftYCmd->SetUnitCategory("Length");
+	fLOSShiftYCmd->SetDefaultUnit("cm");
+	fLOSShiftYCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+	// UMUT: add /FASER/tiltY
+    fTiltYCmd = new G4UIcmdWithADoubleAndUnit("/FASER/tiltY", this);
+    fTiltYCmd->SetGuidance("Tilt the whole detector around global Y axis.");
+    fTiltYCmd->SetParameterName("angle", false);
+    fTiltYCmd->SetUnitCategory("Angle");
+    fTiltYCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+	fThreeDCALShiftXCmd = new G4UIcmdWithADoubleAndUnit("/FASER/3DCAL/shiftX", this);
+	fThreeDCALShiftXCmd->SetGuidance("Set 3DCAL shift X (independent from LOS)");
+	fThreeDCALShiftXCmd->SetParameterName("shift", false);
+	fThreeDCALShiftXCmd->SetUnitCategory("Length");
+	fThreeDCALShiftXCmd->SetDefaultUnit("cm");
+	fThreeDCALShiftXCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+	fThreeDCALShiftYCmd = new G4UIcmdWithADoubleAndUnit("/FASER/3DCAL/shiftY", this);
+	fThreeDCALShiftYCmd->SetGuidance("Set 3DCAL shift Y (independent from LOS)");
+	fThreeDCALShiftYCmd->SetParameterName("shift", false);
+	fThreeDCALShiftYCmd->SetUnitCategory("Length");
+	fThreeDCALShiftYCmd->SetDefaultUnit("cm");
+	fThreeDCALShiftYCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+DetectorMessenger::~DetectorMessenger()
+{
+	delete fScintMatCmd;
+	delete fStepMaxCmd;
+	delete fLightYieldCmd;
+	delete fScintillationDecayTimeCmd;
+	delete fScintillatorSizeXCmd;
+	delete fScintillatorSizeYCmd;
+	delete fScintillatorSizeZCmd;
+	delete fScintillatorGranuCmd;
+	delete ftargetWSizeXCmd;
+	delete ftargetWSizeYCmd;
+	delete ftargetWSizeZCmd;
+	delete fNumberReplicasCmd;
+	delete fDirectory;
+	delete fDetDirectory;
+	delete fLOSShiftXCmd;
+	delete fLOSShiftYCmd;
+	delete fSingleModulePrototypeCmd;
+	// Added for tilt angle
+	delete fTiltYCmd;
+	delete fThreeDCALShiftXCmd;
+	delete fThreeDCALShiftYCmd;
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+void DetectorMessenger::SetNewValue(G4UIcommand* command, G4String newValue)
+{
+	if (command == fScintMatCmd) {
+		fDetectorConstruction->SetScintillatorMaterial(newValue);
+	}
+
+	if (command == fStepMaxCmd) {
+		fDetectorConstruction->SetMaxStep(fStepMaxCmd->GetNewDoubleValue(newValue));
+	}
+
+	if (command == fLightYieldCmd) {
+		fDetectorConstruction->SetLightYield(fLightYieldCmd->GetNewDoubleValue(newValue));
+	}
+
+	if (command == fScintillationDecayTimeCmd) {
+		fDetectorConstruction->SetScintillationDecayTime(fScintillationDecayTimeCmd->GetNewDoubleValue(newValue));
+	}
+
+	if (command == fScintillatorSizeXCmd) {
+		fDetectorConstruction->SetScintillatorSizeX(fScintillatorSizeXCmd->GetNewDoubleValue(newValue));
+	}
+
+	if (command == fScintillatorSizeYCmd) {
+		fDetectorConstruction->SetScintillatorSizeY(fScintillatorSizeYCmd->GetNewDoubleValue(newValue));
+	}
+
+	if (command == fScintillatorSizeZCmd) {
+		fDetectorConstruction->SetScintillatorSizeZ(fScintillatorSizeZCmd->GetNewDoubleValue(newValue));
+	}
+
+	if (command == fScintillatorGranuCmd) {
+		fDetectorConstruction->SetVoxelSize(fScintillatorGranuCmd->GetNewDoubleValue(newValue));
+	}
+
+	if (command == ftargetWSizeXCmd) {
+		fDetectorConstruction->SettargetWSizeX(ftargetWSizeXCmd->GetNewDoubleValue(newValue));
+	}
+
+	if (command == ftargetWSizeYCmd) {
+		fDetectorConstruction->SettargetWSizeY(ftargetWSizeYCmd->GetNewDoubleValue(newValue));
+	}
+
+	if (command == ftargetWSizeZCmd) {
+		fDetectorConstruction->SettargetWSizeZ(ftargetWSizeZCmd->GetNewDoubleValue(newValue));
+	}
+
+	if (command == fNumberReplicasCmd) {
+		fDetectorConstruction->SetNumberReplicas(fNumberReplicasCmd->GetNewIntValue(newValue));
+	}
+
+	if (command == fSingleModulePrototypeCmd) {
+		fDetectorConstruction->SetSingleModulePrototype(fSingleModulePrototypeCmd->GetNewBoolValue(newValue));
+	}
+
+	if (command == fLOSShiftXCmd) {
+		fDetectorConstruction->fFASERCal_LOS_shiftX = fLOSShiftXCmd->GetNewDoubleValue(newValue);
+	}
+
+	if (command == fLOSShiftYCmd) {
+		fDetectorConstruction->fFASERCal_LOS_shiftY = fLOSShiftYCmd->GetNewDoubleValue(newValue);
+	}
+
+	// UMUT: tilt angle command
+	if (command == fTiltYCmd) {
+		fDetectorConstruction->SetTiltAngleY(fTiltYCmd->GetNewDoubleValue(newValue));
+	}
+
+	if (command == fThreeDCALShiftXCmd) {
+    	fDetectorConstruction->fThreeD_CAL_shiftX = fThreeDCALShiftXCmd->GetNewDoubleValue(newValue);
+	}
+
+	if (command == fThreeDCALShiftYCmd) {
+    	fDetectorConstruction->fThreeD_CAL_shiftY = fThreeDCALShiftYCmd->GetNewDoubleValue(newValue);
+	}
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

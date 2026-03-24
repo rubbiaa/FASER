@@ -1,0 +1,15 @@
+# kineticEnergy_GeV dNdE
+#
+# Replace these rows with the digitized black curve values from your source plot.
+# The generator interprets the second column as dN/dE and samples bins using
+# dN/dE * deltaE, inferring logarithmic bin edges from neighboring energies.
+#
+# Example formatting only. Do not use these numbers for physics results.
+1.0e-12 1.0e-6
+1.0e-10 1.0e-4
+1.0e-08 8.0e-5
+1.0e-06 1.0e-4
+1.0e-04 3.0e-4
+1.0e-02 5.0e-4
+1.0e-01 9.0e-4
+1.0e+00 8.0e-5
