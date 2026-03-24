@@ -108,7 +108,14 @@ TPORecoEvent::TPORecoEvent(TcalEvent* c, TPOEvent* p) : TPORecoEvent() {
     // set the magnetic field based on the geometry
     fMagField->SetSlitPosition(25.0); // in cm
     fMagField->SetRearMuSpectGeometry(fTcalEvent->geom_detector.rearMuSpectLocZ/10.0, fTcalEvent->geom_detector.rearMuSpectSizeZ/10.0); // in cm
-    fMagField->SetRearMuSpectShift(fTcalEvent->geom_detector.fRearMuSpect_LOS_shiftX/10.0, fTcalEvent->geom_detector.fRearMuSpect_LOS_shiftY/10.0); // in cm
+    // Set shift (x, y, z in cm) and tilt angle (inverse of geometry tilt for global→local transform)
+    double tiltAngleDeg = -fTcalEvent->geom_detector.fTiltAngleY * 180.0 / M_PI;
+    fMagField->SetRearMuSpectShift(
+        fTcalEvent->geom_detector.fRearMuSpect_LOS_shiftX/10.0, 
+        fTcalEvent->geom_detector.fRearMuSpect_LOS_shiftY/10.0,
+        fTcalEvent->geom_detector.rearMuSpectLocZ/10.0,
+        tiltAngleDeg
+    );
 
     // empty histogram pointers
 	for(int i =0; i < 50; i++){
@@ -3311,13 +3318,14 @@ void TPORecoEvent::ReconstructMuonSpectrometer() {
     }
     
     //std::vector<TMuTrack> fMuTracks;
+    double smear_xy_mm_sigma = 0.1; // 0.1 mm = 100 μm
 
     // Build temp tracks: smear each raw hit by 100 μm (x,y) BEFORE station averaging
     std::vector<TMuTrack> tempMuTracks;
     {
-      std::random_device rd_hits;
-      std::mt19937 gen_hits(rd_hits());
-      std::normal_distribution<> smear_xy_mm(0.0, 0.1); // 0.1 mm = 100 μm
+      //std::random_device rd_hits;
+      //std::mt19937 gen_hits(rd_hits());
+      //std::normal_distribution<> smear_xy_mm(0.0, 0.1); // 0.1 mm = 100 μm
       for (const auto &it : fTcalEvent->fMuTagTracks) 
       {
         if(it->fPDG != 13 && it->fPDG != -13) continue;
@@ -3325,14 +3333,15 @@ void TPORecoEvent::ReconstructMuonSpectrometer() {
         mutrack.ftrackID = it->ftrackID;
         mutrack.fPDG = it->fPDG;
         mutrack.layerID = it->layerID;
-        mutrack.fpos.reserve(it->pos.size());
-        for (size_t ih = 0; ih < it->pos.size(); ++ih) {
-          ROOT::Math::XYZVector p = it->pos[ih];
-          p.SetX(p.x() + smear_xy_mm(gen_hits));
-          p.SetY(p.y() + smear_xy_mm(gen_hits));
-          // z is not smeared
-          mutrack.fpos.push_back(p);
-        }
+        mutrack.fpos = it->pos;
+        //mutrack.fpos.reserve(it->pos.size());
+        //for (size_t ih = 0; ih < it->pos.size(); ++ih) {
+        //  ROOT::Math::XYZVector p = it->pos[ih];
+        //  p.SetX(p.x() + smear_xy_mm(gen_hits));
+        //  p.SetY(p.y() + smear_xy_mm(gen_hits));
+        //  // z is not smeared
+        //  mutrack.fpos.push_back(p);
+        //}
         tempMuTracks.push_back(std::move(mutrack));
       }
     }
@@ -3386,6 +3395,7 @@ void TPORecoEvent::ReconstructMuonSpectrometer() {
                      << mutrack.fpos[j].x() << ", " << mutrack.fpos[j].y() << ", " << mutrack.fpos[j].z() << ")" << std::endl;
         }
     }
+    //////////(o^o)///////////
     // Field unit sanity check at first hit (Tesla) --> GenFit expects kGauss; convert to Tesla for print.
     if (!fMuTracks.empty() && !fMuTracks.front().fpos.empty()) {
         auto &trk0 = fMuTracks.front();
@@ -3406,7 +3416,21 @@ void TPORecoEvent::ReconstructMuonSpectrometer() {
                 << " By=" << BkG.Y()/10.0
                 << " Bz=" << BkG.Z()/10.0 << std::endl;
     }
-    // No smearing here: already applied per-hit before averaging
+   // introduce some smearing on averaged hit to simulate detector resolution
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::normal_distribution<> d(0, smear_xy_mm_sigma); // in mm
+    for(auto &it : fMuTracks) 
+    {
+        size_t nhits = it.fpos.size();
+        for(size_t i = 0; i < nhits; i++) 
+        {
+            it.fpos[i].SetX( it.fpos[i].x() + d(gen) );
+            it.fpos[i].SetY( it.fpos[i].y() + d(gen) );
+         //   // no smearing in z 
+       }
+    }
+    
     // dump fMuTracks
     // Verbosity for GenFit prints: set MS_VERBOSE=1 (or higher) in env to enable
     int verbose = 0;
@@ -3498,13 +3522,18 @@ void TPORecoEvent::ReconstructMuonSpectrometer() {
           //t_chi2 = it.fchi2; t_ndf = it.fnDoF; t_pval = it.fpval; t_q = (int)it.fcharge;
           //t_ok = (t_ndf > 0 ? (t_chi2 / t_ndf) < 20.0 : true);
           // Run GenFit next
-          it.GenFitTrackFit(verbose, 0.1);
+          it.GenFitTrackFit(verbose, smear_xy_mm_sigma);
+          std::cout << " GenFit result: ";
+          std::cout << " p = " << it.fp << " GeV/c";
+          std::cout << " +/- " << it.fpErr << " GeV/c";
+          std::cout << " chi2/ndf = ";          
+          
           //g_px = it.fpx; g_py = it.fpy; g_pz = it.fpz; g_p = it.fp;
           //g_chi2 = it.fchi2; g_ndf = it.fnDoF; g_pval = it.fpval;
           //g_ok = (it.fpval > 0.01);
           if (diag_bdl > 0) {
             auto res = computeSigmaBdl(it);
-            std::cout << "[Diag] Σ B_perp·dl = " << res.bdl_T_m << " T·m (" << res.bdl_kG_cm
+            std::cout << "[Diag] sum B_perp·dl = " << res.bdl_T_m << " T·m (" << res.bdl_kG_cm
                     << " kG·cm), deflection θ = " << res.theta_rad
                     << " rad, p_est ≈ " << res.p_est_GeV << " GeV/c" << std::endl;
           }

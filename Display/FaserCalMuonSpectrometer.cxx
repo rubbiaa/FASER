@@ -36,6 +36,7 @@ struct MuonRecoData {
     // GenFit results
     double genfit_px, genfit_py, genfit_pz, genfit_p;
     double genfit_chi2, genfit_ndf, genfit_pval;
+    int genfit_charge;
     bool genfit_fit_success;
     // Taubin results
     double taubin_px, taubin_py, taubin_pz, taubin_p;
@@ -59,6 +60,16 @@ std::vector<MuonRecoData> ReconstructMuonSpectrometer(display::FaserCalDisplay* 
         // Build geometry-driven field maps so B=0 at stations and |B|=1.5T in between
         int venv = 0; if (const char* s = std::getenv("MS_VERBOSE")) { try { venv = std::stoi(s); } catch(...) { venv = 1; } }
         magField->BuildGeometryMaps(venv);
+        // Set the spectrometer shift and tilt from geometry (converted mm to cm, radians to degrees)
+        // Inverse tilt (-fTiltAngleY) to transform global→local coordinates
+        double tiltAngleDeg = -display->fTcalEvent->geom_detector.fTiltAngleY * 180.0 / M_PI;
+        magField->SetSlitPosition(25.0); // in cm
+        magField->SetRearMuSpectGeometry(display->fTcalEvent->geom_detector.rearMuSpectLocZ/10.0, 
+                                         display->fTcalEvent->geom_detector.rearMuSpectSizeZ/10.0);
+        magField->SetRearMuSpectShift(display->fTcalEvent->geom_detector.fRearMuSpect_LOS_shiftX/10.0, 
+                                      display->fTcalEvent->geom_detector.fRearMuSpect_LOS_shiftY/10.0,
+                                      display->fTcalEvent->geom_detector.rearMuSpectLocZ/10.0,
+                                      tiltAngleDeg);
         //////////(o^o)///////////
         genfit::FieldManager::getInstance()->init(magField);
         
@@ -73,13 +84,16 @@ std::vector<MuonRecoData> ReconstructMuonSpectrometer(display::FaserCalDisplay* 
     }
 
     std::vector<TMuTrack> fMuTracks;
+    //double smear_xy_mm_sigma = 0.07; // 0.07 mm = 70 μm
+    //double smear_xy_mm_sigma = 0.1; // 0.1 mm = 100 μm
+    double smear_xy_mm_sigma = 0.05; // 0.05 mm = 50 μm
 
    // Build temp tracks: smear each raw hit by 100 μm (x,y) BEFORE station averaging
     std::vector<TMuTrack> tempMuTracks;
     {
-      std::random_device rd_hits;
-      std::mt19937 gen_hits(rd_hits());
-      std::normal_distribution<> smear_xy_mm(0.0, 0.1); // 0.1 mm = 100 μm
+      //std::random_device rd_hits;
+      //std::mt19937 gen_hits(rd_hits());
+      //std::normal_distribution<> smear_xy_mm(0.0, smear_xy_mm_sigma); // 0.07 mm = 70 μm
       for (const auto &it : display->fTcalEvent->fMuTagTracks) 
       {
         if(it->fPDG != 13 && it->fPDG != -13) continue;
@@ -87,14 +101,17 @@ std::vector<MuonRecoData> ReconstructMuonSpectrometer(display::FaserCalDisplay* 
         mutrack.ftrackID = it->ftrackID;
         mutrack.fPDG = it->fPDG;
         mutrack.layerID = it->layerID;
-        mutrack.fpos.reserve(it->pos.size());
-        for (size_t ih = 0; ih < it->pos.size(); ++ih) {
-          ROOT::Math::XYZVector p = it->pos[ih];
-          p.SetX(p.x() + smear_xy_mm(gen_hits));
-          p.SetY(p.y() + smear_xy_mm(gen_hits));
+        mutrack.fpos = it->pos;
+
+        //mutrack.fpos.reserve(it->pos.size());
+        // SMEARING WILL DONE AFTER AVERAGING
+        //for (size_t ih = 0; ih < it->pos.size(); ++ih) {
+        //  ROOT::Math::XYZVector p = it->pos[ih];
+          //p.SetX(p.x() + smear_xy_mm(gen_hits));
+          //p.SetY(p.y() + smear_xy_mm(gen_hits));
           // z is not smeared
-          mutrack.fpos.push_back(p);
-        }
+        //  mutrack.fpos.push_back(p);
+        //}
         tempMuTracks.push_back(std::move(mutrack));
       }
     }
@@ -148,7 +165,23 @@ std::vector<MuonRecoData> ReconstructMuonSpectrometer(display::FaserCalDisplay* 
                      << mutrack.fpos[j].x() << ", " << mutrack.fpos[j].y() << ", " << mutrack.fpos[j].z() << ")" << std::endl;
         }
     }
-  // No smearing here: already applied per-hit before averaging
+
+  // introduce some smearing to simulate detector resolution
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::normal_distribution<> d(0, smear_xy_mm_sigma); 
+    for(auto &it : fMuTracks) 
+    {
+        size_t nhits = it.fpos.size();
+        for(size_t i = 0; i < nhits; i++) 
+        {
+            it.fpos[i].SetX( it.fpos[i].x() + d(gen) );
+            it.fpos[i].SetY( it.fpos[i].y() + d(gen) );
+         //   // no smearing in z 
+       }
+    }
+
+  ///////////////////////////  
   // Field unit sanity check at first hit (Tesla) --> GenFit expects kGauss; convert to Tesla for print.
   if (!fMuTracks.empty() && !fMuTracks.front().fpos.empty()) {
     auto &trk0 = fMuTracks.front();
@@ -171,6 +204,8 @@ std::vector<MuonRecoData> ReconstructMuonSpectrometer(display::FaserCalDisplay* 
   }
     // No smearing here: already applied per-hit before averaging
     // dump fMuTracks
+    // do the following "export MS_DIAG_BDL=1 && export MS_VERBOSE=1 " in env to enable detailed per-track prints
+    //////////(o^o)///////////"
     // Verbosity for GenFit prints: set MS_VERBOSE=1 (or higher) in env to enable
     int verbose = 0;
     if (const char* v = std::getenv("MS_VERBOSE")) {
@@ -250,24 +285,33 @@ std::vector<MuonRecoData> ReconstructMuonSpectrometer(display::FaserCalDisplay* 
         bool attemptFit = (nstations >= 3);
         
         // Containers for both fits
-        double g_px=0, g_py=0, g_pz=0, g_p=0, g_chi2=-1, g_ndf=0, g_pval=0; bool g_ok=false;
+        double g_px=0, g_py=0, g_pz=0, g_p=0, g_chi2=-1, g_ndf=0, g_pval=0; int g_q=0; bool g_ok=false;
         double t_px=0, t_py=0, t_pz=0, t_p=0, t_perr=0, t_chi2=-1, t_ndf=0, t_pval=0; int t_q=0; bool t_ok=false;
 
         if (attemptFit) {
           std::cout << "Fitting track " << it.ftrackID << " with " << nstations << " stations..." << std::endl;
+          #if 0
           // Run Taubin first
-          it.CircleFitTaubin(verbose, 0.1);
+          it.CircleFitTaubin(verbose, smear_xy_mm_sigma);
           t_px = it.fpx; t_py = it.fpy; t_pz = it.fpz; t_p = it.fp; t_perr = it.fpErr;
-          t_chi2 = it.fchi2; t_ndf = it.fnDoF; t_pval = it.fpval; t_q = (int)it.fcharge;
+          t_chi2 = it.fchi2; t_ndf = it.fnDoF; t_pval = it.fpval; 
+          // NOTE: Taubin charge also has opposite sign convention, so we negate it
+          t_q = -(int)it.fcharge;
           t_ok = (t_ndf > 0 ? (t_chi2 / t_ndf) < 20.0 : true);
-          // Run GenFit next
-          it.GenFitTrackFit(verbose, 0.1);
+          #endif
+
+          it.GenFitTrackFit(verbose, smear_xy_mm_sigma);
+
           g_px = it.fpx; g_py = it.fpy; g_pz = it.fpz; g_p = it.fp;
-          g_chi2 = it.fchi2; g_ndf = it.fnDoF; g_pval = it.fpval;
-          g_ok = (it.fpval > 0.01);
+          g_chi2 = it.fchi2; g_ndf = it.fnDoF; g_pval = it.fpval; 
+          // NOTE: GenFit charge has opposite sign convention, so we negate it
+          g_q = -(int)it.fcharge;
+          //g_ok = (it.fpval > 0.01);
+          g_ok = (it.fchi2 > 0);
+          
           if (diag_bdl > 0) {
             auto res = computeSigmaBdl(it);
-            std::cout << "[Diag] Σ B_perp·dl = " << res.bdl_T_m << " T·m (" << res.bdl_kG_cm
+            std::cout << "[Diag] sum B_perp·dl = " << res.bdl_T_m << " T·m (" << res.bdl_kG_cm
                     << " kG·cm), deflection θ = " << res.theta_rad
                     << " rad, p_est ≈ " << res.p_est_GeV << " GeV/c" << std::endl;
           }
@@ -306,6 +350,7 @@ std::vector<MuonRecoData> ReconstructMuonSpectrometer(display::FaserCalDisplay* 
       recoData.genfit_chi2 = g_chi2;
       recoData.genfit_ndf  = g_ndf;
       recoData.genfit_pval = g_pval;
+      recoData.genfit_charge = g_q;
       recoData.genfit_fit_success = g_ok;
 
       recoData.taubin_px = t_px;
@@ -337,7 +382,7 @@ std::vector<MuonRecoData> ReconstructMuonSpectrometer(display::FaserCalDisplay* 
             recoData.ndf = 0;
             recoData.fit_success = false;
       recoData.genfit_px = recoData.genfit_py = recoData.genfit_pz = recoData.genfit_p = 0.0;
-      recoData.genfit_chi2 = -1.0; recoData.genfit_ndf = 0; recoData.genfit_pval = 0.0; recoData.genfit_fit_success = false;
+      recoData.genfit_chi2 = -1.0; recoData.genfit_ndf = 0; recoData.genfit_pval = 0.0; recoData.genfit_charge = 0; recoData.genfit_fit_success = false;
       recoData.taubin_px = recoData.taubin_py = recoData.taubin_pz = recoData.taubin_p = 0.0;
       recoData.taubin_p_err = 0.0; recoData.taubin_chi2 = -1.0; recoData.taubin_ndf = 0; recoData.taubin_pval = 0.0; recoData.taubin_fit_success = false; recoData.taubin_charge = 0;
         }
@@ -429,6 +474,7 @@ void LoadAllEvents(display::FaserCalDisplay* display, int runNumber, int maxEven
   // New explicit branches for GenFit
   std::vector<double> fgenfit_px, fgenfit_py, fgenfit_pz, fgenfit_p;
   std::vector<double> fgenfit_chi2, fgenfit_ndf, fgenfit_pval;
+  std::vector<int>    fgenfit_charge;
   std::vector<bool>   fgenfit_fit_success;
   fTree->Branch("genfit_px", &fgenfit_px);
   fTree->Branch("genfit_py", &fgenfit_py);
@@ -437,6 +483,7 @@ void LoadAllEvents(display::FaserCalDisplay* display, int runNumber, int maxEven
   fTree->Branch("genfit_chi2", &fgenfit_chi2);
   fTree->Branch("genfit_ndf",  &fgenfit_ndf);
   fTree->Branch("genfit_pval", &fgenfit_pval);
+  fTree->Branch("genfit_charge", &fgenfit_charge);
   fTree->Branch("genfit_fit_success", &fgenfit_fit_success);
 
   // New explicit branches for Taubin
@@ -579,7 +626,7 @@ void LoadAllEvents(display::FaserCalDisplay* display, int runNumber, int maxEven
             fmuon_ndf.clear();
             fmuon_fit_success.clear();
             fgenfit_px.clear(); fgenfit_py.clear(); fgenfit_pz.clear(); fgenfit_p.clear();
-            fgenfit_chi2.clear(); fgenfit_ndf.clear(); fgenfit_pval.clear(); fgenfit_fit_success.clear();
+            fgenfit_chi2.clear(); fgenfit_ndf.clear(); fgenfit_pval.clear(); fgenfit_charge.clear(); fgenfit_fit_success.clear();
             ftaubin_px.clear(); ftaubin_py.clear(); ftaubin_pz.clear(); ftaubin_p.clear(); ftaubin_p_err.clear();
             ftaubin_chi2.clear(); ftaubin_ndf.clear(); ftaubin_pval.clear(); ftaubin_charge.clear(); ftaubin_fit_success.clear();
             
@@ -609,6 +656,7 @@ void LoadAllEvents(display::FaserCalDisplay* display, int runNumber, int maxEven
         fgenfit_chi2.push_back(recoData.genfit_chi2);
         fgenfit_ndf.push_back(recoData.genfit_ndf);
         fgenfit_pval.push_back(recoData.genfit_pval);
+        fgenfit_charge.push_back(recoData.genfit_charge);
         fgenfit_fit_success.push_back(recoData.genfit_fit_success);
 
         // Taubin results
