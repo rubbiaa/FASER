@@ -42,6 +42,28 @@ PrimaryGeneratorMessenger::PrimaryGeneratorMessenger(PrimaryGeneratorAction* Gun
 	fSingleMomentumCmd->SetParameterName("SingleMomentum", false);
 	fSingleMomentumCmd->SetDefaultUnit("GeV");
 	fSingleMomentumCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+	fSingleParticleNameCmd = new G4UIcmdWithAString("/generator/singleParticleName", this);
+	fSingleParticleNameCmd->SetGuidance("Set single-particle species, e.g. neutron, lambda0, k0, k0s, k0l");
+	fSingleParticleNameCmd->SetParameterName("SingleParticleName", false);
+	fSingleParticleNameCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+	fUseNeutralHadronLogSpectrumCmd = new G4UIcmdWithABool("/generator/useNeutralHadronLogSpectrum", this);
+	fUseNeutralHadronLogSpectrumCmd->SetGuidance("Enable log-uniform kinetic energy spectrum for neutral hadrons");
+	fUseNeutralHadronLogSpectrumCmd->SetParameterName("UseNeutralHadronLogSpectrum", false);
+	fUseNeutralHadronLogSpectrumCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+	fNeutralHadronLogEminCmd = new G4UIcmdWithADoubleAndUnit("/generator/neutralHadronLogEmin", this);
+	fNeutralHadronLogEminCmd->SetGuidance("Set minimum kinetic energy for neutral-hadron log spectrum");
+	fNeutralHadronLogEminCmd->SetParameterName("NeutralHadronLogEmin", false);
+	fNeutralHadronLogEminCmd->SetDefaultUnit("GeV");
+	fNeutralHadronLogEminCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+	fNeutralHadronLogEmaxCmd = new G4UIcmdWithADoubleAndUnit("/generator/neutralHadronLogEmax", this);
+	fNeutralHadronLogEmaxCmd->SetGuidance("Set maximum kinetic energy for neutral-hadron log spectrum");
+	fNeutralHadronLogEmaxCmd->SetParameterName("NeutralHadronLogEmax", false);
+	fNeutralHadronLogEmaxCmd->SetDefaultUnit("GeV");
+	fNeutralHadronLogEmaxCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -54,6 +76,10 @@ PrimaryGeneratorMessenger::~PrimaryGeneratorMessenger()
 	delete fWantMuonBackground;
 	delete fWantSingleParticle;	
 	delete fSingleMomentumCmd;
+	delete fSingleParticleNameCmd;
+	delete fUseNeutralHadronLogSpectrumCmd;
+	delete fNeutralHadronLogEminCmd;
+	delete fNeutralHadronLogEmaxCmd;
 	delete fGunDir;
 }
 
@@ -79,6 +105,24 @@ void PrimaryGeneratorMessenger::SetNewValue(G4UIcommand* command, G4String newVa
 	
 	if (command == fWantSingleParticle) {
 		fAction->SetWantSingleParticle(fWantSingleParticle->GetNewBoolValue(newValue));
+	}
+
+	if (command == fSingleParticleNameCmd) {
+		fAction->SetSingleParticleName(newValue);
+	}
+
+	if (command == fUseNeutralHadronLogSpectrumCmd) {
+		fAction->SetUseNeutralHadronLogSpectrum(fUseNeutralHadronLogSpectrumCmd->GetNewBoolValue(newValue));
+	}
+
+	if (command == fNeutralHadronLogEminCmd) {
+		double valueGeV = fNeutralHadronLogEminCmd->GetNewDoubleValue(newValue) / GeV;
+		fAction->SetNeutralHadronLogEmin(valueGeV);
+	}
+
+	if (command == fNeutralHadronLogEmaxCmd) {
+		double valueGeV = fNeutralHadronLogEmaxCmd->GetNewDoubleValue(newValue) / GeV;
+		fAction->SetNeutralHadronLogEmax(valueGeV);
 	}
 	
 	// added by Umut

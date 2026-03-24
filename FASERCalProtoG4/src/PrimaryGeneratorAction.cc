@@ -18,6 +18,10 @@
 #include "TVector3.h"
 #include "TRotation.h"
 
+#include <algorithm>
+#include <cctype>
+#include <cmath>
+
 PrimaryGeneratorAction::PrimaryGeneratorAction(ParticleManager* f_particleManager) : G4VUserPrimaryGeneratorAction()
 {
 
@@ -55,6 +59,76 @@ void PrimaryGeneratorAction::SetSingleParticleMomentum(double gev) {
 	}
 }
 
+int PrimaryGeneratorAction::ResolveSingleParticlePDG() const {
+	std::string key = fSingleParticleName;
+	std::transform(key.begin(), key.end(), key.begin(),
+		[](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+	if (key == "neutron" || key == "n") return 2112;
+	if (key == "antineutron" || key == "anti_neutron" || key == "nbar") return -2112;
+	if (key == "lambda0" || key == "lambda" || key == "lambda_0") return 3122;
+	if (key == "antilambda0" || key == "anti_lambda0" || key == "anti_lambda") return -3122;
+	if (key == "k0" || key == "kaon0") return 311;
+	if (key == "antik0" || key == "anti_k0" || key == "anti_kaon0") return -311;
+	if (key == "k0s" || key == "kaon0s" || key == "ks0") return 310;
+	if (key == "k0l" || key == "kaon0l" || key == "kl0") return 130;
+
+	G4ParticleTable* particleTable = G4ParticleTable::GetParticleTable();
+	G4ParticleDefinition* particle = particleTable->FindParticle(fSingleParticleName);
+	if (particle != nullptr) {
+		return particle->GetPDGEncoding();
+	}
+
+	return 13; // fallback: mu-
+}
+
+bool PrimaryGeneratorAction::IsNeutralHadronPDG(int pdgid) const {
+	switch (pdgid) {
+		case 2112:  // neutron
+		case -2112: // antineutron
+		case 3122:  // lambda0
+		case -3122: // anti-lambda0
+		case 311:   // K0
+		case -311:  // anti-K0
+		case 310:   // K0S
+		case 130:   // K0L
+			return true;
+		default:
+			return false;
+	}
+}
+
+void PrimaryGeneratorAction::SetNeutralHadronLogEmin(double gev) {
+	if (!std::isfinite(gev) || gev <= 0.0) {
+		G4cout << "SetNeutralHadronLogEmin: invalid value " << gev << " GeV, keeping "
+		       << fNeutralHadronLogEminGeV << " GeV" << G4endl;
+		return;
+	}
+	fNeutralHadronLogEminGeV = gev;
+	if (fNeutralHadronLogEmaxGeV <= fNeutralHadronLogEminGeV) {
+		fNeutralHadronLogEmaxGeV = fNeutralHadronLogEminGeV * 10.0;
+	}
+}
+
+void PrimaryGeneratorAction::SetNeutralHadronLogEmax(double gev) {
+	if (!std::isfinite(gev) || gev <= 0.0) {
+		G4cout << "SetNeutralHadronLogEmax: invalid value " << gev << " GeV, keeping "
+		       << fNeutralHadronLogEmaxGeV << " GeV" << G4endl;
+		return;
+	}
+	fNeutralHadronLogEmaxGeV = gev;
+	if (fNeutralHadronLogEmaxGeV <= fNeutralHadronLogEminGeV) {
+		fNeutralHadronLogEminGeV = fNeutralHadronLogEmaxGeV / 10.0;
+	}
+}
+
+double PrimaryGeneratorAction::SampleLogUniformKineticEnergyGeV() const {
+	const double logEmin = std::log(fNeutralHadronLogEminGeV);
+	const double logEmax = std::log(fNeutralHadronLogEmaxGeV);
+	const double u = G4UniformRand();
+	return std::exp(logEmin + u * (logEmax - logEmin));
+}
+
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -79,7 +153,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 
 	const TPOEvent *branch_POEvent = GetTPOEvent();
 
-	if (m_ROOTInputFile == nullptr && !want_single_particle) {
+	if (m_ROOTInputFile == nullptr && !want_single_particle && !want_muon_background) {
 		// Open FASERMC PO input ntuple files
 		std::string inputFile = fROOTInputFileName;
 		m_ROOTInputFile = new TFile(inputFile.c_str(), "READ");
@@ -125,6 +199,40 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 		if (m_muonDumpFile.is_open()) {
 			m_muonDumpFile << runnum << "," << evtid << "," << x << "," << y << "," << z << ","
 				<< slope_x << "," << slope_y << "," << px << "," << py << "," << pz << "," << p << "," << pdg << std::endl;
+		}
+	};
+
+	auto dump_neutral_hadron = [&](int runnum, int evtid, const std::string& pname, int pdg,
+								 double x, double y, double z,
+								 double slope_x, double slope_y,
+								 double px, double py, double pz,
+								 double p, double kineticE, double totalE) {
+		std::lock_guard<std::mutex> lk(m_neutralHadronDumpMutex);
+		std::string safeName = pname;
+		for (char& c : safeName) {
+			if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '_')) {
+				c = '_';
+			}
+		}
+		const std::string fileName = "faserps_neutral_hadrons_" + safeName + ".csv";
+
+		if (!m_neutralHadronDumpFile.is_open() || m_neutralHadronDumpParticleName != safeName) {
+			if (m_neutralHadronDumpFile.is_open()) {
+				m_neutralHadronDumpFile.close();
+			}
+			m_neutralHadronDumpFile.open(fileName, std::ios::out | std::ios::app);
+			m_neutralHadronDumpParticleName = safeName;
+			if (m_neutralHadronDumpFile.tellp() == 0) {
+				m_neutralHadronDumpFile << "run,event,particle,pdg,x,y,z,slope_x,slope_y,px,py,pz,p,kineticE,totalE" << std::endl;
+			}
+		}
+
+		if (m_neutralHadronDumpFile.is_open()) {
+			m_neutralHadronDumpFile << runnum << "," << evtid << "," << pname << "," << pdg << ","
+				<< x << "," << y << "," << z << ","
+				<< slope_x << "," << slope_y << ","
+				<< px << "," << py << "," << pz << ","
+				<< p << "," << kineticE << "," << totalE << std::endl;
 		}
 	};
 
@@ -187,13 +295,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 	// single particle gun mode
 	if(want_single_particle) {
 
-		int popt = 2;
-		// 0 = electron
-		// 1 = photon
-		// 2 = muon
-		// 3 = pion
-		int particle_options[5] = {11, 22, 13, 211}; // e, gamma, mu+, pi+
-		int pdgid = particle_options[popt];
+		int pdgid = ResolveSingleParticlePDG();
 		//double momentumMagnitude = 100.0; // in GeV
 		double momentumMagnitude = fSingleParticleMomentum; // in GeV (can be set via /generator/singleMomentum)
 
@@ -201,17 +303,29 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 		fTPOEvent.POs.clear();
 		fTPOEvent.setVtxTarget(TPOEvent::kVtx_in_Scint);
 		// set vertex position for single particle gun (global coordinates so must adjust for tilted detector)
-		vtxpos.SetX(240.0);
-		vtxpos.SetY(240.0);
+		// Keep source centered so it stays inside acceptance also for narrow prototype modules.
+		vtxpos.SetX(0.0);
+		vtxpos.SetY(0.0);
 		vtxpos.SetZ(-800); // in mm, in front of the detector
 		fTPOEvent.setPrimaryVtx(vtxpos.x(), vtxpos.y(), vtxpos.z());
 		fParticleManager->setVertexInformation(vtxpos);
-		fTPOEvent.run_number = 888*100000 + popt*10000 + int(momentumMagnitude);
+		fTPOEvent.run_number = 888*100000 + std::abs(pdgid) * 10 + int(momentumMagnitude);
 		fTPOEvent.event_id = valid_event;
 		struct PO aPO;
 		aPO.m_pdg_id = pdgid;
 		G4ParticleDefinition *particle = particleTable->FindParticle(aPO.m_pdg_id);
+		if (particle == nullptr) {
+			G4ExceptionDescription desc;
+			desc << "Unknown single-particle selection '" << fSingleParticleName
+			     << "' (PDG " << pdgid << ").";
+			G4Exception("PrimaryGeneratorAction::GeneratePrimaries", "InvalidSetup", FatalException, desc);
+			return;
+		}
 		double mass = particle->GetPDGMass()/GeV;
+		if (fUseNeutralHadronLogSpectrum && IsNeutralHadronPDG(pdgid)) {
+			const double kineticEnergyGeV = SampleLogUniformKineticEnergyGeV();
+			momentumMagnitude = std::sqrt(kineticEnergyGeV * (kineticEnergyGeV + 2.0 * mass));
+		}
 		aPO.m_track_id = 1;
 		aPO.m_status = 1;
 		aPO.m_px = 0;
@@ -224,6 +338,21 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 		aPO.nparent = 0;
 		aPO.geanttrackID = -1;
 		fTPOEvent.POs.push_back(aPO);
+
+		if (IsNeutralHadronPDG(pdgid)) {
+			const double px = aPO.m_px;
+			const double py = aPO.m_py;
+			const double pz = aPO.m_pz;
+			const double p = std::sqrt(px * px + py * py + pz * pz);
+			const double slope_x = (pz != 0.0) ? (px / pz) : 0.0;
+			const double slope_y = (pz != 0.0) ? (py / pz) : 0.0;
+			const double totalE = aPO.m_energy;
+			const double kineticE = totalE - mass;
+			dump_neutral_hadron(fTPOEvent.run_number, fTPOEvent.event_id,
+				particle->GetParticleName(), pdgid,
+				vtxpos.x(), vtxpos.y(), vtxpos.z(),
+				slope_x, slope_y, px, py, pz, p, kineticE, totalE);
+		}
 	}
 
 	int ipo_maxhadron = -1;
