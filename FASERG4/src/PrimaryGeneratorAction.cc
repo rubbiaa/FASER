@@ -140,8 +140,8 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 		  // changed tto -10 to 10 cm
 		  //x = (G4UniformRand() - 0.5) * 400; // in mm
 		  //y = (G4UniformRand() - 0.5) * 400; // in mm
-		  x = (G4UniformRand() - 0.5) * 200; // in mm
-		  y = (G4UniformRand() - 0.5) * 200; // in mm
+		  x = (G4UniformRand() - 0.5) * 100; // in mm
+		  y = (G4UniformRand() - 0.5) * 100; // in mm
 		  z = -2000; // in mm, in front of the detector
 		} else {
 		  std::cout << " Using GENIE vtx:  x=" << x << " y=" << y << " z=" << z << " ";
@@ -362,7 +362,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 			particleGun->SetParticleDefinition(muon);
 			particleGun->SetParticlePosition(G4ThreeVector(vtxpos.x() * mm, vtxpos.y() * mm, vtxpos.z() * mm));
 			// Define angular spread (in radians)
-			double sigmaTheta = 0.1; // 100 mrad
+			double sigmaTheta = -0.1; // 100 mrad
 			// Sample θ from Gaussian centered at 0 with std dev 0.1
 			double theta = G4RandGauss::shoot(0.0, sigmaTheta);
 			// Sample φ uniformly from 0 to 2π

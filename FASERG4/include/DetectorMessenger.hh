@@ -71,6 +71,10 @@ class DetectorMessenger : public G4UImessenger {
 	G4UIcmdWithADoubleAndUnit* fLOSShiftXCmd = nullptr;	
 	G4UIcmdWithADoubleAndUnit* fLOSShiftYCmd = nullptr;	
 
+	// NEW: Commands for 3DCAL-specific shift
+	G4UIcmdWithADoubleAndUnit* fThreeDCALShiftXCmd = nullptr;
+	G4UIcmdWithADoubleAndUnit* fThreeDCALShiftYCmd = nullptr;
+
 	G4UIcmdWithAnInteger * fNumberReplicasCmd = nullptr;
 
 	// UMUT: tilt angle command

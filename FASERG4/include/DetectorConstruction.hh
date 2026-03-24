@@ -69,7 +69,11 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 
 	G4double fFASERCal_LOS_shiftX = 0 * cm;
 	G4double fFASERCal_LOS_shiftY = 0 * cm;
-
+	// Added to shift only 3DCAL
+	// NEW: Independent shift for 3DCAL only
+	G4double fThreeD_CAL_shiftX = 0 * cm;
+	G4double fThreeD_CAL_shiftY = 0 * cm;
+	
 	double getScintillatorSizeX() const { return fScintillatorSizeX; }
 	double getScintillatorSizeY() const { return fScintillatorSizeY; }
 	double getScintillatorSizeZ() const { return fScintillatorSizeZ; }

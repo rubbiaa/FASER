@@ -24,6 +24,7 @@
 #include <filesystem>
 #include <vector>
 #include <TLegend.h>
+#include <TPaletteAxis.h>
 
 #include <TSystem.h>
 #include <unordered_map>
@@ -62,11 +63,11 @@ namespace display
   {
     std::cout << "Starting GetDetector()" << std::endl;
     // Load the GDML file using TGeoManager::Import
-    //TGeoManager::Import("/data/sw/FASERCAL/FASER/GeomGDML/geometry.gdml");
+    TGeoManager::Import("../GeomGDML/geometry.gdml");
     // use for Run120 and v5.0
     //TGeoManager::Import("/home/hyperk/sw/FASERCAL/FASER_March2025/GeomGDML/geometry_v5.gdml");
     //TGeoManager::Import("../../GeomGDML/geometry_tilted_5degree.gdml");
-    TGeoManager::Import("../../FASERG4/build/geometry_tilted_5degree.gdml");
+    //TGeoManager::Import("../../FASERG4/build/geometry_tilted_5degree.gdml");
     //TGeoManager::Import("../../GeomGDML/geometry_0degree.gdml");
     //TGeoManager::Import("../../GeomGDML/geometry_0degree_shiftLoS.gdml");
     //
@@ -471,7 +472,7 @@ namespace display
   void FaserCalDisplay::ShowAxis()
   {
     TString axisName = "Coordinate system";
-    Float_t axisArrowLength = 100.;
+    Float_t axisArrowLength = 25.;
     Float_t axisArrowTubeR = 0.01;
     Color_t axisColor = kMagenta;
     Int_t axisLabelFontSize = 15;
@@ -542,9 +543,20 @@ namespace display
   //////////////////////////////////////////////////////////  
   void FaserCalDisplay::DoExit()
   {
-    std::cout << "Exit application..." << std::endl;
-    gROOT->Reset();
-    gApplication->Terminate(0);
+    // Prevent multiple exit attempts
+    if (fExiting) return;
+    fExiting = kTRUE;
+        std::cout << "Exit application..." << std::endl;
+    
+    // Clean up TEve to avoid conflicts with TGeoManager cleanup
+    if (gEve) {
+      gEve->GetViewers()->DeleteAnnotations();
+      gEve->GetBrowser()->UnmapWindow();
+    }
+    
+    // Use _exit for immediate termination without cleanup
+    // This avoids double-deletion issues with TGeoManager
+    _exit(0);
   }
   //////////////////////////////////////////////////////////  
   void FaserCalDisplay::SetEventNumber()
@@ -623,9 +635,6 @@ namespace display
       else
 	      fDetectorElements->SetRnrState(kFALSE);
       
-      gEve->AddGlobalElement(fRearECALElements);
-      gEve->AddGlobalElement(fRearHCALElements);
-      gEve->AddGlobalElement(fRearMuCALElements);
       fRearECALElements->SetRnrState(kTRUE);
       fRearHCALElements->SetRnrState(kTRUE);
       fRearMuCALElements->SetRnrState(kTRUE);
@@ -669,7 +678,6 @@ namespace display
       else
 	      fDetectorElements->SetRnrState(kFALSE);
       
-      gEve->AddGlobalElement(fPrimaryElements);
       fPrimaryElements->SetRnrState(kTRUE);  
       gStyle->SetPalette(-1);
       gEve->FullRedraw3D(kFALSE);
@@ -709,11 +717,8 @@ namespace display
 	    else
 	      fDetectorElements->SetRnrState(kFALSE);
 	
-	    gEve->AddGlobalElement(fMuonHitElements);
 	    fMuonHitElements->SetRnrState(kTRUE);  
-      gEve->AddGlobalElement(fMuSpectHitElements);
       fMuSpectHitElements->SetRnrState(kTRUE);
-      gEve->AddGlobalElement(fMuonSpectFitElements);
       fMuonSpectFitElements->SetRnrState(kTRUE);
 	    gStyle->SetPalette(-1);
 	    gEve->FullRedraw3D(kFALSE);
@@ -755,7 +760,6 @@ namespace display
 	else
 	  fDetectorElements->SetRnrState(kFALSE);
 
-	gEve->AddGlobalElement(fPionHitElements);
 	fPionHitElements->SetRnrState(kTRUE);  
 	gStyle->SetPalette(-1);
 	gEve->FullRedraw3D(kFALSE);
@@ -797,7 +801,6 @@ namespace display
 	else
 	  fDetectorElements->SetRnrState(kFALSE);
 
-	gEve->AddGlobalElement(fKaonHitElements);
 	fKaonHitElements->SetRnrState(kTRUE);  
 	gStyle->SetPalette(-1);
 	gEve->FullRedraw3D(kFALSE);
@@ -839,7 +842,6 @@ namespace display
 	else
 	  fDetectorElements->SetRnrState(kFALSE);
 
-	gEve->AddGlobalElement(fProtonHitElements);
 	fProtonHitElements->SetRnrState(kTRUE);  
 	gStyle->SetPalette(-1);
 	gEve->FullRedraw3D(kFALSE);
@@ -882,7 +884,6 @@ namespace display
       else
 	fDetectorElements->SetRnrState(kFALSE);
       
-      gEve->AddGlobalElement(fShortLivedParticleHitElements);
       fShortLivedParticleHitElements->SetRnrState(kTRUE);  
       gStyle->SetPalette(-1);
       gEve->FullRedraw3D(kFALSE);
@@ -923,7 +924,6 @@ namespace display
       else
 	      fDetectorElements->SetRnrState(kFALSE);
 
-      gEve->AddGlobalElement(fSecondaryShowerElements);
       fSecondaryShowerElements->SetRnrState(kTRUE);  
       gStyle->SetPalette(-1);
       gEve->Redraw3D(kFALSE);
@@ -961,7 +961,6 @@ namespace display
       else
 	      fDetectorElements->SetRnrState(kFALSE);
  	
-      gEve->AddGlobalElement(fSecondaryHadShowerElements);
       fSecondaryHadShowerElements->SetRnrState(kTRUE);  
       gStyle->SetPalette(-1);
       gEve->FullRedraw3D(kFALSE);      
@@ -999,7 +998,6 @@ namespace display
 	else
 	  fDetectorElements->SetRnrState(kFALSE);
  	
-	gEve->AddGlobalElement(fPixelHitElements);
 	fPixelHitElements->SetRnrState(kTRUE);  
 	gStyle->SetPalette(-1);
 	gEve->FullRedraw3D(kFALSE);      
@@ -1041,7 +1039,6 @@ namespace display
 	else
 	  fDetectorElements->SetRnrState(kFALSE);
 
-	gEve->AddGlobalElement(fPixelRecoTrackElements);
 	fPixelRecoTrackElements->SetRnrState(kTRUE);
 	gStyle->SetPalette(-1);
 	gEve->FullRedraw3D(kFALSE);
@@ -1084,8 +1081,6 @@ namespace display
 	  fDetectorElements->SetRnrState(kFALSE);
 
 	fVoxHitElements->SetRnrState(kTRUE);
-	gEve->AddGlobalElement(fVoxHitElements);
-	fVoxHitElements->SetRnrState(kTRUE);
 	gStyle->SetPalette(-1);
 	gEve->FullRedraw3D(kFALSE);
 	EnablePicking();
@@ -1127,8 +1122,6 @@ namespace display
 	else
 	  fDetectorElements->SetRnrState(kFALSE);
 
-	fVoxGhostElements->SetRnrState(kTRUE);
-	gEve->AddGlobalElement(fVoxGhostElements);
 	fVoxGhostElements->SetRnrState(kTRUE);
 	gStyle->SetPalette(-1);
 	gEve->FullRedraw3D(kFALSE);
@@ -2893,6 +2886,20 @@ void FaserCalDisplay::DrawMCTruthVertexPoint()
               info->fY         = position.Y();
               info->fZ         = position.Z();
 
+              // Debug: dump hit info for channelID=0 or invalid IDs
+              //if (track->fhitIDs[i] <= 0) {
+               { std::cout << "[HIT DEBUG] ChannelID=" << track->fhitIDs[i] << " detected!" << std::endl;
+                std::cout << "  Type      : " << hittype << std::endl;
+                std::cout << "  PDG       : " << track->fPDG << std::endl;
+                std::cout << "  TrackID   : " << track->ftrackID 
+                          << "  ParentID: " << track->fparentID 
+                          << "  PrimaryID: " << track->fprimaryID << std::endl;
+                std::cout << "  ChannelID : " << track->fhitIDs[i] << std::endl;
+                std::cout << "  Edep      : " << track->fEnergyDeposits[i] << std::endl;
+                std::cout << "  Position  : (" << position.X() << ", " 
+                          << position.Y() << ", " << position.Z() << ") mm" << std::endl;
+              }
+
               eveShape->SetUserData(info.get());
               fHitInfos.emplace_back(std::move(info));
               //eveShape->SetUserData((void*)&track);
@@ -3355,15 +3362,29 @@ void FaserCalDisplay::DrawMCTruthVertexPoint()
     //
     DrawMCTruthVertexPoint();
     //
-    gEve->AddGlobalElement(fHitElements);
-    gEve->AddGlobalElement(fRearECALElements);
-    gEve->AddGlobalElement(fRearHCALElements);
-    gEve->AddGlobalElement(fMuonSpectFitElements);
-  
+    // Add all element lists to global scene only once
+    if (!fElementsAddedToScene) {
+      std::cout << "Adding element lists to global scene (first time)" << std::endl;
+      gEve->AddGlobalElement(fHitElements);
+      gEve->AddGlobalElement(fPrimaryElements);
+      gEve->AddGlobalElement(fSecondaryShowerElements);
+      gEve->AddGlobalElement(fSecondaryHadShowerElements);
+      gEve->AddGlobalElement(fShortLivedParticleHitElements);
+      gEve->AddGlobalElement(fMuonHitElements);
+      gEve->AddGlobalElement(fProtonHitElements);
+      gEve->AddGlobalElement(fPionHitElements);
+      gEve->AddGlobalElement(fKaonHitElements);
+      gEve->AddGlobalElement(fRearECALElements);
+      gEve->AddGlobalElement(fRearHCALElements);
+      gEve->AddGlobalElement(fRearMuCALElements);
+      gEve->AddGlobalElement(fMuSpectHitElements);
+      gEve->AddGlobalElement(fMuonSpectFitElements);
+      fElementsAddedToScene = kTRUE;
+    }
     //
     gEve->FullRedraw3D(kFALSE);
     
-    AnalyzeScintVoxelsAndLayerOccupancy(false,false,20);
+    AnalyzeScintVoxelsAndLayerOccupancy(false,false,0); // 0 = auto-detect from geometry
 
   }
   //////////////////////////////////////////////////////////
@@ -3722,6 +3743,7 @@ void FaserCalDisplay::DrawMCTruthVertexPoint()
   {
     CleanCanvas();
     TCanvas *myCan = CreateCanvas("Clusters",1);
+    myCan->SetCanvasSize(1800, 700);
     gPad->Update();
     myCan->Divide(2,1);
     const double boxSize = 10.0; // 1 cm = 10 mm
@@ -3735,10 +3757,13 @@ void FaserCalDisplay::DrawMCTruthVertexPoint()
     
     // ========= XZ VIEW =========
     myCan->cd(1);
-
-    TH2D *xviewPS = new TH2D("xviewPS", "Scintillator xz-view", nztot, 0, nztot, nx, 0, nx);
-    TH2D *yviewPS = new TH2D("yviewPS", "Scintillator yz-view", nztot, 0, nztot, ny, 0, ny);
+    gPad->SetRightMargin(0.16);
+    gPad->SetLeftMargin(0.12);
+    
+    TH2D *xviewPS = new TH2D("xviewPS", "Scintillator xz-view; Z (cm);X (cm)", nztot, 0, nztot, nx, 0, nx);
+    TH2D *yviewPS = new TH2D("yviewPS", "Scintillator yz-view; Z (cm);Y (cm)", nztot, 0, nztot, ny, 0, ny);
     gStyle->SetOptStat(0);
+    gStyle->SetPalette(kBird);
 
     const auto& clustersXZ = fPORecoEvent->GetPSClusters(0);
     int colorIndex = 0;
@@ -3751,14 +3776,25 @@ void FaserCalDisplay::DrawMCTruthVertexPoint()
         {
             double x, y, z;
             fPORecoEvent->pshit2d_position(hit.id, x, y, z);
-	    // std::cout << "........ " << cluster.clusterID << " " << hit.id << " " << x << " " << y << " " << z << std::endl;  
-	    xviewPS->Fill(z,x,cluster.clusterID);
+	          // std::cout << "........ " << cluster.clusterID << " " << hit.id << " " << x << " " << y << " " << z << std::endl;  
+	          xviewPS->Fill(z,x,hit.EDeposit);
         }
     }
-    xviewPS->Draw();
+    xviewPS->GetZaxis()->SetTitle("Energy Deposit [MeV]");
+    xviewPS->GetZaxis()->SetLabelSize(0.035);
+    xviewPS->GetZaxis()->SetTitleSize(0.04);
+    xviewPS->GetZaxis()->SetTitleOffset(1.3);
+    xviewPS->Draw("COLZ");
+    gPad->Update();
+    TPaletteAxis *palette = (TPaletteAxis*)xviewPS->GetListOfFunctions()->FindObject("palette");
+    if (palette) {
+        palette->SetLabelSize(0.035);
+    }
 
     // ========= ZY VIEW =========
     myCan->cd(2);
+    gPad->SetRightMargin(0.16);
+    gPad->SetLeftMargin(0.12);
     gStyle->SetOptStat(0);
 
     const auto& clustersZY = fPORecoEvent->GetPSClusters(1);
@@ -3771,11 +3807,21 @@ void FaserCalDisplay::DrawMCTruthVertexPoint()
         {
             double x, y, z;
             fPORecoEvent->pshit2d_position(hit.id, x, y, z);
-	    //std::cout << "xxxxxx " << cluster.clusterID << " " << hit.id << " " << x << " " << y << " " << z << std::endl;  
-	    yviewPS->Fill(z,y,cluster.clusterID);
+	          //std::cout << "xxxxxx " << cluster.clusterID << " " << hit.id << " " << x << " " << y << " " << z << std::endl;  
+	          yviewPS->Fill(z,y,hit.EDeposit);
         }
     }
-    yviewPS->Draw();
+    yviewPS->GetZaxis()->SetTitle("Energy Deposit [MeV]");
+    yviewPS->GetZaxis()->SetLabelSize(0.035);
+    yviewPS->GetZaxis()->SetTitleSize(0.04);
+    yviewPS->GetZaxis()->SetTitleOffset(1.3);
+    yviewPS->Draw("COLZ");
+    gPad->Update();
+    TPaletteAxis *palette2 = (TPaletteAxis*)yviewPS->GetListOfFunctions()->FindObject("palette");
+    if (palette2) {
+        palette2->SetLabelSize(0.035);
+    }
+  
     myCan->Update();
   }
   //////////////////////////////////////////////////////////
@@ -4014,11 +4060,14 @@ void FaserCalDisplay::AnalyzeScintVoxelsAndLayerOccupancy(bool drawPlots, bool c
     const double vx = g.fScintillatorVoxelSize;
     const double sizX = g.fScintillatorSizeX;
     const double sizY = g.fScintillatorSizeY;
+    const double sizZ = g.fSandwichLength;  // thickness of one sandwich layer
 
     const int Nx = static_cast<int>(std::lround(sizX / vx));
     const int Ny = static_cast<int>(std::lround(sizY / vx));
-    int expectedNx = 48;
-    int expectedNy = 48;
+    const int Nz = static_cast<int>(std::lround(sizZ / vx));
+    int expectedNx = Nx;  // derive from actual geometry
+    int expectedNy = Ny;  // derive from actual geometry
+    int derivedExpectedNz = Nz;  // derive from actual geometry
     
     if (std::fabs(Nx * vx - sizX) > 1e-6 || std::fabs(Ny * vx - sizY) > 1e-6) {
         std::cout << "[ScintAnalysis] WARNING: voxel size does not divide extent exactly: "
@@ -4029,9 +4078,48 @@ void FaserCalDisplay::AnalyzeScintVoxelsAndLayerOccupancy(bool drawPlots, bool c
     std::cout << "[ScintAnalysis] XY voxel grid: Nx=" << Nx << " Ny=" << Ny
               << " (voxel=" << vx << " mm)" << std::endl;
 
-    // If caller passes 0/negatives for expected, derive from geometry
-    if (expectedNx <= 0) expectedNx = Nx;
-    if (expectedNy <= 0) expectedNy = Ny;
+     // If caller passes 0 or negative for expectedNz, derive from geometry
+    if (expectedNz <= 0) expectedNz = derivedExpectedNz;
+    
+    // ===== DEBUG: Dump geometry boundaries =====
+    std::cout << "\n[GeometryDump] ========== GEOMETRY BOUNDARIES ==========" << std::endl;
+    std::cout << "[GeometryDump] NRep (layers) = " << g.NRep << std::endl;
+    std::cout << "[GeometryDump] X extent: " << sizX << " mm = " << Nx << " voxels" << std::endl;
+    std::cout << "[GeometryDump] Y extent: " << sizY << " mm = " << Ny << " voxels" << std::endl;
+    std::cout << "[GeometryDump] Z (SandwichLength): " << sizZ << " mm = " << Nz << " voxels" << std::endl;
+    std::cout << "[GeometryDump] Voxel size: " << vx << " mm" << std::endl;
+    std::cout << "[GeometryDump] X voxel index range: [0, " << (Nx-1) << "]" << std::endl;
+    std::cout << "[GeometryDump] Y voxel index range: [0, " << (Ny-1) << "]" << std::endl;
+    std::cout << "[GeometryDump] Z voxel index range (per layer): [0, " << (Nz-1) << "]" << std::endl;
+    
+    // Physical world coordinates
+    double xMin = -sizX/2.0;
+    double xMax = sizX/2.0;
+    double yMin = -sizY/2.0;
+    double yMax = sizY/2.0;
+    
+    // For Z: Calculate actual bounds based on how iz is mapped to world coordinates
+    double zLayerMin, zLayerMax;
+    
+    if (g.NRep == 10) {
+        // Prototype geometry (10 layers) - different positioning
+        // For prototype, iz ranges [0, 56] but only some iz values have hits
+        // Calculate based on actual observed hit positions
+        double z_iz0 = 0 * g.fSandwichLength + 0 * vx - (g.NRep * g.fSandwichLength) / 2.0 + g.fAlPlateThickness + g.fTargetSizeZ + vx/2.0;
+        double z_izMax = 0 * g.fSandwichLength + (Nz-1) * vx - (g.NRep * g.fSandwichLength) / 2.0 + g.fAlPlateThickness + g.fTargetSizeZ + vx/2.0;
+        zLayerMin = std::min(z_iz0, z_izMax);
+        zLayerMax = std::max(z_iz0, z_izMax);
+    } else {
+        // Normal/tilted geometry (20 layers)
+        double zLayerCenter = -((g.NRep * g.fSandwichLength) / 2.0) + g.fAlPlateThickness + g.fTargetSizeZ + sizZ/2.0;
+        zLayerMin = zLayerCenter - sizZ/2.0;
+        zLayerMax = zLayerCenter + sizZ/2.0;
+    }
+    
+    std::cout << "[GeometryDump] Physical X range: [" << xMin << ", " << xMax << "] mm" << std::endl;
+    std::cout << "[GeometryDump] Physical Y range: [" << yMin << ", " << yMax << "] mm" << std::endl;
+    std::cout << "[GeometryDump] Physical Z (layer 0): [" << zLayerMin << ", " << zLayerMax << "] mm" << std::endl;
+    std::cout << "[GeometryDump] ====================================\n" << std::endl;
     
     using PlaneKey = std::pair<int,int>;
     struct PlaneInfo {
@@ -4081,6 +4169,27 @@ void FaserCalDisplay::AnalyzeScintVoxelsAndLayerOccupancy(bool drawPlots, bool c
     long totalScintHits = 0;
     long totalScintTracks = 0;
 
+    // ===== DEBUG: Dump first 20 hit positions =====
+    std::cout << "\n[HitPositionDump] ========== FIRST 20 HIT POSITIONS ==========" << std::endl;
+    int hitDumpCount = 0;
+    for (const auto& track : fTcalEvent->getfTracks()) {
+        for (size_t i = 0; i < track->fhitIDs.size() && hitDumpCount < 20; i++) {
+            long ID = track->fhitIDs[i];
+            int ix, iy, iz, ilayer, hittype;
+            decode(ID, ix, iy, iz, ilayer, hittype);
+            
+            ROOT::Math::XYZVector pos = fTcalEvent->getChannelXYZfromID(ID);
+            std::cout << "[HitPositionDump] Hit " << hitDumpCount << ": ID=" << ID 
+                      << " ilayer=" << ilayer << " (ix,iy,iz)=(" << ix << "," << iy << "," << iz << ")"
+                      << " WorldPos=(" << pos.X() << ", " << pos.Y() << ", " << pos.Z() << ") mm"
+                      << " Edep=" << track->fEnergyDeposits[i] << " MeV"
+                      << " PDG=" << track->fPDG << std::endl;
+            hitDumpCount++;
+        }
+        if (hitDumpCount >= 20) break;
+    }
+    std::cout << "[HitPositionDump] ====================================\n" << std::endl;
+    
     for (auto* trk : fTcalEvent->getfTracks()) {
         if (!trk) continue;
         std::set<PlaneKey> planesTouchedByThisTrack;

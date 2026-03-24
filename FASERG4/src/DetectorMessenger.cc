@@ -102,6 +102,20 @@ DetectorMessenger::DetectorMessenger(DetectorConstruction* det) : fDetectorConst
     fTiltYCmd->SetParameterName("angle", false);
     fTiltYCmd->SetUnitCategory("Angle");
     fTiltYCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+	fThreeDCALShiftXCmd = new G4UIcmdWithADoubleAndUnit("/FASER/3DCAL/shiftX", this);
+	fThreeDCALShiftXCmd->SetGuidance("Set 3DCAL shift X (independent from LOS)");
+	fThreeDCALShiftXCmd->SetParameterName("shift", false);
+	fThreeDCALShiftXCmd->SetUnitCategory("Length");
+	fThreeDCALShiftXCmd->SetDefaultUnit("cm");
+	fThreeDCALShiftXCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+	fThreeDCALShiftYCmd = new G4UIcmdWithADoubleAndUnit("/FASER/3DCAL/shiftY", this);
+	fThreeDCALShiftYCmd->SetGuidance("Set 3DCAL shift Y (independent from LOS)");
+	fThreeDCALShiftYCmd->SetParameterName("shift", false);
+	fThreeDCALShiftYCmd->SetUnitCategory("Length");
+	fThreeDCALShiftYCmd->SetDefaultUnit("cm");
+	fThreeDCALShiftYCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -126,6 +140,8 @@ DetectorMessenger::~DetectorMessenger()
 	delete fLOSShiftYCmd;
 	// Added for tilt angle
 	delete fTiltYCmd;
+	delete fThreeDCALShiftXCmd;
+	delete fThreeDCALShiftYCmd;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -191,6 +207,14 @@ void DetectorMessenger::SetNewValue(G4UIcommand* command, G4String newValue)
 	// UMUT: tilt angle command
 	if (command == fTiltYCmd) {
 		fDetectorConstruction->SetTiltAngleY(fTiltYCmd->GetNewDoubleValue(newValue));
+	}
+
+	if (command == fThreeDCALShiftXCmd) {
+    	fDetectorConstruction->fThreeD_CAL_shiftX = fThreeDCALShiftXCmd->GetNewDoubleValue(newValue);
+	}
+
+	if (command == fThreeDCALShiftYCmd) {
+    	fDetectorConstruction->fThreeD_CAL_shiftY = fThreeDCALShiftYCmd->GetNewDoubleValue(newValue);
 	}
 }
 

@@ -487,9 +487,14 @@ void DetectorConstruction::CreateFaserCal(G4double zLocation, G4Material* materi
 		std::cout << "Placing first replica at " << zshift << std::endl;
 		new G4PVPlacement(0, G4ThreeVector(0,0,zshift), replicaLogic, "replica", containerLogic, false, i, true);
 	}
-    new G4PVPlacement(0, G4ThreeVector(
-		fFASERCal_LOS_shiftX,fFASERCal_LOS_shiftY,zLocation), 
-		containerLogic, "ContainerPlacement", parent,  false, 0, true);
+    //new G4PVPlacement(0, G4ThreeVector(
+	//	fFASERCal_LOS_shiftX,fFASERCal_LOS_shiftY,zLocation), 
+	//	containerLogic, "ContainerPlacement", parent,  false, 0, true);
+	new G4PVPlacement(0, G4ThreeVector(
+	    fFASERCal_LOS_shiftX + fThreeD_CAL_shiftX,   // Add the 3DCAL-specific shift
+    	fFASERCal_LOS_shiftY + fThreeD_CAL_shiftY,   // Add the 3DCAL-specific shift
+    	zLocation), 
+    	containerLogic, "ContainerPlacement", parent, false, 0, true);
 }
 
 static int getchannelIDerrorcount = 0;
