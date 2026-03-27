@@ -73,7 +73,7 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	// NEW: Independent shift for 3DCAL only
 	G4double fThreeD_CAL_shiftX = 0 * cm;
 	G4double fThreeD_CAL_shiftY = 0 * cm;
-	
+
 	double getScintillatorSizeX() const { return fScintillatorSizeX; }
 	double getScintillatorSizeY() const { return fScintillatorSizeY; }
 	double getScintillatorSizeZ() const { return fScintillatorSizeZ; }
@@ -127,9 +127,13 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	G4double fRearMuSpect_LOS_shiftY = 0 * cm;
 
 	G4bool fonlyFaserCal = false;    // true if only the FASER calorimeter is constructed
+	G4bool fSingleModulePrototype = false;    // true for single module prototype with 90-degree rotation
 
 	void SetNumberReplicas(G4int);
 	G4int getNumberReplicas() const {return fNumberReplicas ;}
+	
+	void SetSingleModulePrototype(G4bool value);
+	G4bool GetSingleModulePrototype() const { return fSingleModulePrototype; }
 
 	// channel ID
 	G4long getChannelIDfromXYZ(std::string const& VolumeName, int CopyNumber, int MotherCopyVolume, XYZVector const& position) const;

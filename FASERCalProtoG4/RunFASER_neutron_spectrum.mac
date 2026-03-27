@@ -1,0 +1,48 @@
+# Prototype Geometry Macro
+# Single module with 11 layers
+/FASER/scint/material PVT
+/FASER/scint/lightYield 12000.
+/FASER/scint/sizeX 11 cm
+/FASER/scint/sizeY 48 cm
+/FASER/scint/sizeZ 48 cm # 20 cm to 48 cm
+/FASER/scint/voxel 10 mm
+/FASER/targetW/sizeX 11 cm
+/FASER/targetW/sizeY 48 cm
+/FASER/targetW/sizeZ 1 mm
+/FASER/layers 1
+# Shift only the 3DCAL by 10 cm in X
+/FASER/3DCAL/shiftX 0 cm
+/FASER/3DCAL/shiftY 0 cm
+/FASER/LOS/shiftX 0 cm # 22
+/FASER/LOS/shiftY 0 cm # 17
+# Tilt geometry by -5 degrees around Y (same as tilted geometry)
+/FASER/tiltY 0 deg
+#
+# Enable single module prototype
+/FASER/prototypeMode true
+
+/tracking/verbose 0
+/run/verbose 0
+/control/verbose 0
+/run/numberOfThreads 1
+/run/initialize
+
+/generator/wantSingleParticle true
+/generator/singleParticleName neutron
+# Other neutral hadron options:
+# /generator/singleParticleName antineutron
+# /generator/singleParticleName lambda0
+# /generator/singleParticleName k0
+# /generator/singleParticleName k0s
+# /generator/singleParticleName k0l
+
+# Log kinetic-energy spectrum for neutral hadrons: 10 to 500 GeV.
+#/generator/useNeutralHadronLogSpectrum false
+/generator/useNeutralHadronLogSpectrum true
+/generator/neutralHadronLogEmin 10 GeV
+/generator/neutralHadronLogEmax 500 GeV
+
+# Used when useNeutralHadronLogSpectrum is false.
+/generator/singleMomentum 100 GeV
+
+/run/beamOn 1000

@@ -139,9 +139,18 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	// The values are given via the messenger, same as the units
 
 	// FASER calorimeter only flag
-	fonlyFaserCal = false;    // true if only the FASER calorimeter is constructed
-
+	if (fSingleModulePrototype) {
+		fonlyFaserCal = true;    // force only FASER calorimeter when using prototype
+	} else {
+		fonlyFaserCal = false;
+	}
+	
 	G4int NRep = getNumberReplicas();
+	
+	// Override NRep for single module prototype
+	if (fSingleModulePrototype) {
+		NRep = 1;
+	}
 	G4double sizetargetWX = gettargetWSizeX();
 	G4double sizetargetWY = gettargetWSizeY();
 	G4double sizetargetWZ = gettargetWSizeZ();
@@ -159,6 +168,12 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	G4double WorldSizeX = 5* sizeX;
 	G4double WorldSizeY = 5* sizeY;
 	G4double WorldSizeZ = 12.*m; // 1.2* NRep*(sizetargetWZ + sizeScintillatorZ);
+	if (fSingleModulePrototype) {
+		// Use a compact world in prototype mode to avoid large air mass.
+		WorldSizeX = 1.2*m;
+		WorldSizeY = 1.2*m;
+		WorldSizeZ = 1.2*m;
+	}
 	
 	G4cout << "Size of the world " << WorldSizeX << " " << WorldSizeY << " " << WorldSizeZ << " mm" << G4endl;
 
@@ -208,10 +223,12 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	G4Material * G4_Target = G4_W;
 
 	G4double zLocation = 0*cm;
+	
 	//CreateFaserCal(zLocation, fPolyvinyltoluene, G4_Target, G4ThreeVector(sizeScintillatorX, sizeScintillatorY, 
 	//sizeScintillatorZ),G4ThreeVector(sizetargetWX, sizetargetWY, sizetargetWZ),worldLV, NRep);
 	CreateFaserCal(zLocation, fPolyvinyltoluene, G4_Target, G4ThreeVector(sizeScintillatorX, sizeScintillatorY, 
 	sizeScintillatorZ),G4ThreeVector(sizetargetWX, sizetargetWY, sizetargetWZ),detLV, NRep);
+	G4cout << "[DEBUG] Mass after CreateFaserCal: " << detLV->GetMass() / kg << " kg" << G4endl;
 	fParticleManager->setDetectorInformation(fPolyvinyltoluene->GetName(),
 	XYZVector(sizeScintillatorX, sizeScintillatorY, sizeScintillatorZ), G4_Target->GetName(),  
 	XYZVector(sizetargetWX, sizetargetWY, sizetargetWZ), NRep);
@@ -226,6 +243,7 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 #if magnet
 	// CreateMagnetSystem(zLocation, worldLV);
 	CreateMagnetSystem(zLocation, detLV);
+	G4cout << "[DEBUG] Mass after CreateMagnetSystem: " << detLV->GetMass() / kg << " kg" << G4endl;
 	zLocation += 350.0*cm;    // length of the magnet system
 #endif
 
@@ -233,6 +251,7 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	{
 		//CreateRearCal(zLocation, worldLV);
 		CreateRearCal(zLocation, detLV);
+		G4cout << "[DEBUG] Mass after CreateRearCal: " << detLV->GetMass() / kg << " kg" << G4endl;
 
 		G4double locZHcal = zLocation + fRearCalSizeZ;
 		fRearHCal_LOS_shiftX = fFASERCal_LOS_shiftX + (fRearHCalSizeX - fECalSizeX) / 2.0;
@@ -262,8 +281,14 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	G4GDMLParser parser;
 	//UMUT: If a previous geometry file exists, remove it so G4GDML doesn't abort
 	// (parser.Write throws if the file already exists)
-	std::remove("geometry_tilted_5degree.gdml");
-	parser.Write("geometry_tilted_5degree.gdml", worldPV->GetLogicalVolume());
+	G4String geometryFilename;
+	if (fSingleModulePrototype) {
+		geometryFilename = "geometry_prototype.gdml";
+	} else {
+		geometryFilename = "geometry_tilted_5degree.gdml";
+	}
+	std::remove(geometryFilename.c_str());
+	parser.Write(geometryFilename, worldPV->GetLogicalVolume());
 
 	// Print the total mass of the detector
 	G4cout << "----------------------------------" << G4endl;
@@ -350,6 +375,8 @@ void DetectorConstruction::SettargetWSizeY(G4double detectorSizeY) { ftargetWSiz
 void DetectorConstruction::SettargetWSizeZ(G4double detectorSizeZ) { ftargetWSizeZ = detectorSizeZ; }
 void DetectorConstruction::SetNumberReplicas(G4int rep) { fNumberReplicas = rep; }
 
+void DetectorConstruction::SetSingleModulePrototype(G4bool value) { fSingleModulePrototype = value; }
+
 // UMUT: tilt setter
 void DetectorConstruction::SetTiltAngleY(G4double angle)         // <<< tiltY
 {
@@ -407,6 +434,7 @@ void DetectorConstruction::CreateFaserCal(G4double zLocation, G4Material* materi
 	G4cout << "Total length " << fTotalLength << " mm" << G4endl;
 
 	G4double density = material2->GetDensity()/(g/cm3);  // Density in g/cm^3
+	G4cout << "[MASS_DEBUG] Starting CreateFaserCal" << G4endl;
 	fTotalWMass = sizeX*sizeY*size2.getZ()*density*1e-3*NRep*1e-3;
 	G4cout << "Total mass target (W, Cu, ...) " << fTotalWMass << " kg" << G4endl;
 
@@ -475,10 +503,17 @@ void DetectorConstruction::CreateFaserCal(G4double zLocation, G4Material* materi
     new G4PVPlacement(0, G4ThreeVector(0,0,zShift - fSiTrackerSizeZ/2), trackerSiLogic, "trackerSi", replicaLogic, false, 2, true);
 	#endif
 
+	G4cout << "[MASS_DEBUG] After placing all daughters in replicaLogic: " << replicaLogic->GetMass() / kg << " kg" << G4endl;
+	G4cout << "[MASS_DEBUG]   scintillatorLogic: " << scintillatorLogic->GetMass() / kg << " kg" << G4endl;
+	if(targetWLogic) G4cout << "[MASS_DEBUG]   targetWLogic: " << targetWLogic->GetMass() / kg << " kg" << G4endl;
+	G4cout << "[MASS_DEBUG]   AlPlateLogic: " << AlPlateLogic->GetMass() / kg << " kg" << G4endl;
+	G4cout << "[MASS_DEBUG]   trackerSiLogic: " << trackerSiLogic->GetMass() / kg << " kg" << G4endl;
+
     // Create container, which hosts Nrep replicas of our layer. This container then is set inside the world volume
     G4Box* containerSolid = new G4Box("ContainerBox", sizeX/2, sizeY / 2, NRep*fSandwichLength / 2);
 
     G4LogicalVolume* containerLogic = new G4LogicalVolume(containerSolid, fWorldMaterial, "ContainerLogical");
+	G4cout << "[MASS_DEBUG] After creating containerLogic: " << containerLogic->GetMass() / kg << " kg" << G4endl;
 //    new G4PVReplica("replica", replicaLogic, containerLogic, kZAxis, NRep, sizeZ, 0);
 //    new G4PVPlacement(0, G4ThreeVector(0,0,NRep*sizeZ/2), containerLogic, "ContainerPlacement", parent,  false, 0, true);
 	// make nRep copies
@@ -487,14 +522,19 @@ void DetectorConstruction::CreateFaserCal(G4double zLocation, G4Material* materi
 		std::cout << "Placing first replica at " << zshift << std::endl;
 		new G4PVPlacement(0, G4ThreeVector(0,0,zshift), replicaLogic, "replica", containerLogic, false, i, true);
 	}
+	G4cout << "[MASS_DEBUG] After placing replicas: " << containerLogic->GetMass() / kg << " kg" << G4endl;
     //new G4PVPlacement(0, G4ThreeVector(
 	//	fFASERCal_LOS_shiftX,fFASERCal_LOS_shiftY,zLocation), 
 	//	containerLogic, "ContainerPlacement", parent,  false, 0, true);
+	G4cout << "[MASS_DEBUG] Parent mass BEFORE placing container: " << parent->GetMass() / kg << " kg" << G4endl;
 	new G4PVPlacement(0, G4ThreeVector(
 	    fFASERCal_LOS_shiftX + fThreeD_CAL_shiftX,   // Add the 3DCAL-specific shift
-    	fFASERCal_LOS_shiftY + fThreeD_CAL_shiftY,   // Add the 3DCAL-specific shift
-    	zLocation), 
-    	containerLogic, "ContainerPlacement", parent, false, 0, true);
+	    fFASERCal_LOS_shiftY + fThreeD_CAL_shiftY,   // Add the 3DCAL-specific shift
+	    zLocation),
+	    containerLogic, "ContainerPlacement", parent, false, 0, true);
+	G4cout << "[MASS_DEBUG] Container mass: " << containerLogic->GetMass() / kg << " kg" << G4endl;
+	G4cout << "[MASS_DEBUG] Parent mass AFTER placing container: " << parent->GetMass() / kg << " kg" << G4endl;
+	G4cout << "[MASS_DEBUG] Difference (Parent - Container): " << (parent->GetMass() - containerLogic->GetMass()) / kg << " kg" << G4endl;
 }
 
 static int getchannelIDerrorcount = 0;

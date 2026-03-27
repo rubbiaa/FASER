@@ -1,4 +1,5 @@
 #include <sstream>
+#include <cmath>
 #include "TcalEvent.hh"
 
 #include <TChain.h>
@@ -253,20 +254,26 @@ int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
                 dims[2] = 2.0 * bbox->GetDZ() * 10.0; // Z in mm
             } 
         }
-        // compare to what is stored in geom_detector
-        if (fabs(dims[0] - geom_detector.fScintillatorSizeX) > 1e-3 ||
-            fabs(dims[1] - geom_detector.fScintillatorSizeY) > 1e-3 ||
-            fabs(dims[2] - geom_detector.fTotalLength) > 1e-3)
-        {
-            std::cerr << "Dimensions of " << volumeName << ": "
-                      << "X: " << dims[0] << " mm, "
-                      << "Y: " << dims[1] << " mm, "
-                      << "Z: " << dims[2] << " mm" << std::endl;
-            std::cerr << "FATAL error: Geometry mismatch for " << volumeName << std::endl;
-            std::cerr << " TGeoManager has X: " << dims[0] << " Y: " << dims[1] << " Z: " << dims[2] << std::endl;
-            std::cerr << " geom_detector has X: " << geom_detector.fScintillatorSizeX
-                      << " Y: " << geom_detector.fScintillatorSizeY
-                      << " Z: " << geom_detector.fTotalLength << std::endl;
+        // Compare to what is stored in geom_detector.
+        // Use realistic tolerances because regenerated ROOT/GDML may differ at the 0.01-0.1 mm level.
+        const double dx = std::fabs(dims[0] - geom_detector.fScintillatorSizeX);
+        const double dy = std::fabs(dims[1] - geom_detector.fScintillatorSizeY);
+        const double dz = std::fabs(dims[2] - geom_detector.fTotalLength);
+
+        const double warnToleranceMm = 0.05;
+        const double fatalToleranceMm = 1.0;
+
+        if (dx > warnToleranceMm || dy > warnToleranceMm || dz > warnToleranceMm) {
+            std::cerr << "Geometry size check for " << volumeName << ": "
+                      << "TGeoManager(X,Y,Z)=(" << dims[0] << ", " << dims[1] << ", " << dims[2] << ") mm, "
+                      << "geom_detector(X,Y,Z)=(" << geom_detector.fScintillatorSizeX << ", "
+                      << geom_detector.fScintillatorSizeY << ", " << geom_detector.fTotalLength << ") mm, "
+                      << "|delta|=(" << dx << ", " << dy << ", " << dz << ") mm" << std::endl;
+        }
+
+        if (dx > fatalToleranceMm || dy > fatalToleranceMm || dz > fatalToleranceMm) {
+            std::cerr << "FATAL error: Geometry mismatch for " << volumeName
+                      << " exceeds tolerance (" << fatalToleranceMm << " mm)." << std::endl;
             exit(1);
         }
     }

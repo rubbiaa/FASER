@@ -222,7 +222,7 @@ namespace display
       void GetMuTagInfo();
       void GetMuonSpectrometerInfo(TGeoShape *bigbox, TGeoMedium *air, TGeoShape *box);
 
-      void AnalyzeScintVoxelsAndLayerOccupancy(bool drawPlots=false,bool clampOutOfRange=false, int expectedNz=20);
+      void AnalyzeScintVoxelsAndLayerOccupancy(bool drawPlots=false,bool clampOutOfRange=false, int expectedNz=0);
 
       TObjArray *get_selected(int printsel = 0);
       TObjArray *selected = new TObjArray;
@@ -424,6 +424,10 @@ std::vector<int> fSLPParentIDs;
       TEvePointSet* fTruthVertex = nullptr; 
 
       TCanvas* fEventInfoCanvas;
+
+      Bool_t fElementsAddedToScene = kFALSE;  // Track if elements have been added to global scene
+      Bool_t fExiting = kFALSE;  // Track if exit is already in progress
+
       ClassDef(FaserCalDisplay, 1)
     };
   

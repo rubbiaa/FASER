@@ -82,6 +82,11 @@ DetectorMessenger::DetectorMessenger(DetectorConstruction* det) : fDetectorConst
 	fNumberReplicasCmd->SetParameterName("size", false);
 	fNumberReplicasCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 
+	fSingleModulePrototypeCmd = new G4UIcmdWithABool("/FASER/prototypeMode", this);
+	fSingleModulePrototypeCmd->SetGuidance("Enable single module prototype with 90-degree rotation");
+	fSingleModulePrototypeCmd->SetParameterName("mode", false);
+	fSingleModulePrototypeCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
 	fLOSShiftXCmd = new G4UIcmdWithADoubleAndUnit("/FASER/LOS/shiftX", this);
 	fLOSShiftXCmd->SetGuidance("Set LOS sjhift X");
 	fLOSShiftXCmd->SetParameterName("shift", false);
@@ -138,6 +143,7 @@ DetectorMessenger::~DetectorMessenger()
 	delete fDetDirectory;
 	delete fLOSShiftXCmd;
 	delete fLOSShiftYCmd;
+	delete fSingleModulePrototypeCmd;
 	// Added for tilt angle
 	delete fTiltYCmd;
 	delete fThreeDCALShiftXCmd;
@@ -194,6 +200,10 @@ void DetectorMessenger::SetNewValue(G4UIcommand* command, G4String newValue)
 
 	if (command == fNumberReplicasCmd) {
 		fDetectorConstruction->SetNumberReplicas(fNumberReplicasCmd->GetNewIntValue(newValue));
+	}
+
+	if (command == fSingleModulePrototypeCmd) {
+		fDetectorConstruction->SetSingleModulePrototype(fSingleModulePrototypeCmd->GetNewBoolValue(newValue));
 	}
 
 	if (command == fLOSShiftXCmd) {

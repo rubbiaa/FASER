@@ -63,8 +63,14 @@ void TMuTrack::GenFitTrackFit(int verbose, double detectorResolutionPSmm) {
     int planeId(0); // detector plane ID
     int hitId(0); // hit ID
 
-    // Scifi resolution
-    double detectorResolution(0.01); // resolution of planar detectors in cm 
+ // Scifi resolution: convert from mm to cm (GenFit uses cm)
+    // detectorResolutionPSmm is in mm (default 0.1 mm = 100 μm)
+    double detectorResolution(detectorResolutionPSmm/10.0); // Convert mm to cm: 0.1 mm → 0.01 cm
+    if (verbose > 0) {
+        std::cout << "Detector resolution: " << detectorResolutionPSmm << " mm = " 
+                  << detectorResolutionPSmm*1000 << " μm (GenFit internal: " 
+                  << detectorResolution << " cm)" << std::endl;
+    }   
     TMatrixDSym hitCov(2);
     hitCov.UnitMatrix();
     hitCov *= detectorResolution*detectorResolution;
@@ -86,19 +92,40 @@ void TMuTrack::GenFitTrackFit(int verbose, double detectorResolutionPSmm) {
 
      // init fitter
     genfit::AbsKalmanFitter* fitter = new genfit::KalmanFitterRefTrack();
+    fitter->setMaxIterations(10);  // Allow up to 10 iterations for convergence
+    fitter->setRelChi2Change(0.001);  // Stop when chi2 changes less than 0.1%
 
     // do the fit
     try {
-        fitter->processTrack(fitTrack);
+        //fitter->processTrack(fitTrack);
+        fitter->processTrackWithRep(fitTrack, rep);  // CRITICAL: Use processTrackWithRep, not processTrack
     }    
     catch(genfit::Exception& e){
         std::cerr << e.what();
         std::cerr << "Exception when track fitting with GENFIT" << std::endl;
-      }
+        delete fitter;
+        return;  // Exit on exception  
+    }
+    // Check if fit converged
+    if (!fitTrack->getFitStatus()->isFitConverged()) {
+        if (verbose > 0) {
+            std::cerr << "WARNING: Fit did not converge!" << std::endl;
+        }
+        fchi2 = -1;
+        fnDoF = 0;
+        fpval = 0;
+        fp = 0;
+        fpx = fpy = fpz = 0;
+        fpErr = 0;
+        fcharge = 0;
+        delete fitter;
+        return;
+    }
 
     if(verbose > 3) {
         std::cout << "After fit: " << std::endl;
-        fitTrack->getFittedState().Print();
+        //fitTrack->getFittedState().Print();
+        fitTrack->getFittedState(0).Print();  // Explicitly get state at first point
         fitTrack->Print();
     }
 
@@ -112,7 +139,8 @@ void TMuTrack::GenFitTrackFit(int verbose, double detectorResolutionPSmm) {
         std::cout << "Track fit results: chi2 = " << chi2 << " nDoF = " << fnDoF << " pval = " << pval << std::endl;
     }
     // print momentum 
-    genfit::MeasuredStateOnPlane state = fitTrack->getFittedState();
+    //genfit::MeasuredStateOnPlane state = fitTrack->getFittedState();
+    genfit::MeasuredStateOnPlane state = fitTrack->getFittedState(0); // Explicitly get state at first point
     TVector3 p = state.getMom();
     if (verbose>0) {
         std::cout << "fitted momentum (GeV/c): " << p.Mag() << " px: " << p.X() << " py: " << p.Y() << " pz: " << p.Z();

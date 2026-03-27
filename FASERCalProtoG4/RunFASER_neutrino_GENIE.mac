@@ -1,0 +1,39 @@
+# Neutrino simulation via GENIE/PO events (recommended mode)
+#
+# Important:
+# - In this framework, neutrino interactions are injected from the GENIE PO ROOT file.
+# - Geant4 then transports final-state particles through the detector.
+# - Do NOT use single-particle neutrino gun if you expect visible weak interactions.
+
+/FASER/scint/material PVT
+/FASER/scint/lightYield 12000.
+/FASER/scint/sizeX 11 cm
+/FASER/scint/sizeY 48 cm
+/FASER/scint/sizeZ 48 cm
+/FASER/scint/voxel 10 mm
+/FASER/targetW/sizeX 11 cm
+/FASER/targetW/sizeY 48 cm
+/FASER/targetW/sizeZ 1 mm
+/FASER/layers 1
+/FASER/3DCAL/shiftX 0 cm
+/FASER/3DCAL/shiftY 0 cm
+/FASER/LOS/shiftX 0 cm
+/FASER/LOS/shiftY 0 cm
+/FASER/tiltY 0 deg
+/FASER/prototypeMode true
+
+/tracking/verbose 0
+/run/verbose 0
+/control/verbose 0
+/run/numberOfThreads 1
+/run/initialize
+
+# Use GENIE/PO input events
+/generator/wantSingleParticle false
+/generator/wantMuonBackground false
+
+# Set to your GENIE-converted PO file
+/generator/rootinputfilename /Users/ukose/sw/kits/Andre3/FASER/ConvertGENIE/FASERMC-PO-Run500-0_120500.root
+/generator/startevent 0
+
+/run/beamOn 1000
