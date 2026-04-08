@@ -231,17 +231,23 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 
 	if (!fonlyFaserCal)
 	{
+		const G4double rearSectionGap = 1.0*cm;
+
+		zLocation += rearSectionGap;
+
 		//CreateRearCal(zLocation, worldLV);
 		CreateRearCal(zLocation, detLV);
 
-		G4double locZHcal = zLocation + fRearCalSizeZ;
+		// Keep the same gap between rear ECal and rear HCal
+		G4double locZHcal = zLocation + fRearCalSizeZ + rearSectionGap;
 		fRearHCal_LOS_shiftX = fFASERCal_LOS_shiftX + (fRearHCalSizeX - fECalSizeX) / 2.0;
 		fRearHCal_LOS_shiftY = fFASERCal_LOS_shiftY + (fRearHCalSizeY - fECalSizeY) / 2.0;
 		std::cout << "HCal shift x " << fRearHCal_LOS_shiftX / cm << " cm,  y " << fRearHCal_LOS_shiftY / cm << " cm" << std::endl;
 		//CreateRearHCal(locZHcal, worldLV);
 		CreateRearHCal(locZHcal, detLV);
 
-		G4double locMuSpect = locZHcal + fRearHCalLength;
+		// Keep the same gap between rear HCal and muon spectrometer
+		G4double locMuSpect = locZHcal + fRearHCalLength + rearSectionGap;
 		fRearMuSpect_LOS_shiftX = fFASERCal_LOS_shiftX + (fRearMuSpectSizeX - fECalSizeX) / 2.0;
 		fRearMuSpect_LOS_shiftY = fFASERCal_LOS_shiftY + (fRearMuSpectSizeY - fECalSizeY) / 2.0;		//CreateRearMuSpectrometer(locMuSpect, worldLV);
 		//CreateRearMuSpectrometer(locMuSpect, worldLV);
@@ -683,7 +689,9 @@ void DetectorConstruction::CreateRearCal(G4double zLocation, G4LogicalVolume* pa
 	// Geometry parameters
 	G4double sizeZ_Pb = 3*mm;
 	G4double sizeZ_PS = 3*mm;
+	G4double sizeZ_airGap = 5*mm;
 	G4int nlayer = 40;
+	// XY footprint matches HCal so that LOS shift calculation gives zero offset
 	G4double sizeX = 720*mm;   // 18 x 40mm tiles
 	G4double sizeY = 720*mm;   // 18 x 40mm tiles
 
@@ -694,7 +702,8 @@ void DetectorConstruction::CreateRearCal(G4double zLocation, G4LogicalVolume* pa
 	G4Material* plasticScintillator = G4NistManager::Instance()->FindOrBuildMaterial("G4_PLASTIC_SC_VINYLTOLUENE");
 
 	double sizeZ_ECalModule = sizeZ_Pb + sizeZ_PS;
-	double total_sizeZ = nlayer * sizeZ_ECalModule;
+	double sizeZ_ECalPitch = sizeZ_ECalModule + sizeZ_airGap;
+	double total_sizeZ = nlayer * sizeZ_ECalModule + (nlayer - 1) * sizeZ_airGap;
 	fRearCalSizeZ = total_sizeZ;
 
 	G4cout << "Total length of the rear ECal " << fRearCalSizeZ / mm << " mm " << G4endl;
@@ -715,7 +724,7 @@ void DetectorConstruction::CreateRearCal(G4double zLocation, G4LogicalVolume* pa
 	G4LogicalVolume* ECalContainerLogic = new G4LogicalVolume(EcalSolid, fWorldMaterial, "ECalContainerLogical");
 
 	for (int i = 0; i < nlayer; i++) {
-		double z = i*sizeZ_ECalModule + sizeZ_Pb/2.0 - total_sizeZ/2.0;
+		double z = i*sizeZ_ECalPitch + sizeZ_Pb/2.0 - total_sizeZ/2.0;
 		new G4PVPlacement(0, G4ThreeVector(0,0,z), absorberLogic, "rearCalAbs", ECalContainerLogic, false, i, true);
 		z += sizeZ_Pb/2.0 + sizeZ_PS/2.0;
 		new G4PVPlacement(0, G4ThreeVector(0,0,z), scintillatorLogic, "rearCalScint", ECalContainerLogic, false, i, true);
@@ -729,6 +738,7 @@ void DetectorConstruction::CreateRearHCal(G4double zLocation, G4LogicalVolume* p
 	// dimensions of the rear HCal
 	G4double sizeZ_Fe = 2*cm;
 	G4double sizeZ_PS = 0.3*cm;
+	G4double sizeZ_airGap = 5*mm;
 	G4int nlayer = 40;
 	// dimensions of the neutron absorber
 	G4double sizeZ_nabs = 10*cm;  /// polyethylene slab
@@ -742,7 +752,8 @@ void DetectorConstruction::CreateRearHCal(G4double zLocation, G4LogicalVolume* p
 	G4Material* plasticScintillator = G4NistManager::Instance()->FindOrBuildMaterial("G4_PLASTIC_SC_VINYLTOLUENE");
 
 	double sizeZ_HCalmodule = sizeZ_Fe + sizeZ_PS;
-	double total_sizeZ = nlayer*sizeZ_HCalmodule;
+	double sizeZ_HCalpitch = sizeZ_HCalmodule + sizeZ_airGap;
+	double total_sizeZ = nlayer*sizeZ_HCalmodule + (nlayer - 1)*sizeZ_airGap;
 
 	fRearHCalLength = total_sizeZ;
 
@@ -766,7 +777,7 @@ void DetectorConstruction::CreateRearHCal(G4double zLocation, G4LogicalVolume* p
     G4LogicalVolume* HCalcontainerLogic = new G4LogicalVolume(HcalSolid, fWorldMaterial, "HCalContainerLogical");
 
 	for(int i = 0; i < nlayer; i++) {
-		double z = i*sizeZ_HCalmodule + sizeZ_Fe/2.0 - total_sizeZ/2.0;
+		double z = i*sizeZ_HCalpitch + sizeZ_Fe/2.0 - total_sizeZ/2.0;
 		new G4PVPlacement(0, G4ThreeVector(0,0,z), absorberLogic, "rearHCalAbs", HCalcontainerLogic, false, i, true);
 		z += sizeZ_Fe/2.0 + sizeZ_PS/2.0;
 		new G4PVPlacement(0, G4ThreeVector(0,0,z), HscintillatorLogic, "rearHCalScint", HCalcontainerLogic, false, i, true);
