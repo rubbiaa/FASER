@@ -13,6 +13,7 @@ TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fMuTagTracks() ,
     geom_detector = {0};
     rearCalDeposit = {};
     rearHCalDeposit = {};
+    faserCalVoxelResponse = {};
     rearMuCalDeposit = {};
     // Umut: to understand whats happening at rear hadron calorimeter
     //rearHCalTruth = {};
@@ -50,17 +51,19 @@ TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fMuTagTracks() ,
         TGeoNode *dnode = fdetectorAssemblyTGeomNode->GetDaughter(i);
         std::string name = dnode->GetName();
         std::cout << "  Daughter " << i << " name: " << name << std::endl;
-        if(name.find("rearHCal")!=std::string::npos) {
+        if(name.find("rearCal")!=std::string::npos) {
+            frearCalTGeomNodes.push_back(dnode);
+        }
+        if(frearHCalTGeomNode == nullptr && name.find("rearHCal")!=std::string::npos) {
             frearHCalTGeomNode = dnode;
             TGeoMatrix *matrix = dnode->GetMatrix();
             //matrix->Print();
-            break;
         }
     }
-    // check if found rearHCal node
+    // check if found rearHCal node (optional - may not be present in prototype geometry)
     if(frearHCalTGeomNode == nullptr) {
-        std::cerr << "FATAL error: Could not find rearHCal TGeoNode in Geometry!" << std::endl;
-        throw std::runtime_error("Could not find rearHCal TGeoNode");
+        std::cerr << "WARNING: Could not find rearHCal TGeoNode in Geometry (OK for prototype detectors)" << std::endl;
+        // Don't throw error - rearHCal is optional for prototype geometries with only FASERCal module
     }
 
     // Find the TGeoNode corresponding to the rear Muon Spectrometer
@@ -107,6 +110,8 @@ TcalEvent::TcalEvent(int run_number, long event_number, int event_mask) : TcalEv
     m_calEventTree->Branch("geom", &geom_detector);
     m_calEventTree->Branch("rearcal", &rearCalDeposit);
     m_calEventTree->Branch("rearhcal", &rearHCalDeposit);
+    // Only create fasercalvoxpe branch if it exists in the input file (for backward compatibility with older files that don't have this branch)
+    m_calEventTree->Branch("fasercalvoxpe", &faserCalVoxelResponse);
     m_calEventTree->Branch("rearmucal", &rearMuCalDeposit);
     // Umut: to understand whats happening at rear hadron calorimeter
     //m_calEventTree->Branch("rearhcaltruth", &rearHCalTruth);
@@ -213,6 +218,16 @@ int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
 
     std::vector<struct REARCALDEPOSIT> *g_h = &rearHCalDeposit;
     event_tree -> SetBranchAddress("rearhcal", &g_h);
+    
+    //////////////////////////////////////////////////////////
+    // Only set branch address for fasercalvoxpe if it exists in the input file (for backward compatibility with older files that don't have this branch)
+    if (event_tree->GetBranch("fasercalvoxpe") != nullptr) {
+        std::vector<struct FASERCALVOXELRESPONSE> *g_vresp = &faserCalVoxelResponse;
+        event_tree->SetBranchAddress("fasercalvoxpe", &g_vresp);
+    } else {
+        faserCalVoxelResponse.clear();
+    }
+	//////////////////////////////////////////////////////////
 
     event_tree -> SetBranchAddress("rearmucal", &rearMuCalDeposit);
 
@@ -406,13 +421,101 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZfromID(long ID) const
     }
 }
 
-ROOT::Math::XYZVector TcalEvent::getChannelXYZRearCal(int moduleID) const { // the following works well
-    double x = (moduleID%geom_detector.rearCalNxy - geom_detector.rearCalNxy/2.0 + 0.5)*geom_detector.rearCalSizeX;
-    double y = (moduleID/geom_detector.rearCalNxy - geom_detector.rearCalNxy/2.0 + 0.5)*geom_detector.rearCalSizeY;
-    x += geom_detector.fFASERCal_LOS_shiftX;
-    y += geom_detector.fFASERCal_LOS_shiftY;
-    double z = geom_detector.rearCalLocZ;
-    return ApplyYRotationWithTGeo(ROOT::Math::XYZVector(x,y,z), geom_detector.fTiltAngleY /*rad*/, 0.0, 0.0, 0.0);
+ROOT::Math::XYZVector TcalEvent::getChannelXYZRearCal(int moduleID) const {
+    // Backward-compatible decoding:
+    //  - old geometry: moduleID is 2D module index in a rearCalNxy x rearCalNxy matrix
+    //  - new geometry: moduleID is ix + iy*1000 + iz*1000000
+
+    const int legacyRearCalSpan =
+        (geom_detector.rearCalNxy > 1) ? (geom_detector.rearCalNxy * geom_detector.rearCalNxy) : 0;
+
+    const bool hasLayeredRearCalMetadata =
+        (geom_detector.rearCalNlayer > legacyRearCalSpan) ||
+        (geom_detector.rearCalLayerPitch > 0.0) ||
+        (geom_detector.rearCalScintCenterInLayer > 0.0);
+
+    const bool looksLikeOldRearCal =
+        (geom_detector.rearCalNxy > 1) &&
+        (geom_detector.rearCalSizeX < 300.0) &&
+        (geom_detector.rearCalSizeY < 300.0) &&
+        (moduleID >= 0) &&
+        (moduleID < legacyRearCalSpan) &&
+        !hasLayeredRearCalMetadata;
+
+     // Keeping to Display events with old rearEcal geometry.   
+    if (looksLikeOldRearCal) {
+
+        const double x = (moduleID % geom_detector.rearCalNxy - geom_detector.rearCalNxy / 2.0 + 0.5)
+            * geom_detector.rearCalSizeX + geom_detector.fFASERCal_LOS_shiftX;
+        const double y = (moduleID / geom_detector.rearCalNxy - geom_detector.rearCalNxy / 2.0 + 0.5)
+            * geom_detector.rearCalSizeY + geom_detector.fFASERCal_LOS_shiftY;
+        const double z = geom_detector.rearCalLocZ;
+        return ApplyYRotationWithTGeo(ROOT::Math::XYZVector(x, y, z), geom_detector.fTiltAngleY, 0.0, 0.0, 0.0);
+    }
+
+    // New layered rearECAL: moduleID is a tiled 3D channel ID.
+    if (moduleID < 0) {
+        return ROOT::Math::XYZVector(0,0,0);
+    }
+
+    double rearCalLayerPitchMm = geom_detector.rearCalLayerPitch;
+    if (rearCalLayerPitchMm <= 0.0) {
+        rearCalLayerPitchMm = 11.0; // 3 mm Pb + 3 mm scint + 5 mm air gap
+    }
+
+    int rearCalNlayer = geom_detector.rearCalNlayer;
+    if (rearCalNlayer <= 0) {
+        if (geom_detector.rearCalSizeZ > 0.0 && rearCalLayerPitchMm > 0.0) {
+            rearCalNlayer = std::max(1, static_cast<int>(std::lround(geom_detector.rearCalSizeZ / rearCalLayerPitchMm)));
+        } else {
+            rearCalNlayer = 40;
+        }
+    }
+    const long ix = moduleID % 1000;
+    const long iy = (moduleID / 1000) % 1000;
+    const long iz = (moduleID / 1000000LL) % 1000;
+
+    rearCalNlayer = std::max(rearCalNlayer, static_cast<int>(iz) + 1);
+
+    const double rearCalLengthMm = geom_detector.rearCalSizeZ;
+    const double rearCalScintCenterInLayerMm =
+        (geom_detector.rearCalScintCenterInLayer > 0.0)
+            ? geom_detector.rearCalScintCenterInLayer
+            : 0.5 * rearCalLayerPitchMm;
+
+    const double effectiveRearCalLengthMm =
+        (rearCalLengthMm > 0.0) ? rearCalLengthMm : rearCalNlayer * rearCalLayerPitchMm;
+
+    const double rearCalVoxelSizeMm =
+        (geom_detector.rearCalVoxelSize > 0.0) ? geom_detector.rearCalVoxelSize : 40.0;
+    ROOT::Math::XYZVector localPos(
+        (ix - geom_detector.rearCalNxy / 2.0 + 0.5) * rearCalVoxelSizeMm,
+        (iy - geom_detector.rearCalNxy / 2.0 + 0.5) * rearCalVoxelSizeMm,
+        -effectiveRearCalLengthMm / 2.0 + iz * rearCalLayerPitchMm + rearCalScintCenterInLayerMm);
+
+    if (!frearCalTGeomNodes.empty()) {
+        TGeoMatrix *matrix = frearCalTGeomNodes.front()->GetMatrix();
+        double local[3] = {localPos.x() / 10.0, localPos.y() / 10.0, localPos.z() / 10.0};
+        double detLocal[3] = {0, 0, 0};
+        matrix->LocalToMaster(local, detLocal);
+
+        TGeoMatrix *parentMatrix = fdetectorAssemblyTGeomNode->GetMatrix();
+        double world[3] = {0, 0, 0};
+        parentMatrix->LocalToMaster(detLocal, world);
+        return ROOT::Math::XYZVector(world[0] * 10.0, world[1] * 10.0, world[2] * 10.0);
+    }
+
+    // Fallback for geometries where the rearCal TGeo node cannot be found.
+    return ApplyYRotationWithTGeo(
+        ROOT::Math::XYZVector(
+            (ix - geom_detector.rearCalNxy / 2.0 + 0.5) * rearCalVoxelSizeMm + geom_detector.fFASERCal_LOS_shiftX,
+            (iy - geom_detector.rearCalNxy / 2.0 + 0.5) * rearCalVoxelSizeMm + geom_detector.fFASERCal_LOS_shiftY,
+            geom_detector.rearCalLocZ + iz * rearCalLayerPitchMm
+                + rearCalScintCenterInLayerMm),
+        geom_detector.fTiltAngleY,
+        0.0,
+        0.0,
+        0.0);
 }
 
 ROOT::Math::XYZVector TcalEvent::getChannelXYZRearHCal(int moduleID) const
@@ -420,21 +523,32 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZRearHCal(int moduleID) const
     long ix = moduleID % 1000;
     long iy = (moduleID / 1000) % 1000;
     long iz = (moduleID / 1000000LL) % 1000;
-    //    double x = geom_detector.frearHCal_LOS_shiftX + (ix - geom_detector.rearHCalNxy/2.0 + 0.5)*geom_detector.rearHCalVoxelSize;
-    //    double y = geom_detector.frearHCal_LOS_shiftY + (iy - geom_detector.rearHCalNxy/2.0 + 0.5)*geom_detector.rearHCalVoxelSize;
-    //    double z = geom_detector.rearHCalLocZ + iz * geom_detector.rearHCalSizeZ + geom_detector.rearHCalSizeZ/2.0;
-    //    std::cout << "HCal moduleID " << moduleID << " ix " << ix << " iy " << iy << " iz " << iz << " x " << x << " y " << y << " z " << z << std::endl;
-    std::cout << "[HCAL DECODE] moduleID=" << moduleID
-          << " ix_dec=" << ix
-          << " iy_dec=" << iy
-          << " iz_dec=" << iz << std::endl;
-    // Compute local coordinates 
+    const double rearHCalLayerPitchMm =
+        (geom_detector.rearHCalLayerPitch > 0.0) ? geom_detector.rearHCalLayerPitch : geom_detector.rearHCalSizeZ;
+    const double rearHCalScintCenterInLayerMm =
+        (geom_detector.rearHCalScintCenterInLayer > 0.0)
+            ? geom_detector.rearHCalScintCenterInLayer
+            : 0.5 * rearHCalLayerPitchMm;
+
     double x = (ix - geom_detector.rearHCalNxy / 2.0 + 0.5) * geom_detector.rearHCalVoxelSize;
     double y = (iy - geom_detector.rearHCalNxy / 2.0 + 0.5) * geom_detector.rearHCalVoxelSize;
-    double z = (iz - geom_detector.rearHCalNlayer / 2.0 + 0.5) * geom_detector.rearHCalSizeZ;
-    //std::cout << "HCal moduleID " << moduleID << " ix " << ix << " iy " << iy << " iz " << iz << " x " << x << " y " << y << " z " << z << " " << geom_detector.rearHCalLocZ << " " << geom_detector.rearHCalNlayer << " " << geom_detector.rearHCalVoxelSize << std::endl;
+    double z = -geom_detector.rearHCalLength / 2.0 + iz * rearHCalLayerPitchMm
+        + rearHCalScintCenterInLayerMm;
     
     ROOT::Math::XYZVector localPos(x, y, z);
+
+    if (frearHCalTGeomNode == nullptr || fdetectorAssemblyTGeomNode == nullptr) {
+        return ApplyYRotationWithTGeo(
+            ROOT::Math::XYZVector(
+                geom_detector.frearHCal_LOS_shiftX + x,
+                geom_detector.frearHCal_LOS_shiftY + y,
+                geom_detector.rearHCalLocZ + iz * rearHCalLayerPitchMm
+                    + rearHCalScintCenterInLayerMm),
+            geom_detector.fTiltAngleY,
+            0.0,
+            0.0,
+            0.0);
+    }
 
     // Get the transformation matrix of the HCAL mother node
     TGeoMatrix *matrix = frearHCalTGeomNode->GetMatrix();
@@ -445,8 +559,6 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZRearHCal(int moduleID) const
     double global[3] = {0, 0, 0};
     matrix->LocalToMaster(local, global);
     ROOT::Math::XYZVector globalPos(global[0] * 10.0, global[1] * 10.0, global[2] * 10.0);
-    std::cout << "Local (" << local[0] << ", " << local[1] << ", " << local[2] << ") -> Global ("
-              << global[0] << ", " << global[1] << ", " << global[2] << ")" << std::endl;
 
     // now go from HCAL local to the detector assembly local
     TGeoMatrix *parentMatrix = fdetectorAssemblyTGeomNode->GetMatrix();
@@ -456,8 +568,6 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZRearHCal(int moduleID) const
     parentMatrix->LocalToMaster(hcal_local, hcal_global);
 
     ROOT::Math::XYZVector finalGlobalPos(hcal_global[0] * 10.0, hcal_global[1] * 10.0, hcal_global[2] * 10.0);
-    std::cout << "HCal Local (" << hcal_local[0] << ", " << hcal_local[1] << ", " << hcal_local[2] << ") -> World ("
-              << hcal_global[0] << ", " << hcal_global[1] << ", " << hcal_global[2] << ")" << std::endl;    
 
 /*    // now go from detector assembly local to world
     TGeoMatrix *worldMatrix = fdetectorAssemblyTGeomNode->GetMatrix();
@@ -468,8 +578,6 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZRearHCal(int moduleID) const
     //worldMatrix->LocalToMaster(assembly_local, assembly_global);
 
     ROOT::Math::XYZVector worldGlobalPos(assembly_global[0] * 10.0, assembly_global[1] * 10.0, assembly_global[2] * 10.0);
-    std::cout << "Detector Assembly Local (" << assembly_local[0] << ", " << assembly_local[1] << ", " << assembly_local[2] << ") -> World ("
-              << assembly_global[0] << ", " << assembly_global[1] << ", " << assembly_global[2] << ")" << std::endl;
 
     return worldGlobalPos;
 }

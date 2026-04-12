@@ -424,10 +424,10 @@ std::vector<int> fSLPParentIDs;
       TEvePointSet* fTruthVertex = nullptr; 
 
       TCanvas* fEventInfoCanvas;
-
+      
       Bool_t fElementsAddedToScene = kFALSE;  // Track if elements have been added to global scene
       Bool_t fExiting = kFALSE;  // Track if exit is already in progress
-
+      
       ClassDef(FaserCalDisplay, 1)
     };
   

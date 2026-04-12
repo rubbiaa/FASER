@@ -63,7 +63,7 @@ G4bool TrackerSD::ProcessHits(G4Step* aStep, G4TouchableHistory*)
 		int stepsUp = 1; // go two levels up to get to the top volume since everything is in the detector assembly
         if (touchable->GetHistoryDepth() > 0) {
             motherCopyNumber = touchable->GetCopyNumber(1); // 1 indicates one level up
-			if(volumeName == "rearHCalscintillatorLogical") {
+			if(volumeName == "rearCalscintillatorLogical" || volumeName == "rearHCalscintillatorLogical") {
 				stepsUp = 2;
 			}
 			local_position = XYZVector(touchable->GetHistory()->GetTransform(stepsUp)
