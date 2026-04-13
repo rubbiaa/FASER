@@ -73,7 +73,7 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	// NEW: Independent shift for 3DCAL only
 	G4double fThreeD_CAL_shiftX = 0 * cm;
 	G4double fThreeD_CAL_shiftY = 0 * cm;
-	
+
 	double getScintillatorSizeX() const { return fScintillatorSizeX; }
 	double getScintillatorSizeY() const { return fScintillatorSizeY; }
 	double getScintillatorSizeZ() const { return fScintillatorSizeZ; }
@@ -108,15 +108,31 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	// read ECAL
 	G4double fECalSizeX = 0;
 	G4double fECalSizeY = 0;
+	G4double fRearCalLocZ = 0 * mm;
+	G4double fRearCalVoxelSize = 40 * mm;
 	G4double fRearCalSizeZ;
+	G4int fRearCalNLayer = 40;
+	G4double fRearCalAbsorberSizeZ = 3 * mm;
+	G4double fRearCalScintillatorSizeZ = 3 * mm;
+	G4double fRearCalLayerGapZ = 5 * mm;
+	G4double fRearCalLayerPitch = 11 * mm;
+	G4double fRearCalScintCenterInLayer = 4.5 * mm;
 
 	// rear HCAL
 	G4double fRearHCalSizeX = 720 * mm;
 	G4double fRearHCalSizeY = 720 * mm;
+	G4double fRearHCalLocZ = 0 * mm;
 	G4double fRearHCalVoxelSize = 40 * mm;
 	G4double fRearHCalLength;
+	G4int fRearHCalNLayer = 40;
+	G4double fRearHCalAbsorberSizeZ = 20 * mm;
+	G4double fRearHCalScintillatorSizeZ = 3 * mm;
+	G4double fRearHCalLayerGapZ = 5 * mm;
+	G4double fRearHCalLayerPitch = 28 * mm;
+	G4double fRearHCalScintCenterInLayer = 21.5 * mm;
 	G4double fRearHCal_LOS_shiftX = 0 * cm;
 	G4double fRearHCal_LOS_shiftY = 0 * cm;
+	G4double fRearSectionGapZ = 1 * cm;
 
 	// read muon spectrometer
 	G4double fRearMuSpectSizeX = 1000 * mm;
@@ -134,6 +150,7 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	// channel ID
 	G4long getChannelIDfromXYZ(std::string const& VolumeName, int CopyNumber, int MotherCopyVolume, XYZVector const& position) const;
 
+	G4long getRearCalChannelIDfromXYZ(int CopyNumber, XYZVector const& position) const;
 	G4long getHCalChannelIDfromXYZ(int CopyNumber, XYZVector const& position) const;
 	///////////
 	// UMUT: tilt angle around Y axis

@@ -25,6 +25,8 @@
 #include <vector>
 #include <TLegend.h>
 #include <TPaletteAxis.h>
+#include <TColor.h>
+#include <TBox.h>
 
 #include <TSystem.h>
 #include <unordered_map>
@@ -63,10 +65,15 @@ namespace display
   {
     std::cout << "Starting GetDetector()" << std::endl;
     // Load the GDML file using TGeoManager::Import
-    TGeoManager::Import("../GeomGDML/geometry.gdml");
+    // Use relative path to local geometry files
+    //TGeoManager::Import("../../GeomGDML/geometry_tilted_5degree.gdml");
+    // Alternative: use prototype geometry
+    //TGeoManager::Import("../../GeomGDML/geometry_prototype.gdml");
+    TGeoManager::Import("../../GeomGDML/geometry.gdml");
+    // Old absolute path (kept as reference)
+    //TGeoManager::Import("/data/sw/FASERCAL/FASER/GeomGDML/geometry.gdml");
     // use for Run120 and v5.0
     //TGeoManager::Import("/home/hyperk/sw/FASERCAL/FASER_March2025/GeomGDML/geometry_v5.gdml");
-    //TGeoManager::Import("../../GeomGDML/geometry_tilted_5degree.gdml");
     //TGeoManager::Import("../../FASERG4/build/geometry_tilted_5degree.gdml");
     //TGeoManager::Import("../../GeomGDML/geometry_0degree.gdml");
     //TGeoManager::Import("../../GeomGDML/geometry_0degree_shiftLoS.gdml");
@@ -546,7 +553,8 @@ namespace display
     // Prevent multiple exit attempts
     if (fExiting) return;
     fExiting = kTRUE;
-        std::cout << "Exit application..." << std::endl;
+    
+    std::cout << "Exit application..." << std::endl;
     
     // Clean up TEve to avoid conflicts with TGeoManager cleanup
     if (gEve) {
@@ -998,6 +1006,7 @@ namespace display
 	else
 	  fDetectorElements->SetRnrState(kFALSE);
  	
+	gEve->AddGlobalElement(fPixelHitElements);
 	fPixelHitElements->SetRnrState(kTRUE);  
 	gStyle->SetPalette(-1);
 	gEve->FullRedraw3D(kFALSE);      
@@ -1039,6 +1048,7 @@ namespace display
 	else
 	  fDetectorElements->SetRnrState(kFALSE);
 
+	gEve->AddGlobalElement(fPixelRecoTrackElements);
 	fPixelRecoTrackElements->SetRnrState(kTRUE);
 	gStyle->SetPalette(-1);
 	gEve->FullRedraw3D(kFALSE);
@@ -1081,6 +1091,8 @@ namespace display
 	  fDetectorElements->SetRnrState(kFALSE);
 
 	fVoxHitElements->SetRnrState(kTRUE);
+	gEve->AddGlobalElement(fVoxHitElements);
+	fVoxHitElements->SetRnrState(kTRUE);
 	gStyle->SetPalette(-1);
 	gEve->FullRedraw3D(kFALSE);
 	EnablePicking();
@@ -1122,6 +1134,8 @@ namespace display
 	else
 	  fDetectorElements->SetRnrState(kFALSE);
 
+	fVoxGhostElements->SetRnrState(kTRUE);
+	gEve->AddGlobalElement(fVoxGhostElements);
 	fVoxGhostElements->SetRnrState(kTRUE);
 	gStyle->SetPalette(-1);
 	gEve->FullRedraw3D(kFALSE);
@@ -2285,7 +2299,7 @@ void FaserCalDisplay::IdentifyTauDecayMode(const std::vector<std::pair<int, int>
       //fPORecoEvent->Reconstruct3DClusters();
 
       fPORecoEvent->Reconstruct3DPS_Eflow();
-      //fPORecoEvent->TrackReconstruct();
+      fPORecoEvent->TrackReconstruct();
       fPORecoEvent->PSVoxelParticleFilter();
       //
       if(fPORecoEvent->GetPOFullRecoEvent()!=nullptr) 
@@ -2783,6 +2797,9 @@ void FaserCalDisplay::DrawMCTruthVertexPoint()
         size_t nhits = track->fhitIDs.size();
         for ( size_t i = 0; i < nhits; i++)
           {
+            // Skip invalid channelIDs (boundary errors return -1)
+            //if (track->fhitIDs[i] < 0) continue;
+            
             long hittype = fTcalEvent->getChannelTypefromID(track->fhitIDs[i]);
             // apply energy cut on scintillator voxel
             if(hittype == 0 && track->fEnergyDeposits[i] < 0.5)continue;
@@ -3119,22 +3136,89 @@ void FaserCalDisplay::DrawMCTruthVertexPoint()
     //////
     // rearECAL
     std::cout << " Drawing rear ECAL and HCAL deposits " << fTcalEvent->rearCalDeposit.size() << " " << fTcalEvent->rearHCalDeposit.size() << std::endl;
+    const int legacyRearCalSpan =
+      (fTcalEvent->geom_detector.rearCalNxy > 1)
+        ? fTcalEvent->geom_detector.rearCalNxy * fTcalEvent->geom_detector.rearCalNxy
+        : 0;
+
+    const bool hasLayeredRearCalMetadata =
+      (fTcalEvent->geom_detector.rearCalNlayer > legacyRearCalSpan) ||
+      (fTcalEvent->geom_detector.rearCalLayerPitch > 0.0) ||
+      (fTcalEvent->geom_detector.rearCalScintCenterInLayer > 0.0);
+
+    const bool isLegacyRearCalGeo =
+      (fTcalEvent->geom_detector.rearCalNxy > 1) &&
+      (fTcalEvent->geom_detector.rearCalSizeX < 300.0) &&
+      (fTcalEvent->geom_detector.rearCalSizeY < 300.0) &&
+      !hasLayeredRearCalMetadata;
+
+    const double rearCalHalfX =
+      isLegacyRearCalGeo
+        ? fTcalEvent->geom_detector.rearCalSizeX / 20.0
+        : fTcalEvent->geom_detector.rearCalVoxelSize / 20.0;
+    const double rearCalHalfY =
+      isLegacyRearCalGeo
+        ? fTcalEvent->geom_detector.rearCalSizeY / 20.0
+        : fTcalEvent->geom_detector.rearCalVoxelSize / 20.0;
+
+    std::cout << " RearECAL display mode: "
+              << (isLegacyRearCalGeo ? "legacy 2D-module" : "layered")
+              << std::endl;
+
     for (const auto &it : fTcalEvent->rearCalDeposit)
     {
 	    //std::cout << "ïnside RearECAL" << std::endl;
 	    ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZRearCal(it.moduleID);
-      double zBox = it.energyDeposit / 1e2; // 1cm is 1 GeV
+      // Keep fixed box depth and encode Edep via color.
+      double zBox = isLegacyRearCalGeo ? 10.0 : std::max(3.0, fTcalEvent->geom_detector.rearCalLayerPitch);
+      double dz   = zBox / 20.0;
 	    //std::cout << position << std::endl;
 	    //std::cout << it.energyDeposit << " " << zBox << std::endl;
 	    //std::cout << it.moduleID << std::endl;
    
-      TGeoShape *box = new TGeoBBox("RearCALBox", fTcalEvent->geom_detector.rearCalSizeX / 20.0,
-                                    fTcalEvent->geom_detector.rearCalSizeY / 20.0, zBox / 20.0);
+      TGeoShape *box = new TGeoBBox("RearCALBox", rearCalHalfX,
+                rearCalHalfY, zBox / 20.0);
       TGeoVolume *hitVolume = new TGeoVolume("RearCalVolume", box, air);
-      hitVolume->SetLineColor(kBlue);
-      TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0,
-                                                  position.Y() / 10.0, (position.Z() + zBox / 2.0) / 10.0);
-      rearecal->AddNode(hitVolume, it.moduleID, trans);
+      if (it.energyDeposit < 0.2)
+        hitVolume->SetLineColor(kAzure + 1);
+      else if (it.energyDeposit < 1.0)
+        hitVolume->SetLineColor(kBlue);
+      else if (it.energyDeposit < 5.0)
+        hitVolume->SetLineColor(kCyan + 2);
+      else if (it.energyDeposit < 20.0)
+        hitVolume->SetLineColor(kOrange + 1);
+      else
+        hitVolume->SetLineColor(kRed);
+
+      if (isLegacyRearCalGeo) {
+        TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0,
+                                                    position.Y() / 10.0, (position.Z() + zBox / 2.0) / 10.0);
+        rearecal->AddNode(hitVolume, it.moduleID, trans);
+      } else {
+        // Use the same placement logic as rearHCAL for tilted/new geometry.
+        static TGeoRotation rearECalRot;
+        static bool rearECalRotInit = false;
+        if (!rearECalRotInit) {
+            double thetaY = fTcalEvent->geom_detector.fTiltAngleY; // rad
+            double thetaDeg = -thetaY * 180.0 / M_PI;
+            rearECalRot.RotateY(thetaDeg);
+            rearECalRotInit = true;
+        }
+
+        double thetaY = fTcalEvent->geom_detector.fTiltAngleY;
+        double sinT = std::sin(-thetaY);
+        double cosT = std::cos(-thetaY);
+        double Px = position.X() / 10.0;
+        double Py = position.Y() / 10.0;
+        double Pz = position.Z() / 10.0;
+        double xStartRot = -dz * sinT;
+        double zStartRot = -dz * cosT;
+        double tx = Px - xStartRot;
+        double ty = Py;
+        double tz = Pz - zStartRot;
+        TGeoCombiTrans *trans = new TGeoCombiTrans(tx, ty, tz, &rearECalRot);
+        rearecal->AddNode(hitVolume, it.moduleID, trans);
+      }
     }
     // rearHCAL
     for (const auto &it : fTcalEvent->rearHCalDeposit)
@@ -3144,19 +3228,20 @@ void FaserCalDisplay::DrawMCTruthVertexPoint()
       //std::cout << "ïnside RearHCAL" << std::endl;
       //std::cout << position << " " << it.energyDeposit << std::endl;
 
-      double zBox = it.energyDeposit*10; // 1mm is 100 MeV  
-      double dz   = zBox / 20.0;                        
-	    TGeoShape *box = new TGeoBBox("rearHCALbox", fTcalEvent->geom_detector.rearHCalVoxelSize / 20.0, 
-                                      fTcalEvent->geom_detector.rearHCalVoxelSize / 20.0, 
+      double rearHCalLayerPitch = fTcalEvent->geom_detector.rearHCalLayerPitch;
+      double zBox = std::max(3.0, rearHCalLayerPitch);
+      double dz   = zBox / 20.0;
+      TGeoShape *box = new TGeoBBox("rearHCALbox", fTcalEvent->geom_detector.rearHCalVoxelSize / 20.0,
+                                      fTcalEvent->geom_detector.rearHCalVoxelSize / 20.0,
                                       zBox / 20.0);
       TGeoVolume *hitVolume = new TGeoVolume("RearHCalVolume", box, air);
-      if (it.energyDeposit < 1.0)
-            hitVolume->SetLineColor(kYellow);
-        else if (it.energyDeposit < 5.0)
-            hitVolume->SetLineColor(kOrange);
-        else
-            hitVolume->SetLineColor(kRed);
- // --- rotation for the tilt ---
+      double edep_hcal = it.energyDeposit;
+      if      (edep_hcal < 0.2)  hitVolume->SetLineColor(kAzure+1);
+      else if (edep_hcal < 1.0)  hitVolume->SetLineColor(kBlue);
+      else if (edep_hcal < 5.0)  hitVolume->SetLineColor(kCyan+2);
+      else if (edep_hcal < 20.0) hitVolume->SetLineColor(kOrange+1);
+      else                        hitVolume->SetLineColor(kRed);
+      // --- rotation for the tilt ---
       static TGeoRotation rot;
       static bool rotInit = false;
       if (!rotInit) {
@@ -3228,7 +3313,7 @@ void FaserCalDisplay::DrawMCTruthVertexPoint()
       	TGeoNode* node = rearecal->GetNode(i);
 	      if (!node) continue;  
 	      TGeoVolume* vol = node->GetVolume();
-	      TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
+        TGeoMatrix* trans = node->GetMatrix();
 	      if (vol && trans) 
         {
 	        TEveGeoShape* eveShape = new TEveGeoShape(vol->GetName());
@@ -3382,9 +3467,41 @@ void FaserCalDisplay::DrawMCTruthVertexPoint()
       fElementsAddedToScene = kTRUE;
     }
     //
+    // Color legend for energy deposit scale (rear ECAL + HCAL)
+    {
+      TCanvas* leg = (TCanvas*)gROOT->FindObject("EnergyLegend");
+      if (!leg) {
+        leg = new TCanvas("EnergyLegend", "Energy Deposit Legend", 10, 10, 220, 180);
+      }
+      leg->SetEditable(kTRUE);
+      leg->Clear();
+      leg->cd();
+      TLegend* tleg = new TLegend(0.05, 0.05, 0.95, 0.95, "Energy Deposit");
+      tleg->SetTextSize(0.12);
+      tleg->SetBorderSize(1);
+      tleg->SetFillColor(kWhite);
+      struct LE { const char* label; Color_t col; };
+      LE entries[] = {
+        { "E < 0.2 GeV",    kAzure+1  },
+        { "0.2 - 1.0 GeV",  kBlue     },
+        { "1.0 - 5.0 GeV",  kCyan+2   },
+        { "5.0 - 20.0 GeV", kOrange+1 },
+        { "E > 20.0 GeV",   kRed      }
+      };
+      for (const auto& e : entries) {
+        TBox* colBox = new TBox(0, 0, 1, 1);
+        colBox->SetFillColor(e.col);
+        colBox->SetLineColor(e.col);
+        tleg->AddEntry(colBox, e.label, "f");
+      }
+      tleg->Draw();
+      leg->Update();
+      leg->RaiseWindow();
+    }
+    //
     gEve->FullRedraw3D(kFALSE);
     
-    AnalyzeScintVoxelsAndLayerOccupancy(false,false,0); // 0 = auto-detect from geometry
+    AnalyzeScintVoxelsAndLayerOccupancy(false,false,0);  // 0 = auto-detect from geometry
 
   }
   //////////////////////////////////////////////////////////
@@ -3759,7 +3876,7 @@ void FaserCalDisplay::DrawMCTruthVertexPoint()
     myCan->cd(1);
     gPad->SetRightMargin(0.16);
     gPad->SetLeftMargin(0.12);
-    
+
     TH2D *xviewPS = new TH2D("xviewPS", "Scintillator xz-view; Z (cm);X (cm)", nztot, 0, nztot, nx, 0, nx);
     TH2D *yviewPS = new TH2D("yviewPS", "Scintillator yz-view; Z (cm);Y (cm)", nztot, 0, nztot, ny, 0, ny);
     gStyle->SetOptStat(0);
@@ -3768,7 +3885,6 @@ void FaserCalDisplay::DrawMCTruthVertexPoint()
     const auto& clustersXZ = fPORecoEvent->GetPSClusters(0);
     int colorIndex = 0;
 
-
     for (const auto& cluster : clustersXZ)
     {
       //int color = colors[colorIndex++ % colors.size()];
@@ -3776,8 +3892,8 @@ void FaserCalDisplay::DrawMCTruthVertexPoint()
         {
             double x, y, z;
             fPORecoEvent->pshit2d_position(hit.id, x, y, z);
-	          // std::cout << "........ " << cluster.clusterID << " " << hit.id << " " << x << " " << y << " " << z << std::endl;  
-	          xviewPS->Fill(z,x,hit.EDeposit);
+	    // std::cout << "........ " << cluster.clusterID << " " << hit.id << " " << x << " " << y << " " << z << std::endl;  
+	    xviewPS->Fill(z,x,hit.EDeposit);
         }
     }
     xviewPS->GetZaxis()->SetTitle("Energy Deposit [MeV]");
@@ -3807,8 +3923,8 @@ void FaserCalDisplay::DrawMCTruthVertexPoint()
         {
             double x, y, z;
             fPORecoEvent->pshit2d_position(hit.id, x, y, z);
-	          //std::cout << "xxxxxx " << cluster.clusterID << " " << hit.id << " " << x << " " << y << " " << z << std::endl;  
-	          yviewPS->Fill(z,y,hit.EDeposit);
+	    //std::cout << "xxxxxx " << cluster.clusterID << " " << hit.id << " " << x << " " << y << " " << z << std::endl;  
+	    yviewPS->Fill(z,y,hit.EDeposit);
         }
     }
     yviewPS->GetZaxis()->SetTitle("Energy Deposit [MeV]");
@@ -4078,7 +4194,7 @@ void FaserCalDisplay::AnalyzeScintVoxelsAndLayerOccupancy(bool drawPlots, bool c
     std::cout << "[ScintAnalysis] XY voxel grid: Nx=" << Nx << " Ny=" << Ny
               << " (voxel=" << vx << " mm)" << std::endl;
 
-     // If caller passes 0 or negative for expectedNz, derive from geometry
+    // If caller passes 0 or negative for expectedNz, derive from geometry
     if (expectedNz <= 0) expectedNz = derivedExpectedNz;
     
     // ===== DEBUG: Dump geometry boundaries =====
@@ -4120,7 +4236,6 @@ void FaserCalDisplay::AnalyzeScintVoxelsAndLayerOccupancy(bool drawPlots, bool c
     std::cout << "[GeometryDump] Physical Y range: [" << yMin << ", " << yMax << "] mm" << std::endl;
     std::cout << "[GeometryDump] Physical Z (layer 0): [" << zLayerMin << ", " << zLayerMax << "] mm" << std::endl;
     std::cout << "[GeometryDump] ====================================\n" << std::endl;
-    
     using PlaneKey = std::pair<int,int>;
     struct PlaneInfo {
         double zmm = std::numeric_limits<double>::quiet_NaN();
@@ -4189,7 +4304,7 @@ void FaserCalDisplay::AnalyzeScintVoxelsAndLayerOccupancy(bool drawPlots, bool c
         if (hitDumpCount >= 20) break;
     }
     std::cout << "[HitPositionDump] ====================================\n" << std::endl;
-    
+
     for (auto* trk : fTcalEvent->getfTracks()) {
         if (!trk) continue;
         std::set<PlaneKey> planesTouchedByThisTrack;

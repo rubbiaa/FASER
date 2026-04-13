@@ -134,6 +134,16 @@ public:
         Long_t moduleID;
         Double_t energyDeposit;
     };
+	//////////////////////////////////////////////////////////
+    // FASERCal voxel response in photoelectrons
+    struct FASERCALVOXELRESPONSE {
+        Long_t channelID;
+        Double_t nPE;
+        Double_t nPEDirect;
+        Double_t nPEFiber0Direct;
+        Double_t nPEFiber1Direct;
+        Double_t nPEFiber2Direct;
+    };
     // Umut: to understand whats happening at rear hadron calorimeter
     #if 0
     struct REARHCALHITTRUTH {
@@ -147,6 +157,7 @@ public:
     #endif
     std::vector<struct REARCALDEPOSIT> rearCalDeposit;    // energy deposited in rear calorimeter
     std::vector<struct REARCALDEPOSIT> rearHCalDeposit;     // energy in the rear HCal scintillator
+    std::vector<struct FASERCALVOXELRESPONSE> faserCalVoxelResponse; // FASERCal voxel response in photoelectrons
 
     double rearMuCalDeposit;     // energy in the rear MuCal scintillator
         
@@ -168,16 +179,22 @@ public:
         Double_t rearCalSizeX; // in mm
         Double_t rearCalSizeY; // in mm
         Double_t rearCalLocZ;  // in mm
+        Double_t rearCalVoxelSize = 40.0; // in mm
         Int_t rearCalNxy = 5;   // number of modules in x, and y
+        Int_t rearCalNlayer = 40; // number of rear ECal layers
         Double_t rearCalSizeZ = 66.0*6; // in mm
+        Double_t rearCalLayerPitch = 0; // in mm
+        Double_t rearCalScintCenterInLayer = 0; // in mm
         Double_t rearHCalSizeX; // in mm
         Double_t rearHCalSizeY; // in mm
         Double_t rearHCalSizeZ; // in mm
         Double_t rearHCalLocZ;  // in mm
-        double_t rearHCalVoxelSize; // in mm
+        Double_t rearHCalVoxelSize; // in mm
         Int_t rearHCalNxy;   // number of modules in x, and y
         Int_t rearHCalNlayer; // number of layers  
         Double_t rearHCalLength; // in mm
+        Double_t rearHCalLayerPitch = 0; // in mm
+        Double_t rearHCalScintCenterInLayer = 0; // in mm
         Double_t frearHCal_LOS_shiftX; // in mm
         Double_t frearHCal_LOS_shiftY; // in mm
         Double_t rearMuSpectLocZ; // in mm
@@ -268,7 +285,7 @@ public:
 
     ROOT::Math::XYZVector getChannelXYZRearHCal(int moduleID) const;
 
-    ClassDef(TcalEvent, 4)
+    ClassDef(TcalEvent, 6)
 };
 
 #endif

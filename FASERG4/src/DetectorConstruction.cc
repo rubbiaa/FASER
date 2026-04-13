@@ -234,12 +234,14 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 		const G4double rearSectionGap = 1.0*cm;
 
 		zLocation += rearSectionGap;
+		fRearCalLocZ = zLocation;
 
 		//CreateRearCal(zLocation, worldLV);
 		CreateRearCal(zLocation, detLV);
 
 		// Keep the same gap between rear ECal and rear HCal
 		G4double locZHcal = zLocation + fRearCalSizeZ + rearSectionGap;
+		fRearHCalLocZ = locZHcal;
 		fRearHCal_LOS_shiftX = fFASERCal_LOS_shiftX + (fRearHCalSizeX - fECalSizeX) / 2.0;
 		fRearHCal_LOS_shiftY = fFASERCal_LOS_shiftY + (fRearHCalSizeY - fECalSizeY) / 2.0;
 		std::cout << "HCal shift x " << fRearHCal_LOS_shiftX / cm << " cm,  y " << fRearHCal_LOS_shiftY / cm << " cm" << std::endl;
@@ -598,6 +600,31 @@ G4long DetectorConstruction::getHCalChannelIDfromXYZ(int CopyNumber, XYZVector c
 	return ID;
 }
 
+G4long DetectorConstruction::getRearCalChannelIDfromXYZ(int CopyNumber, XYZVector const& position) const {
+	// position is given in the local coordinate system of the rear ECal container
+	G4double dx = position.X() + fECalSizeX/2.0;
+	G4double dy = position.Y() + fECalSizeY/2.0;
+
+	if((dx < 0 || dx > fECalSizeX) || (dy < 0 || dy > fECalSizeY)) {
+		getchannelIDerrorcount++;
+		if(getchannelIDerrorcount < 100) {
+			G4cerr << "ERROR : getRearCalChannelIDfromXYZ problem dx:" << dx << " dy:" << dy << G4endl;
+		}
+		return 0;
+	}
+
+	G4long iz = CopyNumber;
+	G4long ix = floor(dx / fRearCalVoxelSize);
+	G4long iy = floor(dy / fRearCalVoxelSize);
+	if (ix < 0 || ix > 999 || iy < 0 || iy > 999 || iz < 0 || iz > 999) {
+		if(iz > 1000)
+			G4cerr << "ERROR : getRearCalChannelIDfromXYZ problem ix:" << ix << " iy:" << iy << " iz:" << iz << G4endl;
+		return 0;
+	}
+	G4long ID = ix + iy*1000L + iz*1000000LL;
+	return ID;
+}
+
 void DetectorConstruction::CreateMagnetSystem(G4double zLocation, G4LogicalVolume* parent) {
 
 	G4Material *G4_air = G4NistManager::Instance()->FindOrBuildMaterial("G4_AIR");
@@ -687,10 +714,10 @@ void DetectorConstruction::CreateRearCal(G4double zLocation, G4LogicalVolume* pa
 // 40 layers, 3mm Pb + 3mm scint, readout structure exactly like AHCAL with 4x4cm2 tiles
 void DetectorConstruction::CreateRearCal(G4double zLocation, G4LogicalVolume* parent) {
 	// Geometry parameters
-	G4double sizeZ_Pb = 3*mm;
-	G4double sizeZ_PS = 3*mm;
-	G4double sizeZ_airGap = 5*mm;
-	G4int nlayer = 40;
+	G4double sizeZ_Pb = fRearCalAbsorberSizeZ;
+	G4double sizeZ_PS = fRearCalScintillatorSizeZ;
+	G4double sizeZ_airGap = fRearCalLayerGapZ;
+	G4int nlayer = fRearCalNLayer;
 	// XY footprint matches HCal so that LOS shift calculation gives zero offset
 	G4double sizeX = 720*mm;   // 18 x 40mm tiles
 	G4double sizeY = 720*mm;   // 18 x 40mm tiles
@@ -704,8 +731,10 @@ void DetectorConstruction::CreateRearCal(G4double zLocation, G4LogicalVolume* pa
 	double sizeZ_ECalModule = sizeZ_Pb + sizeZ_PS;
 	double sizeZ_ECalPitch = sizeZ_ECalModule + sizeZ_airGap;
 	double total_sizeZ = nlayer * sizeZ_ECalModule + (nlayer - 1) * sizeZ_airGap;
+	fRearCalLayerPitch = sizeZ_ECalPitch;
+	fRearCalScintCenterInLayer = sizeZ_Pb + sizeZ_PS / 2.0;
 	fRearCalSizeZ = total_sizeZ;
-
+	
 	G4cout << "Total length of the rear ECal " << fRearCalSizeZ / mm << " mm " << G4endl;
 
 	double Pb_mass = nlayer * sizeX * sizeY * sizeZ_Pb * (G4_Pb->GetDensity() / (kg/cm3));
@@ -736,10 +765,10 @@ void DetectorConstruction::CreateRearCal(G4double zLocation, G4LogicalVolume* pa
 }
 void DetectorConstruction::CreateRearHCal(G4double zLocation, G4LogicalVolume* parent) {
 	// dimensions of the rear HCal
-	G4double sizeZ_Fe = 2*cm;
-	G4double sizeZ_PS = 0.3*cm;
-	G4double sizeZ_airGap = 5*mm;
-	G4int nlayer = 40;
+	G4double sizeZ_Fe = fRearHCalAbsorberSizeZ;
+	G4double sizeZ_PS = fRearHCalScintillatorSizeZ;
+	G4double sizeZ_airGap = fRearHCalLayerGapZ;
+	G4int nlayer = fRearHCalNLayer;
 	// dimensions of the neutron absorber
 	G4double sizeZ_nabs = 10*cm;  /// polyethylene slab
 	// dimensions of the rear HCal
@@ -754,6 +783,8 @@ void DetectorConstruction::CreateRearHCal(G4double zLocation, G4LogicalVolume* p
 	double sizeZ_HCalmodule = sizeZ_Fe + sizeZ_PS;
 	double sizeZ_HCalpitch = sizeZ_HCalmodule + sizeZ_airGap;
 	double total_sizeZ = nlayer*sizeZ_HCalmodule + (nlayer - 1)*sizeZ_airGap;
+	fRearHCalLayerPitch = sizeZ_HCalpitch;
+	fRearHCalScintCenterInLayer = sizeZ_Fe + sizeZ_PS / 2.0;
 
 	fRearHCalLength = total_sizeZ;
 

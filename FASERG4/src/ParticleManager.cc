@@ -31,15 +31,19 @@ void ParticleManager::processParticleHit(G4Track *track, XYZVector const& positi
 	const G4ParticleDefinition *particledef = track->GetParticleDefinition();
 	// special treatment for the rear calorimeter hits
 	if(VolumeName == "rearCalscintillatorLogical") {
-//		std::cout << VolumeName << " copy=" << CopyNumber << " MotherCopy = " << MotherCopyNumber << std::endl;
+		if(particledef->GetPDGCharge() == 0) return;
+		// special treatment for the rear electromagnetic calorimeter hits
+		const DetectorConstruction *detector = static_cast<const DetectorConstruction *>(G4RunManager::GetRunManager()->GetUserDetectorConstruction());
+        const XYZVector pos = local_position;
+		G4long moduleID = detector->getRearCalChannelIDfromXYZ(CopyNumber, pos);
 		auto it = std::find_if(fTcalEvent->rearCalDeposit.begin(), fTcalEvent->rearCalDeposit.end(),
-                       [MotherCopyNumber](const TcalEvent::REARCALDEPOSIT& deposit) {
-                           return deposit.moduleID == MotherCopyNumber;
+                       [moduleID](const TcalEvent::REARCALDEPOSIT& deposit) {
+                           return deposit.moduleID == moduleID;
                        });
 		if (it != fTcalEvent->rearCalDeposit.end()) {
 			it->energyDeposit += energydeposit;
 		} else {
-			struct TcalEvent::REARCALDEPOSIT rearhit = {MotherCopyNumber, energydeposit};
+			struct TcalEvent::REARCALDEPOSIT rearhit = {moduleID, energydeposit};
 			fTcalEvent->rearCalDeposit.push_back(rearhit);
 		}
 		return;
@@ -357,10 +361,15 @@ void ParticleManager::beginOfEvent()
 	fTcalEvent->geom_detector.fTotalMass = detector->fTotalMass;
 	fTcalEvent->geom_detector.fTotalWmass = detector->fTotalWMass;
 	fTcalEvent->geom_detector.fTotalScintmass = detector->fTotalScintMass;
-	fTcalEvent->geom_detector.rearCalSizeX = 121.2;
-	fTcalEvent->geom_detector.rearCalSizeY = 121.2;
-    fTcalEvent->geom_detector.rearCalLocZ = detector->fTotalLength/2.0; // when no magnet + 3500.0;
-	fTcalEvent->geom_detector.rearCalNxy = 5;
+	fTcalEvent->geom_detector.rearCalSizeX = detector->fECalSizeX;
+	fTcalEvent->geom_detector.rearCalSizeY = detector->fECalSizeY;
+	fTcalEvent->geom_detector.rearCalLocZ = detector->fRearCalLocZ;
+	fTcalEvent->geom_detector.rearCalVoxelSize = detector->fRearCalVoxelSize;
+	fTcalEvent->geom_detector.rearCalNxy = static_cast<int>(detector->fECalSizeX / detector->fRearCalVoxelSize + 0.5);
+	fTcalEvent->geom_detector.rearCalNlayer = detector->fRearCalNLayer;
+	fTcalEvent->geom_detector.rearCalSizeZ = detector->fRearCalSizeZ;
+	fTcalEvent->geom_detector.rearCalLayerPitch = detector->fRearCalLayerPitch;
+	fTcalEvent->geom_detector.rearCalScintCenterInLayer = detector->fRearCalScintCenterInLayer;
 	fTcalEvent->geom_detector.rearHCalSizeX = 720.0; // mm
 	fTcalEvent->geom_detector.rearHCalSizeY = 720.0; // mm
 	fTcalEvent->geom_detector.rearHCalSizeZ = 23; // mm
