@@ -25,6 +25,9 @@
 #include <random>
 #include <thread>
 
+#include <TRandom.h>
+
+
 #include <set>
 
 #include <signal.h>
@@ -3318,15 +3321,15 @@ void TPORecoEvent::ReconstructMuonSpectrometer() {
     }
     
     //std::vector<TMuTrack> fMuTracks;
-    double smear_xy_mm_sigma = 0.1; // 0.1 mm = 100 μm
+    double smear_xy_mm_sigma = 0.07; // 0.07 mm = 70 μm
 
     // Build temp tracks: smear each raw hit by 100 μm (x,y) BEFORE station averaging
     std::vector<TMuTrack> tempMuTracks;
     {
       //std::random_device rd_hits;
       //std::mt19937 gen_hits(rd_hits());
-      //std::normal_distribution<> smear_xy_mm(0.0, 0.1); // 0.1 mm = 100 μm
-      for (const auto &it : fTcalEvent->fMuTagTracks) 
+      //std::normal_distribution<> smear_xy_mm(0.0, smear_xy_mm_sigma); // 0.1 mm = 100 μm
+      for (const auto &it : fTcalEvent->fMuTagTracks)
       {
         if(it->fPDG != 13 && it->fPDG != -13) continue;
         TMuTrack mutrack;
@@ -3334,14 +3337,14 @@ void TPORecoEvent::ReconstructMuonSpectrometer() {
         mutrack.fPDG = it->fPDG;
         mutrack.layerID = it->layerID;
         mutrack.fpos = it->pos;
-        //mutrack.fpos.reserve(it->pos.size());
-        //for (size_t ih = 0; ih < it->pos.size(); ++ih) {
-        //  ROOT::Math::XYZVector p = it->pos[ih];
-        //  p.SetX(p.x() + smear_xy_mm(gen_hits));
-        //  p.SetY(p.y() + smear_xy_mm(gen_hits));
-        //  // z is not smeared
-        //  mutrack.fpos.push_back(p);
-        //}
+        // mutrack.fpos.reserve(it->pos.size());
+        // for (size_t ih = 0; ih < it->pos.size(); ++ih) {
+        //   ROOT::Math::XYZVector p = it->pos[ih];
+        //   p.SetX(p.x() + smear_xy_mm(gen_hits));
+        //   p.SetY(p.y() + smear_xy_mm(gen_hits));
+        //   // z is not smeared
+        //   mutrack.fpos.push_back(p);
+        // }
         tempMuTracks.push_back(std::move(mutrack));
       }
     }
@@ -3416,7 +3419,7 @@ void TPORecoEvent::ReconstructMuonSpectrometer() {
                 << " By=" << BkG.Y()/10.0
                 << " Bz=" << BkG.Z()/10.0 << std::endl;
     }
-   // introduce some smearing on averaged hit to simulate detector resolution
+    // introduce some smearing on averaged hit to simulate detector resolution
     std::random_device rd;
     std::mt19937 gen(rd());
     std::normal_distribution<> d(0, smear_xy_mm_sigma); // in mm
@@ -3430,7 +3433,7 @@ void TPORecoEvent::ReconstructMuonSpectrometer() {
          //   // no smearing in z 
        }
     }
-    
+
     // dump fMuTracks
     // Verbosity for GenFit prints: set MS_VERBOSE=1 (or higher) in env to enable
     int verbose = 0;
@@ -3526,7 +3529,7 @@ void TPORecoEvent::ReconstructMuonSpectrometer() {
           std::cout << " GenFit result: ";
           std::cout << " p = " << it.fp << " GeV/c";
           std::cout << " +/- " << it.fpErr << " GeV/c";
-          std::cout << " chi2/ndf = ";          
+          std::cout << " chi2/ndf = ";
           
           //g_px = it.fpx; g_py = it.fpy; g_pz = it.fpz; g_p = it.fp;
           //g_chi2 = it.fchi2; g_ndf = it.fnDoF; g_pval = it.fpval;
@@ -3743,4 +3746,466 @@ void TPORecoEvent::DumpRearHCalTruth(int maxPrint, bool uniquePerModuleAndTrack)
   if (nBelowEq) printf(" range=[%.2f,%.2f]mm", xminBelowEq, xmaxBelowEq);
   printf("\n");
 }
+
 #endif
+
+//////////////////////////////////////////////////////////
+// FASERCAL DETECTOR RESPONSE IMPLEMENTATION
+// Converts energy deposits (MeV) to photoelectrons (PE)
+//////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+// DETECTOR RESPONSE MODEL FOR FASERCAL
+// 
+// Formula: NPE = NumberOfPhotonPerMeV × EnergyDeposit × globalFiberCapture 
+//                × FiberTrappingEfficiency × attenuation × SiPM_PDE
+//
+// Step-by-step breakdown:
+// 1. NumberOfPhotonPerMeV: Scintillator photon yield (~8000 photons/MeV)
+// 2. EnergyDeposit: Energy deposited in the voxel (MeV)
+// 3. globalFiberCapture: Combined light collection efficiency (~10%)
+//    Includes: isotropic emission, geometric coupling, light transport, reflection
+// 4. FiberTrappingEfficiency: Fraction of photons trapped in WLS fiber (~5%)
+// 5. attenuation: Exponential decay along fiber length exp(-L/L_att)
+// 6. SiPM_PDE: Photodetector efficiency (~25%)
+//
+// This model is applied separately for X, Y, and Z fiber readouts
+////////////////////////////////////////////////////////////////////////////////
+bool TPORecoEvent::decodeFaserCalScintID(long id, int& ix, int& iy, int& iz, int& ilayer) {
+    const long hittype = id / 100000000000LL;
+    if (hittype != 0) return false;
+    
+    ix = static_cast<int>(id % 1000);
+    iy = static_cast<int>((id / 1000) % 1000);
+    iz = static_cast<int>((id / 1000000) % 1000);
+    ilayer = static_cast<int>(id / 1000000000);
+    return true;
+}
+
+long TPORecoEvent::encodeFaserCalScintID(int ix, int iy, int iz, int ilayer) {
+    return static_cast<long>(ilayer) * 1000000000LL +
+           static_cast<long>(iz) * 1000000LL +
+           static_cast<long>(iy) * 1000LL +
+           static_cast<long>(ix);
+}
+
+bool TPORecoEvent::isValidFaserCalVoxelIndex(int ix, int iy, int iz, int ilayer) {
+    const auto& g = geom_detector;
+    const int nx = static_cast<int>(g.fScintillatorSizeX / g.fScintillatorVoxelSize);
+    const int ny = static_cast<int>(g.fScintillatorSizeY / g.fScintillatorVoxelSize);
+    const int nzPerLayer = std::max(1, static_cast<int>(g.fSandwichLength / g.fScintillatorVoxelSize));
+    
+    if (ix < 0 || ix >= nx) return false;
+    if (iy < 0 || iy >= ny) return false;
+    if (iz < 0 || iz >= nzPerLayer) return false;
+    if (ilayer < 0 || ilayer >= g.NRep) return false;
+    return true;
+}
+
+double TPORecoEvent::computeFaserCalDirectPE(long channelID, double energyDepositMeV,
+                                              std::array<double, 3>& fiberPE) {
+    fiberPE = {0.0, 0.0, 0.0};
+    if (energyDepositMeV <= 0.0) return 0.0;
+    
+    const auto& cfg = recoConfig;
+    const auto& g = geom_detector;
+    
+    // Decode voxel position
+    int ix = 0, iy = 0, iz = 0, ilayer = 0;
+    if (!decodeFaserCalScintID(channelID, ix, iy, iz, ilayer)) {
+        return 0.0;
+    }
+    
+ 	// ========================================================================
+	// STEP 1: Determine voxel center position in detector coordinates (mm)
+	// ========================================================================
+    const double voxelX = ix * g.fScintillatorVoxelSize - g.fScintillatorSizeX / 2.0 + 
+                          g.fScintillatorVoxelSize / 2.0 + g.fFASERCal_LOS_shiftX;
+    const double voxelY = iy * g.fScintillatorVoxelSize - g.fScintillatorSizeY / 2.0 + 
+                          g.fScintillatorVoxelSize / 2.0 + g.fFASERCal_LOS_shiftY;
+    const double voxelZ = ilayer * g.fSandwichLength + iz * g.fScintillatorVoxelSize -
+                          (g.NRep * g.fSandwichLength) / 2.0 + g.fScintillatorVoxelSize / 2.0 +
+                          g.fAlPlateThickness + g.fTargetSizeZ;
+    
+  	// ========================================================================
+	// STEP 2: Calculate fiber path lengths from voxel to readout (mm)
+	// ========================================================================
+    const double distX = cfg.faserCal_readoutAtPositiveX ? 
+                         (g.fScintillatorSizeX / 2.0 - voxelX + g.fFASERCal_LOS_shiftX) :
+                         (voxelX + g.fScintillatorSizeX / 2.0 - g.fFASERCal_LOS_shiftX);
+    const double distY = cfg.faserCal_readoutAtPositiveY ?
+                         (g.fScintillatorSizeY / 2.0 - voxelY + g.fFASERCal_LOS_shiftY) :
+                         (voxelY + g.fScintillatorSizeY / 2.0 - g.fFASERCal_LOS_shiftY);
+    const double distZ = cfg.faserCal_readoutAtPositiveZ ?
+                         (g.fTotalLength / 2.0 - voxelZ) :
+                         (voxelZ + g.fTotalLength / 2.0);
+    
+    // ========================================================================
+	// STEP 3: Calculate attenuation factor = exp(-distance/attenuationLength)
+	// ========================================================================
+
+    const double attenuationX = std::exp(-distX / cfg.faserCal_fiberAttenuationLengthX);
+    const double attenuationY = std::exp(-distY / cfg.faserCal_fiberAttenuationLengthY);
+    const double attenuationZ = std::exp(-distZ / cfg.faserCal_fiberAttenuationLengthZ);
+    
+    // ========================================================================
+	// STEP 4: Calculate total scintillation photons produced
+	// Formula: N_photons = EnergyDeposit × NumberOfPhotonPerMeV
+	// ========================================================================
+    const double nScintPhotons = energyDepositMeV * cfg.faserCal_scintPhotonYieldPerMeV;
+    
+    // ========================================================================
+	// STEP 5: Calculate mean photoelectrons for each fiber direction
+	// Formula: PE = totalPhotons × globalFiberCapture × trappingEff × attenuation × PDE
+	// 
+	// globalFiberCapture (10%) is a combined parameter that includes:
+	//   - Isotropic emission (~1/6 per face)
+	//   - Geometric coupling (groove/fiber area)
+	//   - Light transport to fiber
+	//   - Internal reflection effects
+	// ========================================================================
+    const double commonFactor = nScintPhotons * cfg.faserCal_globalFiberCapture *
+                                cfg.faserCal_fiberTrappingEfficiency * cfg.faserCal_sensorPDE;
+    
+    // For X fiber:
+    double meanPE_X = commonFactor * attenuationX;
+    // For Y fiber:
+    double meanPE_Y = commonFactor * attenuationY;
+    // For Z fiber:
+    double meanPE_Z = commonFactor * attenuationZ;
+    
+    // ========================================================================
+	// STEP 7: Apply Poisson statistics (optional)
+	// ========================================================================
+	// Simulate the statistical fluctuations in photoelectron production
+    if (cfg.faserCal_applyPoissonStatistics) {
+        // Use Poisson distribution (approximated with Gaussian for large means)
+        /*
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        
+        auto applyPoisson = [&gen](double mean) -> double {
+            if (mean <= 0.0) return 0.0;
+            if (mean < 30.0) {
+                std::poisson_distribution<int> dist(mean);
+                return static_cast<double>(dist(gen));
+            } else {
+                // Gaussian approximation for large means
+                std::normal_distribution<double> dist(mean, std::sqrt(mean));
+                return std::max(0.0, dist(gen));
+            }
+        };
+        
+        meanPE_X = applyPoisson(meanPE_X);
+        meanPE_Y = applyPoisson(meanPE_Y);
+        meanPE_Z = applyPoisson(meanPE_Z);
+        */
+    
+        meanPE_X = gRandom->Poisson(meanPE_X);
+        meanPE_Y = gRandom->Poisson(meanPE_Y);
+        meanPE_Z = gRandom->Poisson(meanPE_Z);
+    }
+    
+    fiberPE[0] = meanPE_X;
+    fiberPE[1] = meanPE_Y;
+    fiberPE[2] = meanPE_Z;
+    
+    // ========================================================================
+	// DEBUG OUTPUT: Detailed breakdown of the calculation
+	// ========================================================================
+	if (verbose > 1) {
+	 std::cout << "[DEBUG] FASERCal energy deposit (MeV): " << energyDepositMeV << std::endl;
+	 std::cout << "[DEBUG] FASERCal voxel position (mm): (" << voxelX << ", " << voxelY << ", " << voxelZ << ")" << std::endl;
+	 std::cout << "[DEBUG] FASERCal total scintillation photons: " << nScintPhotons
+			<< " globalFiberCapture=" << cfg.faserCal_globalFiberCapture
+			<< " fiberTrapping=" << cfg.faserCal_fiberTrappingEfficiency
+			<< " sensorPDE=" << cfg.faserCal_sensorPDE << std::endl;
+	 std::cout << "[DEBUG] FASERCal distances to readout (mm): (distX=" << distX
+		 << ", distY=" << distY << ", distZ=" << distZ << ")" << std::endl;
+	 std::cout << "[DEBUG] FASERCal attenuations: (attX=" << attenuationX
+		 << ", attY=" << attenuationY << ", attZ=" << attenuationZ << ")" << std::endl;
+	 std::cout << "[DEBUG] FASERCal direct PE from fibers: (PE_X=" << fiberPE[0]
+		 << ", PE_Y=" << fiberPE[1]
+		 << ", PE_Z=" << fiberPE[2] << ")" << std::endl;
+    }
+    // ========================================================================
+	// EXAMPLE CALCULATION (typical values):
+	// ========================================================================
+	// Input: 1 MeV energy deposit in center voxel (10mm cube)
+	// 
+	// Step 1: Scintillation photons
+	//   N_scint = 1 MeV × 8000 photons/MeV = 8000 photons total
+	//
+	// Step 2: Global fiber capture (10%)
+	//   This single parameter includes:
+	//     - Isotropic light emission from scintillator
+	//     - Geometric coupling to fiber/groove
+	//     - Light transport within voxel
+	//     - Internal reflection effects
+	//   Photons coupled = 8000 × 0.10 = 800 photons
+	//
+	// Step 3: Fiber trapping efficiency (5%)
+	//   Trapped = 800 × 0.05 = 40 photons
+	//
+	// Step 4: Attenuation (assume 50mm distance, 3000mm atten. length)
+	//   att = exp(-50/3000) = 0.983
+	//   After attenuation = 40 × 0.983 = 39 photons
+	//
+	// Step 5: SiPM photodetection (25% PDE)
+	//   PE = 39 × 0.25 = 10 photoelectrons per fiber
+	//   Total (X+Y+Z) ≈ 30 PE for 1 MeV (typical ~20-30 PE/MeV)
+	// ========================================================================
+    return meanPE_X + meanPE_Y + meanPE_Z;
+}
+
+// ========================================================================
+// OPTICAL LEAKAGE AND CROSSTALK
+// Distributes energy among voxels before PE conversion to account for
+// optical photon leakage to neighboring voxels
+//
+// Configuration:
+//   opticalLeakageSide: fraction of light leaking to each of 4 side faces (±X, ±Y)
+//   opticalLeakageZ: fraction leaking to ±Z neighbors (not currently used)
+//
+// Example with opticalLeakageSide = 0.03 (3% per face):
+//   - 3% --> left neighbor (ix-1)
+//   - 3% --> right neighbor (ix+1)
+//   - 3% --> bottom neighbor (iy-1)
+//   - 3% --> top neighbor (iy+1)
+//   - 88% --> central voxel (1.0 - 4×0.03)
+//
+// IMPORTANT: Voxels can receive light FROM neighbors WITHOUT direct particle hits!
+// Example:
+//   - Particle hits voxel A with large energy --> neighbors B,C,D,E each get 3% leakage
+//   - Voxel B might have NO direct hit, but still gets PE from leaked light
+//   - If another particle later hits voxel B directly, both contributions accumulate
+//
+// ========================================================================
+void TPORecoEvent::accumulateFaserCalPEWithCrosstalk(
+    std::map<long, double>& voxelPEMap,
+    std::map<long, std::array<double, 3>>& voxelPEFibersMap,
+    long channelID, double energyDepositMeV) {
+    
+    if (energyDepositMeV <= 0.0) return;
+    
+    const auto& cfg = recoConfig;
+    
+    // Decode central voxel
+    int ix = 0, iy = 0, iz = 0, ilayer = 0;
+    if (!decodeFaserCalScintID(channelID, ix, iy, iz, ilayer)) return;
+    
+    const double fSide = std::max(0.0, cfg.faserCal_opticalLeakageSide);
+    const double fZ = std::max(0.0, cfg.faserCal_opticalLeakageZ);
+    
+    struct TargetVoxel {
+        long id;
+        double frac;
+    };
+    
+    std::vector<TargetVoxel> targets;
+    targets.reserve(7);
+    
+    double centralFrac = 1.0;
+    
+    auto addNeighbor = [&](int nix, int niy, int niz, int nlayer, double frac) {
+        if (frac <= 0.0) return;
+        if (!isValidFaserCalVoxelIndex(nix, niy, niz, nlayer)) return;
+        
+        const long nid = encodeFaserCalScintID(nix, niy, niz, nlayer);
+        targets.push_back({nid, frac});
+        centralFrac -= frac;
+    };
+    
+    //////////////////////////////////////////////////////////
+	// ADD SIDE NEIGHBORS (4 faces: ±X, ±Y in same layer)
+	// Each neighbor receives 'fSide' fraction of the energy
+	// Light leaks through voxel faces to adjacent scintillator cubes
+	//////////////////////////////////////////////////////////
+    addNeighbor(ix - 1, iy, iz, ilayer, fSide);  // Left face (-X direction)
+    addNeighbor(ix + 1, iy, iz, ilayer, fSide);  // Right face (+X direction)
+    addNeighbor(ix, iy - 1, iz, ilayer, fSide);  // Bottom face (-Y direction)
+    addNeighbor(ix, iy + 1, iz, ilayer, fSide);  // Top face (+Y direction)
+    //////////////////////////////////////////////////////////
+	// ADD Z NEIGHBORS (optional, currently not implemented)
+    // Would handle light leaking between layers
+	//////////////////////////////////////////////////////////
+    //addNeighbor(ix, iy, iz - 1, ilayer, fZ);  // Back face (-Z direction)
+    //addNeighbor(ix, iy, iz + 1, ilayer, fZ);  // Front face (+Z direction)
+
+    if (centralFrac < 0.0) centralFrac = 0.0;
+    
+    // Central voxel gets remaining energy
+    targets.push_back({channelID, centralFrac});
+    
+
+    //////////////////////////////////////////////////////////
+	// ACCUMULATE PE FOR EACH TARGET VOXEL
+	// Energy is distributed among voxels according to optical leakage fractions.
+	// For each voxel, convert energy to scintillation photons and then to photoelectrons
+	// Results accumulate in local maps passed as parameters (multiple hits per voxel are summed):
+	//   - voxelPEMap: total PE per voxel (sum of X + Y + Z fibers)
+	//   - voxelPEFibersMap: PE per fiber [X, Y, Z]
+	//
+	// ENERGY CONSERVATION: Total energy distributed = sum of (frac × energyDepositMeV)
+	// With 4 side neighbors: sum of fractions = centralFrac + 4×fSide = 1.0
+	//////////////////////////////////////////////////////////
+    for (const auto& t : targets) {
+        const double localEnergy = energyDepositMeV * t.frac;
+        if (localEnergy <= 0.0) continue;
+        
+        std::array<double, 3> fiberPE = {0.0, 0.0, 0.0};
+        const double totalPE = computeFaserCalDirectPE(t.id, localEnergy, fiberPE);
+        
+        // Check if this voxel already has PE (multiple hit to same voxel)
+        bool isMultipleHit = (voxelPEMap.find(t.id) != voxelPEMap.end());
+		double previousPE = isMultipleHit ? voxelPEMap[t.id] : 0.0;
+
+        //////////////////////////////////////////////////////////
+		// CRITICAL: Use += to accumulate PE from ALL sources
+		//
+		// This voxel (t.id) can receive PE from multiple sources:
+		// 1. Direct particle hit (centralFrac × energy)
+		// 2. Optical leakage from neighboring voxels (fSide × neighbor's energy)
+		// 3. Multiple particles hitting this voxel in the same event
+		//
+		// Example scenario:
+		//   - Particle A hits voxel (5,5,5) with 100 MeV
+		//     → Voxel (6,5,5) receives 3% leakage = 3 MeV → converts to PE → stored
+		//   - Particle B hits voxel (7,5,5) with 200 MeV  
+		//     → Voxel (6,5,5) receives 3% leakage = 6 MeV → converts to PE → ADDED
+		//   - Particle C hits voxel (6,5,5) directly with 50 MeV
+		//     → Voxel (6,5,5) keeps 88% = 44 MeV → converts to PE → ADDED
+		//   Total in voxel (6,5,5): PE from 3 MeV + 6 MeV + 44 MeV
+		//
+		// The += operator ensures all contributions are summed correctly!
+		//////////////////////////////////////////////////////////
+        voxelPEMap[t.id] += totalPE;
+        auto& fib = voxelPEFibersMap[t.id];
+        fib[0] += fiberPE[0];  // X fiber PE
+        fib[1] += fiberPE[1];  // Y fiber PE
+        fib[2] += fiberPE[2];  // Z fiber PE
+        
+        // Debug output for multiple hits to same voxel
+		if (isMultipleHit && verbose > 1) {
+			std::cout << "[DEBUG] Multiple hit to voxel " << t.id 
+				   << ": previous PE=" << previousPE 
+				   << " + new PE=" << totalPE
+				   << " = total PE=" << voxelPEMap[t.id] << std::endl;
+		}
+    }
+}
+
+std::vector<TcalEvent::FASERCALVOXELRESPONSE> TPORecoEvent::applyFaserCalDetectorResponse(
+    const std::vector<DigitizedTrack*>& tracks) {
+    
+    std::vector<TcalEvent::FASERCALVOXELRESPONSE> result;
+    
+    if (!recoConfig.faserCal_applyDetectorResponse) {
+        if (verbose > 0) {
+            std::cout << "[FASERCal DetectorResponse] Disabled - returning empty response" << std::endl;
+        }
+        return result;
+    }
+    
+    if (verbose > 0) {
+        std::cout << "\n[FASERCal DetectorResponse] Configuration:" << std::endl;
+        std::cout << "  Photon yield: " << recoConfig.faserCal_scintPhotonYieldPerMeV << " photons/MeV" << std::endl;
+        std::cout << "  Global fiber capture: " << (recoConfig.faserCal_globalFiberCapture * 100) << "%" << std::endl;
+        std::cout << "  Fiber trapping: " << (recoConfig.faserCal_fiberTrappingEfficiency * 100) << "%" << std::endl;
+        std::cout << "  SiPM PDE: " << (recoConfig.faserCal_sensorPDE * 100) << "%" << std::endl;
+        std::cout << "  Optical leakage (side): " << (recoConfig.faserCal_opticalLeakageSide * 100) << "% per face" << std::endl;
+        std::cout << "  Poisson statistics: " << (recoConfig.faserCal_applyPoissonStatistics ? "ON" : "OFF") << std::endl;
+    }
+    
+    // Maps to accumulate PE
+    std::map<long, double> voxelPEMap;
+    std::map<long, std::array<double, 3>> voxelPEFibersMap;
+    
+    // Collect energy deposits from all tracks
+    for (const auto* track : tracks) {
+        if (!track) continue;
+        
+        const size_t nhits = std::min(track->fhitIDs.size(), track->fEnergyDeposits.size());
+        for (size_t i = 0; i < nhits; ++i) {
+            const long hitID = track->fhitIDs[i];
+            const double edep = track->fEnergyDeposits[i];  // in MeV
+            
+            // Check if this is a FASERCal scintillator hit (hittype == 0)
+            const long hittype = hitID / 100000000000LL;
+            if (hittype != 0) continue;
+            
+            // Apply detector response with optical cross talk
+            accumulateFaserCalPEWithCrosstalk(voxelPEMap, voxelPEFibersMap, hitID, edep);
+        }
+    }
+    
+    // Convert maps to vector of responses
+    for (const auto& kv : voxelPEMap) {
+        TcalEvent::FASERCALVOXELRESPONSE resp;
+        resp.channelID = kv.first;
+        resp.nPE = kv.second;
+        resp.nPEDirect = kv.second;  // For now, all PE is direct (no indirect/reflected)
+        
+        const auto& fibers = voxelPEFibersMap[kv.first];
+        resp.nPEFiber0Direct = fibers[0];
+        resp.nPEFiber1Direct = fibers[1];
+        resp.nPEFiber2Direct = fibers[2];
+        
+        result.push_back(resp);
+    }
+    
+    if (verbose > 0) {
+        std::cout << "[FASERCal DetectorResponse] Generated " << result.size() << " voxel responses" << std::endl;
+        if (!result.empty()) {
+            double totalPE = 0.0;
+            double maxPE = 0.0;
+            for (const auto& r : result) {
+                totalPE += r.nPE;
+                maxPE = std::max(maxPE, r.nPE);
+            }
+            std::cout << "  Total PE: " << totalPE << std::endl;
+            std::cout << "  Average PE/voxel: " << (totalPE / result.size()) << std::endl;
+            std::cout << "  Max PE in single voxel: " << maxPE << std::endl;
+        }
+    }
+    
+    return result;
+}
+
+//////////////////////////////////////////////////////////
+// PUBLIC WRAPPER: Apply detector response and store in TcalEvent
+//////////////////////////////////////////////////////////
+
+void TPORecoEvent::ApplyFaserCalDetectorResponse() {
+    if (!fTcalEvent) {
+        std::cerr << "[ApplyFaserCalDetectorResponse] ERROR: fTcalEvent is null" << std::endl;
+        return;
+    }
+    
+    if (verbose > 0) {
+        std::cout << "\n========================================" << std::endl;
+        std::cout << "Applying FASERCal Detector Response" << std::endl;
+        std::cout << "========================================" << std::endl;
+    }
+    
+    // Get tracks from TcalEvent
+    const auto& tracks = fTcalEvent->getfTracks();
+    
+    if (tracks.empty()) {
+        if (verbose > 0) {
+            std::cout << "[ApplyFaserCalDetectorResponse] No tracks found in event" << std::endl;
+        }
+        return;
+    }
+    
+    // Apply detector response
+    auto voxelResponses = applyFaserCalDetectorResponse(tracks);
+    
+    // Store result in TPORecoEvent (replaces any G4-generated response)
+    faserCalVoxelResponse = voxelResponses;
+    
+    if (verbose > 0) {
+        std::cout << "[ApplyFaserCalDetectorResponse] Complete!" << std::endl;
+        std::cout << "  Stored " << voxelResponses.size() << " voxel responses in TPORecoEvent" << std::endl;
+        std::cout << "========================================\n" << std::endl;
+    }
+}

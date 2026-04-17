@@ -197,6 +197,7 @@ public:
         Double_t rearHCalScintCenterInLayer = 0; // in mm
         Double_t frearHCal_LOS_shiftX; // in mm
         Double_t frearHCal_LOS_shiftY; // in mm
+
         Double_t rearMuSpectLocZ; // in mm
         Double_t rearMuSpectSizeZ; // in mm
         Double_t fRearMuSpect_LOS_shiftX; // in mm
@@ -208,6 +209,9 @@ public:
         Double_t fSiTrackerGap; // in mm
         // UMUT: Tilt angle of the detector in radians
         Double_t fTiltAngleY; // in radians
+
+        Double_t fThreeD_CAL_shiftX; // in mm
+        Double_t fThreeD_CAL_shiftY; // in mm
     };
 
     /// @brief The summary of the detector geometry

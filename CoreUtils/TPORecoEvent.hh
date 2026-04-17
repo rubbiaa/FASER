@@ -75,6 +75,45 @@ private:
     /// @brief Private function to compute energies and COG belonging from a Digitized Track hits.
     struct TPORec::CALENERGIES computeEnergiesAndCOG(DigitizedTrack *dt);   //! (no ROOT I/O output)
 
+    //////////////////////////////////////////////////////////
+    // FASERCAL DETECTOR RESPONSE FUNCTIONS
+    // Convert energy deposits to photoelectrons
+    // Moved from Geant4 to reconstruction level
+    //////////////////////////////////////////////////////////
+    
+    /// @brief Apply FASERCal detector response to convert energy deposits to PE
+    /// @param tracks Input digitized tracks with energy deposits
+    /// @return Vector of voxel PE responses
+    std::vector<TcalEvent::FASERCALVOXELRESPONSE> applyFaserCalDetectorResponse(
+        const std::vector<DigitizedTrack*>& tracks);
+    
+    /// @brief Compute PE for a single voxel from energy deposit
+    /// @param channelID Voxel channel ID
+    /// @param energyDepositMeV Energy deposited in MeV
+    /// @param fiberPE Output array for X,Y,Z fiber PE
+    /// @return Total PE (sum of all fibers)
+    double computeFaserCalDirectPE(long channelID, double energyDepositMeV, 
+                                   std::array<double, 3>& fiberPE);
+    
+    /// @brief Apply optical leakage and accumulate PE with crosstalk
+    /// @param voxelPEMap Map to accumulate total PE per voxel
+    /// @param voxelPEFibersMap Map to accumulate PE per fiber direction
+    /// @param channelID Central voxel ID where energy was deposited
+    /// @param energyDepositMeV Energy deposited in central voxel
+    void accumulateFaserCalPEWithCrosstalk(
+        std::map<long, double>& voxelPEMap,
+        std::map<long, std::array<double, 3>>& voxelPEFibersMap,
+        long channelID, double energyDepositMeV);
+    
+    /// @brief Helper function to decode FASERCal voxel ID
+    bool decodeFaserCalScintID(long id, int& ix, int& iy, int& iz, int& ilayer);
+    
+    /// @brief Helper function to encode FASERCal voxel ID
+    long encodeFaserCalScintID(int ix, int iy, int iz, int ilayer);
+    
+    /// @brief Helper function to check if voxel indices are valid
+    bool isValidFaserCalVoxelIndex(int ix, int iy, int iz, int ilayer);
+
     /// @brief The vector that holds all the PORec (Reconstructed POs) in the event
     std::vector<class TPORec*> fPORecs;                                     // (keep ROOT I/O output)
 
@@ -191,6 +230,9 @@ public:
     // muon tracks
     std::vector<TMuTrack> fMuTracks;
 
+    // FASERCal detector response (PE values per voxel)
+    std::vector<TcalEvent::FASERCALVOXELRESPONSE> faserCalVoxelResponse;
+
     // @brief A copy of the geometry originally stored in TCalEvent
     struct TcalEvent::GEOM_DETECTOR geom_detector;
 
@@ -261,6 +303,37 @@ public:
         double PSFilter_parallel_cut;
         double PSFilter_mindZcut;
 
+        //////////////////////////////////////////////////////////
+        // FASERCAL DETECTOR RESPONSE CONFIGURATION
+        // Parameters for converting energy deposits to photoelectrons
+        //////////////////////////////////////////////////////////
+        
+        // Scintillation and light collection
+        double faserCal_scintPhotonYieldPerMeV = 8000.0;  // photons/MeV
+        double faserCal_globalFiberCapture = 0.10;        // 10% combined light collection efficiency
+        double faserCal_fiberTrappingEfficiency = 0.05;   // 5% trapping in fiber
+        double faserCal_sensorPDE = 0.25;                 // 25% SiPM photon detection efficiency
+        
+        // Attenuation lengths for each fiber direction (mm)
+        double faserCal_fiberAttenuationLengthX = 3000.0;
+        double faserCal_fiberAttenuationLengthY = 3000.0;
+        double faserCal_fiberAttenuationLengthZ = 3000.0;
+        
+        // Readout configuration (which end of detector has SiPM readout)
+        bool faserCal_readoutAtPositiveX = true;
+        bool faserCal_readoutAtPositiveY = true;
+        bool faserCal_readoutAtPositiveZ = true;
+        
+        // Optical crosstalk between neighboring voxels
+        double faserCal_opticalLeakageSide = 0.03;  // 3% to each side neighbor (±X, ±Y)
+        double faserCal_opticalLeakageZ = 0.0;      // leakage to ±Z neighbors (not implemented)
+        
+        // Statistical fluctuations
+        bool faserCal_applyPoissonStatistics = true;  // Apply Poisson fluctuations to PE
+        
+        // Enable/disable detector response (set false to use energy deposits directly)
+        bool faserCal_applyDetectorResponse = true;
+
     } recoConfig;
 
     /// @brief Reconstruct the FASERG4 simulated event to the PORec
@@ -300,6 +373,12 @@ public:
 
     /// @brief Reconstruct FASERCAL and rear calorimeters and rear mu tag
     void ReconstructRearCals();
+    
+    /// @brief Apply FASERCal detector response at reconstruction level
+    /// @details Converts energy deposits to photoelectrons using detector response model.
+    /// This replaces any PE data from Geant4, allowing parameter tuning without re-simulation.
+    /// Results are stored in faserCalVoxelResponse member variable
+    void ApplyFaserCalDetectorResponse();
 
     /// @brief Reconstruct the muon spectrometer's tracks
     void ReconstructMuonSpectrometer(); // added by Umut

@@ -1,12 +1,17 @@
 EXE = ConvertGENIE.exe
+EXE_ECAL = ConvertGENIE_ecal.exe
+EXE_AHCAL = ConvertGENIE_ahcal.exe
 
 COREUTILSDIR := ../CoreUtils
 
-SRC = ConvertGENIE.cc $(COREUTILSDIR)/TPOEvent.cc
-OBJ = $(SRC:.C=.o)
-OBJ := $(OBJ:.cxx=.o)
-OBJ := $(OBJ:.cc=.o)
-OBJ += dict.o
+SRC = ConvertGENIE.cc
+OBJ = ConvertGENIE.o TPOEvent.o dict.o
+
+SRC_ECAL = ConvertGENIE_ecal.cc
+OBJ_ECAL = ConvertGENIE_ecal.o TPOEvent.o dict.o
+
+SRC_AHCAL = ConvertGENIE_ahcal.cc
+OBJ_AHCAL = ConvertGENIE_ahcal.o TPOEvent.o dict.o
 
 INCS = $(wildcard *.h)
 INCS += $(wildcard *.hh)
@@ -24,13 +29,19 @@ LDLIBS = `root-config --glibs` -lEG -lEGPythia8 -lGeom -lPhysics
 LDLIBS += -L$(PYTHIA8LIB) -lpythia8
 LDLIBS += -Wl,-rpath,$(PYTHIA8LIB)
 
-all : $(EXE)
+all : $(EXE) $(EXE_ECAL) $(EXE_AHCAL)
 
-dict.cxx : $(INCS) $(SRC)
+dict.cxx : $(INCS)
 	rootcling -f dict.cxx -c LinkDef.h -I$(COREUTILSDIR) -I$(PYTHIA8INC)
 
 $(EXE) : $(OBJ) Makefile
 	g++ $(ROOTCFLAGS) $(OBJ) $(LDLIBS) -o $(EXE)
+
+$(EXE_ECAL) : $(OBJ_ECAL) Makefile
+	g++ $(ROOTCFLAGS) $(OBJ_ECAL) $(LDLIBS) -o $(EXE_ECAL)
+
+$(EXE_AHCAL) : $(OBJ_AHCAL) Makefile
+	g++ $(ROOTCFLAGS) $(OBJ_AHCAL) $(LDLIBS) -o $(EXE_AHCAL)
 
 # Compile source files to object files
 %.o: %.C
@@ -40,9 +51,13 @@ $(EXE) : $(OBJ) Makefile
 %.o: %.cxx
 	$(CXX) $(ROOTCFLAGS) -c $< -o $@
 
+# Compile TPOEvent from CoreUtils with our flags
+TPOEvent.o: $(COREUTILSDIR)/TPOEvent.cc $(COREUTILSDIR)/TPOEvent.hh
+	$(CXX) $(ROOTCFLAGS) -c $(COREUTILSDIR)/TPOEvent.cc -o TPOEvent.o
+
 # Clean target
 clean:
-	rm -f $(OBJ) $(EXE) dict.cxx dict_rdict.pcm
+	rm -f $(OBJ) $(EXE) $(EXE_ECAL) $(EXE_AHCAL) dict.cxx dict_rdict.pcm ConvertGENIE.o ConvertGENIE_ecal.o ConvertGENIE_ahcal.o TPOEvent.o
 
 .PHONY : all clean
 
