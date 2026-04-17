@@ -30,3 +30,109 @@ FASERMC-PO-Run500-0_99261.root
 total:
 FASERMC-PO-Run500-0_120500.root
 
+
+
+
+
+
+
+###################################
+
+Tilted Geometry:
+FASERCal_tilted_5deg_1000abinv_502_nutauOnly.gfaser.root
+nueCC = 0 numuCC = 0 nutauCC = 31911 NC = 0  ES = 17
+Total number of events written 31928
+FASERMC-PO-Run502-0_1393342.root 
+
+FASERCal_tilted_5deg_500abinv_503_nutauOnly.gfaser.root
+ nueCC = 0 numuCC = 0 nutauCC = 16028 NC = 0  ES = 14
+Total number of events written 16042
+FASERMC-PO-Run503-0_696452.root
+
+FASERCal_tilted_5deg_500abinv_504_nutauOnly.gfaser.root
+nueCC = 0 numuCC = 0 nutauCC = 16189 NC = 0 ES = 13
+Total number of events written 16202
+FASERMC-PO-Run504-0_696397.root
+
+FASERCal_tilted_5deg_360abinv_505_nutauOnly.gfaser.root
+nueCC = 0 numuCC = 0 nutauCC = 11364 NC = 0 ES = 8
+Total number of events written 11372
+FASERMC-PO-Run505-0_502588.root
+
+FASERCal_tilted_5deg_400abinv_506_nutauOnly.gfaser.root  
+nueCC = 0 numuCC = 0 nutauCC = 12798 NC = 0  ES = 6
+Total number of events written 12804
+FASERMC-PO-Run506-0_557714.root
+
+FASERCal_tilted_5deg_940abinv_507_nutauOnly.gfaser.root 
+nueCC = 0 numuCC = 0 nutauCC = 29977 NC = 0  ES = 21
+Total number of events written 29998
+FASERMC-PO-Run507-0_1311739.root
+
+
+.........................
+./CombineFluxes -t gFaser -o FASERCal_tilted_5deg_1000abinv_503_nutauOnly.gfaser.root FASERCal_tilted_5deg_run502_jb*_charm.502.gfaser.root
+From 16 to 20: 500 invab
+
+./ConvertGENIE.exe -tauCConly FASERCal_tilted_5deg_1000abinv_503_nutauOnly.gfaser.root 503
+
+Done saving...
+ nueCC = 0 numuCC = 0 nutauCC = 16028 NC = 0
+ ES = 14
+Total number of events written 16042
+I'm done.
+
+FASERCal_tilted_5deg_1000abinv_503_nutauOnly.gfaser.root
+FASERMC-PO-Run503-0_696452.root
+
+…………………………………
+./CombineFluxes -t gFaser -o FASERCal_tilted_5deg_1000abinv_503_nutauOnly.gfaser.root FASERCal_tilted_5deg_run502_jb*_charm.502.gfaser.root
+From 11 to 15: 500 invab
+FASERCal_tilted_5deg_1000abinv_504_nutauOnly.gfaser.root
+./ConvertGENIE.exe -tauCConly FASERCal_tilted_5deg_1000abinv_504_nutauOnly.gfaser.root 504
+Done saving...
+ nueCC = 0 numuCC = 0 nutauCC = 16189 NC = 0
+ ES = 13
+Total number of events written 16202
+I'm done.
+
+…………
+FASERCal_tilted_5deg_1000abinv_505_nutauOnly.gfaser.root
+18 root files from 18*20inva = 360 invab
+FASERCal_tilted_5deg_run505_jb*_charm.505.gfaser.root
+[ukose@lxplus973]/eos/user/u/ukose/FASERCAL/sw/kits/FASER/ConvertGENIE% ./ConvertGENIE.exe -tauCConly FASERCal_tilted_5deg_1000abinv_505_nutauOnly.gfaser.root 505
+Converting FASERMC from FASERCal_tilted_5deg_1000abinv_505_nutauOnly.gfaser.root
+The output file is FASERMC-PO-Run505-0_502588.root
+Done saving...
+ nueCC = 0 numuCC = 0 nutauCC = 11364 NC = 0
+ ES = 8
+Total number of events written 11372
+I'm done.
+
+……………..
+./CombineFluxes -t gFaser -o FASERCal_tilted_5deg_1000abinv_506_nutauOnly.gfaser.root FASERCal_tilted_5deg_run502_jb*_charm.502.gfaser.root
+From 21-24  400 invab
+Files combined and saved to 'FASERCal_tilted_5deg_1000abinv_506_nutauOnly.gfaser.root'
+
+FASERMC-PO-Run506-0_557714.root
+Done saving...
+ nueCC = 0 numuCC = 0 nutauCC = 12798 NC = 0
+ ES = 6
+Total number of events written 12804
+I'm done.
+
+……………..
+
+
+new geometry with ECAL+AHCAL combined
+FASERCal_tilted_5deg_50abinv_1001_charm.gfaser.root
+FASERCal_tilted_5deg_50abinv_1001_light.gfaser.root
+FASERCal_tilted_5deg_50abinv_1002_charm.gfaser.root
+FASERCal_tilted_5deg_50abinv_1002_light.gfaser.root
+
+FASERCal_tilted_5deg_50abinv_run1001.gfaser.root
+FASERCal_tilted_5deg_50abinv_run1002.gfaser.root
+
+
+
+
