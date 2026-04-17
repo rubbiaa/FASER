@@ -392,6 +392,9 @@ void ParticleManager::beginOfEvent()
 	fTcalEvent->geom_detector.fRearMuSpect_LOS_shiftY = detector->fRearMuSpect_LOS_shiftY * mm;
 	//UMUT: copy the GEANT4 tilt angle (radians) so it's saved in the geom branch
     fTcalEvent->geom_detector.fTiltAngleY = detector->GetTiltAngleY();
+	// added by Umut: also save the 3DCAL shifts for potential use in display
+	fTcalEvent->geom_detector.fThreeD_CAL_shiftX = detector->fThreeD_CAL_shiftX * mm;
+	fTcalEvent->geom_detector.fThreeD_CAL_shiftY = detector->fThreeD_CAL_shiftY * mm;
 
 	// clear the rear calorimeter
 	fTcalEvent->rearCalDeposit.clear();

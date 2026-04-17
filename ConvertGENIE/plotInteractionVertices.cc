@@ -40,16 +40,16 @@ constexpr double Z_3DCAL_MIN_MM = -1150.0;
 constexpr double Z_3DCAL_MAX_MM =  1150.0;
 
 // ECAL region
-constexpr double Z_ECAL_MIN_MM  =  1205.0;
-constexpr double Z_ECAL_MAX_MM  =  1550.0;
+constexpr double Z_ECAL_MIN_MM  =  1215.0; 
+constexpr double Z_ECAL_MAX_MM  =  1650.0;
 
 // AHCAL region
-constexpr double Z_AHCAL_MIN_MM = 1551.0;
-constexpr double Z_AHCAL_MAX_MM = 2450.0;
+constexpr double Z_AHCAL_MIN_MM = 1660.0;
+constexpr double Z_AHCAL_MAX_MM = 2775.0;
 
 // Muon spectrometer region
-constexpr double Z_MS_MIN_MM    = 2451.0;
-constexpr double Z_MS_MAX_MM    = 4350.0;
+constexpr double Z_MS_MIN_MM    = 2785.0;
+constexpr double Z_MS_MAX_MM    = 4596.0;
 
 // ------------------------------------------------------------
 

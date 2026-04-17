@@ -110,8 +110,6 @@ TcalEvent::TcalEvent(int run_number, long event_number, int event_mask) : TcalEv
     m_calEventTree->Branch("geom", &geom_detector);
     m_calEventTree->Branch("rearcal", &rearCalDeposit);
     m_calEventTree->Branch("rearhcal", &rearHCalDeposit);
-    // Only create fasercalvoxpe branch if it exists in the input file (for backward compatibility with older files that don't have this branch)
-    m_calEventTree->Branch("fasercalvoxpe", &faserCalVoxelResponse);
     m_calEventTree->Branch("rearmucal", &rearMuCalDeposit);
     // Umut: to understand whats happening at rear hadron calorimeter
     //m_calEventTree->Branch("rearhcaltruth", &rearHCalTruth);
@@ -218,16 +216,6 @@ int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
 
     std::vector<struct REARCALDEPOSIT> *g_h = &rearHCalDeposit;
     event_tree -> SetBranchAddress("rearhcal", &g_h);
-    
-    //////////////////////////////////////////////////////////
-    // Only set branch address for fasercalvoxpe if it exists in the input file (for backward compatibility with older files that don't have this branch)
-    if (event_tree->GetBranch("fasercalvoxpe") != nullptr) {
-        std::vector<struct FASERCALVOXELRESPONSE> *g_vresp = &faserCalVoxelResponse;
-        event_tree->SetBranchAddress("fasercalvoxpe", &g_vresp);
-    } else {
-        faserCalVoxelResponse.clear();
-    }
-	//////////////////////////////////////////////////////////
 
     event_tree -> SetBranchAddress("rearmucal", &rearMuCalDeposit);
 
@@ -393,8 +381,8 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZfromID(long ID) const
         double y = iy * geom_detector.fScintillatorVoxelSize - geom_detector.fScintillatorSizeY / 2.0
             + geom_detector.fScintillatorVoxelSize/2.0;
         // i needed to comment the following lines to match the positions correctly
-        x += geom_detector.fFASERCal_LOS_shiftX;
-        y += geom_detector.fFASERCal_LOS_shiftY;
+        x += geom_detector.fFASERCal_LOS_shiftX + geom_detector.fThreeD_CAL_shiftX;
+        y += geom_detector.fFASERCal_LOS_shiftY + geom_detector.fThreeD_CAL_shiftY;
         double z = getZofLayer(ilayer, iz);
          ROOT::Math::XYZVector localPos(x, y, z);
         return ApplyYRotationWithTGeo(localPos, geom_detector.fTiltAngleY /*rad*/, 0.0, 0.0, 0.0);
@@ -407,8 +395,8 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZfromID(long ID) const
         double x = ix * geom_detector.fSiTrackerPixelSize - geom_detector.fScintillatorSizeX / 2.0;
         double y = iy * geom_detector.fSiTrackerPixelSize - geom_detector.fScintillatorSizeY / 2.0;
         // i needed to comment the following lines to match the positions correctly
-        x += geom_detector.fFASERCal_LOS_shiftX;
-        y += geom_detector.fFASERCal_LOS_shiftY;
+        x += geom_detector.fFASERCal_LOS_shiftX + geom_detector.fThreeD_CAL_shiftX;
+        y += geom_detector.fFASERCal_LOS_shiftY + geom_detector.fThreeD_CAL_shiftY;
         double z = ilayer * geom_detector.fSandwichLength + geom_detector.fSandwichLength
             - (geom_detector.NRep * geom_detector.fSandwichLength) / 2.0;
         if(icopy == 1) z -= geom_detector.fAirGap;

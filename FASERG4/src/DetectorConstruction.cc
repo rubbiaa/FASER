@@ -510,8 +510,8 @@ static int getchannelIDerrorcount = 0;
 G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, int CopyNumber, int MotherCopyNumber, XYZVector const& position) const {
 
 	// position is given in the local coordinate system of the volume
-	G4double dx = position.X()+fScintillatorSizeX/2.0-fFASERCal_LOS_shiftX ;
-	G4double dy = position.Y()+fScintillatorSizeY/2.0-fFASERCal_LOS_shiftY ;
+	G4double dx = position.X()+fScintillatorSizeX/2.0-fFASERCal_LOS_shiftX - fThreeD_CAL_shiftX;
+	G4double dy = position.Y()+fScintillatorSizeY/2.0-fFASERCal_LOS_shiftY - fThreeD_CAL_shiftY;
 	G4double epsilon = 1e-4;   // avoid rounding errors at volume boundary
 	G4double dz = position.Z()+fTotalLength/2.0-epsilon;
 	//G4double dz = position.Z() + fTotalLength/2.0;
@@ -579,7 +579,7 @@ G4long DetectorConstruction::getHCalChannelIDfromXYZ(int CopyNumber, XYZVector c
 	G4double epsilon = 1e-4;   // avoid rounding errors at volume boundary
 
 	// sanity check
-	if((dx < 0 || dx > fRearHCalSizeX) || (dy < 0 || dy > fRearHCalSizeY)) {
+	if((dx < 0 || dx >= fRearHCalSizeX) || (dy < 0 || dy >= fRearHCalSizeY)) {
 		getchannelIDerrorcount++;
 		if(getchannelIDerrorcount < 100) {
 			G4cerr << "ERROR : getHCalCHannelIDfromXYZ problem dx:" << dx << " dy:" << dy << G4endl;
@@ -605,7 +605,7 @@ G4long DetectorConstruction::getRearCalChannelIDfromXYZ(int CopyNumber, XYZVecto
 	G4double dx = position.X() + fECalSizeX/2.0;
 	G4double dy = position.Y() + fECalSizeY/2.0;
 
-	if((dx < 0 || dx > fECalSizeX) || (dy < 0 || dy > fECalSizeY)) {
+	if((dx < 0 || dx >= fECalSizeX) || (dy < 0 || dy >= fECalSizeY)) {
 		getchannelIDerrorcount++;
 		if(getchannelIDerrorcount < 100) {
 			G4cerr << "ERROR : getRearCalChannelIDfromXYZ problem dx:" << dx << " dy:" << dy << G4endl;
