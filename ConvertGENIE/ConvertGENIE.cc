@@ -282,13 +282,15 @@ void convert_FASERMC(int run_number, TTree *tree, int min_event, int max_event,
 
   int evt_to_dump = 0;
   size_t iseq = 0;
+  
+  // Initialize statistics counters
+  fTPOEvent.reset_stats();
 
   for (size_t event = min_event; event < max_event; event++)
   {
 
     tree->GetEntry(event);
 
-    if (event == 0) fTPOEvent.reset_stats();
     if (event % 1000 == 0)
     {
       std::cout << "Processing event " << event << " ..." << std::endl;
@@ -489,8 +491,21 @@ int main(int argc, char **argv)
   inputDirFiles << rootinputString;
 
   TChain *tree = new TChain("gFaser");
-  tree->Add(inputDirFiles.str().c_str());
+  int nfiles = tree->Add(inputDirFiles.str().c_str());
+  if (nfiles == 0) {
+    std::cerr << "Error: No files found matching pattern: " << inputDirFiles.str() << std::endl;
+    std::cerr << "Please check the file path and try again." << std::endl;
+    return 1;
+  }
+  
   size_t n_entries = tree->GetEntries();
+  std::cout << "Found " << nfiles << " file(s) with " << n_entries << " total entries" << std::endl;
+  
+  if (n_entries == 0) {
+    std::cerr << "Error: No entries found in input file(s)" << std::endl;
+    return 1;
+  }
+  
   if (max_event == -1)
   {
     max_event = n_entries;
