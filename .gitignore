@@ -21,6 +21,8 @@ setup_*.sh
 
 # Optional generic GDML outputs (if needed)
 GeomGDML/geometry*.gdml
+GeomGDML/new_geometry_tilted_5degree.gdml
+Python_io/lib/ClassesDict.cxx
 
 # OS/editor noise
 .DS_Store
