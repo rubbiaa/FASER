@@ -1,3 +1,6 @@
+
+*dict.cxx
+
 # Data outputs
 Batch/FASERCALDATA_*
 
@@ -17,7 +20,7 @@ ConvertGENIE/etaCoverage_geometry
 setup_*.sh
 
 # Optional generic GDML outputs (if needed)
-# GeomGDML/geometry.gdml
+GeomGDML/geometry*.gdml
 
 # OS/editor noise
 .DS_Store
