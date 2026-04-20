@@ -1,3 +1,29 @@
+
+*dict.cxx
+
+# Data outputs
+Batch/FASERCALDATA_*
+
+# ROOT generated
+*dict.cxx
+
+# Binaries (if confirmed)
+ConvertGENIE/CombineFluxes
+ConvertGENIE/countInteractions
+ConvertGENIE/etaCoverage
+ConvertGENIE/etaCoverage_geometry
+
+# Temporary / backup
+*_org
+
+# Personal environment
+setup_*.sh
+
+# Optional generic GDML outputs (if needed)
+GeomGDML/geometry*.gdml
+GeomGDML/new_geometry_tilted_5degree.gdml
+Python_io/lib/ClassesDict.cxx
+
 # OS/editor noise
 .DS_Store
 .vscode/
