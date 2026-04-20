@@ -1,17 +1,9 @@
 EXE = ConvertGENIE.exe
-EXE_ECAL = ConvertGENIE_ecal.exe
-EXE_AHCAL = ConvertGENIE_ahcal.exe
 
 COREUTILSDIR := ../CoreUtils
 
 SRC = ConvertGENIE.cc
 OBJ = ConvertGENIE.o TPOEvent.o dict.o
-
-SRC_ECAL = ConvertGENIE_ecal.cc
-OBJ_ECAL = ConvertGENIE_ecal.o TPOEvent.o dict.o
-
-SRC_AHCAL = ConvertGENIE_ahcal.cc
-OBJ_AHCAL = ConvertGENIE_ahcal.o TPOEvent.o dict.o
 
 INCS = $(wildcard *.h)
 INCS += $(wildcard *.hh)
@@ -37,11 +29,6 @@ dict.cxx : $(INCS)
 $(EXE) : $(OBJ) Makefile
 	g++ $(ROOTCFLAGS) $(OBJ) $(LDLIBS) -o $(EXE)
 
-$(EXE_ECAL) : $(OBJ_ECAL) Makefile
-	g++ $(ROOTCFLAGS) $(OBJ_ECAL) $(LDLIBS) -o $(EXE_ECAL)
-
-$(EXE_AHCAL) : $(OBJ_AHCAL) Makefile
-	g++ $(ROOTCFLAGS) $(OBJ_AHCAL) $(LDLIBS) -o $(EXE_AHCAL)
 
 # Compile source files to object files
 %.o: %.C
@@ -57,7 +44,7 @@ TPOEvent.o: $(COREUTILSDIR)/TPOEvent.cc $(COREUTILSDIR)/TPOEvent.hh
 
 # Clean target
 clean:
-	rm -f $(OBJ) $(EXE) $(EXE_ECAL) $(EXE_AHCAL) dict.cxx dict_rdict.pcm ConvertGENIE.o ConvertGENIE_ecal.o ConvertGENIE_ahcal.o TPOEvent.o
+	rm -f $(OBJ) $(EXE) dict.cxx dict_rdict.pcm ConvertGENIE.o TPOEvent.o
 
 .PHONY : all clean
 
