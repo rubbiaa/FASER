@@ -125,10 +125,12 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	G4double fRearHCalVoxelSize = 40 * mm;
 	G4double fRearHCalLength;
 	G4int fRearHCalNLayer = 40;
-	G4double fRearHCalAbsorberSizeZ = 20 * mm;
-	G4double fRearHCalScintillatorSizeZ = 3 * mm;
-	G4double fRearHCalLayerGapZ = 5 * mm;
-	G4double fRearHCalLayerPitch = 28 * mm;
+	G4double fRearHCalAbsorberSizeZ = 19.5 * mm;
+	G4double fRearHCalScintillatorSizeZ = 3 * mm; // 3.13
+	G4double fRearHCalCoverSize = 0.065 * mm; 
+	G4double fRearHCalPCBSizeZ = 2.5 * mm;
+	G4double fRearHCalLayerGapZ = 4.5 * mm; 
+	G4double fRearHCalLayerPitch = 29.63 * mm; // absorber + scint + PCB + gap //29.63
 	G4double fRearHCalScintCenterInLayer = 21.5 * mm;
 	G4double fRearHCal_LOS_shiftX = 0 * cm;
 	G4double fRearHCal_LOS_shiftY = 0 * cm;
@@ -209,6 +211,23 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 
 	G4Material* fScintillatorMaterial = nullptr;  ///< Material of the scintillator (Default PVT, can be set via macro)
 	G4Material* fWorldMaterial = nullptr;	      ///< Material of the world (Air)
+
+	// Material for AHCAL
+	G4Element *fEleH = nullptr;
+	G4Element *fEleC = nullptr;
+	G4Element *fEleO = nullptr;
+	G4Element *fEleMn = nullptr;
+	G4Element *fEleFe = nullptr;
+	G4Element *fEleS = nullptr;
+	G4Material *fSiMat = nullptr;
+	G4Material *fFeMat = nullptr;
+	G4Material *fPlasticSciHCALMat = nullptr;
+
+	G4Material *fQuartzMat = nullptr;
+	G4Material *fEpoxyMat = nullptr;
+	G4Material *fFR4Mat = nullptr;
+	G4Material *fESRMat = nullptr;
+	G4Material *fSteelMat = nullptr;
 
 	// Material property tables are used to define optical properties
 	G4MaterialPropertiesTable* fPolyvinyltoluene_MPT = nullptr;
