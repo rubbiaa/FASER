@@ -632,6 +632,66 @@ G4long DetectorConstruction::getHCalChannelIDfromXYZ(int CopyNumber, XYZVector c
 	return ID;
 }
 
+bool DetectorConstruction::isInActiveVoxelRegion(std::string const& VolumeName, XYZVector const& localPosition, int MotherCopyNumber) const {
+	
+	if(VolumeName != "ScintillatorLogical") {
+		// Only apply voxelization check to the 3DCAL scintillator
+		return true;
+	}
+	
+	// Position is given in the local coordinate system of the container volume
+	G4double dx = localPosition.X() + fScintillatorSizeX/2.0 - fFASERCal_LOS_shiftX;
+	G4double dy = localPosition.Y() + fScintillatorSizeY/2.0 - fFASERCal_LOS_shiftY;
+	G4double epsilon = 1e-4;  // avoid rounding errors at volume boundary
+	G4double dz = localPosition.Z() + fTotalLength/2.0 - epsilon;
+	
+	G4long ilayer = MotherCopyNumber;
+	
+	// Calculate position within the scintillator layer for this specific layer
+	G4double zInLayer = dz - ilayer*fSandwichLength - fAlPlateThickness - ftargetWSizeZ;
+	
+	// Calculate which voxel this position is in
+	G4long ix = floor(dx / fScintillatorVoxelSize);
+	G4long iy = floor(dy / fScintillatorVoxelSize);
+	G4long iz = floor(zInLayer / fScintillatorVoxelSize);
+	
+	// Calculate position within the specific voxel (0 to fScintillatorVoxelSize in each dimension)
+	G4double posInVoxelX = dx - ix * fScintillatorVoxelSize;
+	G4double posInVoxelY = dy - iy * fScintillatorVoxelSize;
+	G4double posInVoxelZ = zInLayer - iz * fScintillatorVoxelSize;
+	
+	// Check if position is within the reflective layer on any voxel face
+	// For 3DCAL: voxelSize=10mm (9mm active + 0.5mm reflective on each side)
+	// Position within voxel:  0mm         0.5mm              9.5mm         10mm
+    //                    |-----------|------------------|-----------|
+    //                    | Reflective|   Active (9mm)  | Reflective|
+    //                    |  0.5mm    |                  |  0.5mm    |
+	// Active region is from fReflectiveLayerThickness to (voxelSize - fReflectiveLayerThickness)
+	// i.e., from 0.5mm to 9.5mm within each 10mm voxel
+	// bool inActiveX = (posInVoxelX >= 0.5mm) && (posInVoxelX <= 9.5mm);
+	// Active volume fraction = (9/10)ˆ3 = 72.9%
+
+	bool inActiveX = (posInVoxelX >= fReflectiveLayerThickness) && 
+	                 (posInVoxelX <= (fScintillatorVoxelSize - fReflectiveLayerThickness));
+	bool inActiveY = (posInVoxelY >= fReflectiveLayerThickness) && 
+	                 (posInVoxelY <= (fScintillatorVoxelSize - fReflectiveLayerThickness));
+	bool inActiveZ = (posInVoxelZ >= fReflectiveLayerThickness) && 
+	                 (posInVoxelZ <= (fScintillatorVoxelSize - fReflectiveLayerThickness));
+	
+	// Debug output for voxel information
+	bool isActive = (inActiveX && inActiveY && inActiveZ);
+	if(!isActive) {
+		G4cout << "[VOXEL_DEBUG] Inactive hit: VoxelIdx[ix,iy,iz]=(" << ix << "," << iy << "," << iz << ")"
+		       << " PosInVoxel[mm]=(" << posInVoxelX/mm << "," << posInVoxelY/mm << "," << posInVoxelZ/mm << ")"
+		       << " Active[X,Y,Z]=(" << inActiveX << "," << inActiveY << "," << inActiveZ << ")"
+		       << " VoxelSize=" << fScintillatorVoxelSize/mm << " mm"
+		       << " ReflThick=" << fReflectiveLayerThickness/mm << " mm" << G4endl;
+	}
+	
+	// Position must be in active region in ALL three dimensions
+	return isActive;
+}
+
 void DetectorConstruction::CreateMagnetSystem(G4double zLocation, G4LogicalVolume* parent) {
 
 	G4Material *G4_air = G4NistManager::Instance()->FindOrBuildMaterial("G4_AIR");

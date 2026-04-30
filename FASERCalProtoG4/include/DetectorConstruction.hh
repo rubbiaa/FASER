@@ -65,7 +65,9 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	G4double fScintillatorSizeX = 1000 * mm;  // The size of the detector in mm, default 1000 mm, set by macro
 	G4double fScintillatorSizeY = 1000 * mm;  // The size of the detector in mm, default 1000 mm, set by macro
 	G4double fScintillatorSizeZ = 1000 * mm;  // The size of the detector in mm, default 1000 mm, set by macro
-	G4double fScintillatorVoxelSize = 5 * mm;
+	G4double fScintillatorVoxelSize = 10 * mm;  // Total voxel size (active + 2*reflective layer)
+	// For 3DCAL prototype: each voxel has 9mm active + 0.5mm reflective on each face = 10mm total
+	G4double fReflectiveLayerThickness = 0.5 * mm; // Reflective layer thickness on each of 6 faces
 
 	G4double fFASERCal_LOS_shiftX = 0 * cm;
 	G4double fFASERCal_LOS_shiftY = 0 * cm;
@@ -139,6 +141,10 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	G4long getChannelIDfromXYZ(std::string const& VolumeName, int CopyNumber, int MotherCopyVolume, XYZVector const& position) const;
 
 	G4long getHCalChannelIDfromXYZ(int CopyNumber, XYZVector const& position) const;
+	
+	// Check if a position within a voxel is in the active (non-reflective) region
+	// Returns true if the position is in the active region, false if in reflective layer
+	bool isInActiveVoxelRegion(std::string const& VolumeName, XYZVector const& localPosition, int MotherCopyNumber) const;
 	///////////
 	// UMUT: tilt angle around Y axis
 	void SetTiltAngleY(G4double angle);

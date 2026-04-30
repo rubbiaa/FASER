@@ -251,7 +251,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 		  //y = (G4UniformRand() - 0.5) * 400; // in mm
 		  x = (G4UniformRand() - 0.5) * 50; //100; // in mm change from 200 to 100 mm
 		  y = (G4UniformRand() - 0.5) * 50; //100; // in mm
-		  //z = -2000; // in mm, in front of the detector
+		  z = -2000; // in mm, in front of the detector
 		} else {
 		  std::cout << " Using GENIE vtx:  x=" << x << " y=" << y << " z=" << z << " ";
 		}
@@ -306,7 +306,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 		// Keep source centered so it stays inside acceptance also for narrow prototype modules.
 		vtxpos.SetX(0.0);
 		vtxpos.SetY(0.0);
-		vtxpos.SetZ(-800); // in mm, in front of the detector
+		vtxpos.SetZ(-950); // in mm, in front of the detector
 		fTPOEvent.setPrimaryVtx(vtxpos.x(), vtxpos.y(), vtxpos.z());
 		fParticleManager->setVertexInformation(vtxpos);
 		fTPOEvent.run_number = 888*100000 + std::abs(pdgid) * 10 + int(momentumMagnitude);
@@ -490,9 +490,10 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 		{
 			G4ParticleGun *particleGun = new G4ParticleGun(1);
 			particleGun->SetParticleDefinition(muon);
+			vtxpos.SetZ(-800); // in mm, in front of the detector
 			particleGun->SetParticlePosition(G4ThreeVector(vtxpos.x() * mm, vtxpos.y() * mm, vtxpos.z() * mm));
 			// Define angular spread (in radians)
-			double sigmaTheta = -0.01; // 10 mrad change from 0.1 to 0.01
+			double sigmaTheta = -0.001; // 10 mrad change from 0.1 to 0.01
 			// Sample θ from Gaussian centered at 0 with std dev 0.1
 			double theta = G4RandGauss::shoot(0.0, sigmaTheta);
 			// Sample φ uniformly from 0 to 2π

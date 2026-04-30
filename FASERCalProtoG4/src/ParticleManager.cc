@@ -543,4 +543,3 @@ G4int ParticleManager::FindPrimaryParticle(G4int trackID)
 	G4cerr << "FindPrimaryParticle failed ..." << G4endl;
 	return -1;
 }
-

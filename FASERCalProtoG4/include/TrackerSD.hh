@@ -2,6 +2,7 @@
 #define TrackerSD_h 1
 
 #include <vector>
+#include <fstream>
 
 #include "G4VSensitiveDetector.hh"
 #include "G4HCofThisEvent.hh"
@@ -47,8 +48,14 @@ class TrackerSD : public G4VSensitiveDetector {
 	 */
 	G4bool ProcessHits(G4Step* step, G4TouchableHistory* history) override;
 
+	// Static methods for muon tracking file
+	static void OpenMuonTrackingFile(const G4String& filename);
+	static void CloseMuonTrackingFile();
+
     private:
 	ParticleManager* fParticleManager = nullptr;  ///< Particle manager, which is used to store and organize the hits.
+	static std::ofstream fMuonTrackingFile;  ///< Output file for muon tracking data
+	static G4bool fMuonFileOpen;  ///< Flag to track if file is open
 };
 
 
