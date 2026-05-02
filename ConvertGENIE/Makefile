@@ -1,9 +1,13 @@
 EXE = ConvertGENIE.exe
+EXE_COMBINE = CombineFluxes.exe
 
 COREUTILSDIR := ../CoreUtils
 
 SRC = ConvertGENIE.cc
 OBJ = ConvertGENIE.o TPOEvent.o dict.o
+
+COMBINE_SRC = CombineFluxes.cc
+COMBINE_OBJ = CombineFluxes.o
 
 INCS = $(wildcard *.h)
 INCS += $(wildcard *.hh)
@@ -21,7 +25,10 @@ LDLIBS = `root-config --glibs` -lEG -lEGPythia8 -lGeom -lPhysics
 LDLIBS += -L$(PYTHIA8LIB) -lpythia8
 LDLIBS += -Wl,-rpath,$(PYTHIA8LIB)
 
-all : $(EXE) $(EXE_ECAL) $(EXE_AHCAL)
+# CombineFlux only needs ROOT, no Pythia8
+COMBINE_LDLIBS = `root-config --glibs` -lEG -lGeom -lPhysics
+
+all : $(EXE) $(EXE_COMBINE)
 
 dict.cxx : $(INCS)
 	rootcling -f dict.cxx -c LinkDef.h -I$(COREUTILSDIR) -I$(PYTHIA8INC)
@@ -29,6 +36,8 @@ dict.cxx : $(INCS)
 $(EXE) : $(OBJ) Makefile
 	g++ $(ROOTCFLAGS) $(OBJ) $(LDLIBS) -o $(EXE)
 
+$(EXE_COMBINE) : $(COMBINE_OBJ) Makefile
+	g++ $(ROOTCFLAGS) $(COMBINE_OBJ) $(COMBINE_LDLIBS) -o $(EXE_COMBINE)
 
 # Compile source files to object files
 %.o: %.C
@@ -44,7 +53,6 @@ TPOEvent.o: $(COREUTILSDIR)/TPOEvent.cc $(COREUTILSDIR)/TPOEvent.hh
 
 # Clean target
 clean:
-	rm -f $(OBJ) $(EXE) dict.cxx dict_rdict.pcm ConvertGENIE.o TPOEvent.o
+	rm -f $(OBJ) $(COMBINE_OBJ) $(EXE) $(EXE_COMBINE) dict.cxx dict_rdict.pcm ConvertGENIE.o TPOEvent.o
 
 .PHONY : all clean
-
