@@ -13,7 +13,8 @@
 #include "G4SubtractionSolid.hh"
 #include "G4IntersectionSolid.hh"
 #include "G4LogicalVolumeStore.hh"
-
+#include "G4PhysicalVolumeStore.hh"
+#include "G4AffineTransform.hh"
 
 #include "MuonDetMagneticField.hh"
 
@@ -260,7 +261,7 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	// DETECTOR ASSEMBLY (the whole detector lives inside this LV)
     //
     auto detSolid = new G4Box("DetectorAssemblySolid",
-                              WorldSizeX/2, WorldSizeY/2, WorldSizeZ/2);
+                              WorldSizeX/3, WorldSizeY/3, WorldSizeZ/3);
     auto detLV = new G4LogicalVolume(detSolid, fWorldMaterial, "DetectorAssemblyLV");
 	// ------------------------------------------------
 	// target is composed of W or Copper
@@ -320,22 +321,128 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 		CreateRearMuSpectrometer(locMuSpect, detLV);
 	}
 
-	// UMUT: Place the detector assembly into the world with the global rotation
-	new G4PVPlacement(detRot,                      // <<< tiltY
-	                  G4ThreeVector(0,0,0), // given in cm
-	                  detLV,
-	                  "DetectorAssemblyPV",
-	                  worldLV,
-	                  false,
-	                  0,
-	                  fCheckOverlaps);
+	// Place the detector assembly into the world with the global rotation
+	// Calculate the z offset needed to put ContainerPlacement front face at world z=0
+	G4double faserCalHalfLength = NRep * fSandwichLength / 2.0;
+	G4double assemblyOffsetZ = faserCalHalfLength;  // = +108.45 cm
+	G4double assemblyOffsetX = 40 * mm; 
+	G4double assemblyOffsetY = 0.0; 
+	new G4PVPlacement(detRot,								// <<< tiltY
+					  G4ThreeVector(assemblyOffsetX, assemblyOffsetY, assemblyOffsetZ), // <<< shift assembly
+					  detLV,
+					  "DetectorAssemblyPV",
+					  worldLV,
+					  false,
+					  0,
+					  fCheckOverlaps);
 
+	// check position of various components
+
+	G4PhysicalVolumeStore *pvStore = G4PhysicalVolumeStore::GetInstance();
+	G4cout << "=== All physical volumes in store ===" << G4endl;
+	for (auto *pv : *pvStore)
+	{
+		G4cout << "  PV name: " << pv->GetName()
+			   << "  translation: ("
+			   << pv->GetTranslation().x() / cm << ", "
+			   << pv->GetTranslation().y() / cm << ", "
+			   << pv->GetTranslation().z() / cm << ") cm" << G4endl;
+	}
+	// Print absolute world position of RearHCal center after rotation
+	// Walk the volume hierarchy to find "rearHCal" physical volume
+
+	// We need to find the chain: world -> detectorAssembly -> ... -> rearHCal
+	// Print translation of each relevant volume to understand the chain
+	G4VPhysicalVolume *detAssemblyPV = pvStore->GetVolume("DetectorAssemblyPV");
+	G4VPhysicalVolume *rearHCalPV = pvStore->GetVolume("rearHCal");
+
+	if (detAssemblyPV && rearHCalPV)
+	{
+		// rearHCal translation is relative to HCalContainer
+		G4ThreeVector t_rearHCal = rearHCalPV->GetTranslation();
+
+		// HCalContainer translation relative to detector assembly
+		G4VPhysicalVolume *hcalContPV = pvStore->GetVolume("rearHCalContainerPV");
+		G4ThreeVector t_hcalCont = hcalContPV ? hcalContPV->GetTranslation() : G4ThreeVector(0, 0, 0);
+
+		// Sum translations in detector assembly frame
+		G4ThreeVector inDetFrame = t_hcalCont + t_rearHCal;
+
+		// Apply assembly rotation to get world frame
+		G4ThreeVector inWorld = detRot->inverse() * inDetFrame;
+
+		G4cout << "=== RearHCal center in WORLD (full chain) ===" << G4endl;
+		G4cout << "  t_rearHCal in container  = ("
+			   << t_rearHCal.x() / cm << ", " << t_rearHCal.y() / cm << ", " << t_rearHCal.z() / cm << ") cm" << G4endl;
+		G4cout << "  t_hcalCont in detFrame   = ("
+			   << t_hcalCont.x() / cm << ", " << t_hcalCont.y() / cm << ", " << t_hcalCont.z() / cm << ") cm" << G4endl;
+		G4cout << "  In detector frame (x,y,z) = ("
+			   << inDetFrame.x() / cm << ", " << inDetFrame.y() / cm << ", " << inDetFrame.z() / cm << ") cm" << G4endl;
+		G4cout << "  In world frame    (x,y,z) = ("
+			   << inWorld.x() / cm << ", " << inWorld.y() / cm << ", " << inWorld.z() / cm << ") cm" << G4endl;
+	}
+	else
+	{
+		G4cout << "WARNING: Could not find volumes in store!" << G4endl;
+	}
+
+	G4VPhysicalVolume* containerPV = pvStore->GetVolume("ContainerPlacement");
+
+	if (detAssemblyPV && containerPV)
+	{
+		// ContainerPlacement translation is directly in detector assembly frame
+		G4ThreeVector t_container = containerPV->GetTranslation();
+
+		// Front face = center_z - half_length
+		G4double faserCalHalfLength = NRep * fSandwichLength / 2.0;
+		G4ThreeVector containerFrontFace(t_container.x(),
+										 t_container.y(),
+										 t_container.z() - faserCalHalfLength);
+
+		// Assembly translation in world frame
+		G4ThreeVector t_assembly = detAssemblyPV->GetTranslation();
+
+		// Convert detector frame -> world frame using inverse rotation
+		G4ThreeVector centerInWorld, frontInWorld;
+		if (detRot)
+		{
+			centerInWorld = detRot->inverse() * t_container + t_assembly;
+			frontInWorld = detRot->inverse() * containerFrontFace + t_assembly;
+		}
+		else
+		{
+			centerInWorld = t_container + t_assembly;
+			frontInWorld = containerFrontFace + t_assembly;
+		}
+
+		G4cout << "=== FaserCal (ContainerPlacement) position ===" << G4endl;
+		G4cout << "  In detector frame center   = ("
+			   << t_container.x() / cm << ", "
+			   << t_container.y() / cm << ", "
+			   << t_container.z() / cm << ") cm" << G4endl;
+		G4cout << "  In detector frame front face = ("
+			   << containerFrontFace.x() / cm << ", "
+			   << containerFrontFace.y() / cm << ", "
+			   << containerFrontFace.z() / cm << ") cm" << G4endl;
+		G4cout << "  In world frame center      = ("
+			   << centerInWorld.x() / cm << ", "
+			   << centerInWorld.y() / cm << ", "
+			   << centerInWorld.z() / cm << ") cm" << G4endl;
+		G4cout << "  In world frame front face  = ("
+			   << frontInWorld.x() / cm << ", "
+			   << frontInWorld.y() / cm << ", "
+			   << frontInWorld.z() / cm << ") cm" << G4endl;
+	}
+	else
+	{
+		G4cout << "WARNING: Could not find ContainerPlacement or DetectorAssemblyPV!" << G4endl;
+	}
 	// Save the geometry of the detector
 	G4GDMLParser parser;
 	//UMUT: If a previous geometry file exists, remove it so G4GDML doesn't abort
 	// (parser.Write throws if the file already exists)
-	std::remove("AHCAL_geometry_tilted_5degree.gdml");
-	parser.Write("AHCAL_geometry_tilted_5degree.gdml", worldPV->GetLogicalVolume());
+	std::remove("FASERCAL_V8.gdml");
+	parser.Write("FASERCAL_V8.gdml", worldPV->GetLogicalVolume());
 
 	// Print the total mass of the detector
 	G4cout << "----------------------------------" << G4endl;
@@ -892,6 +999,9 @@ void DetectorConstruction::CreateRearHCal(G4double zLocation, G4LogicalVolume* p
 	double x = fRearHCal_LOS_shiftX;
 	double y = fRearHCal_LOS_shiftY;
 	new G4PVPlacement(0, G4ThreeVector(x,y,zLocation + total_sizeZ/2.0), HCalcontainerLogic, "rearHCal", parent, false, 0, true);
+
+	// print x,y and zLocation+total_sizeZ/2.0 to check that the placement is correct
+	G4cout << "rearHCal placement: x=" << x << ", y=" << y << ", z=" << zLocation + total_sizeZ/2.0 << G4endl;
 
 	#if 0
 	double z = zLocation + total_sizeZ + sizeZ_nabs/2.0;
