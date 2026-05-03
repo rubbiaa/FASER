@@ -298,13 +298,13 @@ void convert_FASERMC(int run_number, TTree *tree, int min_event, int max_event,
   h_xz_all->Write();
   h_yz_all->Write();
 
-  // save all histograms as pdf
-  h_z_all->SaveAs("z_distribution.png");
-  h_x_all->SaveAs("x_distribution.png");
-  h_y_all->SaveAs("y_distribution.png");
-  h_xy_all->SaveAs("xy_distribution.png");
-  h_xz_all->SaveAs("xz_distribution.png");
-  h_yz_all->SaveAs("yz_distribution.png");
+  // save all histograms as C macro
+  h_z_all->SaveAs("z_distribution.C");
+  h_x_all->SaveAs("x_distribution.C");
+  h_y_all->SaveAs("y_distribution.C");
+  h_xy_all->SaveAs("xy_distribution.C");
+  h_xz_all->SaveAs("xz_distribution.C");
+  h_yz_all->SaveAs("yz_distribution.C");
   outfile->Close();
 }
 
@@ -323,11 +323,6 @@ int main(int argc, char **argv)
     std::cout << "  -charmonly                 Process only charm events " << std::endl;
     std::cout << "  -tauCConly                 Process only tau CC events " << std::endl;
     std::cout << std::endl;
-    std::cout << "Default detector Z-ranges (mm) when no GDML provided:" << std::endl;
-    std::cout << "  3DCAL:  -1205 to  1205" << std::endl;
-    std::cout << "  ECAL:    1215 to  1650" << std::endl;
-    std::cout << "  AHCAL:   1660 to  2775" << std::endl;
-    std::cout << "  Tilt:    5.0 degrees" << std::endl;
     return 1;
   }
 
