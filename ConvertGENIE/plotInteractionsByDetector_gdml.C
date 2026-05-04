@@ -254,12 +254,12 @@ void plotInteractionsByDetector_gdml(const char* inputFile, const char* gdmlFile
   tree->SetBranchAddress("vz", &vz);
   
   // Create histograms
-  TH1D *h_z_all = new TH1D("h_z_all", "All Interactions;Z [mm];Events", 400, -2000, 5000);
+  TH1D *h_z_all = new TH1D("h_z_all", "All Interactions;Z [mm];Events", 400, 0, 8000);
   TH1D *h_x_all = new TH1D("h_x_all", "All Interactions;X [mm];Events", 200, -1000, 1000);
   TH1D *h_y_all = new TH1D("h_y_all", "All Interactions;Y [mm];Events", 200, -1000, 1000);
   TH2D *h_xy_all = new TH2D("h_xy_all", "All Interactions;X [mm];Y [mm]", 100, -1000, 1000, 100, -1000, 1000);
-  TH2D *h_xz_all = new TH2D("h_xz_all", "All Interactions;Z [mm];X [mm]", 200, -2000, 5000, 100, -1000, 1000);
-  TH2D *h_yz_all = new TH2D("h_yz_all", "All Interactions;Z [mm];Y [mm]", 200, -2000, 5000, 100, -1000, 1000);
+  TH2D *h_xz_all = new TH2D("h_xz_all", "All Interactions;Z [mm];X [mm]", 200, 0, 8000, 100, -1000, 1000);
+  TH2D *h_yz_all = new TH2D("h_yz_all", "All Interactions;Z [mm];Y [mm]", 200, 0, 8000, 100, -1000, 1000);
   
   // Histograms for each detector
   std::map<std::string, TH1D*> h_z_detector;

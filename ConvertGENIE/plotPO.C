@@ -45,7 +45,7 @@ static TTree* FindPOEventTree(TFile* f, std::string& branchName) {
     return nullptr;
 }
 
-void plotPO(const char* filename = "FASERMC-PO-Run500-0_99261.root") {
+void plotPO(const char* filename = "FASERMC-PO-Run9000-0_139461.root") {
     // Load required ROOT libs
     gSystem->Load("libCore");
     gSystem->Load("libTree");

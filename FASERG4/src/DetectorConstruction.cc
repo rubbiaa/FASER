@@ -13,7 +13,8 @@
 #include "G4SubtractionSolid.hh"
 #include "G4IntersectionSolid.hh"
 #include "G4LogicalVolumeStore.hh"
-
+#include "G4PhysicalVolumeStore.hh"
+#include "G4AffineTransform.hh"
 
 #include "MuonDetMagneticField.hh"
 
@@ -126,7 +127,71 @@ void DetectorConstruction::DefineMaterials()
 		double birks_constant = (0.898e-2 * g / cm / cm / MeV);
 		fPolyvinyltoluene->GetIonisation()->SetBirksConstant(8.718e-3 * cm / MeV);	
 	}
+	if (fPlasticSciHCALMat == nullptr) {
+        fPlasticSciHCALMat = nistManager->BuildMaterialWithNewDensity("polystyrene", "G4_POLYSTYRENE", 1.032 * g / cm3);
+        fPlasticSciHCALMat->GetIonisation()->SetBirksConstant(0.126 * mm / MeV);
+	}
+	if (fFR4Mat == nullptr) {
+		if (fQuartzMat == nullptr) {
+			fQuartzMat = nistManager->FindOrBuildMaterial("G4_SILICON_DIOXIDE");
+		}
+		if (fEleC == nullptr) {
+			fEleC = nistManager->FindOrBuildElement("C");
+		}
+		if (fEleH == nullptr) {
+			fEleH = nistManager->FindOrBuildElement("H");
+		}
+		if (fEleO == nullptr) {
+			fEleO = nistManager->FindOrBuildElement("O");
+		}
+        fEpoxyMat = new G4Material("Epoxy", 1.25 * g / cm3, 3);
+        fEpoxyMat->AddElement(fEleC, 11);
+        fEpoxyMat->AddElement(fEleH, 12);
+        fEpoxyMat->AddElement(fEleO, 3);
 
+		fFR4Mat = new G4Material("FR4", 1.86 * g / cm3, 2);
+		fFR4Mat->AddMaterial(fQuartzMat, 52.8 * perCent);
+		fFR4Mat->AddMaterial(fEpoxyMat, 47.2 * perCent);
+	}
+	if (fESRMat == nullptr) {
+		if (fEleC == nullptr) {
+			fEleC = nistManager->FindOrBuildElement("C");
+		}
+		if (fEleH == nullptr) {
+			fEleH = nistManager->FindOrBuildElement("H");
+		}
+		if (fEleO == nullptr) {
+			fEleO = nistManager->FindOrBuildElement("O");
+		}
+		fESRMat = new G4Material("ESR", 1.38 * g / cm3, 3);
+		fESRMat->AddElement(fEleC, 10);
+		fESRMat->AddElement(fEleH, 8);
+		fESRMat->AddElement(fEleO, 4);
+	}
+	if (fSteelMat == nullptr) {
+		if (fEleC == nullptr) {
+			fEleC = nistManager->FindOrBuildElement("C");
+		}
+		if (fEleMn == nullptr) {
+			fEleMn = nistManager->FindOrBuildElement("Mn");
+		}
+		if (fEleS == nullptr) {
+			fEleS = nistManager->FindOrBuildElement("S");
+		}
+		if (fFeMat == nullptr) {
+			fFeMat = nistManager->FindOrBuildMaterial("G4_Fe");
+		}
+		if (fSiMat == nullptr) {
+			fSiMat = nistManager->FindOrBuildMaterial("G4_Si");
+		}
+		fSteelMat = new G4Material("Steel", 7.85 * g / cm3, 5);
+        fSteelMat->AddElement(fEleC, 0.22 * perCent);
+        fSteelMat->AddElement(fEleMn, 1.4 * perCent);
+        fSteelMat->AddMaterial(fSiMat, 0.35 * perCent);
+        // fSteelMat->AddElement(fEleP, 0.045 * perCent);
+        fSteelMat->AddElement(fEleS, 0.05 * perCent);
+        fSteelMat->AddMaterial(fFeMat, 97.98 * perCent);
+	}
 	// Print materials
 	G4cout << *(G4Material::GetMaterialTable()) << G4endl;
 }
@@ -156,9 +221,9 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	//G4double WorldSizeY = 2.5* sizeY;
 	//G4double WorldSizeZ = 9*m; // 1.2* NRep*(sizetargetWZ + sizeScintillatorZ);
 	// UMUT: tilt the assembly by 5° around Y, the corners move a bit in X and Z.
-	G4double WorldSizeX = 5* sizeX;
-	G4double WorldSizeY = 5* sizeY;
-	G4double WorldSizeZ = 12.*m; // 1.2* NRep*(sizetargetWZ + sizeScintillatorZ);
+	G4double WorldSizeX = 6* sizeX;
+	G4double WorldSizeY = 6* sizeY;
+	G4double WorldSizeZ = 20.*m; // 1.2* NRep*(sizetargetWZ + sizeScintillatorZ); increased to accommodate rotation
 	
 	G4cout << "Size of the world " << WorldSizeX << " " << WorldSizeY << " " << WorldSizeZ << " mm" << G4endl;
 
@@ -196,7 +261,7 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	// DETECTOR ASSEMBLY (the whole detector lives inside this LV)
     //
     auto detSolid = new G4Box("DetectorAssemblySolid",
-                              WorldSizeX/2, WorldSizeY/2, WorldSizeZ/2);
+                              WorldSizeX/3, WorldSizeY/3, WorldSizeZ/3);
     auto detLV = new G4LogicalVolume(detSolid, fWorldMaterial, "DetectorAssemblyLV");
 	// ------------------------------------------------
 	// target is composed of W or Copper
@@ -256,22 +321,128 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 		CreateRearMuSpectrometer(locMuSpect, detLV);
 	}
 
-	// UMUT: Place the detector assembly into the world with the global rotation
-	new G4PVPlacement(detRot,                      // <<< tiltY
-	                  G4ThreeVector(0,0,0), // given in cm
-	                  detLV,
-	                  "DetectorAssemblyPV",
-	                  worldLV,
-	                  false,
-	                  0,
-	                  fCheckOverlaps);
+	// Place the detector assembly into the world with the global rotation
+	// Calculate the z offset needed to put ContainerPlacement front face at world z=0
+	G4double faserCalHalfLength = NRep * fSandwichLength / 2.0;
+	G4double assemblyOffsetZ = faserCalHalfLength;  // = +108.45 cm
+	G4double assemblyOffsetX = 40 * mm; 
+	G4double assemblyOffsetY = 0.0; 
+	new G4PVPlacement(detRot,								// <<< tiltY
+					  G4ThreeVector(assemblyOffsetX, assemblyOffsetY, assemblyOffsetZ), // <<< shift assembly
+					  detLV,
+					  "DetectorAssemblyPV",
+					  worldLV,
+					  false,
+					  0,
+					  fCheckOverlaps);
 
+	// check position of various components
+
+	G4PhysicalVolumeStore *pvStore = G4PhysicalVolumeStore::GetInstance();
+	G4cout << "=== All physical volumes in store ===" << G4endl;
+	for (auto *pv : *pvStore)
+	{
+		G4cout << "  PV name: " << pv->GetName()
+			   << "  translation: ("
+			   << pv->GetTranslation().x() / cm << ", "
+			   << pv->GetTranslation().y() / cm << ", "
+			   << pv->GetTranslation().z() / cm << ") cm" << G4endl;
+	}
+	// Print absolute world position of RearHCal center after rotation
+	// Walk the volume hierarchy to find "rearHCal" physical volume
+
+	// We need to find the chain: world -> detectorAssembly -> ... -> rearHCal
+	// Print translation of each relevant volume to understand the chain
+	G4VPhysicalVolume *detAssemblyPV = pvStore->GetVolume("DetectorAssemblyPV");
+	G4VPhysicalVolume *rearHCalPV = pvStore->GetVolume("rearHCal");
+
+	if (detAssemblyPV && rearHCalPV)
+	{
+		// rearHCal translation is relative to HCalContainer
+		G4ThreeVector t_rearHCal = rearHCalPV->GetTranslation();
+
+		// HCalContainer translation relative to detector assembly
+		G4VPhysicalVolume *hcalContPV = pvStore->GetVolume("rearHCalContainerPV");
+		G4ThreeVector t_hcalCont = hcalContPV ? hcalContPV->GetTranslation() : G4ThreeVector(0, 0, 0);
+
+		// Sum translations in detector assembly frame
+		G4ThreeVector inDetFrame = t_hcalCont + t_rearHCal;
+
+		// Apply assembly rotation to get world frame
+		G4ThreeVector inWorld = detRot->inverse() * inDetFrame;
+
+		G4cout << "=== RearHCal center in WORLD (full chain) ===" << G4endl;
+		G4cout << "  t_rearHCal in container  = ("
+			   << t_rearHCal.x() / cm << ", " << t_rearHCal.y() / cm << ", " << t_rearHCal.z() / cm << ") cm" << G4endl;
+		G4cout << "  t_hcalCont in detFrame   = ("
+			   << t_hcalCont.x() / cm << ", " << t_hcalCont.y() / cm << ", " << t_hcalCont.z() / cm << ") cm" << G4endl;
+		G4cout << "  In detector frame (x,y,z) = ("
+			   << inDetFrame.x() / cm << ", " << inDetFrame.y() / cm << ", " << inDetFrame.z() / cm << ") cm" << G4endl;
+		G4cout << "  In world frame    (x,y,z) = ("
+			   << inWorld.x() / cm << ", " << inWorld.y() / cm << ", " << inWorld.z() / cm << ") cm" << G4endl;
+	}
+	else
+	{
+		G4cout << "WARNING: Could not find volumes in store!" << G4endl;
+	}
+
+	G4VPhysicalVolume* containerPV = pvStore->GetVolume("ContainerPlacement");
+
+	if (detAssemblyPV && containerPV)
+	{
+		// ContainerPlacement translation is directly in detector assembly frame
+		G4ThreeVector t_container = containerPV->GetTranslation();
+
+		// Front face = center_z - half_length
+		G4double faserCalHalfLength = NRep * fSandwichLength / 2.0;
+		G4ThreeVector containerFrontFace(t_container.x(),
+										 t_container.y(),
+										 t_container.z() - faserCalHalfLength);
+
+		// Assembly translation in world frame
+		G4ThreeVector t_assembly = detAssemblyPV->GetTranslation();
+
+		// Convert detector frame -> world frame using inverse rotation
+		G4ThreeVector centerInWorld, frontInWorld;
+		if (detRot)
+		{
+			centerInWorld = detRot->inverse() * t_container + t_assembly;
+			frontInWorld = detRot->inverse() * containerFrontFace + t_assembly;
+		}
+		else
+		{
+			centerInWorld = t_container + t_assembly;
+			frontInWorld = containerFrontFace + t_assembly;
+		}
+
+		G4cout << "=== FaserCal (ContainerPlacement) position ===" << G4endl;
+		G4cout << "  In detector frame center   = ("
+			   << t_container.x() / cm << ", "
+			   << t_container.y() / cm << ", "
+			   << t_container.z() / cm << ") cm" << G4endl;
+		G4cout << "  In detector frame front face = ("
+			   << containerFrontFace.x() / cm << ", "
+			   << containerFrontFace.y() / cm << ", "
+			   << containerFrontFace.z() / cm << ") cm" << G4endl;
+		G4cout << "  In world frame center      = ("
+			   << centerInWorld.x() / cm << ", "
+			   << centerInWorld.y() / cm << ", "
+			   << centerInWorld.z() / cm << ") cm" << G4endl;
+		G4cout << "  In world frame front face  = ("
+			   << frontInWorld.x() / cm << ", "
+			   << frontInWorld.y() / cm << ", "
+			   << frontInWorld.z() / cm << ") cm" << G4endl;
+	}
+	else
+	{
+		G4cout << "WARNING: Could not find ContainerPlacement or DetectorAssemblyPV!" << G4endl;
+	}
 	// Save the geometry of the detector
 	G4GDMLParser parser;
 	//UMUT: If a previous geometry file exists, remove it so G4GDML doesn't abort
 	// (parser.Write throws if the file already exists)
-	std::remove("new_geometry_tilted_5degree.gdml");
-	parser.Write("new_geometry_tilted_5degree.gdml", worldPV->GetLogicalVolume());
+	std::remove("FASERCAL_V8.gdml");
+	parser.Write("FASERCAL_V8.gdml", worldPV->GetLogicalVolume());
 
 	// Print the total mass of the detector
 	G4cout << "----------------------------------" << G4endl;
@@ -765,9 +936,11 @@ void DetectorConstruction::CreateRearCal(G4double zLocation, G4LogicalVolume* pa
 }
 void DetectorConstruction::CreateRearHCal(G4double zLocation, G4LogicalVolume* parent) {
 	// dimensions of the rear HCal
-	G4double sizeZ_Fe = fRearHCalAbsorberSizeZ;
+	G4double sizeZ_Steel = fRearHCalAbsorberSizeZ;
 	G4double sizeZ_PS = fRearHCalScintillatorSizeZ;
 	G4double sizeZ_airGap = fRearHCalLayerGapZ;
+	G4double sizeZ_PCB = fRearHCalPCBSizeZ;
+	G4double sizeZ_Cover = fRearHCalCoverSize;
 	G4int nlayer = fRearHCalNLayer;
 	// dimensions of the neutron absorber
 	G4double sizeZ_nabs = 10*cm;  /// polyethylene slab
@@ -776,30 +949,31 @@ void DetectorConstruction::CreateRearHCal(G4double zLocation, G4LogicalVolume* p
 	G4double sizeY = 72*cm;
 	G4double sizeZ = 4*cm;
 
-	G4Material * G4_Fe = G4NistManager::Instance()->FindOrBuildMaterial("G4_Fe");
 	G4Material* polyethylene = G4NistManager::Instance()->FindOrBuildMaterial("G4_POLYETHYLENE");
-	G4Material* plasticScintillator = G4NistManager::Instance()->FindOrBuildMaterial("G4_PLASTIC_SC_VINYLTOLUENE");
-
-	double sizeZ_HCalmodule = sizeZ_Fe + sizeZ_PS;
-	double sizeZ_HCalpitch = sizeZ_HCalmodule + sizeZ_airGap;
-	double total_sizeZ = nlayer*sizeZ_HCalmodule + (nlayer - 1)*sizeZ_airGap;
-	fRearHCalLayerPitch = sizeZ_HCalpitch;
-	fRearHCalScintCenterInLayer = sizeZ_Fe + sizeZ_PS / 2.0;
+	double sizeZ_HCalmodule = sizeZ_Steel + sizeZ_PS + sizeZ_PCB + 2*sizeZ_Cover;
+	double total_sizeZ = fRearHCalNLayer*sizeZ_HCalmodule + (fRearHCalNLayer-1)*sizeZ_airGap;
+	// fRearHCalLayerPitch = sizeZ_HCalpitch;
+	fRearHCalScintCenterInLayer = sizeZ_Steel + sizeZ_PS / 2.0;
 
 	fRearHCalLength = total_sizeZ;
 
-	double Fe_mass = nlayer*sizeX*sizeY*sizeZ_Fe*(G4_Fe->GetDensity()/(kg/cm3));
+	double Fe_mass = nlayer*sizeX*sizeY*sizeZ_Steel*(fSteelMat->GetDensity()/(kg/cm3));
 	G4cout << "Total mass of RearMuCal absorber " << Fe_mass << " kg " << G4endl;
 
-	G4Box* absorberSolid = new G4Box("PbSlab", sizeX / 2, sizeY / 2, sizeZ_Fe / 2);
-	G4LogicalVolume* absorberLogic = new G4LogicalVolume(absorberSolid, G4_Fe, "absorberLogical");
+	G4Box* absorberSolid = new G4Box("SteelSlab", sizeX / 2, sizeY / 2, sizeZ_Steel / 2);
+	G4LogicalVolume* absorberLogic = new G4LogicalVolume(absorberSolid, fSteelMat, "absorberLogical");
 
 	G4Box* nabsorberSolid = new G4Box("NeutronAbsSlab", sizeX / 2, sizeY / 2, sizeZ_nabs / 2);
 	G4LogicalVolume* nabsorberLogic = new G4LogicalVolume(nabsorberSolid, polyethylene, "neutabsorberLogical");
 
 	G4Box* HscintillatorSolid = new G4Box("HCALPSSlab", sizeX / 2, sizeY / 2, sizeZ_PS / 2);
-	G4LogicalVolume* HscintillatorLogic = new G4LogicalVolume(HscintillatorSolid, plasticScintillator, "rearHCalscintillatorLogical");
+	G4LogicalVolume* HscintillatorLogic = new G4LogicalVolume(HscintillatorSolid, fPlasticSciHCALMat, "rearHCalscintillatorLogical");
 
+	G4Box* PCBsolid = new G4Box("PCBSlab", sizeX / 2, sizeY / 2, sizeZ_PCB / 2);
+	G4LogicalVolume* PCBLogic = new G4LogicalVolume(PCBsolid, fFR4Mat, "PCBLogical");
+
+	G4Box* CoverSolid = new G4Box("CoverSlab", sizeX / 2, sizeY / 2, sizeZ_Cover / 2);
+	G4LogicalVolume* CoverLogic = new G4LogicalVolume(CoverSolid, fESRMat, "CoverLogical");
 //	G4Box* scintillatorSolid = new G4Box("PSSlab", sizeX / 2, sizeY / 2, sizeZ / 2);
 //	G4LogicalVolume* scintillatorLogic = new G4LogicalVolume(scintillatorSolid, plasticScintillator, "muCalscintillatorLogical");
 
@@ -808,14 +982,26 @@ void DetectorConstruction::CreateRearHCal(G4double zLocation, G4LogicalVolume* p
     G4LogicalVolume* HCalcontainerLogic = new G4LogicalVolume(HcalSolid, fWorldMaterial, "HCalContainerLogical");
 
 	for(int i = 0; i < nlayer; i++) {
-		double z = i*sizeZ_HCalpitch + sizeZ_Fe/2.0 - total_sizeZ/2.0;
-		new G4PVPlacement(0, G4ThreeVector(0,0,z), absorberLogic, "rearHCalAbs", HCalcontainerLogic, false, i, true);
-		z += sizeZ_Fe/2.0 + sizeZ_PS/2.0;
+		//cover->scintillator->cover->PCB->steel
+		double z = i*(sizeZ_HCalmodule+sizeZ_airGap) - total_sizeZ/2.0 + sizeZ_Cover/2.0;
+		new G4PVPlacement(0, G4ThreeVector(0,0,z), CoverLogic, "rearHCalCover1", HCalcontainerLogic, false, i, true);
+		z += sizeZ_Cover/2.0 + sizeZ_PS/2.0;
 		new G4PVPlacement(0, G4ThreeVector(0,0,z), HscintillatorLogic, "rearHCalScint", HCalcontainerLogic, false, i, true);
+		z += sizeZ_PS/2.0 + sizeZ_Cover/2.0;
+		new G4PVPlacement(0, G4ThreeVector(0,0,z), CoverLogic, "rearHCalCover2", HCalcontainerLogic, false, i, true);
+		z += sizeZ_Cover/2.0 + sizeZ_PCB/2.0;
+		new G4PVPlacement(0, G4ThreeVector(0,0,z), PCBLogic, "rearHCalPCB", HCalcontainerLogic, false, i, true);
+		z += sizeZ_PCB/2.0 + sizeZ_Steel/2.0 + sizeZ_airGap;
+		if (i != nlayer-1)
+			new G4PVPlacement(0, G4ThreeVector(0,0,z), absorberLogic, "rearHCalAbs", HCalcontainerLogic, false, i, true);
+		z += sizeZ_Steel/2.0;
 	}
 	double x = fRearHCal_LOS_shiftX;
 	double y = fRearHCal_LOS_shiftY;
 	new G4PVPlacement(0, G4ThreeVector(x,y,zLocation + total_sizeZ/2.0), HCalcontainerLogic, "rearHCal", parent, false, 0, true);
+
+	// print x,y and zLocation+total_sizeZ/2.0 to check that the placement is correct
+	G4cout << "rearHCal placement: x=" << x << ", y=" << y << ", z=" << zLocation + total_sizeZ/2.0 << G4endl;
 
 	#if 0
 	double z = zLocation + total_sizeZ + sizeZ_nabs/2.0;
