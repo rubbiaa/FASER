@@ -95,12 +95,28 @@ TPORecoEvent:: TPORecoEvent() : TObject(), fTcalEvent(0), fTPOEvent(0), fPOFullE
     if(!TPORecoEvent_initGenfit) {
         TPORecoEvent_initGenfit = 1;
         std::cout << "Initializing Genfit" << std::endl;
+        if (!gGeoManager) {
+            std::cerr << "[GenFit] ERROR: gGeoManager is NULL before MaterialEffects init. "
+                      << "GDML material will NOT be available." << std::endl;
+        } else {
+            std::cout << "[GenFit] Geometry loaded: "
+                      << gGeoManager->GetName()
+                      << " top="
+                      << gGeoManager->GetTopVolume()->GetName()
+                      << std::endl;
+        }
         genfit::MaterialEffects::getInstance()->init(new genfit::TGeoMaterialInterface());
+        genfit::MaterialEffects::getInstance()->setNoEffects(false);
+        genfit::MaterialEffects::getInstance()->setMscModel("Highland");
+        genfit::MaterialEffects::getInstance()->setDebugLvl(0);
+        std::cout << "[GenFit] Material effects: ON, model=Highland" << std::endl;
         // genfit::FieldManager::getInstance()->init(new genfit::ConstField(0. ,1e-4, 0.));
         // put the magnetic field of the FASER detector
     }
     fMagField = new GenMagneticField();
     genfit::FieldManager::getInstance()->init(fMagField);
+    std::cout << "[GenFit] FieldManager initialized with GenMagneticField" << std::endl;
+
 }
 
 TPORecoEvent::TPORecoEvent(TcalEvent* c, TPOEvent* p) : TPORecoEvent() {
@@ -3545,6 +3561,520 @@ void TPORecoEvent::ReconstructMuonSpectrometer() {
         }   
     }
 }
+///////////////////////////////
+std::vector<double> TPORecoEvent::GetMDTMagnetCentersZ() const
+{
+    std::vector<double> zCenters;
+    if (!gGeoManager) return zCenters;
+    TGeoVolume* top = gGeoManager->GetTopVolume();
+    if (!top) return zCenters;
+    TGeoIterator next(top);
+    TGeoNode* node = nullptr;
+    while ((node = next())) {
+        std::string name = node->GetName() ? node->GetName() : "";
+        if (name.find("MDTMagnet") == std::string::npos)
+            continue;
+        const TGeoMatrix* matrix = next.GetCurrentMatrix();
+        if (!matrix) continue;
+        const double* tr = matrix->GetTranslation();
+        // TGeo uses cm, convert to mm
+        zCenters.push_back(tr[2] * 10.0);
+    }
+    std::sort(zCenters.begin(), zCenters.end());
+    std::vector<double> uniqueZ;
+    for (double z : zCenters) {
+        if (uniqueZ.empty() || std::fabs(z - uniqueZ.back()) > 10.0)
+            uniqueZ.push_back(z);
+    }
+    return uniqueZ;
+}
+////////////////////////////////
+void PrintMDTFieldMaterialScan(genfit::AbsBField* field,
+                               double x_mm,
+                               double y_mm,
+                               double zmin_mm,
+                               double zmax_mm)
+{
+    std::cout << "\n[MDT Field/Material Scan]\n";
+    for (double z_mm = zmin_mm; z_mm <= zmax_mm; z_mm += 25.0) {
+        TVector3 pos_cm(x_mm/10.0, y_mm/10.0, z_mm/10.0);
+        TVector3 B = field->get(pos_cm);
+        const char* matName = "NULL";
+        const char* nodeName = "NULL";
+        if (gGeoManager) {
+            TGeoNode* node = gGeoManager->FindNode(pos_cm.X(), pos_cm.Y(), pos_cm.Z());
+            if (node) {
+                nodeName = node->GetName();
+                if (node->GetVolume() && node->GetVolume()->GetMedium()) {
+                    matName = node->GetVolume()->GetMedium()->GetMaterial()->GetName();
+                }
+            }
+        }
+        std::cout << Form(
+            "z=%+8.1f mm  B=(%+6.2f,%+6.2f,%+6.2f) kG  node=%-30s mat=%s",
+            z_mm, B.X(), B.Y(), B.Z(), nodeName, matName
+        ) << std::endl;
+    }
+}
+static double MDTTrackY(double z_mm,
+                        const double* p,
+                        const std::vector<double>& kickZ_mm)
+{
+    double y = p[0] + p[1] * z_mm;
+    for (size_t m = 0; m < kickZ_mm.size(); ++m) {
+        if (z_mm > kickZ_mm[m]) {
+            y += p[m + 2] * (z_mm - kickZ_mm[m]);
+        }
+    }
+    return y;
+}
+
+static double ComputeSignedBdlFromFit(genfit::AbsBField* field,
+                                      const double* bestP,
+                                      const std::vector<double>& kickZLocal_mm,
+                                      double xLocal_mm,
+                                      double zminLocal_mm,
+                                      double zmaxLocal_mm,
+                                      const TcalEvent* ev,
+                                      double dz_mm = 5.0)
+{
+    if (!field || !ev) return 0.0;
+    auto trackYLocal = [&](double z_mm) {
+        double y = bestP[0] + bestP[1] * z_mm;
+        for (size_t k = 0; k < kickZLocal_mm.size(); ++k) {
+            if (z_mm > kickZLocal_mm[k])
+                y += bestP[k+2] * (z_mm - kickZLocal_mm[k]);
+        }
+        return y;
+    };
+    double signedBdl_Tm = 0.0;
+    for (double z_l = zminLocal_mm; z_l < zmaxLocal_mm; z_l += dz_mm) {
+        double z_mid_l = z_l + 0.5 * dz_mm;
+        double y_l = trackYLocal(z_mid_l);
+        ROOT::Math::XYZVector pLocal(xLocal_mm, y_l, z_mid_l);
+        ROOT::Math::XYZVector pGlobal = ev->MDTLocalToGlobal(pLocal);
+        TVector3 pos_cm(pGlobal.X()/10.0, pGlobal.Y()/10.0, pGlobal.Z()/10.0);
+        TVector3 BkG = field->get(pos_cm);
+        signedBdl_Tm += (BkG.X()/10.0) * (dz_mm * 1e-3);
+    }
+    return signedBdl_Tm;
+}
+
+static double ComputeYKernelFromBx(genfit::AbsBField* field,
+                                   const TcalEvent* ev,
+                                   double xLocal_mm,
+                                   double yRefLocal_mm,
+                                   double z0Local_mm,
+                                   double zHitLocal_mm,
+                                   double dz_mm = 2.0)
+{
+    if (!field || !ev) return 0.0;
+    if (zHitLocal_mm <= z0Local_mm) return 0.0;
+
+    double kernel_mm = 0.0;
+
+    for (double z_l = z0Local_mm; z_l < zHitLocal_mm; z_l += dz_mm) {
+        const double step_mm = std::min(dz_mm, zHitLocal_mm - z_l);
+        const double z_mid_l = z_l + 0.5 * step_mm;
+        ROOT::Math::XYZVector pLocal(xLocal_mm, yRefLocal_mm, z_mid_l);
+        ROOT::Math::XYZVector pGlobal = ev->MDTLocalToGlobal(pLocal);
+        TVector3 pos_cm(pGlobal.X()/10.0, pGlobal.Y()/10.0, pGlobal.Z()/10.0);
+        TVector3 BkG = field->get(pos_cm);
+        const double Bx_T = BkG.X() / 10.0;     // kG -> T
+        const double dz_m = step_mm * 1.0e-3;   // mm -> m
+        const double lever_mm = zHitLocal_mm - z_mid_l;
+        // kick from this slice times remaining lever arm to the hit plane
+        kernel_mm += 0.299792458 * Bx_T * dz_m * lever_mm;
+    }
+    return kernel_mm;
+}
+static double ComputeSignedBdlXAlongYFit(genfit::AbsBField* field,
+                                         const double p[3],
+                                         double xLocal_mm,
+                                         double z0Local_mm,
+                                         double zminLocal_mm,
+                                         double zmaxLocal_mm,
+                                         const TcalEvent* ev,
+                                         double dz_mm = 2.0)
+{
+    if (!field || !ev) return 0.0;
+
+    double signedBdl_Tm = 0.0;
+
+    for (double z_l = zminLocal_mm; z_l < zmaxLocal_mm; z_l += dz_mm) {
+        const double step_mm = std::min(dz_mm, zmaxLocal_mm - z_l);
+        const double z_mid_l = z_l + 0.5 * step_mm;
+        const double zRel_mm = z_mid_l - z0Local_mm;
+        // Use the fitted entrance line for field sampling. This avoids a circular
+        // dependency of the Bdl estimate on the curvature kernel itself.
+        const double y_l = p[0] + p[1] * zRel_mm;
+        ROOT::Math::XYZVector pLocal(xLocal_mm, y_l, z_mid_l);
+        ROOT::Math::XYZVector pGlobal = ev->MDTLocalToGlobal(pLocal);
+        TVector3 pos_cm(pGlobal.X()/10.0, pGlobal.Y()/10.0, pGlobal.Z()/10.0);
+        TVector3 BkG = field->get(pos_cm);
+        signedBdl_Tm += (BkG.X() / 10.0) * (step_mm * 1.0e-3); // T*m
+    }
+    return signedBdl_Tm;
+}
+static bool Solve3(double A[3][3], double b[3], double x[3])
+{
+    double M[3][4];
+    for (int i = 0; i < 3; ++i) {
+        for (int j = 0; j < 3; ++j) M[i][j] = A[i][j];
+        M[i][3] = b[i];
+    }
+
+    for (int i = 0; i < 3; ++i) {
+        int piv = i;
+        for (int r = i + 1; r < 3; ++r)
+            if (std::fabs(M[r][i]) > std::fabs(M[piv][i]))
+                piv = r;
+
+        if (std::fabs(M[piv][i]) < 1.0e-14)
+            return false;
+
+        if (piv != i) {
+            for (int c = i; c < 4; ++c)
+                std::swap(M[i][c], M[piv][c]);
+        }
+
+        const double div = M[i][i];
+        for (int c = i; c < 4; ++c)
+            M[i][c] /= div;
+
+        for (int r = 0; r < 3; ++r) {
+            if (r == i) continue;
+            const double f = M[r][i];
+            for (int c = i; c < 4; ++c)
+                M[r][c] -= f * M[i][c];
+        }
+    }
+
+    for (int i = 0; i < 3; ++i)
+        x[i] = M[i][3];
+
+    return true;
+}
+
+static double MDTTrackYPhysical(double zRel_mm,
+                                double kernelY_mm,
+                                const double p[3])
+{
+    // p[0] = y0 [mm]
+    // p[1] = initial dy/dz slope [rad]
+    // p[2] = q/p [1/GeV]
+    return p[0] + p[1] * zRel_mm + p[2] * kernelY_mm;
+}
+///////////////////////////////
+// MDTTrack from TcalEvent
+// collect one MDT hit per station/plane
+// smear drift radius by 80 μm (0.08 mm) to simulate detector resolution
+// resolve left/right ambiguity by trying both possibilities and keeping the one with the best chi2
+// build MDT pseudo hits
+// x = wireX+hitX, y = wireY±r_smeared, z = wireZ
+// pass presudo hits to GenFit for track fitting
+// Magnetic field in x direction Bx=±1.5T and By=Bz=0 in the MDT region
+// outside the MDT region B=0
+// For a track moving mainly along +z and magnetic field B=(Bx,0,0),
+// the Lorentz deflection is in y
+// d(theta_y) = 0.299792458 * (q/p) * Bx[T] * dz[m]
+//////////////////////////////
+void TPORecoEvent::ReconstructMDT()
+{
+    std::cout << "[ReconstructMDT] MDT tracks in TcalEvent = "
+              << fTcalEvent->fMDTTracks.size() << std::endl;
+
+    const double smear_mm = 0.080;      // 80 um
+    const double tubeInnerRadius = 14.6; // adjust to your MDT gas radius
+    const double seedMomentumGeV = 10.0;
+
+    struct Hit {
+        double wx_g, wy_g, wz_g;   // global wire center
+        double wx_l, wy_l, wz_l;   // MDT-local wire center
+        double hitX;       // along tube axis,
+        double rtrue;      // true drift radius
+        double r;          // smeared drift radius
+        double tx_g, ty_g, tz_g;   // global truth
+        double tx_l, ty_l, tz_l;   // local truth
+        int sta, pln, tube; // station, plane, tube IDs
+    };
+    std::vector<double> zMag = GetMDTMagnetCentersZ();    
+    std::vector<double> zMagLocal;
+    for (double zg_mm : zMag) {
+        ROOT::Math::XYZVector magG(0.0, 0.0, zg_mm);
+        ROOT::Math::XYZVector magL = fTcalEvent->GlobalToMDTLocal(magG);
+        zMagLocal.push_back(magL.Z());
+    }
+    std::sort(zMagLocal.begin(), zMagLocal.end());
+    if (zMagLocal.size() != 3) {
+        std::cout << "[ReconstructMDT] ERROR: expected 3 MDT magnets, found "
+                  << zMagLocal.size() << std::endl;
+        for (double z : zMagLocal)
+            std::cout << "  MDT magnet z = " << z << " mm" << std::endl;
+        return;
+    }
+    // IMPORTANT:
+    // B = (Bx,0,0), so the bending projection is y(z), not x(z).
+    // We no longer fit independent kicks k1,k2,k3. Instead we fit one
+    // physical q/p parameter using the sampled Bx field integral.
+    // loop over MDT tracks in TcalEvent
+    // collect one hit per station/plane, smear drift radius, resolve left/right ambiguity
+
+       for (const auto* mdt : fTcalEvent->fMDTTracks) {
+        if (!mdt) continue;
+        if (std::abs(mdt->fPDG) != 13) continue; // keep only muons
+        int tid = mdt->ftrackID;
+        // smear drift radius by 80 μm (0.08 mm) to simulate detector resolution    
+        std::random_device rd;
+        std::mt19937 muon_rng(rd());
+        auto smearRadius = [&](double r_true) {
+            std::normal_distribution<double> gaussR(0.0, smear_mm);
+            double r = r_true + gaussR(muon_rng);
+            if (r < 0.0) r = 0.0;
+            if (r > tubeInnerRadius) r = tubeInnerRadius;
+            return r;
+        };
+        ////////////////////////////////////////////////
+        size_t n =
+            std::min({
+                mdt->stationID.size(),
+                mdt->planeID.size(),
+                mdt->tubeID.size(),
+                mdt->driftRadius.size(),
+                mdt->hitX.size(),
+                mdt->pos.size(),
+                mdt->tubeCenter.size()
+            });
+        std::cout << "[ReconstructMDT] trackID=" << mdt->ftrackID
+                << " sizes:"
+                << " station=" << mdt->stationID.size()
+                << " plane=" << mdt->planeID.size()
+                << " tube=" << mdt->tubeID.size()
+                << " r=" << mdt->driftRadius.size()
+                << " hitX=" << mdt->hitX.size()
+                << " pos=" << mdt->pos.size()
+                << " tubeCenter=" << mdt->tubeCenter.size()
+                << std::endl;
+        if (n < 5) {
+            std::cout << "[ReconstructMDT] skip: incomplete MDT vectors" << std::endl;
+            continue;
+        }
+        ////////////////////////////////////////////////
+
+        // collect one hit per station/plane
+        // to avoid multipe hits in the same station/plane for the same track, use a map to track seen (station, plane) pairs
+        std::map<std::pair<int,int>, int> seen;
+        std::set<int> stations;
+        std::vector<Hit> hits;
+
+        for (size_t i = 0; i < mdt->stationID.size(); ++i) {
+            auto key = std::make_pair(mdt->stationID[i], mdt->planeID[i]);
+            // one hit per station/plane
+            if (seen.count(key)) continue;
+            seen[key] = 1;
+            ROOT::Math::XYZVector wireG(mdt->tubeCenter[i].X(),
+                            mdt->tubeCenter[i].Y(),
+                            mdt->tubeCenter[i].Z());
+            ROOT::Math::XYZVector truthG(mdt->pos[i].X(),
+                             mdt->pos[i].Y(),
+                             mdt->pos[i].Z());
+            ROOT::Math::XYZVector wireL  = fTcalEvent->GlobalToMDTLocal(wireG);
+            ROOT::Math::XYZVector truthL = fTcalEvent->GlobalToMDTLocal(truthG);
+            Hit h;
+            h.wx_g = wireG.X();
+            h.wy_g = wireG.Y();
+            h.wz_g = wireG.Z();
+            h.wx_l = wireL.X();
+            h.wy_l = wireL.Y();
+            h.wz_l = wireL.Z();
+            h.hitX  = mdt->hitX[i];
+            h.rtrue = mdt->driftRadius[i];
+            h.r     = smearRadius(h.rtrue);
+            // truth/debug closest position
+            h.tx_g = truthG.X();
+            h.ty_g = truthG.Y();
+            h.tz_g = truthG.Z();
+            h.tx_l = truthL.X();
+            h.ty_l = truthL.Y();
+            h.tz_l = truthL.Z();
+            h.sta  = mdt->stationID[i];
+            h.pln  = mdt->planeID[i];
+            h.tube = mdt->tubeID[i];
+            hits.push_back(h);
+            stations.insert(h.sta);
+        }
+        std::sort(hits.begin(), hits.end(),
+                  [](const Hit& a, const Hit& b) {
+                      if (a.sta != b.sta) return a.sta < b.sta;
+                      return a.pln < b.pln;
+                  });
+
+        const int N = static_cast<int>(hits.size());
+        std::cout << "\n[ReconstructMDT] trackID=" << tid << " PDG=" << mdt->fPDG << " N=" << N << " stations=" << stations.size()  << std::endl;
+        if (N < 5 || N > 20) {
+            std::cout << "[ReconstructMDT] skip track, bad N=" << N << std::endl;
+            continue;
+        }
+        const double sigma = smear_mm;
+        double bestChi2 = 1e99;
+        double bestP[3] = {0,0,0}; // y0, initial y-slope, q/p
+        int bestCombo = 0;
+        int nComb = 1 << N;
+
+        auto* field = genfit::FieldManager::getInstance()->getField();
+        if (!field) {
+            std::cout << "[ReconstructMDT] ERROR: null GenFit field" << std::endl;
+            continue;
+        }
+        const double z0Local = hits.front().wz_l;
+        std::vector<double> kernelY(N, 0.0);
+        for (int h = 0; h < N; ++h) {
+            kernelY[h] = ComputeYKernelFromBx(field,
+                                             fTcalEvent,
+                                             hits[h].wx_l,
+                                             hits[h].wy_l,
+                                             z0Local,
+                                             hits[h].wz_l,
+                                             2.0);
+        }
+        // left/right ambiguity resolution: for each hit, try both left and right drift radius
+        // checking for all left/right combinations for the hits
+        for (int combo = 0; combo < nComb; ++combo) {
+            double ATA[3][3] = {};
+            double ATy[3] = {};
+            for (int h = 0; h < N; ++h) {
+                int sign = ((combo >> h) & 1) ? +1 : -1;
+                // assign y = wireY ± r
+                double y_assigned = hits[h].wy_l + sign * hits[h].r;
+                const double zRel = hits[h].wz_l - z0Local;
+                double A[3] = {1.0, zRel, kernelY[h]};
+                for (int i = 0; i < 3; ++i) {
+                    for (int j = 0; j < 3; ++j)
+                        ATA[i][j] += A[i] * A[j];
+                    ATy[i] += A[i] * y_assigned;
+                }
+            }
+            double p[3];
+            if (!Solve3(ATA, ATy, p))
+                continue;
+            double chi2 = 0.0;
+            // chi2 calculation: sum of squared residuals normalized by sigma^2
+            // residual = (yfit - y_measured) / sigma
+            // yfit = trackY(z, p)
+            // y_measured = wireY ± r
+            for (int h = 0; h < N; ++h) {
+                const double zRel = hits[h].wz_l - z0Local;
+                double yfit = MDTTrackYPhysical(zRel, kernelY[h], p);
+                double dist = std::fabs(yfit - hits[h].wy_l);
+                double res = (dist - hits[h].r) / sigma;
+                chi2 += res * res;
+            }
+            // keep the best combination with the lowest chi2
+            if (chi2 < bestChi2) {
+                bestChi2 = chi2;
+                bestCombo = combo;
+                for (int k = 0; k < 3; ++k)
+                    bestP[k] = p[k];
+            }
+        }
+
+        if (bestChi2 > 1e98) {
+            std::cout << "[ReconstructMDT] no valid LR solution" << std::endl;
+            continue;
+        }
+
+        const double pAnalytic = (std::fabs(bestP[2]) > 1.0e-12)
+                               ? std::fabs(1.0 / bestP[2])
+                               : -999.0;
+        const double qAnalytic = (bestP[2] > 0.0) ? +1.0 : -1.0;
+        const double qTruth = (mdt->fPDG == 13) ? -1.0 : +1.0;
+
+        printf("\n  Best physical Bx-bending fit:\n");
+        printf("    z0 reference          = %+.2f mm\n", z0Local);
+        printf("    y0 @ z0               = %+.4f mm\n", bestP[0]);
+        printf("    initial dy/dz slope   = %+.6f rad\n", bestP[1]);
+        printf("    q/p                   = %+.6e 1/GeV\n", bestP[2]);
+        printf("    p analytic            = %.4f GeV/c\n", pAnalytic);
+        printf("    q analytic / truth    = %+g / %+g\n", qAnalytic, qTruth);
+
+        std::vector<MDTMeas> meas;
+        // build MDT pseudo hits for GenFit
+        // pseudo hit: x = wireX + hitX, y = wireY ± r_smeared, z = wireZ
+        // left/right ambiguity resolved by bestCombo
+        // MDTMeas: x_mm, y_mm, z_mm, wireY_mm, wireZ_mm, r_meas_mm, r_true_mm, stationID, planeID, tubeID, side
+        for (int h = 0; h < N; ++h) {
+            int sign = ((bestCombo >> h) & 1) ? +1 : -1;
+            double x_l = hits[h].wx_l + hits[h].hitX;
+            double y_l = hits[h].wy_l + sign * hits[h].r;
+            double z_l = hits[h].wz_l;
+            ROOT::Math::XYZVector measL(x_l, y_l, z_l);
+            ROOT::Math::XYZVector measG = fTcalEvent->MDTLocalToGlobal(measL);
+            MDTMeas m;
+            m.x_mm = measG.X();
+            m.y_mm = measG.Y();
+            m.z_mm = measG.Z();
+            m.wireY_mm = hits[h].wy_g;
+            m.wireZ_mm = hits[h].wz_g;
+            m.r_meas_mm = hits[h].r;
+            m.r_true_mm = hits[h].rtrue;
+            m.stationID = hits[h].sta;
+            m.planeID   = hits[h].pln;
+            m.tubeID    = hits[h].tube;
+            m.side      = sign;
+            meas.push_back(m);
+        }
+        ///////////
+        // for debugging to check magnetic field is inside the magnet and outside the magnet, print B field and material along the track
+        double zmin_mm = meas.front().z_mm;
+        double zmax_mm = meas.back().z_mm;
+        PrintMDTFieldMaterialScan(field, meas.front().x_mm, meas.front().y_mm, zmin_mm, zmax_mm);
+        //////////
+        // compute total bend from the broken-line fit parameters
+        // total bend = sum of the kicks at the three magnets
+        //////////
+        double signedBdl_Tm = ComputeSignedBdlXAlongYFit(field,
+                                                         bestP,
+                                                         hits.front().wx_l,
+                                                         z0Local,
+                                                         hits.front().wz_l,
+                                                         hits.back().wz_l,
+                                                         fTcalEvent,
+                                                         2.0);
+         double totalBendAnalytic = 0.299792458 * bestP[2] * signedBdl_Tm;
+        std::cout << "[AnalyticSeed] bend=" << totalBendAnalytic
+                << " rad  signedBdl=" << signedBdl_Tm
+                << " Tm  pAnalytic=" << pAnalytic
+                << " GeV/c  qAnalytic=" << qAnalytic
+                << std::endl;
+        ////////////////////////////////
+        TMuTrack trk;
+        trk.ftrackID = tid;
+        trk.fPDG     = mdt->fPDG;
+        // run GenFit track fitting
+        // verbose = 1 for debug prints, 0 for quiet
+        // GenFit expects momentum in GeV/c
+        const double seedPForGenFit = (pAnalytic > 0.0 && std::isfinite(pAnalytic))
+                                    ? pAnalytic
+                                    : seedMomentumGeV;
+        bool ok = trk.GenFitMDTFit(meas, mdt->fPDG, seedPForGenFit, 1 /*verbose*/);
+        if (ok) {
+            std::cout << "[ReconstructMDT] GenFit OK:"
+                      << " p=" << trk.fp
+                      << " q=" << trk.fcharge
+                      << " chi2=" << trk.fchi2
+                      << " ndf=" << trk.fnDoF
+                      << std::endl;
+
+            fMuTracks.push_back(trk);
+        }
+        else {
+            std::cout << "[ReconstructMDT] GenFit failed" << std::endl;
+        }
+    }
+}
+
+
+
 
 /////////////////////////////////////
 // added by Umut

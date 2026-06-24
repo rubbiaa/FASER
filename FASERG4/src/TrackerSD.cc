@@ -60,17 +60,19 @@ G4bool TrackerSD::ProcessHits(G4Step* aStep, G4TouchableHistory*)
 			// std::cout << " Local position: " << local_position.X() << ", " << local_position.Y() << ", " << local_position.Z() << std::endl;
 	
 		G4int motherCopyNumber = -1;
-		int stepsUp = 1; // go two levels up to get to the top volume since everything is in the detector assembly
+		int stepsUp = 0; // go two levels up to get to the top volume since everything is in the detector assembly
         if (touchable->GetHistoryDepth() > 0) {
+			// parent copy number = layer/replica number for FASERCal
             motherCopyNumber = touchable->GetCopyNumber(1); // 1 indicates one level up
+			// RearCal and RearHCal need coordinates in their container frame
 			if(volumeName == "rearCalscintillatorLogical" || volumeName == "rearHCalscintillatorLogical") {
 				stepsUp = 2;
-			}
-			local_position = XYZVector(touchable->GetHistory()->GetTransform(stepsUp)
-			.TransformPoint(
-				aStep->GetPreStepPoint()->GetPosition()));
-			// std::cout << " Mother Local position: " << local_position.X() << ", " << local_position.Y() << ", " << local_position.Z() << std::endl;
-        }
+				local_position = XYZVector(touchable->GetHistory()->GetTransform(stepsUp)
+					.TransformPoint(
+						aStep->GetPreStepPoint()->GetPosition()));
+				// std::cout << " Mother Local position: " << local_position.X() << ", " << local_position.Y() << ", " << local_position.Z() << std::endl;
+    	    }
+		}
 
 		// std::cout << process << std::endl;
 		int parentID = aStep->GetTrack()->GetParentID();
@@ -86,9 +88,29 @@ G4bool TrackerSD::ProcessHits(G4Step* aStep, G4TouchableHistory*)
 			// Add another photon hit with the post step point
 			XYZVector position = XYZVector(aStep->GetPostStepPoint()->GetPosition().x(), aStep->GetPostStepPoint()->GetPosition().y(),
 						     aStep->GetPostStepPoint()->GetPosition().z());
-			XYZVector local_position = XYZVector(touchable->GetHistory()->GetTransform(stepsUp)
-			.TransformPoint(
-				aStep->GetPreStepPoint()->GetPosition()));
+			
+			//XYZVector local_position = XYZVector(touchable->GetHistory()->GetTransform(stepsUp)
+			//.TransformPoint(
+			//	aStep->GetPreStepPoint()->GetPosition()));
+			XYZVector local_position;
+
+			if (volumeName == "rearCalscintillatorLogical" ||
+				volumeName == "rearHCalscintillatorLogical") {
+
+				local_position = XYZVector(
+					touchable->GetHistory()->GetTransform(stepsUp).TransformPoint(
+						aStep->GetPostStepPoint()->GetPosition()
+					)
+				);
+			}
+			else {
+				local_position = XYZVector(
+					touchable->GetHistory()->GetTopTransform().TransformPoint(
+						aStep->GetPostStepPoint()->GetPosition()
+					)
+				);
+			}
+
 			XYZVector direction =
 			    XYZVector(aStep->GetPostStepPoint()->GetMomentumDirection().x(), aStep->GetPostStepPoint()->GetMomentumDirection().y(),
 				     aStep->GetPostStepPoint()->GetMomentumDirection().z());

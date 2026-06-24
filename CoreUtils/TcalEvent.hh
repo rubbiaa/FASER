@@ -86,6 +86,30 @@ class MuTagTrack : public TObject {
     ClassDef(MuTagTrack,1)
 };
 
+class MDTTrack : public TObject {
+    public:
+
+    MDTTrack() = default;
+    MDTTrack(int trackID) { ftrackID = trackID; };
+    ~MDTTrack() = default;
+
+    int ftrackID;           // the GEANT4 track id
+    int fPDG;               // the PDG id of this track
+    std::vector<int> stationID;      // MDT station number (1-4)
+    std::vector<int> planeID;        // MDT layer within station (0-2)
+    std::vector<int> tubeID;         // MDT tube number (0-33)
+    std::vector<double> driftRadius; // drift radius in mm
+    std::vector<double> hitX;        // local X along tube in mm
+    std::vector<double> driftTime;   // drift time in ns
+    std::vector<ROOT::Math::XYZVector> pos;  // hit position
+    std::vector<ROOT::Math::XYZVector> mom;  // hit momentum
+    std::vector<ROOT::Math::XYZVector> tubeCenter;
+    std::vector<double> driftAngle;
+    std::vector<double> edep;
+
+    ClassDef(MDTTrack,2)
+};
+
 class TcalEvent : public TObject {
 
 private:
@@ -128,6 +152,9 @@ public:
     /// @Brief The truch tracks in the muTag
     std::vector<MuTagTrack*> fMuTagTracks;
 
+    /// @brief The truth tracks in the MDT muon spectrometer
+    std::vector<MDTTrack*> fMDTTracks;
+
     void fillTree();
 
     struct REARCALDEPOSIT {
@@ -165,6 +192,7 @@ public:
     struct GEOM_DETECTOR {
         Double_t fScintillatorSizeX;  // in mm
         Double_t fScintillatorSizeY;  // in mm
+        Double_t fScintillatorSizeZ;  // in mm
         Double_t fScintillatorVoxelSize; // in mm
         Double_t fSiTrackerSizeZ; // in mm
         Double_t fSiTrackerPixelSize; // in mm
@@ -270,10 +298,26 @@ public:
     /// @param iz the z position index within the layer
     /// @return z coordinate
     inline double getZofLayer(long ilayer, long iz) const {
-        double z = ilayer * geom_detector.fSandwichLength + iz * geom_detector.fScintillatorVoxelSize
-        - (geom_detector.NRep * geom_detector.fSandwichLength) / 2.0
-        + geom_detector.fScintillatorVoxelSize/2.0;
-        z += geom_detector.fAlPlateThickness + geom_detector.fTargetSizeZ;
+        // UMUT: Account for gaps between modules (1cm within pairs, 10cm between pairs)
+        // Calculate cumulative gaps before this layer
+        const double gapWithinPair  = 10.0;   // mm = 1 cm
+        const double gapBetweenPair = 100.0;  // mm = 10 cm
+
+        double cumulativeGaps = 0.0;
+
+        for (long i = 0; i < ilayer; ++i) {
+           cumulativeGaps += (i % 2 == 0) ? gapWithinPair : gapBetweenPair;
+        }
+
+        double z =
+            -geom_detector.fTotalLength / 2.0
+            + ilayer * geom_detector.fSandwichLength
+            + cumulativeGaps
+            + geom_detector.fAlPlateThickness
+            + geom_detector.fTargetSizeZ
+            + iz * geom_detector.fScintillatorVoxelSize
+            + geom_detector.fScintillatorVoxelSize / 2.0;
+
         return z;
     }
 
@@ -288,6 +332,9 @@ public:
     ROOT::Math::XYZVector getChannelXYZRearCal(int moduleID) const;
 
     ROOT::Math::XYZVector getChannelXYZRearHCal(int moduleID) const;
+
+    ROOT::Math::XYZVector GlobalToMDTLocal(const ROOT::Math::XYZVector& pGlobal) const;
+    ROOT::Math::XYZVector MDTLocalToGlobal(const ROOT::Math::XYZVector& pLocal) const;
 
     ClassDef(TcalEvent, 6)
 };

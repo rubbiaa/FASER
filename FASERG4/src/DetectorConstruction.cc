@@ -17,6 +17,7 @@
 #include "G4AffineTransform.hh"
 
 #include "MuonDetMagneticField.hh"
+#include "MDTSD.hh"
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -200,6 +201,15 @@ void DetectorConstruction::DefineMaterials()
 
 G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 {
+	// UMUT: Following Andre's comment the following applied to coordinate system and placement strategy
+	// ================================================
+	// All detector components (FaserCal, RearCal, RearHCal, MuonSpectrometer) are built
+	// centered at (0, 0, z) in the detector assembly frame. The LoS (Line-of-Sight) shifts
+	// and 3DCAL shifts are applied ONCE at the assembly level when placing the entire
+	// DetectorAssemblyPV into the world volume. This simplifies the geometry and ensures
+	// consistent transformations for tilting. The origin of the assembly frame is at the
+	// front middle face of the FaserCal.
+
 	// Sizes of the principal geometrical components (solids)
 	// The values are given via the messenger, same as the units
 
@@ -286,7 +296,8 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 
 //	CreateFrontTarget(-sizeZ/2.0-20.0*cm, worldLV);
 
-	zLocation += sizeZ/2.0;
+//	zLocation += sizeZ/2.0;
+	zLocation += fTotalLength;  // Move zLocation to the end of FASERCal
 
 #if magnet
 	// CreateMagnetSystem(zLocation, worldLV);
@@ -296,7 +307,7 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 
 	if (!fonlyFaserCal)
 	{
-		const G4double rearSectionGap = 1.0*cm;
+		const G4double rearSectionGap = 25.0*cm; // add 25 cm between subdetectors
 
 		zLocation += rearSectionGap;
 		fRearCalLocZ = zLocation;
@@ -307,26 +318,27 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 		// Keep the same gap between rear ECal and rear HCal
 		G4double locZHcal = zLocation + fRearCalSizeZ + rearSectionGap;
 		fRearHCalLocZ = locZHcal;
-		fRearHCal_LOS_shiftX = fFASERCal_LOS_shiftX + (fRearHCalSizeX - fECalSizeX) / 2.0;
-		fRearHCal_LOS_shiftY = fFASERCal_LOS_shiftY + (fRearHCalSizeY - fECalSizeY) / 2.0;
-		std::cout << "HCal shift x " << fRearHCal_LOS_shiftX / cm << " cm,  y " << fRearHCal_LOS_shiftY / cm << " cm" << std::endl;
+		// UMUT: LoS shifts removed - applied at assembly level instead
 		//CreateRearHCal(locZHcal, worldLV);
 		CreateRearHCal(locZHcal, detLV);
 
 		// Keep the same gap between rear HCal and muon spectrometer
 		G4double locMuSpect = locZHcal + fRearHCalLength + rearSectionGap;
-		fRearMuSpect_LOS_shiftX = fFASERCal_LOS_shiftX + (fRearMuSpectSizeX - fECalSizeX) / 2.0;
-		fRearMuSpect_LOS_shiftY = fFASERCal_LOS_shiftY + (fRearMuSpectSizeY - fECalSizeY) / 2.0;		//CreateRearMuSpectrometer(locMuSpect, worldLV);
+		//fRearMuSpect_LOS_shiftX = fFASERCal_LOS_shiftX + (fRearMuSpectSizeX - fECalSizeX) / 2.0;
+		//fRearMuSpect_LOS_shiftY = fFASERCal_LOS_shiftY + (fRearMuSpectSizeY - fECalSizeY) / 2.0;		//CreateRearMuSpectrometer(locMuSpect, worldLV);
 		//CreateRearMuSpectrometer(locMuSpect, worldLV);
-		CreateRearMuSpectrometer(locMuSpect, detLV);
+		//CreateRearMuSpectrometer(locMuSpect, detLV);
+		// New version of the muon spectrometer with MDT (Monitored Drift Tubes)
+		CreateMuSpectWithMDT(locMuSpect, detLV);
+
 	}
 
 	// Place the detector assembly into the world with the global rotation
-	// Calculate the z offset needed to put ContainerPlacement front face at world z=0
-	G4double faserCalHalfLength = NRep * fSandwichLength / 2.0;
-	G4double assemblyOffsetZ = faserCalHalfLength;  // = +108.45 cm
-	G4double assemblyOffsetX = 40 * mm; 
-	G4double assemblyOffsetY = 0.0; 
+	// Put ContainerPlacement front face at world z≈0 by setting assemblyOffsetZ=0
+	// Container is already placed with front face at z=0 in detector frame
+	G4double assemblyOffsetZ = 0;
+	G4double assemblyOffsetX = fFASERCal_LOS_shiftX + fThreeD_CAL_shiftX;
+	G4double assemblyOffsetY = fFASERCal_LOS_shiftY + fThreeD_CAL_shiftY;
 	new G4PVPlacement(detRot,								// <<< tiltY
 					  G4ThreeVector(assemblyOffsetX, assemblyOffsetY, assemblyOffsetZ), // <<< shift assembly
 					  detLV,
@@ -348,36 +360,21 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 			   << pv->GetTranslation().y() / cm << ", "
 			   << pv->GetTranslation().z() / cm << ") cm" << G4endl;
 	}
-	// Print absolute world position of RearHCal center after rotation
-	// Walk the volume hierarchy to find "rearHCal" physical volume
-
-	// We need to find the chain: world -> detectorAssembly -> ... -> rearHCal
-	// Print translation of each relevant volume to understand the chain
+	// Print absolute world position of RearHCal container center after rotation
 	G4VPhysicalVolume *detAssemblyPV = pvStore->GetVolume("DetectorAssemblyPV");
-	G4VPhysicalVolume *rearHCalPV = pvStore->GetVolume("rearHCal");
+	G4VPhysicalVolume *hcalContPV = pvStore->GetVolume("rearHCalContainerPV");
 
-	if (detAssemblyPV && rearHCalPV)
+	if (detAssemblyPV && hcalContPV)
 	{
-		// rearHCal translation is relative to HCalContainer
-		G4ThreeVector t_rearHCal = rearHCalPV->GetTranslation();
-
-		// HCalContainer translation relative to detector assembly
-		G4VPhysicalVolume *hcalContPV = pvStore->GetVolume("rearHCalContainerPV");
-		G4ThreeVector t_hcalCont = hcalContPV ? hcalContPV->GetTranslation() : G4ThreeVector(0, 0, 0);
-
-		// Sum translations in detector assembly frame
-		G4ThreeVector inDetFrame = t_hcalCont + t_rearHCal;
+		// RearHCal container translation relative to detector assembly
+		G4ThreeVector t_hcalCont = hcalContPV->GetTranslation();
 
 		// Apply assembly rotation to get world frame
-		G4ThreeVector inWorld = detRot->inverse() * inDetFrame;
+		G4ThreeVector inWorld = detRot->inverse() * t_hcalCont;
 
-		G4cout << "=== RearHCal center in WORLD (full chain) ===" << G4endl;
-		G4cout << "  t_rearHCal in container  = ("
-			   << t_rearHCal.x() / cm << ", " << t_rearHCal.y() / cm << ", " << t_rearHCal.z() / cm << ") cm" << G4endl;
-		G4cout << "  t_hcalCont in detFrame   = ("
-			   << t_hcalCont.x() / cm << ", " << t_hcalCont.y() / cm << ", " << t_hcalCont.z() / cm << ") cm" << G4endl;
+		G4cout << "=== RearHCal Container center in WORLD ===" << G4endl;
 		G4cout << "  In detector frame (x,y,z) = ("
-			   << inDetFrame.x() / cm << ", " << inDetFrame.y() / cm << ", " << inDetFrame.z() / cm << ") cm" << G4endl;
+			   << t_hcalCont.x() / cm << ", " << t_hcalCont.y() / cm << ", " << t_hcalCont.z() / cm << ") cm" << G4endl;
 		G4cout << "  In world frame    (x,y,z) = ("
 			   << inWorld.x() / cm << ", " << inWorld.y() / cm << ", " << inWorld.z() / cm << ") cm" << G4endl;
 	}
@@ -394,7 +391,8 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 		G4ThreeVector t_container = containerPV->GetTranslation();
 
 		// Front face = center_z - half_length
-		G4double faserCalHalfLength = NRep * fSandwichLength / 2.0;
+		// Use fTotalLength which includes gaps between modules
+		G4double faserCalHalfLength = fTotalLength / 2.0;
 		G4ThreeVector containerFrontFace(t_container.x(),
 										 t_container.y(),
 										 t_container.z() - faserCalHalfLength);
@@ -441,8 +439,8 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	G4GDMLParser parser;
 	//UMUT: If a previous geometry file exists, remove it so G4GDML doesn't abort
 	// (parser.Write throws if the file already exists)
-	std::remove("FASERCAL_V8.gdml");
-	parser.Write("FASERCAL_V8.gdml", worldPV->GetLogicalVolume());
+	std::remove("FASERCAL_V9.gdml");
+	parser.Write("FASERCAL_V9.gdml", worldPV->GetLogicalVolume());
 
 	// Print the total mass of the detector
 	G4cout << "----------------------------------" << G4endl;
@@ -479,7 +477,12 @@ void DetectorConstruction::ConstructSDandField()
 		SetSensitiveDetector("rearCalscintillatorLogical", aTrackerSD, false);
 		SetSensitiveDetector("rearHCalscintillatorLogical", aTrackerSD, false);
 		//	SetSensitiveDetector("muCalscintillatorLogical", aTrackerSD, false);
-		SetSensitiveDetector("SciFiLayerLV", aTrackerSD, false);
+		//  SetSensitiveDetector("SciFiLayerLV", aTrackerSD, false);
+		// Create separate sensitive detector for MDT drift tubes
+		G4String MDTSDname = "/MDTSD";
+		fMDTSD = new MDTSD(MDTSDname);
+		G4SDManager::GetSDMpointer()->AddNewDetector(fMDTSD);
+		SetSensitiveDetector("MDTTubeInnerLV", fMDTSD, false);  // MDT drift tubes
 	}
 
 #if magnet
@@ -582,8 +585,15 @@ void DetectorConstruction::CreateFaserCal(G4double zLocation, G4Material* materi
 
 	G4cout << "Number of layers " << NRep << G4endl;
 
-	fTotalLength = NRep*fSandwichLength;
-	G4cout << "Total length " << fTotalLength << " mm" << G4endl;
+	// UMUT: Pair modules with 1cm gap within pairs, 10cm gap between pairs
+	G4double gapWithinPair = 1.0*cm;
+	G4double gapBetweenPairs = 10.0*cm;
+	int numGapsBetweenPairs = (NRep - 1) / 2;  // Number of 10cm gaps
+	int numGapsWithinPairs = NRep - 1 - numGapsBetweenPairs;  // Number of 1cm gaps
+	fTotalLength = NRep*fSandwichLength + numGapsWithinPairs*gapWithinPair + numGapsBetweenPairs*gapBetweenPairs;
+	G4cout << "Gap within pairs: " << gapWithinPair << " mm" << G4endl;
+	G4cout << "Gap between pairs: " << gapBetweenPairs << " mm" << G4endl;
+	G4cout << "Total length (with gaps): " << fTotalLength << " mm" << G4endl;
 
 	G4double density = material2->GetDensity()/(g/cm3);  // Density in g/cm^3
 	fTotalWMass = sizeX*sizeY*size2.getZ()*density*1e-3*NRep*1e-3;
@@ -634,9 +644,8 @@ void DetectorConstruction::CreateFaserCal(G4double zLocation, G4Material* materi
 	}
 	G4LogicalVolume* trackerSiLogic = new G4LogicalVolume(trackerSiSolid, G4_Si, "trackerSiLogical");
 	G4LogicalVolume* AlPlateLogic = new G4LogicalVolume(AlPlateSolid, G4_Al, "AlPlateLogical");
-
-
-    //We place the scinitllator and targetW into the replica
+    // UMUT: The following layer ordering done
+    // Order: AlPlate -> targetW -> Scintillator -> AlPlate -> SiTrackers (disabled)
 	double zShift = -fSandwichLength/2.0 + fAlPlateThickness/2.0;
 	new G4PVPlacement(0, G4ThreeVector(0,0,zShift), AlPlateLogic, "AlPlate", replicaLogic, false, 0, true);
 	zShift += fAlPlateThickness/2.0 + size2.getZ()/2.0;
@@ -647,50 +656,64 @@ void DetectorConstruction::CreateFaserCal(G4double zLocation, G4Material* materi
 	zShift += size1.getZ()/2.0 + fAlPlateThickness/2.0;
 	new G4PVPlacement(0, G4ThreeVector(0,0,zShift), AlPlateLogic, "AlPlate", replicaLogic, false, 1, true);
 
-	zShift = fSandwichLength/2.0;
-	#if 1
+	//zShift = fSandwichLength/2.0;
+	// UMUT: Silicon trackers disabled
+	#if 0
     new G4PVPlacement(0, G4ThreeVector(0,0,zShift - fSiTrackerGap - fSiTrackerSizeZ/2), 
 					trackerSiLogic, "trackerSi", replicaLogic, false, 1, true);
     new G4PVPlacement(0, G4ThreeVector(0,0,zShift - fSiTrackerSizeZ/2), trackerSiLogic, "trackerSi", replicaLogic, false, 2, true);
 	#endif
 
     // Create container, which hosts Nrep replicas of our layer. This container then is set inside the world volume
-    G4Box* containerSolid = new G4Box("ContainerBox", sizeX/2, sizeY / 2, NRep*fSandwichLength / 2);
+	// UMUT: Pair modules with 1cm gap within pairs, 10cm gap between pairs
+	// Variables already declared above
+	G4double totalContainerLength = NRep*fSandwichLength + numGapsWithinPairs*gapWithinPair + numGapsBetweenPairs*gapBetweenPairs;
+    G4Box* containerSolid = new G4Box("ContainerBox", sizeX/2, sizeY / 2, totalContainerLength / 2);
 
     G4LogicalVolume* containerLogic = new G4LogicalVolume(containerSolid, fWorldMaterial, "ContainerLogical");
 //    new G4PVReplica("replica", replicaLogic, containerLogic, kZAxis, NRep, sizeZ, 0);
 //    new G4PVPlacement(0, G4ThreeVector(0,0,NRep*sizeZ/2), containerLogic, "ContainerPlacement", parent,  false, 0, true);
-	// make nRep copies
+	// Place modules in pairs: M0-1cm-M1-10cm-M2-1cm-M3-10cm-...
+	double currentZ = -totalContainerLength/2.0 + fSandwichLength/2.0;
 	for(int i = 0; i < NRep; i++) {
-		double zshift = i*fSandwichLength-fSandwichLength*NRep/2.0+fSandwichLength/2.0;
-		std::cout << "Placing first replica at " << zshift << std::endl;
-		new G4PVPlacement(0, G4ThreeVector(0,0,zshift), replicaLogic, "replica", containerLogic, false, i, true);
+		std::cout << "Placing module " << i << " at z = " << currentZ << " mm" << std::endl;
+		new G4PVPlacement(0, G4ThreeVector(0,0,currentZ), replicaLogic, "replica", containerLogic, false, i, true);
+		
+		// Add appropriate gap after this module (except for last module)
+		if (i < NRep - 1) {
+			if (i % 2 == 0) {
+				// Even index: 1cm gap within pair
+				currentZ += fSandwichLength/2.0 + gapWithinPair + fSandwichLength/2.0;
+			} else {
+				// Odd index: 10cm gap between pairs
+				currentZ += fSandwichLength/2.0 + gapBetweenPairs + fSandwichLength/2.0;
+			}
+		}
 	}
-    //new G4PVPlacement(0, G4ThreeVector(
-	//	fFASERCal_LOS_shiftX,fFASERCal_LOS_shiftY,zLocation), 
-	//	containerLogic, "ContainerPlacement", parent,  false, 0, true);
-	new G4PVPlacement(0, G4ThreeVector(
-	    fFASERCal_LOS_shiftX + fThreeD_CAL_shiftX,   // Add the 3DCAL-specific shift
-    	fFASERCal_LOS_shiftY + fThreeD_CAL_shiftY,   // Add the 3DCAL-specific shift
-    	zLocation), 
+    // UMUT: Place FaserCal container so front face is at z=zLocation
+    // Container center = front face position + half of total length
+    // This puts the origin near the front corner, shifted by gaps
+    new G4PVPlacement(0, G4ThreeVector(0, 0, zLocation + totalContainerLength / 2.0),
     	containerLogic, "ContainerPlacement", parent, false, 0, true);
 }
 
 static int getchannelIDerrorcount = 0;
 
 G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, int CopyNumber, int MotherCopyNumber, XYZVector const& position) const {
+	// UMUT: position is given in the local coordinate system of the volume
+	// Since detectors are now centered in assembly frame, no LoS shift correction needed here
+	G4double epsilon = 1e-6;   // avoid rounding errors at volume boundary
+	G4double dx = position.X()+fScintillatorSizeX/2.0;
+	G4double dy = position.Y()+fScintillatorSizeY/2.0;
+	//G4double dz = position.Z()+fTotalLength/2.0-epsilon;
+	G4double zModule = position.Z() + fSandwichLength/2.0;
+    G4double zScint  = zModule - fAlPlateThickness - ftargetWSizeZ;
 
-	// position is given in the local coordinate system of the volume
-	G4double dx = position.X()+fScintillatorSizeX/2.0-fFASERCal_LOS_shiftX - fThreeD_CAL_shiftX;
-	G4double dy = position.Y()+fScintillatorSizeY/2.0-fFASERCal_LOS_shiftY - fThreeD_CAL_shiftY;
-	G4double epsilon = 1e-4;   // avoid rounding errors at volume boundary
-	G4double dz = position.Z()+fTotalLength/2.0-epsilon;
-	//G4double dz = position.Z() + fTotalLength/2.0;
 	// sanity check
-	if((dx < 0 || dx > fScintillatorSizeX) || (dy < 0 || dy > fScintillatorSizeY) || (dz < 0 || dz > fTotalLength)) {
+	if((dx < 0 || dx > fScintillatorSizeX) || (dy < 0 || dy > fScintillatorSizeY) || (zModule < 0 || zModule > fTotalLength)) {
 		getchannelIDerrorcount++;
 		if(getchannelIDerrorcount < 100) {
-			G4cerr << "ERROR : getCHannelIDfromXYZ problem dx:" << dx << " dy:" << dy << " dz:" << dz << G4endl;
+			G4cerr << "ERROR : getCHannelIDfromXYZ problem dx:" << dx << " dy:" << dy << " dz:" << zModule << G4endl;
 			G4cerr << "VolumeName: " << VolumeName << " CopyNumber: " << CopyNumber << " MotherCopyNumber: " << MotherCopyNumber << G4endl;
 			G4cerr << "Position: " << position.X() << ", " << position.Y() << ", " << position.Z() << G4endl;
 		}
@@ -707,21 +730,37 @@ G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, 
 
 	if(VolumeName == "ScintillatorLogical") {
 
-		G4long ix = floor((dx / fScintillatorVoxelSize) - epsilon);
-		G4long iy = floor((dy / fScintillatorVoxelSize) - epsilon);
-		G4long iz = floor((dz-ilayer*fSandwichLength-fAlPlateThickness-ftargetWSizeZ)/ fScintillatorVoxelSize);
-		//const G4double eps = 1e-9;
-		//G4double zLocal = dz - ilayer*fSandwichLength - fAlPlateThickness - ftargetWSizeZ;
-		//G4long iz = (G4long) std::floor((zLocal / fScintillatorVoxelSize) - eps);
-		//G4long Nz = (G4long) std::floor((fScintillatorSizeZ / fScintillatorVoxelSize) + eps);
-		//if (iz < 0) iz = 0;
-		//else if (iz >= Nz) iz = Nz - 1;
+				G4long ix = floor(((dx-epsilon) / fScintillatorVoxelSize));
+		G4long iy = floor(((dy-epsilon) / fScintillatorVoxelSize));
+		//G4long iz = floor((dz-ilayer*fSandwichLength-fAlPlateThickness-ftargetWSizeZ)/ fScintillatorVoxelSize);
+		G4long iz = std::floor((zScint-epsilon) / fScintillatorVoxelSize);
 		
+		// Calculate number of voxels and clamp indices to valid range
+		G4long Nx = floor(fScintillatorSizeX / fScintillatorVoxelSize);
+		G4long Ny = floor(fScintillatorSizeY / fScintillatorVoxelSize);
+		G4long Nz = floor(fScintillatorSizeZ / fScintillatorVoxelSize);
+		
+		// Clamp to valid range [0, N-1] to prevent boundary errors
+		if (ix < 0) ix = 0;
+		else if (ix > Nx) ix = Nx - 1;
+		if (iy < 0) iy = 0;
+		else if (iy > Ny) iy = Ny - 1;
+		if (iz < 0) iz = 0;
+		else if (iz > Nz) iz = Nz - 1;
+
 		// sanity check
 		if (ix < 0 || ix > 999 || iy < 0 || iy > 999 || iz < 0 || iz > 999 || ilayer < 0) {
-			if(iz>1000)
-				G4cerr << "ERROR : getCHannelIDfromXYZ problem ix:" << ix << " iy:" << iy << " iz:" << iz << G4endl;
-			return 0;
+			//if(iz>1000)
+			G4cerr << "ERROR getChannelIDfromXYZ:"
+               << " ix=" << ix
+               << " iy=" << iy
+               << " iz=" << iz
+               << " ilayer=" << ilayer
+               << " pos=(" << position.X() << ", "
+                            << position.Y() << ", "
+                            << position.Z() << ")"
+               << G4endl;			
+			   return 0;
 		}
 		G4long ID = ix + iy*1000 + iz*1000000 + ilayer*1000000000;
 		return ID;
@@ -747,7 +786,7 @@ G4long DetectorConstruction::getHCalChannelIDfromXYZ(int CopyNumber, XYZVector c
 	// position is given in the local coordinate system of the volume
 	G4double dx = position.X()+fRearHCalSizeX/2.0;
 	G4double dy = position.Y()+fRearHCalSizeY/2.0;
-	G4double epsilon = 1e-4;   // avoid rounding errors at volume boundary
+	G4double epsilon = 1e-6;   // avoid rounding errors at volume boundary
 
 	// sanity check
 	if((dx < 0 || dx >= fRearHCalSizeX) || (dy < 0 || dy >= fRearHCalSizeY)) {
@@ -759,14 +798,28 @@ G4long DetectorConstruction::getHCalChannelIDfromXYZ(int CopyNumber, XYZVector c
 	}
 
 	G4long iz = CopyNumber;
-	G4long ix = floor(dx / fRearHCalVoxelSize);
-	G4long iy = floor(dy / fRearHCalVoxelSize);
+	G4long ix = floor((dx-epsilon) / fRearHCalVoxelSize);
+	G4long iy = floor((dy-epsilon) / fRearHCalVoxelSize);
+
+	G4long Nx = std::floor(fRearHCalSizeX / fRearHCalVoxelSize);
+    G4long Ny = std::floor(fRearHCalSizeY / fRearHCalVoxelSize);
+
 	// sanity check
-	if (ix < 0 || ix > 999 || iy < 0 || iy > 999 || iz < 0 || iz > 999) {
-		if(iz>1000)
-			G4cerr << "ERROR : getHCalCHannelIDfromXYZ problem ix:" << ix << " iy:" << iy << " iz:" << iz << G4endl;
-		return 0;
-	}
+	//if (ix < 0 || ix > 999 || iy < 0 || iy > 999 || iz < 0 || iz > 999) {
+	//	if(iz>1000)
+	//		G4cerr << "ERROR : getHCalCHannelIDfromXYZ problem ix:" << ix << " iy:" << iy << " iz:" << iz << G4endl;
+	//	return 0;
+	//}
+	if (ix < 0 || ix >= Nx ||
+        iy < 0 || iy >= Ny ||
+        iz < 0 || iz >= fRearHCalNLayer) {
+        G4cerr << "ERROR getHCalChannelIDfromXYZ:"
+               << " ix=" << ix
+               << " iy=" << iy
+               << " iz=" << iz
+               << G4endl;
+        return 0;
+    }
 	G4long ID = ix + iy*1000L + iz*1000000LL;
 	return ID;
 }
@@ -930,11 +983,12 @@ void DetectorConstruction::CreateRearCal(G4double zLocation, G4LogicalVolume* pa
 		new G4PVPlacement(0, G4ThreeVector(0,0,z), scintillatorLogic, "rearCalScint", ECalContainerLogic, false, i, true);
 	}
 
-	double x = fFASERCal_LOS_shiftX;
-	double y = fFASERCal_LOS_shiftY;
-	new G4PVPlacement(0, G4ThreeVector(x, y, zLocation + total_sizeZ/2.0), ECalContainerLogic, "rearCal", parent, false, 0, true);
+	// UMUT: Place RearCal centered in assembly frame (no LoS shift here)
+	// LoS shifts are now applied at the assembly level
+	new G4PVPlacement(0, G4ThreeVector(0, 0, zLocation + total_sizeZ/2.0), ECalContainerLogic, "rearCal", parent, false, 0, true);
 }
 void DetectorConstruction::CreateRearHCal(G4double zLocation, G4LogicalVolume* parent) {
+	// cover -> scintillator -> cover -> PCB -> steel
 	// dimensions of the rear HCal
 	G4double sizeZ_Steel = fRearHCalAbsorberSizeZ;
 	G4double sizeZ_PS = fRearHCalScintillatorSizeZ;
@@ -951,9 +1005,11 @@ void DetectorConstruction::CreateRearHCal(G4double zLocation, G4LogicalVolume* p
 
 	G4Material* polyethylene = G4NistManager::Instance()->FindOrBuildMaterial("G4_POLYETHYLENE");
 	double sizeZ_HCalmodule = sizeZ_Steel + sizeZ_PS + sizeZ_PCB + 2*sizeZ_Cover;
+	double sizeZ_HCalpitch = sizeZ_HCalmodule + sizeZ_airGap;
 	double total_sizeZ = fRearHCalNLayer*sizeZ_HCalmodule + (fRearHCalNLayer-1)*sizeZ_airGap;
-	// fRearHCalLayerPitch = sizeZ_HCalpitch;
-	fRearHCalScintCenterInLayer = sizeZ_Steel + sizeZ_PS / 2.0;
+	fRearHCalLayerPitch = sizeZ_HCalpitch;
+	//fRearHCalScintCenterInLayer = sizeZ_Steel + sizeZ_PS / 2.0;
+	fRearHCalScintCenterInLayer = sizeZ_Cover + sizeZ_PS / 2.0;
 
 	fRearHCalLength = total_sizeZ;
 
@@ -996,12 +1052,11 @@ void DetectorConstruction::CreateRearHCal(G4double zLocation, G4LogicalVolume* p
 			new G4PVPlacement(0, G4ThreeVector(0,0,z), absorberLogic, "rearHCalAbs", HCalcontainerLogic, false, i, true);
 		z += sizeZ_Steel/2.0;
 	}
-	double x = fRearHCal_LOS_shiftX;
-	double y = fRearHCal_LOS_shiftY;
-	new G4PVPlacement(0, G4ThreeVector(x,y,zLocation + total_sizeZ/2.0), HCalcontainerLogic, "rearHCal", parent, false, 0, true);
-
-	// print x,y and zLocation+total_sizeZ/2.0 to check that the placement is correct
-	G4cout << "rearHCal placement: x=" << x << ", y=" << y << ", z=" << zLocation + total_sizeZ/2.0 << G4endl;
+	// UMUT: Place RearHCal centered in assembly frame (no LoS shift here)
+	// LoS shifts are now applied at the assembly level
+	new G4PVPlacement(0, G4ThreeVector(0, 0,zLocation + total_sizeZ/2.0), HCalcontainerLogic, "rearHCalContainerPV", parent, false, 0, true);
+	// print placement position
+	G4cout << "rearHCal placement in assembly frame: x=0, y=0, z=" << zLocation + total_sizeZ/2.0 << G4endl;
 
 	#if 0
 	double z = zLocation + total_sizeZ + sizeZ_nabs/2.0;
@@ -1044,12 +1099,16 @@ void DetectorConstruction::CreateRearMuSpectrometer(G4double zLocation, G4Logica
 
 	G4double zStart = -totalLength / 2;
 
-	double x = fRearMuSpect_LOS_shiftX;
-	double y = fRearMuSpect_LOS_shiftY;
+	// UMUT: Place MuonSpectrometer centered in assembly frame (no LoS shift here)
+	// LoS shifts are now applied at the assembly level
+	// Need to shift the muon spectrometer in x and y to account for the fact that it's placed after the rear calorimeter
+	double x =  (fRearMuSpectSizeX - fECalSizeX) / 2.0;
+	double y = (fRearMuSpectSizeY - fECalSizeY) / 2.0;		
+	
 	double z = zLocation + totalLength / 2;
 	G4Box* muonSpectrometerBox = new G4Box("MuonSpectrometer", magnetSizeX / 2, magnetSizeY / 2, totalLength / 2);
 	G4LogicalVolume* muonSpectrometerLV = new G4LogicalVolume(muonSpectrometerBox, air, "MuonSpectrometerLV");
-	new G4PVPlacement(0, G4ThreeVector(x,y,z), muonSpectrometerLV, "MuonSpectrometer", parent, false, 0, true);
+	new G4PVPlacement(0, G4ThreeVector(x, y, z), muonSpectrometerLV, "MuonSpectrometer", parent, false, 0, true);
 
 	int scifiLayerID = 0;
 	G4double zPos = zStart + scifilayerThickness / 2;
@@ -1195,6 +1254,249 @@ void DetectorConstruction::CreateRearMuSpectrometer(G4double zLocation, G4Logica
 		// Gap after magnet
 		zPos += gapAfterMagnet;
 	}
+}
+
+void DetectorConstruction::CreateMuSpectWithMDT(G4double zLocation, G4LogicalVolume* parent) {
+	auto nist = G4NistManager::Instance();
+	G4Material* air = nist->FindOrBuildMaterial("G4_AIR");
+	G4Material* steel = nist->FindOrBuildMaterial("G4_Fe");
+	G4Material* aluminum = nist->FindOrBuildMaterial("G4_Al");
+	G4Material* argon = nist->FindOrBuildMaterial("G4_Ar");
+
+	// ==================== MDT Configuration Parameters ====================
+	const int nStations = 4;   // 4 tracking stations
+	const int nLayers   = 3;   // 3 tube layers per station (honeycomb)
+	const int nMagnets  = 3;   // 3 magnets between 4 stations
+
+	// MDT tube parameters (ATLAS-style)
+	G4double tubeOuterDiameter = 30.0 * mm;
+	G4double tubeOuterRadius   = tubeOuterDiameter / 2.0;
+	G4double tubeWallThickness = 0.4  * mm;   // 400 um aluminium walls
+	G4double tubeInnerRadius   = tubeOuterRadius - tubeWallThickness;
+	G4double tubeLength        = 860. * mm;
+
+	// Honeycomb packing: tubes touching within a layer (Y-pitch = diameter)
+	//   and close-packed between adjacent layers (Z-pitch = sqrt(3)/2 × d)
+	G4double tubeYPitch  = tubeOuterDiameter;                      // 30 mm
+	G4double layerZPitch = tubeOuterDiameter * std::sqrt(3.) / 2.; // ≈ 25.98 mm
+	G4double layerYShift = tubeOuterRadius;                        // 15 mm  (odd-layer Y shift)
+
+	const int nRows = 34;  // tubes per layer → Y coverage ≈ ±510 mm
+
+	// Thin aluminium endplates on both Z-faces of each station (the gray panels)
+	G4double endplateThickness = 10.0 * mm;
+
+	// Magnet / gap parameters
+	G4double magnetThickness = 400. * mm;
+	G4double gapBeforeMagnet = 15.  * mm;
+	G4double gapAfterMagnet  = 15.  * mm;
+
+	// Per-station Z size: 2 endplates + tube envelope
+	//   tube envelope = (nLayers-1)*layerZPitch + tubeOuterDiameter
+	G4double tubeEnvelopeZ = (nLayers - 1) * layerZPitch + tubeOuterDiameter;
+	G4double stationZSize  = 2. * endplateThickness + tubeEnvelopeZ;
+
+	// Total detector length
+	G4double totalLength = nStations * stationZSize
+	                     + nMagnets  * (gapBeforeMagnet + magnetThickness + gapAfterMagnet);
+	
+	// ==================== Create MDT Container Volume ====================
+	// Container size: must encompass all MDT stations and magnets
+	G4double containerSizeX = tubeLength + 20.*mm;   // tube length + margin
+	G4double containerSizeY = 1200.*mm;              // covers all tubes + margin
+	G4double containerSizeZ = totalLength;
+	
+	G4Box* MDTContainerBox = new G4Box("MDTContainer", containerSizeX/2, containerSizeY/2, containerSizeZ/2);
+	G4LogicalVolume* MDTContainerLogic = new G4LogicalVolume(MDTContainerBox, air, "MDTContainerLV");
+	
+	fRearMuSpectLocZ = zLocation;
+	fRearMuSpectSizeZ = totalLength;
+	
+	G4cout << "========================================" << G4endl;
+	G4cout << "MDT Spectrometer — 3-layer Honeycomb (Container)" << G4endl;
+	G4cout << "  " << nStations << " stations x " << nLayers << " layers x " << nRows << " tubes" << G4endl;
+	G4cout << "  Tube Ø = " << tubeOuterDiameter/mm << " mm  wall = " << tubeWallThickness/mm << " mm" << G4endl;
+	G4cout << "  Y-pitch (within layer) = " << tubeYPitch/mm << " mm" << G4endl;
+	G4cout << "  Z-pitch (layer-to-layer) = " << layerZPitch/mm << " mm" << G4endl;
+	G4cout << "  Y-shift (odd layers) = " << layerYShift/mm << " mm" << G4endl;
+	G4cout << "  Station Z size = " << stationZSize/mm << " mm  (incl. endplates)" << G4endl;
+	G4cout << "  Total tubes = " << nStations*nLayers*nRows << G4endl;
+	G4cout << "  Container size = " << containerSizeX/mm << " x " << containerSizeY/mm << " x " << containerSizeZ/mm << " mm³" << G4endl;
+	G4cout << "========================================" << G4endl;
+
+	// Create MDT tube geometry
+	// G4Tubs axis is local Z.
+  	// Later we rotate tubes by 90 deg around Y:
+  	// local Z --> global X
+  	// Therefore MDT wires are along global X.	
+	// Outer aluminium tube
+  	// tubeOuterRadius = 15 mm, tubeLength = 860 mm
+  	// Inner gas volume (sensitive)
+  	// tubeOuterRadius= 15 mm, tubeInnerRadius = 14.6 mm, tubeLength = 860 mm
+  	G4Tubs* tubeOuterSolid = new G4Tubs("MDTTubeOuter", 0, tubeOuterRadius, tubeLength/2, 0, 360*deg);
+	G4Tubs* tubeInnerSolid = new G4Tubs("MDTTubeInner", 0, tubeInnerRadius, tubeLength/2, 0, 360*deg);
+	
+	G4LogicalVolume* tubeOuterLV = new G4LogicalVolume(tubeOuterSolid, aluminum, "MDTTubeOuterLV");
+	G4LogicalVolume* tubeInnerLV = new G4LogicalVolume(tubeInnerSolid, argon, "MDTTubeInnerLV");
+	
+	// Place gas volume inside aluminum tube
+	new G4PVPlacement(nullptr, G4ThreeVector(0,0,0), tubeInnerLV, "MDTTubeInner", tubeOuterLV, false, 0);
+	
+	// Visualization
+	auto tubeOuterVis = new G4VisAttributes(G4Colour(0.7, 0.7, 0.8));  // Light blue-gray
+	tubeOuterLV->SetVisAttributes(tubeOuterVis);
+	auto tubeInnerVis = new G4VisAttributes(G4Colour(0.0, 0.8, 1.0, 0.3));  // Cyan, transparent
+	tubeInnerLV->SetVisAttributes(tubeInnerVis);
+
+	// Rotation matrix for horizontal tube placement
+	// All tubes along X-direction: rotate 90° around Y-axis
+	G4RotationMatrix* rotX = new G4RotationMatrix();
+	rotX->rotateY(90.*deg);
+
+	// ==================== Aluminium endplate geometry (reused per station) ====================
+	// Y half-extent: covers nRows tubes (even layer) + margin
+	G4double epHalfY = (nRows - 1) / 2.0 * tubeYPitch + tubeOuterRadius + 8.*mm;
+	G4Box*           epBox = new G4Box("MDTEndplate", tubeLength/2., epHalfY, endplateThickness/2.);
+	G4LogicalVolume* epLV  = new G4LogicalVolume(epBox, aluminum, "MDTEndplateLV");
+	auto epVis = new G4VisAttributes(G4Colour(0.75, 0.75, 0.75));
+	epVis->SetForceSolid(true);
+	epLV->SetVisAttributes(epVis);
+
+	// ==================== Build geometry inside container ====================
+	// Use relative coordinates: start at -totalLength/2 (container front face)
+	G4double zPos = -totalLength / 2.0;
+
+	// ==================== Build 4 Stations (3-layer honeycomb) ====================
+	for (int station = 0; station < nStations; ++station) {
+		G4cout << "Building MDT Station " << (station + 1) << " at z = " << zPos/mm << " mm" << G4endl;
+
+		// ---- front endplate ----
+		new G4PVPlacement(nullptr, G4ThreeVector(0, 0, zPos + endplateThickness/2.),
+		                  epLV, "MDTEndplate", MDTContainerLogic, false, station * 10 + 0);
+		zPos += endplateThickness;
+
+		// ---- 3 tube layers in honeycomb arrangement ----
+		for (int layer = 0; layer < nLayers; ++layer) {
+			// Z centre of this layer
+			G4double layerZ = zPos + tubeOuterRadius + layer * layerZPitch;
+
+			// Odd layers are shifted by half a tube diameter in Y → honeycomb offset
+			G4double yOffset = (layer % 2 == 0) ? 0.0 : layerYShift;
+
+			// Centre the array in Y around 0
+			G4double yStart = -(nRows - 1) / 2.0 * tubeYPitch + yOffset;
+
+			for (int row = 0; row < nRows; ++row) {
+				G4double tubeY    = yStart + row * tubeYPitch;
+				G4int copyNumber  = (station + 1) * 10000 + layer * 1000 + row;
+				new G4PVPlacement(rotX, G4ThreeVector(0., tubeY, layerZ),
+				                  tubeOuterLV, "MDTTube", MDTContainerLogic, false, copyNumber);
+			}
+			G4cout << "  MDT Layer " << layer << " (" << (layer%2?"odd":"even") << "): "
+			       << nRows << " tubes at Z=" << layerZ/mm << " mm, Ystart="
+			       << (-(nRows-1)/2.0*tubeYPitch + yOffset)/mm << " mm" << G4endl;
+		}
+		// Advance past the tube envelope
+		zPos += tubeEnvelopeZ;
+
+		// ---- back endplate ----
+		new G4PVPlacement(nullptr, G4ThreeVector(0, 0, zPos + endplateThickness/2.),
+		                  epLV, "MDTEndplate", MDTContainerLogic, false, station * 10 + 1);
+		zPos += endplateThickness;
+		
+		// After last station, don't place a magnet
+		if (station == nStations - 1) break;
+		
+		// ==================== Place Magnet ====================
+		zPos += gapBeforeMagnet;
+		
+		// Place magnet with slits (same as before)
+		G4Box* solidMagnet = new G4Box("MDTMagnet", 500.*mm, 500.*mm, magnetThickness/2);
+		G4Box* slitBox = new G4Box("MDTSlit", 250.*mm, 10.*mm, magnetThickness/2);
+
+		G4SubtractionSolid* magnetMinusSlit1 = new G4SubtractionSolid(
+			"MDTMagnetMinusSlit1", solidMagnet, slitBox, nullptr, G4ThreeVector(0, 250.*mm, 0));
+		G4SubtractionSolid* magnetWithSlits = new G4SubtractionSolid(
+			"MDTMagnetWithSlits", magnetMinusSlit1, slitBox, nullptr, G4ThreeVector(0, -250.*mm, 0));
+
+		G4LogicalVolume* magnetLV = new G4LogicalVolume(magnetWithSlits, steel, "MDTMagnetLV");
+		G4double magnetZ = zPos + magnetThickness/2;
+		new G4PVPlacement(nullptr, G4ThreeVector(0, 0, magnetZ), magnetLV, "MDTMagnet", MDTContainerLogic, false, station);
+
+		// Magnetic field on the magnet volume
+		auto field = new MuonMagneticField();
+		field->SetSlitPosition(250.*mm);
+		auto fieldManager = new G4FieldManager(field);
+		fieldManager->CreateChordFinder(field);
+		magnetLV->SetFieldManager(fieldManager, true);
+
+		// Magnet visualization (gray)
+		auto magnetVis = new G4VisAttributes(G4Colour(0.5, 0.5, 0.5));
+		magnetVis->SetForceSolid(true);
+		magnetLV->SetVisAttributes(magnetVis);
+
+		#if 0
+		// Place aluminum strips (coils)
+		int nTopStrips = 11;
+		G4double stripWidth = 25.*mm;
+		G4double stripHalfLength = 125.*mm;
+		G4double stripThickness = 2.*mm;
+
+		for (int j = 0; j < nTopStrips; ++j) {
+			G4bool placeFront = (j % 2 == 0);
+			G4double xOffset = -250.*mm + j * 50.*mm;
+			G4double yOffset = 375.*mm;
+			G4Box* aluStripSolid = new G4Box("MDTAluStrip", stripWidth, stripHalfLength, stripThickness);
+			G4LogicalVolume* aluStripLV = new G4LogicalVolume(aluStripSolid, aluminum, "MDTAluStripLV");
+			auto aluVis = new G4VisAttributes(G4Colour(0.8, 0.6, 0.4));
+			aluVis->SetForceSolid(true);
+			aluStripLV->SetVisAttributes(aluVis);
+			G4double zPlacement = magnetZ + (placeFront ? -magnetThickness/2 - 2.*mm : magnetThickness/2 + 2.*mm);
+			G4ThreeVector pos(xOffset, yOffset, zPlacement);
+			new G4PVPlacement(nullptr, pos, aluStripLV, "MDTAluStrip", parent, false, station * 1000 + j);
+		}
+		for (int j = 0; j < nTopStrips; ++j) {
+			G4bool placeFront = (j % 2 == 0);
+			G4double xOffset = -250.*mm + j * 50.*mm;
+			G4double yOffset = -375.*mm;
+			G4Box* aluStripSolid = new G4Box("MDTAluStrip", stripWidth, stripHalfLength, stripThickness);
+			G4LogicalVolume* aluStripLV = new G4LogicalVolume(aluStripSolid, aluminum, "MDTAluStripLV");
+			auto aluVis = new G4VisAttributes(G4Colour(0.8, 0.6, 0.4));
+			aluVis->SetForceSolid(true);
+			aluStripLV->SetVisAttributes(aluVis);
+			G4double zPlacement = magnetZ + (placeFront ? -magnetThickness/2 - 2.*mm : magnetThickness/2 + 2.*mm);
+			G4ThreeVector pos(xOffset, yOffset, zPlacement);
+			new G4PVPlacement(nullptr, pos, aluStripLV, "MDTAluStrip", parent, false, station * 1000 + j + 100);
+		}
+		int nMiddleStrips = 12;
+		G4double MiddlestripHalfLength = 250.*mm;
+		for (int j = 1; j < nMiddleStrips; ++j) {
+			G4bool placeFront = (j % 2 == 0);
+			G4double xOffset = -300.*mm + j * 50.*mm;
+			G4double yOffset = 0;
+			G4Box* aluStripSolid = new G4Box("MDTAluStrip", stripWidth, MiddlestripHalfLength, stripThickness);
+			G4LogicalVolume* aluStripLV = new G4LogicalVolume(aluStripSolid, aluminum, "MDTAluStripLV");
+			auto aluVis = new G4VisAttributes(G4Colour(0.8, 0.6, 0.4));
+			aluVis->SetForceSolid(true);
+			aluStripLV->SetVisAttributes(aluVis);
+			G4double zPlacement = magnetZ + (placeFront ? -magnetThickness/2 - 2.*mm : magnetThickness/2 + 2.*mm);
+			G4ThreeVector pos(xOffset, yOffset, zPlacement);
+			new G4PVPlacement(nullptr, pos, aluStripLV, "MDTAluStrip", parent, false, station * 1000 + j + 200);
+		}
+		#endif
+		// Advance past magnet
+		zPos += magnetThickness + gapAfterMagnet;
+		
+		G4cout << "MDT Magnet " << (station + 1) << " placed at z = " << magnetZ/mm << " mm" << G4endl;
+	}
+
+	// ==================== Place MDT Container in parent ====================
+	// Container is centered at zLocation + totalLength/2
+	new G4PVPlacement(nullptr, G4ThreeVector(0, 0, zLocation + totalLength/2.0),
+	                  MDTContainerLogic, "MDTContainerPV", parent, false, 0, true);
+	
+	G4cout << "MDT Container placed in parent at z = " << (zLocation + totalLength/2.0)/mm << " mm" << G4endl;
+	G4cout << "MDT Spectrometer construction complete!" << G4endl;
 }
 
 void DetectorConstruction::CreateFrontTarget(G4double zLocation, G4LogicalVolume *parent) {

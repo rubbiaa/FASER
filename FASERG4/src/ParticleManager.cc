@@ -1,5 +1,6 @@
 #include "ParticleManager.hh"
 #include "DetectorConstruction.hh"
+#include "MDTSD.hh"
 
 #include "G4RunManager.hh"
 #include "G4PrimaryVertex.hh"
@@ -333,6 +334,7 @@ void ParticleManager::beginOfEvent()
 	m_particleMap.clear();
 	m_magnetTrackMap.clear();
 	m_MuTagTrackMap.clear();
+	m_MDTTrackMap.clear();
 	fPrimaries.clear();
 
 	PrimaryGeneratorAction* prim = dynamic_cast<PrimaryGeneratorAction*>
@@ -351,6 +353,7 @@ void ParticleManager::beginOfEvent()
 	const DetectorConstruction* detector = static_cast<const DetectorConstruction*>(G4RunManager::GetRunManager()->GetUserDetectorConstruction());
 	fTcalEvent->geom_detector.fScintillatorSizeX = detector->fScintillatorSizeX;
 	fTcalEvent->geom_detector.fScintillatorSizeY = detector->fScintillatorSizeY;
+	fTcalEvent->geom_detector.fScintillatorSizeZ = detector->fScintillatorSizeZ;
 	fTcalEvent->geom_detector.fScintillatorVoxelSize = detector->fScintillatorVoxelSize;
 	fTcalEvent->geom_detector.fSiTrackerSizeZ = detector->fSiTrackerSizeZ;
 	fTcalEvent->geom_detector.fSiTrackerPixelSize = detector->fSiTrackerPixelSize;
@@ -378,6 +381,7 @@ void ParticleManager::beginOfEvent()
 	fTcalEvent->geom_detector.rearHCalNxy = 18;
 	fTcalEvent->geom_detector.rearHCalLength = detector->fRearHCalLength;
 	fTcalEvent->geom_detector.rearHCalNlayer = 40;
+	fTcalEvent->geom_detector.rearHCalLayerPitch = detector->fRearHCalLayerPitch;
 	fTcalEvent->geom_detector.rearMuSpectLocZ = detector->fRearMuSpectLocZ;
 	fTcalEvent->geom_detector.rearMuSpectSizeZ = detector->fRearMuSpectSizeZ;
 	fTcalEvent->geom_detector.fFASERCal_LOS_shiftX = detector->fFASERCal_LOS_shiftX * mm;
@@ -448,6 +452,84 @@ void ParticleManager::endOfEvent(G4Event const* event)
 		for (const auto& it : m_MuTagTrackMap) {
 			MuTagTrack* mutagtrk = it.second;
 			fTcalEvent->fMuTagTracks.push_back(mutagtrk);
+		}
+
+		// Fill MDT tracks from MDTSD
+		const DetectorConstruction* detector = static_cast<const DetectorConstruction*>(
+			G4RunManager::GetRunManager()->GetUserDetectorConstruction());
+		MDTSD* mdtSD = detector->GetMDTSD();
+		if (mdtSD) {
+			const std::vector<MDTHit>& mdtHits = mdtSD->GetHits();
+			
+			std::cout << "[ParticleManager] MDTSD hits = " << mdtHits.size() << std::endl;
+			
+			// Group hits by trackID
+			for (const auto& hit : mdtHits) {
+				auto it = m_MDTTrackMap.find(hit.trackID);
+				if (it != m_MDTTrackMap.end()) {
+					// Track exists, add hit info
+					it->second->stationID.push_back(hit.stationID);
+					it->second->planeID.push_back(hit.planeID);
+					it->second->tubeID.push_back(hit.tubeID);
+					it->second->driftRadius.push_back(hit.trueDriftRadius / mm);
+					it->second->hitX.push_back(hit.hitX / mm);
+					it->second->driftAngle.push_back(hit.driftAngle);
+					it->second->edep.push_back(hit.edep / MeV);
+					it->second->driftTime.push_back(hit.driftTime / ns);
+					ROOT::Math::XYZVector tubeCenter(
+						hit.tubeCenter.x() / mm,
+						hit.tubeCenter.y() / mm,
+						hit.tubeCenter.z() / mm
+					);
+					it->second->tubeCenter.push_back(tubeCenter);
+					// Store closest position 
+					ROOT::Math::XYZVector pos(hit.closestPosition.x() / mm, 
+											  hit.closestPosition.y() / mm, 
+											  hit.closestPosition.z() / mm);
+					it->second->pos.push_back(pos);
+					ROOT::Math::XYZVector mom(hit.trueMomentum.x() / MeV, 
+											  hit.trueMomentum.y() / MeV, 
+											  hit.trueMomentum.z() / MeV);
+					it->second->mom.push_back(mom);
+				} else {
+					// Create new track
+					MDTTrack* newTrack = new MDTTrack(hit.trackID);
+					newTrack->fPDG = hit.pdgID;
+					newTrack->stationID.push_back(hit.stationID);
+					newTrack->planeID.push_back(hit.planeID);
+					newTrack->tubeID.push_back(hit.tubeID);
+					newTrack->driftRadius.push_back(hit.trueDriftRadius / mm);
+					newTrack->hitX.push_back(hit.hitX / mm);
+					newTrack->driftTime.push_back(hit.driftTime / ns);
+					newTrack->driftAngle.push_back(hit.driftAngle);
+					newTrack->edep.push_back(hit.edep / MeV);
+
+					ROOT::Math::XYZVector tubeCenter(
+						hit.tubeCenter.x() / mm,
+						hit.tubeCenter.y() / mm,
+						hit.tubeCenter.z() / mm
+					);
+					newTrack->tubeCenter.push_back(tubeCenter);
+					// Store closest position 
+					ROOT::Math::XYZVector pos(hit.closestPosition.x() / mm, 
+											  hit.closestPosition.y() / mm, 
+											  hit.closestPosition.z() / mm);
+					newTrack->pos.push_back(pos);
+					ROOT::Math::XYZVector mom(hit.trueMomentum.x() / MeV, 
+											  hit.trueMomentum.y() / MeV, 
+											  hit.trueMomentum.z() / MeV);
+					newTrack->mom.push_back(mom);
+					m_MDTTrackMap[hit.trackID] = newTrack;
+				}
+			}
+			
+			// Transfer to TcalEvent
+			for (const auto& it : m_MDTTrackMap) {
+				MDTTrack* mdttrk = it.second;
+				fTcalEvent->fMDTTracks.push_back(mdttrk);
+			}
+			std::cout << "[ParticleManager] fTcalEvent MDT tracks = "
+          << fTcalEvent->fMDTTracks.size() << std::endl;
 		}
 
 		// dump RearCal

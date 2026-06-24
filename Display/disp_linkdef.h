@@ -17,6 +17,7 @@
 #pragma link C++ class TcalEvent+;
 #pragma link C++ class TPORecoEvent+;
 #pragma link C++ class MuTagTrack+;
+#pragma link C++ class MDTTrack+;
 
 
 #pragma link C++ struct PO+;

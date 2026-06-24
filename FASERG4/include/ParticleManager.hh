@@ -29,6 +29,8 @@ class ParticleManager {
 
 	std::map<int, MuTagTrack*> m_MuTagTrackMap;   // map to store MC tracks in the muon tagger
 
+	std::map<int, MDTTrack*> m_MDTTrackMap;      // map to store MC tracks in the MDT spectrometer
+
 	//added by Umut: Verbosity flag to enable/disable detailed diagnostics (magnet/field prints)
 	bool m_verbose = false;
 

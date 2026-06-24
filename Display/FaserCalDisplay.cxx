@@ -56,6 +56,7 @@ namespace display
     fVoxGhostElements = new TEveElementList("GhostVoxel Elements");
     fMuSpectHitElements = new TEveElementList("MuonSpectHit Elements");
     fMuonSpectFitElements = new TEveElementList("MuonSpectFit Elements");
+    fMDTHitElements = new TEveElementList("MDT Hit Elements");
   }
   //////////////////////////////////////////////////////////
   FaserCalDisplay::~FaserCalDisplay() {}
@@ -69,14 +70,12 @@ namespace display
     //TGeoManager::Import("../../GeomGDML/geometry_tilted_5degree.gdml");
     // Alternative: use prototype geometry
     //TGeoManager::Import("../../GeomGDML/geometry_prototype.gdml");
-    TGeoManager::Import("../../GeomGDML/geometry.gdml");
+    //TGeoManager::Import("../../GeomGDML/FASERCAL_V9.gdml");
     // Old absolute path (kept as reference)
     //TGeoManager::Import("/data/sw/FASERCAL/FASER/GeomGDML/geometry.gdml");
     // use for Run120 and v5.0
     //TGeoManager::Import("/home/hyperk/sw/FASERCAL/FASER_March2025/GeomGDML/geometry_v5.gdml");
-    //TGeoManager::Import("../../FASERG4/build/geometry_tilted_5degree.gdml");
-    //TGeoManager::Import("../../GeomGDML/geometry_0degree.gdml");
-    //TGeoManager::Import("../../GeomGDML/geometry_0degree_shiftLoS.gdml");
+    TGeoManager::Import("../../FASERG4/build/FASERCAL_V9.gdml");
     //
     if (!gGeoManager) {
       std::cerr << "Failed to import GDML file." << std::endl;
@@ -638,6 +637,7 @@ namespace display
       fMuTagHitElements->SetRnrState(kFALSE);
       fMuSpectHitElements->SetRnrState(kFALSE);
       fMuonSpectFitElements->SetRnrState(kFALSE);
+      fMDTHitElements->SetRnrState(kFALSE);
       if(!fIsolate->IsOn())
 	      fDetectorElements->SetRnrState(kTRUE);
       else
@@ -681,6 +681,7 @@ namespace display
       fMuTagHitElements->SetRnrState(kFALSE);
       fMuSpectHitElements->SetRnrState(kFALSE);
       fMuonSpectFitElements->SetRnrState(kFALSE);
+      fMDTHitElements->SetRnrState(kFALSE);
       if(!fIsolate->IsOn())
 	      fDetectorElements->SetRnrState(kTRUE);
       else
@@ -728,6 +729,7 @@ namespace display
 	    fMuonHitElements->SetRnrState(kTRUE);  
       fMuSpectHitElements->SetRnrState(kTRUE);
       fMuonSpectFitElements->SetRnrState(kTRUE);
+      fMDTHitElements->SetRnrState(kTRUE);
 	    gStyle->SetPalette(-1);
 	    gEve->FullRedraw3D(kFALSE);
     } else {
@@ -762,6 +764,7 @@ namespace display
   fKaonHitElements->SetRnrState(kFALSE);
   fMuTagHitElements->SetRnrState(kFALSE);
   fMuSpectHitElements->SetRnrState(kFALSE);
+  fMDTHitElements->SetRnrState(kFALSE);
   fMuonSpectFitElements->SetRnrState(kFALSE);
 	if(!fIsolate->IsOn())
 	  fDetectorElements->SetRnrState(kTRUE);
@@ -803,6 +806,7 @@ namespace display
   fPionHitElements->SetRnrState(kFALSE);
   fMuTagHitElements->SetRnrState(kFALSE);
   fMuSpectHitElements->SetRnrState(kFALSE);
+  fMDTHitElements->SetRnrState(kFALSE);
   fMuonSpectFitElements->SetRnrState(kFALSE);
 	if(!fIsolate->IsOn())
 	  fDetectorElements->SetRnrState(kTRUE);
@@ -844,6 +848,7 @@ namespace display
   fKaonHitElements->SetRnrState(kFALSE);
   fMuTagHitElements->SetRnrState(kFALSE);
   fMuSpectHitElements->SetRnrState(kFALSE);
+  fMDTHitElements->SetRnrState(kFALSE);
   fMuonSpectFitElements->SetRnrState(kFALSE);
 	if(!fIsolate->IsOn())
 	  fDetectorElements->SetRnrState(kTRUE);
@@ -886,6 +891,7 @@ namespace display
       fRearMuCALElements->SetRnrState(kFALSE);
       fMuTagHitElements->SetRnrState(kFALSE);
       fMuSpectHitElements->SetRnrState(kFALSE);
+      fMDTHitElements->SetRnrState(kFALSE);
       fMuonSpectFitElements->SetRnrState(kFALSE);
       if(!fIsolate->IsOn())
 	fDetectorElements->SetRnrState(kTRUE);
@@ -963,13 +969,14 @@ namespace display
       fRearMuCALElements->SetRnrState(kFALSE);
       fMuTagHitElements->SetRnrState(kFALSE);
       fMuSpectHitElements->SetRnrState(kFALSE);
+      fMDTHitElements->SetRnrState(kFALSE);
       fMuonSpectFitElements->SetRnrState(kFALSE);
       if(!fIsolate->IsOn())
 	      fDetectorElements->SetRnrState(kTRUE);
       else
 	      fDetectorElements->SetRnrState(kFALSE);
- 	
-      fSecondaryHadShowerElements->SetRnrState(kTRUE);  
+
+      fSecondaryHadShowerElements->SetRnrState(kTRUE);
       gStyle->SetPalette(-1);
       gEve->FullRedraw3D(kFALSE);      
     } else {
@@ -1084,6 +1091,7 @@ namespace display
 	fPixelRecoTrackElements->SetRnrState(kFALSE);
 	fMuTagHitElements->SetRnrState(kFALSE);
   fMuSpectHitElements->SetRnrState(kFALSE);
+  fMDTHitElements->SetRnrState(kFALSE);
   fMuonSpectFitElements->SetRnrState(kFALSE);
 	if(!fIsolate->IsOn())
 	  fDetectorElements->SetRnrState(kTRUE);
@@ -1128,6 +1136,7 @@ namespace display
 	fVoxHitElements->SetRnrState(kFALSE);
 	fMuTagHitElements->SetRnrState(kFALSE);
   fMuSpectHitElements->SetRnrState(kFALSE);
+  fMDTHitElements->SetRnrState(kFALSE);
   fMuonSpectFitElements->SetRnrState(kFALSE);
 	if(!fIsolate->IsOn())
 	  fDetectorElements->SetRnrState(kTRUE);
@@ -2288,7 +2297,8 @@ void FaserCalDisplay::IdentifyTauDecayMode(const std::vector<std::pair<int, int>
        // added for muon spectrometer
        std::cout << "Start reconstruction of muon spectrometer..." << std::endl;
        //fPORecoEvent->ReconstructMuonSpectrometer_obs();
-       fPORecoEvent->ReconstructMuonSpectrometer();  
+       //fPORecoEvent->ReconstructMuonSpectrometer();  
+       fPORecoEvent->ReconstructMDT();
        //fPORecoEvent->ReconstructMuonSpectrometerKasaKalman();
 
       fPORecoEvent->ReconstructClusters(0);   
@@ -2834,7 +2844,7 @@ void FaserCalDisplay::DrawMCTruthVertexPoint()
                   //hitVolume->SetLineColor(kGreen); // muons
                   hitVolume->SetLineColorAlpha(kGreen,0.5); // muons
                   muonhit->AddNode(hitVolume,i,trans);
-                  std::cout << "muon voxel " << track->fPDG << " " << track->fparentID << " " << track->fprimaryID << " " << track->ftrackID << ""<< fCharmParentID << " " << fTauParentID << std::endl;
+                  //std::cout << "muon voxel " << track->fPDG << " " << track->fparentID << " " << track->fprimaryID << " " << track->ftrackID << ""<< fCharmParentID << " " << fTauParentID << std::endl;
                 }
                 else if(abs(track->fPDG) == 211){
                   hitVolume->SetLineColorAlpha(kOrange,0.5); // pions
@@ -2905,7 +2915,8 @@ void FaserCalDisplay::DrawMCTruthVertexPoint()
 
               // Debug: dump hit info for channelID=0 or invalid IDs
               //if (track->fhitIDs[i] <= 0) {
-               { std::cout << "[HIT DEBUG] ChannelID=" << track->fhitIDs[i] << " detected!" << std::endl;
+              #if 0 
+              { std::cout << "[HIT DEBUG] ChannelID=" << track->fhitIDs[i] << " detected!" << std::endl;
                 std::cout << "  Type      : " << hittype << std::endl;
                 std::cout << "  PDG       : " << track->fPDG << std::endl;
                 std::cout << "  TrackID   : " << track->ftrackID 
@@ -2916,7 +2927,7 @@ void FaserCalDisplay::DrawMCTruthVertexPoint()
                 std::cout << "  Position  : (" << position.X() << ", " 
                           << position.Y() << ", " << position.Z() << ") mm" << std::endl;
               }
-
+              #endif
               eveShape->SetUserData(info.get());
               fHitInfos.emplace_back(std::move(info));
               //eveShape->SetUserData((void*)&track);
@@ -3221,13 +3232,54 @@ void FaserCalDisplay::DrawMCTruthVertexPoint()
       }
     }
     // rearHCAL
+  ////////////////
+  /*
+  // for debugging, count hits and energy per layer
+  std::map<int, int> hcalLayerCount;
+  std::map<int, double> hcalLayerEdep;
+  for (const auto &it : fTcalEvent->rearHCalDeposit) {
+      int iz = (it.moduleID / 1000000LL) % 1000;
+      hcalLayerCount[iz]++;
+      hcalLayerEdep[iz] += it.energyDeposit;
+  }
+  std::cout << "\n[RearHCal DEBUG] nDeposits = "
+            << fTcalEvent->rearHCalDeposit.size() << std::endl;
+  std::cout << "[RearHCal DEBUG] nLayers = "
+            << fTcalEvent->geom_detector.rearHCalNlayer
+            << " pitch = " << fTcalEvent->geom_detector.rearHCalLayerPitch
+            << " length = " << fTcalEvent->geom_detector.rearHCalLength
+            << " scintCenter = "
+            << fTcalEvent->geom_detector.rearHCalScintCenterInLayer
+            << std::endl;
+  for (int iz = 0; iz < fTcalEvent->geom_detector.rearHCalNlayer; ++iz) {
+      std::cout << "[RearHCal DEBUG] layer " << iz
+                << " nHits=" << hcalLayerCount[iz]
+                << " E=" << hcalLayerEdep[iz]
+                << std::endl;
+  }
+  */
+///////////////
+
+
     for (const auto &it : fTcalEvent->rearHCalDeposit)
     {
       //if(it.energyDeposit < 0.25) continue; // skip small deposits
 	    ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZRearHCal(it.moduleID);
       //std::cout << "ïnside RearHCAL" << std::endl;
       //std::cout << position << " " << it.energyDeposit << std::endl;
-
+      /*
+      std::cout << "[RearHCal DRAW]"
+                << " moduleID=" << it.moduleID
+                << " ix=" << (it.moduleID % 1000)
+                << " iy=" << ((it.moduleID / 1000) % 1000)
+                << " iz=" << ((it.moduleID / 1000000LL) % 1000)
+                << " E=" << it.energyDeposit
+                << " pos=("
+                << position.X() << ", "
+                << position.Y() << ", "
+                << position.Z() << ")"
+                << std::endl;
+      */
       double rearHCalLayerPitch = fTcalEvent->geom_detector.rearHCalLayerPitch;
       double zBox = std::max(3.0, rearHCalLayerPitch);
       double dz   = zBox / 20.0;
@@ -3445,6 +3497,8 @@ void FaserCalDisplay::DrawMCTruthVertexPoint()
     //
     GetMuonSpectrometerInfo(bigbox, air, box);
     //
+    GetMDTInfo(bigbox, air, box);
+    //
     DrawMCTruthVertexPoint();
     //
     // Add all element lists to global scene only once
@@ -3464,6 +3518,7 @@ void FaserCalDisplay::DrawMCTruthVertexPoint()
       gEve->AddGlobalElement(fRearMuCALElements);
       gEve->AddGlobalElement(fMuSpectHitElements);
       gEve->AddGlobalElement(fMuonSpectFitElements);
+      gEve->AddGlobalElement(fMDTHitElements);
       fElementsAddedToScene = kTRUE;
     }
     //
@@ -3562,6 +3617,100 @@ void FaserCalDisplay::DrawMCTruthVertexPoint()
           }
       }
       fMuonSpectFitElements->AddElement(muonSpectFitList);
+    }
+  }
+  //////////////////////////////////////////////////////////
+  void FaserCalDisplay::GetMDTInfo(TGeoShape* bigbox, TGeoMedium* air, TGeoShape* box)
+  {
+    TGeoVolume* mdtVol = new TGeoVolume("MDTVol", bigbox, air);
+    TEveElementList* mdtHitList = new TEveElementList("MDTHitList");
+
+    // Check if MDT data exists
+    if (fTcalEvent->fMDTTracks.empty()) {
+      std::cout << " No MDT tracks in this event" << std::endl;
+      return;
+    }
+
+    std::cout << " ========== MDT Display: " << fTcalEvent->fMDTTracks.size() << " tracks ==========" << std::endl;
+    
+    int totalHits = 0;
+    // Loop through all MDT tracks
+    for (const auto& mdtTrack : fTcalEvent->fMDTTracks)
+    {
+      if (!mdtTrack) {
+        std::cout << "  WARNING: null MDT track pointer" << std::endl;
+        continue;
+      }
+      
+      std::cout << "MDT track info: "
+                << " TrackID=" << mdtTrack->ftrackID
+                << " PDG=" << mdtTrack->fPDG
+                << " Nhits=" << mdtTrack->pos.size()
+                << std::endl;
+      
+      // Loop through all hits in this track
+      for (size_t i = 0; i < mdtTrack->pos.size(); ++i)
+      {
+        const auto& position = mdtTrack->pos[i];
+        int stationID = mdtTrack->stationID[i];
+        int planeID = mdtTrack->planeID[i];
+        int tubeID = mdtTrack->tubeID[i];
+        double driftRadius = mdtTrack->driftRadius[i];
+        double driftTime = mdtTrack->driftTime[i];
+        
+        std::cout << "  Hit " << i 
+                  << " Station=" << stationID 
+                  << " Plane=" << planeID 
+                  << " Tube=" << tubeID
+                  << " pos=(" << position.x() << ", " << position.y() << ", " << position.z() << ") mm"
+                  << " R=" << driftRadius << " mm"
+                  << " t=" << driftTime << " ns"
+                  << std::endl;
+        
+        // Create visualization for MDT hit (cylinder for drift tube)
+        TGeoTranslation* trans = new TGeoTranslation(position.x()/10.0,
+                                                      position.y()/10.0,
+                                                      position.z()/10.0);
+        TGeoVolume* vol = new TGeoVolume("MDTHit", box, air);
+        
+        // Color code by station (station 1-4)
+        Color_t hitColor = kBlue + stationID;
+        if (abs(mdtTrack->fPDG) == 13) {
+          hitColor = kGreen + stationID;  // Green for muons
+        }
+        vol->SetLineColor(hitColor);
+        vol->SetLineColorAlpha(hitColor, 0.8);
+        
+        mdtVol->AddNode(vol, i, trans);
+        totalHits++;
+      }
+    }
+    
+    std::cout << " Total MDT hits added to display: " << totalHits << std::endl;
+    
+    // Convert TGeoVolume nodes to Eve shapes for display
+    if (mdtVol && mdtVol->GetNdaughters() > 0)
+    {
+      std::cout << " Converting " << mdtVol->GetNdaughters() << " MDT hits to Eve shapes" << std::endl;
+      for (int i = 0; i < mdtVol->GetNdaughters(); ++i) 
+      {
+        TGeoNode* node = mdtVol->GetNode(i);
+        if (!node) continue;
+        
+        TGeoVolume* vol = node->GetVolume();
+        TGeoTranslation* trans = dynamic_cast<TGeoTranslation*>(node->GetMatrix());
+        if (vol && trans) 
+        {
+          TEveGeoShape* eveShape = new TEveGeoShape(vol->GetName());
+          eveShape->SetShape(vol->GetShape());
+          eveShape->SetMainColor(vol->GetLineColor());
+          eveShape->SetTransMatrix(*trans);
+          eveShape->SetPickable(kTRUE);
+          mdtHitList->AddElement(eveShape);
+        }
+      }
+      fMDTHitElements->AddElement(mdtHitList);
+      std::cout << " ========== MDT Display: " << totalHits << " hits added ==========" << std::endl;
     }
   }
   //////////////////////////////////////////////////////////
@@ -4176,7 +4325,8 @@ void FaserCalDisplay::AnalyzeScintVoxelsAndLayerOccupancy(bool drawPlots, bool c
     const double vx = g.fScintillatorVoxelSize;
     const double sizX = g.fScintillatorSizeX;
     const double sizY = g.fScintillatorSizeY;
-    const double sizZ = g.fSandwichLength;  // thickness of one sandwich layer
+    const double sizZ = g.fScintillatorSizeZ;  // thickness of one sandwich layer
+    //const double sizZ = g.fSandwichLength;  // thickness of one sandwich layer
 
     const int Nx = static_cast<int>(std::lround(sizX / vx));
     const int Ny = static_cast<int>(std::lround(sizY / vx));

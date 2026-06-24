@@ -9,6 +9,24 @@
 #include <RKTrackRep.h>
 #include <Track.h>
 
+
+struct MDTMeas {
+    double x_mm;
+    double y_mm;
+    double z_mm;
+
+    double wireY_mm;
+    double wireZ_mm;
+    double r_meas_mm;
+    double r_true_mm;
+
+    int stationID;
+    int planeID;
+    int tubeID;
+    int side;
+};
+
+
 class TMuTrack : public TObject {
 public:
     int ftrackID;       // the unique track ID
@@ -47,7 +65,9 @@ public:
 
     /// @brief Use GenFit to fit the track
     void GenFitTrackFit(int verbose, double detectorResolutionPSmm);
-
+    bool GenFitMDTFit(const std::vector<MDTMeas>& meas, int pdg, double seedMomentumGeV = 10.0, int verbose = 0);
+    
+    
     // ////////    ///////////
     /// Fast circle fit (Taubin-style) in the bending plane (y-z) under Bx field
     /// Fills fpx,fpy,fpz,fp as a lightweight alternative to GenFit. Units:

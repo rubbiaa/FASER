@@ -13,6 +13,12 @@
 // ////////    ///////////
 // ////////    ///////////
 #include <FieldManager.h>
+
+#include <TGeoManager.h>
+#include <TGeoNode.h>
+#include <TGeoVolume.h>
+#include <TGeoMedium.h>
+#include <TGeoMaterial.h>
 // ////////    ///////////
 
 // in GenFit Momentum in GeV/c, length in cm and magnetic field in kGauss!
@@ -323,3 +329,243 @@ void TMuTrack::CircleFitTaubin(int verbose, double detectorResolutionPSmm) {
     }
 }
 // ////////    ///////////
+bool TMuTrack::GenFitMDTFit(const std::vector<MDTMeas>& meas,
+                            int pdg, 
+                            double seedMomentumGeV,
+                            int verbose)
+{
+    if (meas.size() < 5) {
+        std::cerr << "[GenFitMDTFit] not enough MDT measurements: " << meas.size() << std::endl;
+        return false;
+    }
+    // Sort measurements along z.
+    // This avoids relying on the input order.
+    std::vector<MDTMeas> sortedMeas = meas;
+    std::sort(sortedMeas.begin(), sortedMeas.end(),
+              [](const MDTMeas& a, const MDTMeas& b) {
+                  return a.z_mm < b.z_mm;
+              });
+
+    int fitPdg = pdg;
+    genfit::AbsTrackRep* rep = new genfit::RKTrackRep(fitPdg);
+
+    // Seed position: first measurement, in cm.
+    TVector3 p0(sortedMeas.front().x_mm / 10.0,
+                sortedMeas.front().y_mm / 10.0,
+                sortedMeas.front().z_mm / 10.0);
+
+    // Build a local straight seed from the first few hits, not from the full bent track.
+    const size_t nSeed = std::min<size_t>(8, sortedMeas.size());
+
+    double sumZ = 0.0, sumX = 0.0, sumY = 0.0;
+    double sumZZ = 0.0, sumZX = 0.0, sumZY = 0.0;
+    for (size_t i = 0; i < nSeed; ++i) {
+        const double z = sortedMeas[i].z_mm / 10.0; // cm
+        const double x = sortedMeas[i].x_mm / 10.0; // cm
+        const double y = sortedMeas[i].y_mm / 10.0; // cm
+
+        sumZ  += z;
+        sumX  += x;
+        sumY  += y;
+        sumZZ += z * z;
+        sumZX += z * x;
+        sumZY += z * y;
+    }
+
+    const double denom = nSeed * sumZZ - sumZ * sumZ;
+
+    double tx = 0.0; // dx/dz
+    double ty = 0.0; // dy/dz
+
+    if (std::fabs(denom) > 1e-12) {
+        tx = (nSeed * sumZX - sumZ * sumX) / denom;
+        ty = (nSeed * sumZY - sumZ * sumY) / denom;
+    } else {
+        std::cerr << "[GenFitMDTFit] bad seed line denominator" << std::endl;
+        delete rep;
+        return false;
+    }
+
+    // Since the particle goes mainly along +z:
+    TVector3 dir(tx, ty, 1.0);
+    if (dir.Mag() <= 0.0) {
+        std::cerr << "[GenFitMDTFit] bad seed direction" << std::endl;
+        delete rep;
+        return false;
+    }
+
+    dir = dir.Unit();
+
+    TVector3 momSeed = dir * seedMomentumGeV;
+
+    if (verbose > 0) {
+        std::cout << "[GenFitMDTFit] gGeoManager = " << gGeoManager << std::endl;
+        if (gGeoManager && gGeoManager->GetTopVolume()) {
+            std::cout << "[GenFitMDTFit] Geometry top volume = "
+                    << gGeoManager->GetTopVolume()->GetName()
+                    << std::endl;
+        }
+        auto* field = genfit::FieldManager::getInstance()->getField();
+        std::cout << "[GenFitMDTFit] Field pointer = " << field << std::endl;
+        for (const auto& m : meas) {
+            TVector3 pos_cm(m.x_mm/10.0, m.y_mm/10.0, m.z_mm/10.0);
+            TVector3 BkG = field ? field->get(pos_cm) : TVector3(0,0,0);
+            TGeoNode* node = nullptr;
+            const char* matName = "NULL";
+            if (gGeoManager) {
+                node = gGeoManager->FindNode(pos_cm.X(), pos_cm.Y(), pos_cm.Z());
+                if (node && node->GetVolume() && node->GetVolume()->GetMedium()) {
+                    matName = node->GetVolume()->GetMedium()->GetMaterial()->GetName();
+                }
+            }
+            std::cout << Form(
+                "[GenFitMDTFit] z=%+.1f mm  B=(%+.2f,%+.2f,%+.2f) kG  material=%s",
+                m.z_mm, BkG.X(), BkG.Y(), BkG.Z(), matName
+            ) << std::endl;
+        }
+    }
+
+    std::cout << "[GenFitMDTFit] seed p = " << momSeed.Mag() << " GeV\n";
+    std::cout << "[GenFitMDTFit] seed pos cm = "
+          << p0.X() << " "
+          << p0.Y() << " "
+          << p0.Z() << "\n";
+    std::cout << "[GenFitMDTFit] seed mom GeV = "
+          << momSeed.X() << " "
+          << momSeed.Y() << " "
+          << momSeed.Z() << "\n";
+
+    // create track
+    genfit::Track* trk = new genfit::Track(rep, p0, momSeed);
+    // Measurement covariance.
+    //
+    // For Bx field, bending is in y(z).
+    // y is the precision coordinate.
+    // x is along the tube/wire direction and should be weakly constrained.    const double sigmaDriftMm = 0.080;
+    const double sigmaDriftMm = 0.080;       // MDT precision, 80 um
+    const double sigmaY_cm = 0.1; //sigmaDriftMm / 10.0;
+    const double sigmaX_cm = 10.0;          // very weak x constraint
+
+    TMatrixDSym cov(2);
+    cov.Zero();
+    cov(0,0) = sigmaX_cm * sigmaX_cm; // x is along the tube/wire direction, weakly constrained
+    cov(1,1) = sigmaY_cm * sigmaY_cm; // y is the precision coordinate, strongly constrained
+
+    for (size_t i = 0; i < sortedMeas.size(); ++i) {
+        TVectorD hitCoords(2);
+
+        // Local plane coordinates:
+        // coordinate 0 -> x, weak
+        // coordinate 1 -> y, precision/bending coordinate
+        hitCoords[0] = sortedMeas[i].x_mm / 10.0;
+        hitCoords[1] = sortedMeas[i].y_mm / 10.0;
+
+        auto* measurement = new genfit::PlanarMeasurement(
+            hitCoords, cov, 0, static_cast<int>(i), nullptr);
+
+        genfit::SharedPlanePtr plane(new genfit::DetPlane(
+            TVector3(0.0, 0.0, sortedMeas[i].z_mm / 10.0),
+            TVector3(1.0, 0.0, 0.0),   // local u = global x
+            TVector3(0.0, 1.0, 0.0)    // local v = global y
+        ));
+
+        measurement->setPlane(plane, static_cast<int>(i));
+        trk->insertPoint(new genfit::TrackPoint(measurement, trk));
+    }
+    trk->checkConsistency();
+
+    auto* field = genfit::FieldManager::getInstance()->getField();
+
+    if (verbose > 0 && field) {
+        std::cout << "\n[GenFitMDTFit] Field scan between first and last MDT hits\n";
+
+        const double x_cm = p0.X();
+        const double y_cm = p0.Y();
+        const double zMin_cm = sortedMeas.front().z_mm / 10.0;
+        const double zMax_cm = sortedMeas.back().z_mm  / 10.0;
+
+        for (double z_cm = zMin_cm; z_cm <= zMax_cm; z_cm += 5.0) {
+            TVector3 pos_cm(x_cm, y_cm, z_cm);
+            TVector3 BkG = field->get(pos_cm);
+
+            if (std::fabs(BkG.X()) > 1e-3 ||
+                std::fabs(BkG.Y()) > 1e-3 ||
+                std::fabs(BkG.Z()) > 1e-3) {
+                std::cout << Form(
+                    "[GenFitMDTFit] FIELD z=%+.1f cm  B=(%+.3f,%+.3f,%+.3f) kG",
+                    z_cm, BkG.X(), BkG.Y(), BkG.Z()
+                ) << std::endl;
+            }
+        }
+        std::cout << "[GenFitMDTFit] End field scan\n\n";
+    }
+
+    // init fitter
+    // Use KalmanFitterRefTrack for reference track fitting
+    genfit::KalmanFitterRefTrack fitter;
+    fitter.setMaxIterations(50);
+    fitter.setRelChi2Change(1e-4);
+
+    try {
+        //fitter.processTrack(trk);
+        fitter.processTrackWithRep(trk, rep);
+    }
+    catch (genfit::Exception& e) {
+        std::cerr << "[GenFitMDTFit] GenFit exception: "
+                  << e.what() << std::endl;
+        delete trk;
+        return false;
+    }
+    // Check fit status
+    genfit::FitStatus* status = trk->getFitStatus(rep);
+
+    if (!status || !status->isFitConverged()) {
+        std::cerr << "[GenFitMDTFit] fit did not converge" << std::endl;
+        delete trk;
+        return false;
+    }
+    // Extract fitted state at the first measurement
+    genfit::MeasuredStateOnPlane state = trk->getFittedState();
+    TVector3 pfit = state.getMom();
+    fpx = pfit.X();
+    fpy = pfit.Y();
+    fpz = pfit.Z();
+    fp  = pfit.Mag();
+    fcharge = state.getCharge();
+    fchi2   = status->getChi2();
+    fnDoF   = status->getNdf();
+    fpval   = status->getPVal();
+    fitTrack = trk;
+
+    fpos.clear();
+    layerID.clear();
+    for (const auto& m : sortedMeas) {
+        fpos.emplace_back(m.x_mm, m.y_mm, m.z_mm);
+        layerID.push_back(
+            m.stationID * 10000
+          + m.planeID   * 1000
+          + m.tubeID
+        );
+    }
+    if (verbose) {
+        std::cout << "[GenFitMDTFit] fitted momentum:"
+                  << " px=" << fpx
+                  << " py=" << fpy
+                  << " pz=" << fpz
+                  << " p="  << fp
+                  << " q="  << fcharge
+                  << std::endl;
+
+        std::cout << "[GenFitMDTFit] fitted slopes:"
+                  << " dx/dz=" << fpx / fpz
+                  << " dy/dz=" << fpy / fpz
+                  << std::endl;
+    }
+
+    return true;
+}
+
+
+
+
+

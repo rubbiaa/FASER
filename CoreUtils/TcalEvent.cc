@@ -7,8 +7,9 @@
 #include <TGeoBBox.h>
 
 ClassImp(TcalEvent)
+ClassImp(MDTTrack)
 
-TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fMuTagTracks() , fTPOEvent(nullptr), m_rootFile(nullptr)
+TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fMuTagTracks(), fMDTTracks(), fTPOEvent(nullptr), m_rootFile(nullptr)
 {
     geom_detector = {0};
     rearCalDeposit = {};
@@ -45,7 +46,7 @@ TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fMuTagTracks() ,
         throw std::runtime_error("Could not find DetectorAssembly TGeoNode");
     }
 
-    // now iterate over all nodes to find rearHCal node
+    // now iterate over all nodes to find rearHCal, rearCal, and FASERCal Container nodes
     ndaughters = fdetectorAssemblyTGeomNode->GetNdaughters();
     for(int i=0; i<ndaughters; i++) {
         TGeoNode *dnode = fdetectorAssemblyTGeomNode->GetDaughter(i);
@@ -59,6 +60,22 @@ TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fMuTagTracks() ,
             TGeoMatrix *matrix = dnode->GetMatrix();
             //matrix->Print();
         }
+        if(fFaserCalTGeomNode == nullptr && name.find("Container")!=std::string::npos) {
+            fFaserCalTGeomNode = dnode;
+            TGeoMatrix *matrix = dnode->GetMatrix();
+            std::cout << "  Found FASERCal Container node!" << std::endl;
+            //matrix->Print();
+        }
+        if(frearMuSpectTGeomNode == nullptr && name.find("MDTContainer")!=std::string::npos) {
+            frearMuSpectTGeomNode = dnode;
+            TGeoMatrix *matrix = dnode->GetMatrix();
+            std::cout << "  Found MDT Container node!" << std::endl;
+            //matrix->Print();
+        }
+    }
+    // check if found FASERCal Container node
+    if(fFaserCalTGeomNode == nullptr) {
+        std::cerr << "WARNING: Could not find FASERCal Container TGeoNode in Geometry" << std::endl;
     }
     // check if found rearHCal node (optional - may not be present in prototype geometry)
     if(frearHCalTGeomNode == nullptr) {
@@ -106,6 +123,7 @@ TcalEvent::TcalEvent(int run_number, long event_number, int event_mask) : TcalEv
     m_calEventTree->Branch("tracks", &fTracks);
     m_calEventTree->Branch("magnetracks", &fMagnetTracks);
     m_calEventTree->Branch("mutagtracks", &fMuTagTracks);
+    m_calEventTree->Branch("mdttracks", &fMDTTracks);
     m_calEventTree->Branch("event", &fTPOEvent);    // this should be labelled POEvent !
     m_calEventTree->Branch("geom", &geom_detector);
     m_calEventTree->Branch("rearcal", &rearCalDeposit);
@@ -203,6 +221,12 @@ int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
     std::vector<MuTagTrack*> *mut = &fMuTagTracks;
     event_tree->SetBranchAddress("mutagtracks", &mut);
 
+    std::vector<MDTTrack*> *mdt = &fMDTTracks;
+    if (event_tree->GetBranch("mdttracks")) {
+        event_tree->SetBranchAddress("mdttracks", &mdt);
+    } else {
+        std::cerr << "WARNING: branch mdttracks not found in file" << std::endl;
+    }
 //    const TPOEvent *POevent = new TPOEvent();
     event_tree -> SetBranchAddress("event", &POevent);
 //    fTPOEvent = const_cast<TPOEvent*>(POevent);
@@ -376,37 +400,38 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZfromID(long ID) const
         long iz = (ID / 1000000) % 1000;
         long ilayer = (ID / 1000000000);
 
+
         double x = ix * geom_detector.fScintillatorVoxelSize - geom_detector.fScintillatorSizeX / 2.0
             + geom_detector.fScintillatorVoxelSize/2.0;
         double y = iy * geom_detector.fScintillatorVoxelSize - geom_detector.fScintillatorSizeY / 2.0
             + geom_detector.fScintillatorVoxelSize/2.0;
-        // i needed to comment the following lines to match the positions correctly
-        x += geom_detector.fFASERCal_LOS_shiftX + geom_detector.fThreeD_CAL_shiftX;
-        y += geom_detector.fFASERCal_LOS_shiftY + geom_detector.fThreeD_CAL_shiftY;
         double z = getZofLayer(ilayer, iz);
-         ROOT::Math::XYZVector localPos(x, y, z);
-        return ApplyYRotationWithTGeo(localPos, geom_detector.fTiltAngleY /*rad*/, 0.0, 0.0, 0.0);
-    } else if (hittype == 1) {
 
-        long ix = ID % 10000;
-        long iy = (ID / 10000) % 10000;
-        long ilayer = (ID / 100000000) % 100;
-        long icopy = (ID / 10000000000LL) % 10;
-        double x = ix * geom_detector.fSiTrackerPixelSize - geom_detector.fScintillatorSizeX / 2.0;
-        double y = iy * geom_detector.fSiTrackerPixelSize - geom_detector.fScintillatorSizeY / 2.0;
-        // i needed to comment the following lines to match the positions correctly
-        x += geom_detector.fFASERCal_LOS_shiftX + geom_detector.fThreeD_CAL_shiftX;
-        y += geom_detector.fFASERCal_LOS_shiftY + geom_detector.fThreeD_CAL_shiftY;
-        double z = ilayer * geom_detector.fSandwichLength + geom_detector.fSandwichLength
-            - (geom_detector.NRep * geom_detector.fSandwichLength) / 2.0;
-        if(icopy == 1) z -= geom_detector.fAirGap;
-        
+        //x += geom_detector.fFASERCal_LOS_shiftX + geom_detector.fThreeD_CAL_shiftX;
+        //y += geom_detector.fFASERCal_LOS_shiftY + geom_detector.fThreeD_CAL_shiftY;
+         
         ROOT::Math::XYZVector localPos(x, y, z);
-        return ApplyYRotationWithTGeo(localPos, geom_detector.fTiltAngleY /*rad*/, 0.0, 0.0, 0.0);
-    } else {
-        std::cerr << " TcalEvent::getChannelXYZfromID - hit of unknown type" << hittype << std::endl;
-        return ROOT::Math::XYZVector(0,0,0);
+
+        if (fFaserCalTGeomNode && fdetectorAssemblyTGeomNode) {
+            TGeoMatrix* matrix = fFaserCalTGeomNode->GetMatrix();
+            double local[3] = { localPos.X() / 10.0, localPos.Y() / 10.0, localPos.Z() / 10.0 };
+            double detLocal[3] = {0, 0, 0};
+            matrix->LocalToMaster(local, detLocal);
+            TGeoMatrix* parentMatrix = fdetectorAssemblyTGeomNode->GetMatrix();
+            double world[3] = {0, 0, 0};
+            parentMatrix->LocalToMaster(detLocal, world);
+
+            return ROOT::Math::XYZVector(world[0] * 10.0, world[1] * 10.0, world[2] * 10.0
+            );
+    
+        }
+        std::cerr << "TcalEvent::getChannelXYZfromID - TGeoNode for FASERCal or DetectorAssembly is null" << std::endl;
+        return localPos;
+    
     }
+    std::cerr << " TcalEvent::getChannelXYZfromID - hit of unknown type" << hittype << std::endl;
+    return ROOT::Math::XYZVector(0,0,0);
+    
 }
 
 ROOT::Math::XYZVector TcalEvent::getChannelXYZRearCal(int moduleID) const {
@@ -561,14 +586,52 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZRearHCal(int moduleID) const
     TGeoMatrix *worldMatrix = fdetectorAssemblyTGeomNode->GetMatrix();
    // worldMatrix->Inverse();
     worldMatrix->Print(); **/
-    double assembly_local[3] = {hcal_global[0], hcal_global[1], hcal_global[2]}; // Convert mm to cm for TGeo
-    double assembly_global[3] = {assembly_local[0], assembly_local[1], assembly_local[2]};
+    //double assembly_local[3] = {hcal_global[0], hcal_global[1], hcal_global[2]}; // Convert mm to cm for TGeo
+    //double assembly_global[3] = {assembly_local[0], assembly_local[1], assembly_local[2]};
     //worldMatrix->LocalToMaster(assembly_local, assembly_global);
 
-    ROOT::Math::XYZVector worldGlobalPos(assembly_global[0] * 10.0, assembly_global[1] * 10.0, assembly_global[2] * 10.0);
+    //ROOT::Math::XYZVector worldGlobalPos(assembly_global[0] * 10.0, assembly_global[1] * 10.0, assembly_global[2] * 10.0);
 
-    return worldGlobalPos;
+    //return worldGlobalPos;
+    return finalGlobalPos;
 }
+
+ROOT::Math::XYZVector
+TcalEvent::GlobalToMDTLocal(const ROOT::Math::XYZVector& pGlobal) const
+{
+    if (!frearMuSpectTGeomNode) {
+        std::cerr << "[GlobalToMDTLocal] ERROR: frearMuSpectTGeomNode is null\n";
+        return pGlobal;
+    }
+
+    const TGeoMatrix* mat = frearMuSpectTGeomNode->GetMatrix();
+
+    double global[3] = {pGlobal.X(), pGlobal.Y(), pGlobal.Z()};
+    double local[3]  = {0., 0., 0.};
+
+    mat->MasterToLocal(global, local);
+
+    return ROOT::Math::XYZVector(local[0], local[1], local[2]);
+}
+
+ROOT::Math::XYZVector
+TcalEvent::MDTLocalToGlobal(const ROOT::Math::XYZVector& pLocal) const
+{
+    if (!frearMuSpectTGeomNode) {
+        std::cerr << "[MDTLocalToGlobal] ERROR: frearMuSpectTGeomNode is null\n";
+        return pLocal;
+    }
+
+    const TGeoMatrix* mat = frearMuSpectTGeomNode->GetMatrix();
+
+    double local[3]  = {pLocal.X(), pLocal.Y(), pLocal.Z()};
+    double global[3] = {0., 0., 0.};
+
+    mat->LocalToMaster(local, global);
+
+    return ROOT::Math::XYZVector(global[0], global[1], global[2]);
+}
+
 
 void TcalEvent::fillTree()
 {

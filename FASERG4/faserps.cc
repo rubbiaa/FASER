@@ -18,6 +18,7 @@
 
 #include "TFile.h"
 #include "TH2F.h"
+#include <cstring>
 
 
 int main(int argc, char** argv)
@@ -31,7 +32,7 @@ int main(int argc, char** argv)
 	// Detect interactive mode (if no arguments) and define UI session
 
 	G4UIExecutive* ui = nullptr;
-	if (argv[1] == "vis") {
+	if (strcmp(argv[1], "vis") == 0) {
 		ui = new G4UIExecutive(argc - 1, argv);
 	}
 

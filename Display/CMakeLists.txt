@@ -16,8 +16,8 @@ include_directories(${ROOT_INCLUDE_DIRS})
 add_definitions(-Wno-deprecated-declarations)
 
 # ======== GenFit Configuration ========
-set(GENFITINCDIR /Users/ukose/sw/kits/GenFit-install/include)
-set(GENFITLIBDIR /Users/ukose/sw/kits/GenFit-install/lib)
+set(GENFITINCDIR /eos/user/u/ukose/FASERCAL/sw/kits/FASER/GenFit-install/include)
+set(GENFITLIBDIR /eos/user/u/ukose/FASERCAL/sw/kits/FASER/GenFit-install/lib)
 
 include_directories(${GENFITINCDIR})
 link_directories(${GENFITLIBDIR})
