@@ -8,6 +8,10 @@
 #include <PlanarMeasurement.h>
 #include <KalmanFitterRefTrack.h>
 #include <FitStatus.h>
+#include <MeasuredStateOnPlane.h>
+#include <FieldManager.h>
+#include <MaterialEffects.h>
+#include <Exception.h>
 // ////////    ///////////
 #include <cstdlib> // getenv for MS_FORCE_SEED_10GEV toggle
 // ////////    ///////////
@@ -328,14 +332,15 @@ void TMuTrack::CircleFitTaubin(int verbose, double detectorResolutionPSmm) {
                   << ", q= " << fcharge << std::endl;
     }
 }
-// ////////    ///////////
+/////////////////////////////////////////////////
 bool TMuTrack::GenFitMDTFit(const std::vector<MDTMeas>& meas,
                             int pdg, 
                             double seedMomentumGeV,
                             int verbose)
 {
     if (meas.size() < 5) {
-        std::cerr << "[GenFitMDTFit] not enough MDT measurements: " << meas.size() << std::endl;
+        if (verbose > 0)
+            std::cerr << "[GenFitMDTFit] not enough MDT measurements: " << meas.size() << std::endl;
         return false;
     }
     // Sort measurements along z.
@@ -343,62 +348,115 @@ bool TMuTrack::GenFitMDTFit(const std::vector<MDTMeas>& meas,
     std::vector<MDTMeas> sortedMeas = meas;
     std::sort(sortedMeas.begin(), sortedMeas.end(),
               [](const MDTMeas& a, const MDTMeas& b) {
-                  return a.z_mm < b.z_mm;
+                  return a.localZ_mm < b.localZ_mm;
               });
 
-    int fitPdg = pdg;
-    genfit::AbsTrackRep* rep = new genfit::RKTrackRep(fitPdg);
+// Globalized MDT-local axes from first hit.
+    TVector3 mdtU(sortedMeas.front().uX, sortedMeas.front().uY, sortedMeas.front().uZ); // local Y, measured coordinate
+    TVector3 mdtV(sortedMeas.front().vX, sortedMeas.front().vY, sortedMeas.front().vZ); // local X, wire direction
+    TVector3 mdtW(sortedMeas.front().wX, sortedMeas.front().wY, sortedMeas.front().wZ); // local Z, downstream
 
-    // Seed position: first measurement, in cm.
-    TVector3 p0(sortedMeas.front().x_mm / 10.0,
-                sortedMeas.front().y_mm / 10.0,
-                sortedMeas.front().z_mm / 10.0);
+    if (mdtU.Mag() > 0.0) mdtU = mdtU.Unit();
+    if (mdtV.Mag() > 0.0) mdtV = mdtV.Unit();
+    if (mdtW.Mag() > 0.0) mdtW = mdtW.Unit();
+    // Orthogonalize for numerical safety.
+    mdtV = mdtV - mdtU * mdtU.Dot(mdtV);
 
-    // Build a local straight seed from the first few hits, not from the full bent track.
-    const size_t nSeed = std::min<size_t>(8, sortedMeas.size());
+    if (mdtV.Mag() > 0.0) mdtV = mdtV.Unit();
 
-    double sumZ = 0.0, sumX = 0.0, sumY = 0.0;
-    double sumZZ = 0.0, sumZX = 0.0, sumZY = 0.0;
-    for (size_t i = 0; i < nSeed; ++i) {
-        const double z = sortedMeas[i].z_mm / 10.0; // cm
-        const double x = sortedMeas[i].x_mm / 10.0; // cm
-        const double y = sortedMeas[i].y_mm / 10.0; // cm
+    mdtW = mdtW - mdtU * mdtU.Dot(mdtW) - mdtV * mdtV.Dot(mdtW);
 
-        sumZ  += z;
-        sumX  += x;
-        sumY  += y;
-        sumZZ += z * z;
-        sumZX += z * x;
-        sumZY += z * y;
-    }
+    if (mdtW.Mag() > 0.0) mdtW = mdtW.Unit();
+    else mdtW = mdtU.Cross(mdtV).Unit();
 
-    const double denom = nSeed * sumZZ - sumZ * sumZ;
+    // Seed position: arbitrary point on first measured MDT line.
+    // Important point: local X is unmeasured.
+    TVector3 posSeed(sortedMeas.front().x_mm * 0.1,
+                     sortedMeas.front().y_mm * 0.1,
+                     sortedMeas.front().z_mm * 0.1); // cm
 
-    double tx = 0.0; // dx/dz
-    double ty = 0.0; // dy/dz
+    // Seed direction from measured local Y-Z trajectory.
+    // No local-X information exists, so assume dx_local/dz_local = 0.
+    const double dy_mm = sortedMeas.back().localY_mm - sortedMeas.front().localY_mm;
+    const double dz_mm = sortedMeas.back().localZ_mm - sortedMeas.front().localZ_mm;
 
-    if (std::fabs(denom) > 1e-12) {
-        tx = (nSeed * sumZX - sumZ * sumX) / denom;
-        ty = (nSeed * sumZY - sumZ * sumY) / denom;
+    TVector3 dirGlobal;
+
+    if (std::fabs(dy_mm) > 1.0e-12 || std::fabs(dz_mm) > 1.0e-12) { 
+        dirGlobal = mdtU * dy_mm + mdtW * dz_mm;
+        if (dirGlobal.Mag() > 0.0)
+            dirGlobal = dirGlobal.Unit();
+        else
+            dirGlobal = mdtW;
     } else {
-        std::cerr << "[GenFitMDTFit] bad seed line denominator" << std::endl;
-        delete rep;
-        return false;
+        dirGlobal = mdtW;
     }
 
-    // Since the particle goes mainly along +z:
-    TVector3 dir(tx, ty, 1.0);
-    if (dir.Mag() <= 0.0) {
-        std::cerr << "[GenFitMDTFit] bad seed direction" << std::endl;
-        delete rep;
-        return false;
-    }
+    const double pSeed =
+        (seedMomentumGeV > 0.0 && std::isfinite(seedMomentumGeV))
+      ? seedMomentumGeV
+      : 10.0;
 
-    dir = dir.Unit();
-
-    TVector3 momSeed = dir * seedMomentumGeV;
+    TVector3 momSeed = dirGlobal * pSeed;
 
     if (verbose > 0) {
+        std::cout << "[GenFitMDTFit] seed pos cm = "
+                  << posSeed.X() << " "
+                  << posSeed.Y() << " "
+                  << posSeed.Z() << "\n";
+
+        std::cout << "[GenFitMDTFit] seed direction global = "
+                  << dirGlobal.X() << " "
+                  << dirGlobal.Y() << " "
+                  << dirGlobal.Z() << "\n";
+
+        std::cout << "[GenFitMDTFit] seed momentum GeV = "
+                  << momSeed.X() << " "
+                  << momSeed.Y() << " "
+                  << momSeed.Z()
+                  << " |p|=" << momSeed.Mag() << "\n";
+
+        std::cout << "[GenFitMDTFit] MDT axes global:\n"
+                  << "  U/localY/measured = ("
+                  << mdtU.X() << ", "
+                  << mdtU.Y() << ", "
+                  << mdtU.Z() << ")\n"
+                  << "  V/localX/wire     = ("
+                  << mdtV.X() << ", "
+                  << mdtV.Y() << ", "
+                  << mdtV.Z() << ")\n"
+                  << "  W/localZ/downstr. = ("
+                  << mdtW.X() << ", "
+                  << mdtW.Y() << ", "
+                  << mdtW.Z() << ")\n";
+    }
+
+    genfit::AbsTrackRep* rep = new genfit::RKTrackRep(pdg);
+
+    /*
+    // Calculate average wire X position for field propagation
+    // We need GenFit to propagate through the magnet volumes (at wire X),
+    // but measurements should only constrain Y (from drift), not X position
+    double avgWireX_cm = 0.0;
+    for (const auto& m : sortedMeas) {
+        avgWireX_cm += m.wireX_mm;
+    }
+    avgWireX_cm = (avgWireX_cm / sortedMeas.size()) * 0.1;  // Convert to cm
+    
+    double seedX_cm = avgWireX_cm;                    // Average wire X for field propagation
+    double seedY_cm = sortedMeas[0].y_mm * 0.1;       // Resolved hit Y
+    double seedZ_cm = sortedMeas[0].wireZ_mm * 0.1;   // Wire center Z
+
+    TVector3 posSeed(seedX_cm, seedY_cm, seedZ_cm);
+
+    // Use FIXED 10 GeV seed (more stable than analytic 60 GeV)
+    TVector3 momSeed(0.0, 0.0, 10.0);  // Fixed 10 GeV along +Z
+    
+    if (verbose > 0) {
+        std::cout << "[GenFitMDTFit] Average wire X = " << avgWireX_cm << " cm\n";
+    }
+
+    if (verbose > 1) {
         std::cout << "[GenFitMDTFit] gGeoManager = " << gGeoManager << std::endl;
         if (gGeoManager && gGeoManager->GetTopVolume()) {
             std::cout << "[GenFitMDTFit] Geometry top volume = "
@@ -407,7 +465,7 @@ bool TMuTrack::GenFitMDTFit(const std::vector<MDTMeas>& meas,
         }
         auto* field = genfit::FieldManager::getInstance()->getField();
         std::cout << "[GenFitMDTFit] Field pointer = " << field << std::endl;
-        for (const auto& m : meas) {
+        for (const auto& m : sortedMeas) {
             TVector3 pos_cm(m.x_mm/10.0, m.y_mm/10.0, m.z_mm/10.0);
             TVector3 BkG = field ? field->get(pos_cm) : TVector3(0,0,0);
             TGeoNode* node = nullptr;
@@ -424,122 +482,254 @@ bool TMuTrack::GenFitMDTFit(const std::vector<MDTMeas>& meas,
             ) << std::endl;
         }
     }
-
-    std::cout << "[GenFitMDTFit] seed p = " << momSeed.Mag() << " GeV\n";
-    std::cout << "[GenFitMDTFit] seed pos cm = "
-          << p0.X() << " "
-          << p0.Y() << " "
-          << p0.Z() << "\n";
-    std::cout << "[GenFitMDTFit] seed mom GeV = "
-          << momSeed.X() << " "
-          << momSeed.Y() << " "
-          << momSeed.Z() << "\n";
-
-    // create track
-    genfit::Track* trk = new genfit::Track(rep, p0, momSeed);
-    // Measurement covariance.
-    //
-    // For Bx field, bending is in y(z).
-    // y is the precision coordinate.
-    // x is along the tube/wire direction and should be weakly constrained.    const double sigmaDriftMm = 0.080;
-    const double sigmaDriftMm = 0.080;       // MDT precision, 80 um
-    const double sigmaY_cm = 0.1; //sigmaDriftMm / 10.0;
-    const double sigmaX_cm = 10.0;          // very weak x constraint
-
-    TMatrixDSym cov(2);
-    cov.Zero();
-    cov(0,0) = sigmaX_cm * sigmaX_cm; // x is along the tube/wire direction, weakly constrained
-    cov(1,1) = sigmaY_cm * sigmaY_cm; // y is the precision coordinate, strongly constrained
-
-    for (size_t i = 0; i < sortedMeas.size(); ++i) {
-        TVectorD hitCoords(2);
-
-        // Local plane coordinates:
-        // coordinate 0 -> x, weak
-        // coordinate 1 -> y, precision/bending coordinate
-        hitCoords[0] = sortedMeas[i].x_mm / 10.0;
-        hitCoords[1] = sortedMeas[i].y_mm / 10.0;
-
-        auto* measurement = new genfit::PlanarMeasurement(
-            hitCoords, cov, 0, static_cast<int>(i), nullptr);
-
-        genfit::SharedPlanePtr plane(new genfit::DetPlane(
-            TVector3(0.0, 0.0, sortedMeas[i].z_mm / 10.0),
-            TVector3(1.0, 0.0, 0.0),   // local u = global x
-            TVector3(0.0, 1.0, 0.0)    // local v = global y
-        ));
-
-        measurement->setPlane(plane, static_cast<int>(i));
-        trk->insertPoint(new genfit::TrackPoint(measurement, trk));
+    if (verbose > 0) {
+        std::cout << "[GenFitMDTFit] seed pos cm = "
+                  << posSeed.X() << " "
+                  << posSeed.Y() << " "
+                  << posSeed.Z() << "\n";
+        std::cout << "[GenFitMDTFit] seed mom GeV = "
+                  << momSeed.X() << " "
+                  << momSeed.Y() << " "
+                  << momSeed.Z() << "\n";
+        std::cout << "[GenFitMDTFit] First hit: y_mm=" << sortedMeas[0].y_mm 
+                  << " wireZ_mm=" << sortedMeas[0].wireZ_mm 
+                  << " z_mm=" << sortedMeas[0].z_mm << "\n";
     }
-    trk->checkConsistency();
+*/
+    // Pack the parameters into GenFit's combined 6D TVectorD seed state vector
+    TVectorD stateSeed(6);
+    stateSeed(0) = posSeed.X(); 
+    stateSeed(1) = posSeed.Y(); 
+    stateSeed(2) = posSeed.Z();
+    stateSeed(3) = momSeed.X(); 
+    stateSeed(4) = momSeed.Y(); 
+    stateSeed(5) = momSeed.Z();
 
-    auto* field = genfit::FieldManager::getInstance()->getField();
+    // Configure the prior 6x6 uncertainty covariance state constraint matrix
+    TMatrixDSym covSeed(6);
+    covSeed.Zero();
+    // Position covariance.
+    // MDT measures local Y, knows local Z plane, but does not measure local X.
+    const double sigmaU_cm = 0.2;   // local Y seed uncertainty
+    const double sigmaW_cm = 0.2;   // local Z seed uncertainty
+    const double sigmaV_cm = 30.0;  // local X/wire uncertainty; large
 
-    if (verbose > 0 && field) {
-        std::cout << "\n[GenFitMDTFit] Field scan between first and last MDT hits\n";
-
-        const double x_cm = p0.X();
-        const double y_cm = p0.Y();
-        const double zMin_cm = sortedMeas.front().z_mm / 10.0;
-        const double zMax_cm = sortedMeas.back().z_mm  / 10.0;
-
-        for (double z_cm = zMin_cm; z_cm <= zMax_cm; z_cm += 5.0) {
-            TVector3 pos_cm(x_cm, y_cm, z_cm);
-            TVector3 BkG = field->get(pos_cm);
-
-            if (std::fabs(BkG.X()) > 1e-3 ||
-                std::fabs(BkG.Y()) > 1e-3 ||
-                std::fabs(BkG.Z()) > 1e-3) {
-                std::cout << Form(
-                    "[GenFitMDTFit] FIELD z=%+.1f cm  B=(%+.3f,%+.3f,%+.3f) kG",
-                    z_cm, BkG.X(), BkG.Y(), BkG.Z()
-                ) << std::endl;
+    auto addPosCov = [&](const TVector3& axis, double sigma_cm) {
+        const double a[3] = { axis.X(), axis.Y(), axis.Z() };
+        for (int i = 0; i < 3; ++i) {
+            for (int j = 0; j < 3; ++j) {
+                covSeed(i,j) +=
+                    sigma_cm * sigma_cm * a[i] * a[j];
             }
         }
-        std::cout << "[GenFitMDTFit] End field scan\n\n";
-    }
+    };
+    addPosCov(mdtU, sigmaU_cm);
+    addPosCov(mdtV, sigmaV_cm);
+    addPosCov(mdtW, sigmaW_cm);
+    // Momentum covariance.
+    // Keep this broad enough for Kalman convergence.
+    const double momSigma = std::max(10.0, 0.5 * pSeed);
+    covSeed(3,3) = momSigma * momSigma;
+    covSeed(4,4) = momSigma * momSigma;
+    covSeed(5,5) = momSigma * momSigma;
 
-    // init fitter
-    // Use KalmanFitterRefTrack for reference track fitting
-    genfit::KalmanFitterRefTrack fitter;
-    fitter.setMaxIterations(50);
+    // // Instantiate the GenFit master track container layout
+    genfit::Track fitTrack(rep, stateSeed, covSeed);
+    
+    const double sigma_MDT_cm = 0.080 * 0.1; // 80 microns = 0.008 cm
+    const int detId = 0; // detector ID for MDT
+    int hitCounter = 0;
+
+    for (const auto& hit : sortedMeas) {
+        // Plane origin is an arbitrary point on the measured line.
+        // The coordinate along local X/wire is unmeasured.
+        TVector3 planeOrigin(hit.x_mm * 0.1, hit.y_mm * 0.1, hit.z_mm * 0.1); // cm
+        TVector3 U_direction(hit.uX, hit.uY, hit.uZ); // measured local Y
+        TVector3 V_direction(hit.vX, hit.vY, hit.vZ); // free local X/wire
+
+        if (U_direction.Mag() > 0.0) U_direction = U_direction.Unit();
+        V_direction = V_direction - U_direction * U_direction.Dot(V_direction);
+        if (V_direction.Mag() > 0.0)
+            V_direction = V_direction.Unit();
+        else
+            V_direction = mdtV;
+        
+        genfit::SharedPlanePtr measurementPlane(
+            new genfit::DetPlane(planeOrigin,
+                                 U_direction,
+                                 V_direction)
+        );
+        // MDT measurement:
+        //   U direction = local Y, measured precisely by drift radius.
+        //   V direction = local X, tube/wire axis, NOT measured.
+        // We include V with a very large uncertainty only to regularize GenFit.
+        // This is not truth information.
+        const double sigmaU_cm = 0.080 * 0.1;  // 80 um = 0.008 cm
+        const double sigmaV_cm = 50.0;         // 50 cm weak constraint along tube
+        TVectorD hitCoords(2);
+        hitCoords(0) = 0.0;       
+        hitCoords(1) = 0.0;
+
+        TMatrixDSym hitCov(2);
+        hitCov.Zero();
+        hitCov(0,0) = sigmaU_cm * sigmaU_cm;
+        hitCov(1,1) = sigmaV_cm * sigmaV_cm;
+
+        genfit::PlanarMeasurement* planarHit =
+            new genfit::PlanarMeasurement(hitCoords,
+                                          hitCov,
+                                          detId,
+                                          hitCounter,
+                                          nullptr);
+        planarHit->setPlane(measurementPlane, hitCounter);
+        fitTrack.insertPoint(new genfit::TrackPoint(planarHit, &fitTrack));
+        ++hitCounter;
+    }
+    if (verbose > 0) {
+        std::cout << "[GenFitMDTFit] Track has "
+                  << fitTrack.getNumPoints()
+                  << " MDT 1D measurement points\n";
+    }
+    /////////////////////////////////////////////    
+    if (verbose > 0) {
+        auto* field = genfit::FieldManager::getInstance()->getField();
+        std::cout << "\n[GenFitMDTFit] ========== MEASUREMENT DETAILS ==========\n";
+        std::cout << "[GenFitMDTFit] Number of measurements: " << sortedMeas.size() << "\n";
+
+        for (size_t i = 0; i < sortedMeas.size(); ++i) {
+            const auto& m = sortedMeas[i];
+            TVector3 pos_cm(m.x_mm / 10.0, m.y_mm / 10.0, m.z_mm / 10.0);
+            TVector3 BkG = field ? field->get(pos_cm) : TVector3(0.0, 0.0, 0.0);
+
+            const char* matName = "NULL";
+            const char* nodeName = "NULL";
+            if (gGeoManager) {
+                TGeoNode* node = gGeoManager->FindNode(pos_cm.X(), pos_cm.Y(), pos_cm.Z());
+                if (node) {
+                    nodeName = node->GetName();
+                    if (node->GetVolume() && node->GetVolume()->GetMedium()) {
+                        matName = node->GetVolume()->GetMedium()->GetMaterial()->GetName();
+                    }
+                }
+            }
+            std::cout << Form(
+                "[GenFitMDTFit] Hit %2zu:"
+                " local=(xArb=%+.1f, yMeas=%+.1f, z=%+.1f) mm"
+                " global=(%+.1f,%+.1f,%+.1f) mm"
+                " drift=%+.3f mm side=%+d station=%d plane=%d tube=%d"
+                " B=(%+.2f,%+.2f,%+.2f) kG node=%s mat=%s\n",
+                i, m.localX_mm, m.localY_mm, m.localZ_mm,
+                m.x_mm, m.y_mm, m.z_mm,
+                m.r_meas_mm, m.side, m.stationID, m.planeID, m.tubeID,
+                BkG.X(), BkG.Y(), BkG.Z(),
+                nodeName, matName
+            );
+        }
+        std::cout << "[GenFitMDTFit] =========================================\n\n";
+    }  
+    //////////////////////////////////
+    // Initialize/Use the Kalman Fitter Reference Track minimization engine for reference track fitting
+    genfit::KalmanFitterRefTrack fitter;    
+    fitter.setMaxIterations(10);  // Use 10 like working standalone (not 50)
+    fitter.setMinIterations(2);   // Add minimum iterations
     fitter.setRelChi2Change(1e-4);
+    
+    if (verbose > 0) {
+        std::cout << "[GenFitMDTFit] Starting Kalman fit with:\n";
+        std::cout << "  Max iterations: 10\n";
+        std::cout << "  Min iterations: 2\n";
+        std::cout << "  Convergence criterion: 1e-4 relative chi2 change\n";
+        std::cout << "  Number of track points: " << fitTrack.getNumPoints() << "\n";
+    }
 
     try {
-        //fitter.processTrack(trk);
-        fitter.processTrackWithRep(trk, rep);
+        //Loops over all track representations (TrackRep) registered inside the track payload and fits them.
+        fitter.processTrack(&fitTrack);  // Pass address of stack object
+        //fitter.processTrackWithRep(&fitTrack, rep);
     }
     catch (genfit::Exception& e) {
-        std::cerr << "[GenFitMDTFit] GenFit exception: "
-                  << e.what() << std::endl;
-        delete trk;
+        std::cerr << "\n[GenFitMDTFit] ========== GENFIT EXCEPTION ==========\n";
+        std::cerr << "[GenFitMDTFit] Exception type: " << e.what() << "\n";
+        std::cerr << "[GenFitMDTFit] Exception string: " << e.getExcString() << "\n";
+        // Print track info for debugging
+        std::cerr << "[GenFitMDTFit] Track info at exception:\n";
+        std::cerr << "  Seed momentum: " << momSeed.Mag() << " GeV\n";
+        std::cerr << "  Seed position: (" << posSeed.X() << ", " << posSeed.Y() << ", " << posSeed.Z() << ") cm\n";
+        std::cerr << "  Number of points: " << fitTrack.getNumPoints() << "\n";
+        std::cerr << "[GenFitMDTFit] =====================================\n\n";
+      
         return false;
     }
+    catch (std::exception& e) {
+        std::cerr << "[GenFitMDTFit] Standard exception: " << e.what() << std::endl;
+        return false;
+    }
+    catch (...) {
+        std::cerr << "[GenFitMDTFit] Unknown exception caught\n";
+        return false;
+    }
+    
     // Check fit status
-    genfit::FitStatus* status = trk->getFitStatus(rep);
+    genfit::FitStatus* status = fitTrack.getFitStatus(rep);
 
-    if (!status || !status->isFitConverged()) {
-        std::cerr << "[GenFitMDTFit] fit did not converge" << std::endl;
-        delete trk;
+    if (!status) {
+        std::cerr << "\n[GenFitMDTFit] ========== FIT STATUS ERROR ==========\n";
+        std::cerr << "[GenFitMDTFit] ERROR: FitStatus pointer is NULL\n";
+        std::cerr << "[GenFitMDTFit] Track has " << fitTrack.getNumPoints() << " points\n";
+        std::cerr << "[GenFitMDTFit] ====================================\n\n";
         return false;
     }
+    
+    if (!status->isFitConverged()) {
+        std::cerr << "\n[GenFitMDTFit] ========== FIT DID NOT CONVERGE ==========\n";
+        std::cerr << "[GenFitMDTFit] Fit converged: " << (status->isFitConverged() ? "YES" : "NO") << "\n";
+        std::cerr << "[GenFitMDTFit] Fit converged partially: " << (status->isFitConvergedPartially() ? "YES" : "NO") << "\n";
+        std::cerr << "[GenFitMDTFit] Chi2: " << status->getChi2() << "\n";
+        std::cerr << "[GenFitMDTFit] NDF: " << status->getNdf() << "\n";
+        if (status->getNdf() > 0) {
+            std::cerr << "[GenFitMDTFit] Chi2/NDF: " << status->getChi2() / status->getNdf() << "\n";
+        }
+        std::cerr << "[GenFitMDTFit] Charge: " << status->getCharge() << "\n";
+        std::cerr << "[GenFitMDTFit] Track pruned? " << (status->isTrackPruned() ? "YES" : "NO") << "\n";
+        
+        // Try to get some state information even if not converged
+        try {
+            genfit::MeasuredStateOnPlane state = fitTrack.getFittedState();
+            TVector3 pfit = state.getMom();
+            std::cerr << "[GenFitMDTFit] Partial momentum: p=" << pfit.Mag() 
+                      << " GeV (px=" << pfit.X() << ", py=" << pfit.Y() << ", pz=" << pfit.Z() << ")\n";
+        } catch (...) {
+            std::cerr << "[GenFitMDTFit] Could not extract partial state\n";
+        }
+        
+        std::cerr << "[GenFitMDTFit] ==========================================\n\n";
+        return false;
+    }
+
     // Extract fitted state at the first measurement
-    genfit::MeasuredStateOnPlane state = trk->getFittedState();
+    genfit::MeasuredStateOnPlane state = fitTrack.getFittedState();
     TVector3 pfit = state.getMom();
     fpx = pfit.X();
     fpy = pfit.Y();
     fpz = pfit.Z();
     fp  = pfit.Mag();
+
     fcharge = state.getCharge();
+
     fchi2   = status->getChi2();
     fnDoF   = status->getNdf();
     fpval   = status->getPVal();
-    fitTrack = trk;
+
+    TMatrixDSym localCov = state.getCov();
+    fQOverP = state.getState()(0);
+    fQOverPErr = std::sqrt(state.getCov()(0,0));
+    fpErr = fQOverPErr * fp * fp; // Error propagation: σ_p = σ_(q/p) * p^2
 
     fpos.clear();
     layerID.clear();
     for (const auto& m : sortedMeas) {
+        // Store arbitrary point on the measured MDT line for display/debug.
+        // x is not measured.
         fpos.emplace_back(m.x_mm, m.y_mm, m.z_mm);
         layerID.push_back(
             m.stationID * 10000
@@ -554,6 +744,9 @@ bool TMuTrack::GenFitMDTFit(const std::vector<MDTMeas>& meas,
                   << " pz=" << fpz
                   << " p="  << fp
                   << " q="  << fcharge
+                  << " chi2=" << fchi2
+                  << " ndf="  << fnDoF
+                  << " pval=" << fpval                  
                   << std::endl;
 
         std::cout << "[GenFitMDTFit] fitted slopes:"
@@ -561,11 +754,6 @@ bool TMuTrack::GenFitMDTFit(const std::vector<MDTMeas>& meas,
                   << " dy/dz=" << fpy / fpz
                   << std::endl;
     }
-
+    // No delete needed - fitTrack is now stack allocated
     return true;
 }
-
-
-
-
-

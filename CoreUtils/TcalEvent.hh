@@ -335,6 +335,14 @@ public:
 
     ROOT::Math::XYZVector GlobalToMDTLocal(const ROOT::Math::XYZVector& pGlobal) const;
     ROOT::Math::XYZVector MDTLocalToGlobal(const ROOT::Math::XYZVector& pLocal) const;
+    ROOT::Math::XYZVector MDTLocalDirToGlobal(const ROOT::Math::XYZVector& vLocal_mm) const;
+    bool HasRearMuSpectGlobalMatrix() const { return fHasRearMuSpectGlobalMatrix; }
+
+    bool CacheMDTGlobalMatrix();
+    TGeoHMatrix frearMuSpectLocalToGlobal_cm;
+    bool fHasRearMuSpectGlobalMatrix = false;
+    void DumpMDTCandidateNodes() const;
+
 
     ClassDef(TcalEvent, 6)
 };

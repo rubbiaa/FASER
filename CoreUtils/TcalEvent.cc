@@ -596,40 +596,130 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZRearHCal(int moduleID) const
     return finalGlobalPos;
 }
 
-ROOT::Math::XYZVector
-TcalEvent::GlobalToMDTLocal(const ROOT::Math::XYZVector& pGlobal) const
+ROOT::Math::XYZVector TcalEvent::GlobalToMDTLocal(const ROOT::Math::XYZVector& pGlobal_mm) const
 {
-    if (!frearMuSpectTGeomNode) {
-        std::cerr << "[GlobalToMDTLocal] ERROR: frearMuSpectTGeomNode is null\n";
-        return pGlobal;
+    if (!fHasRearMuSpectGlobalMatrix) {
+        std::cerr << "[GlobalToMDTLocal] ERROR: rear muon spectrometer global matrix not cached\n";
+        return pGlobal_mm;
     }
-
-    const TGeoMatrix* mat = frearMuSpectTGeomNode->GetMatrix();
-
-    double global[3] = {pGlobal.X(), pGlobal.Y(), pGlobal.Z()};
-    double local[3]  = {0., 0., 0.};
-
-    mat->MasterToLocal(global, local);
-
-    return ROOT::Math::XYZVector(local[0], local[1], local[2]);
+    double global_cm[3] = { pGlobal_mm.X() / 10.0, pGlobal_mm.Y() / 10.0, pGlobal_mm.Z() / 10.0 };
+    double local_cm[3] = {0.0, 0.0, 0.0};
+    frearMuSpectLocalToGlobal_cm.MasterToLocal(global_cm, local_cm);
+    return ROOT::Math::XYZVector(local_cm[0] * 10.0, local_cm[1] * 10.0,local_cm[2] * 10.0);
 }
 
-ROOT::Math::XYZVector
-TcalEvent::MDTLocalToGlobal(const ROOT::Math::XYZVector& pLocal) const
+ROOT::Math::XYZVector TcalEvent::MDTLocalToGlobal(const ROOT::Math::XYZVector& pLocal_mm) const
 {
-    if (!frearMuSpectTGeomNode) {
-        std::cerr << "[MDTLocalToGlobal] ERROR: frearMuSpectTGeomNode is null\n";
-        return pLocal;
+    if (!fHasRearMuSpectGlobalMatrix) {
+        std::cerr << "[MDTLocalToGlobal] ERROR: rear muon spectrometer global matrix not cached\n";
+        return pLocal_mm;
+    }
+    double local_cm[3] = { pLocal_mm.X() / 10.0, pLocal_mm.Y() / 10.0, pLocal_mm.Z() / 10.0 };
+    double global_cm[3] = {0.0, 0.0, 0.0};
+    frearMuSpectLocalToGlobal_cm.LocalToMaster(local_cm, global_cm);
+
+    return ROOT::Math::XYZVector(global_cm[0] * 10.0, global_cm[1] * 10.0, global_cm[2] * 10.0);
+}
+
+ROOT::Math::XYZVector TcalEvent::MDTLocalDirToGlobal(const ROOT::Math::XYZVector& vLocal_mm) const
+{
+    ROOT::Math::XYZVector oG = MDTLocalToGlobal(ROOT::Math::XYZVector(0.0, 0.0, 0.0));
+    ROOT::Math::XYZVector vG = MDTLocalToGlobal(vLocal_mm);
+    ROOT::Math::XYZVector d(vG.X() - oG.X(), vG.Y() - oG.Y(), vG.Z() - oG.Z());
+    const double mag = std::sqrt(d.X()*d.X() + d.Y()*d.Y() + d.Z()*d.Z());
+    if (mag <= 0.0)
+        return ROOT::Math::XYZVector(0.0, 0.0, 0.0);
+
+    return ROOT::Math::XYZVector(d.X()/mag, d.Y()/mag, d.Z()/mag);
+}
+
+bool TcalEvent::CacheMDTGlobalMatrix()
+{
+    if (!gGeoManager || !gGeoManager->GetTopVolume()) {
+        std::cerr << "[CacheMDTGlobalMatrix] ERROR: geometry not loaded\n";
+        fHasRearMuSpectGlobalMatrix = false;
+        return false;
     }
 
-    const TGeoMatrix* mat = frearMuSpectTGeomNode->GetMatrix();
+    TGeoVolume* top = gGeoManager->GetTopVolume();
+    TGeoIterator next(top);
+    TGeoNode* node = nullptr;
+    while ((node = next())) {
+        std::string nodeName = node->GetName() ? node->GetName() : "";
+        std::string volName  = node->GetVolume() && node->GetVolume()->GetName()
+                             ? node->GetVolume()->GetName()
+                             : "";
+        const bool isMDTContainer =
+            nodeName.find("MDTContainer") != std::string::npos ||
+            volName.find("MDTContainer")  != std::string::npos;
 
-    double local[3]  = {pLocal.X(), pLocal.Y(), pLocal.Z()};
-    double global[3] = {0., 0., 0.};
+        if (!isMDTContainer)
+            continue;
+        const TGeoMatrix* fullMat = next.GetCurrentMatrix();
+        if (!fullMat) {
+            std::cerr << "[CacheMDTGlobalMatrix] ERROR: full matrix is null for node="
+                      << nodeName << " volume=" << volName << "\n";
+            fHasRearMuSpectGlobalMatrix = false;
+            return false;
+        }
+        frearMuSpectTGeomNode = node;
+        // Full MDT-local -> world/master transform, including parent tilt/shift.
+        frearMuSpectLocalToGlobal_cm = *fullMat;
+        fHasRearMuSpectGlobalMatrix = true;
+        const double* tr = frearMuSpectLocalToGlobal_cm.GetTranslation();
+        std::cout << "[CacheMDTGlobalMatrix] cached MDT container\n"
+                  << "  node=" << nodeName
+                  << " volume=" << volName << "\n"
+                  << "  full global translation cm=("
+                  << tr[0] << ", " << tr[1] << ", " << tr[2] << ")\n";
 
-    mat->LocalToMaster(local, global);
+        return true;
+    }
 
-    return ROOT::Math::XYZVector(global[0], global[1], global[2]);
+    std::cerr << "[CacheMDTGlobalMatrix] ERROR: MDTContainer node not found\n";
+    fHasRearMuSpectGlobalMatrix = false;
+    return false;
+}
+void TcalEvent::DumpMDTCandidateNodes() const
+{
+    if (!gGeoManager || !gGeoManager->GetTopVolume()) {
+        std::cerr << "[DumpMDTCandidateNodes] ERROR: geometry not loaded\n";
+        return;
+    }
+    TGeoIterator next(gGeoManager->GetTopVolume());
+    TGeoNode* node = nullptr;
+    std::cout << "\n[DumpMDTCandidateNodes] Candidate MDT/rear-muon nodes:\n";
+    while ((node = next())) {
+        std::string nodeName = node->GetName() ? node->GetName() : "";
+        std::string volName  = node->GetVolume() && node->GetVolume()->GetName()
+                             ? node->GetVolume()->GetName()
+                             : "";
+
+        bool match =
+            nodeName.find("MDT")       != std::string::npos ||
+            volName.find("MDT")        != std::string::npos ||
+            nodeName.find("Magnet")    != std::string::npos ||
+            volName.find("Magnet")     != std::string::npos ||
+            nodeName.find("MuSpect")   != std::string::npos ||
+            volName.find("MuSpect")    != std::string::npos ||
+            nodeName.find("Rear")      != std::string::npos ||
+            volName.find("Rear")       != std::string::npos;
+        if (!match)
+            continue;
+
+        const TGeoMatrix* mat = next.GetCurrentMatrix();
+        std::cout << "  node=" << nodeName
+                  << "  volume=" << volName;
+        if (mat) {
+            const double* tr = mat->GetTranslation();
+            std::cout << "  global translation cm=("
+                      << tr[0] << ", "
+                      << tr[1] << ", "
+                      << tr[2] << ")";
+        }
+        std::cout << "\n";
+    }
+    std::cout << "[DumpMDTCandidateNodes] End\n\n";
 }
 
 

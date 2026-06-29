@@ -11,19 +11,33 @@
 
 
 struct MDTMeas {
-    double x_mm;
-    double y_mm;
-    double z_mm;
+    // x_mm is not measured
+    double x_mm = 0.0;
+    double y_mm = 0.0;
+    double z_mm = 0.0;
 
-    double wireY_mm;
-    double wireZ_mm;
-    double r_meas_mm;
-    double r_true_mm;
+    double wireX_mm = 0.0;
+    double wireY_mm = 0.0;
+    double wireZ_mm = 0.0;
+    double r_meas_mm = 0.0;
+    double r_true_mm = 0.0;
 
-    int stationID;
-    int planeID;
-    int tubeID;
-    int side;
+    int stationID = 0;
+    int planeID = 0;
+    int tubeID = 0;
+    int side = 0;
+
+    // localX_mm is arbitrary; localY/localZ define the MDT 1D measurement.
+    double localX_mm = 0.0;
+    double localY_mm = 0.0;
+    double localZ_mm = 0.0;
+    // GLOBAL directions of MDT-local axes.
+    // u = measured direction = MDT-local Y.
+    // v = unmeasured wire direction = MDT-local X.
+    // w = downstream direction = MDT-local Z.
+    double uX = 0.0, uY = 1.0, uZ = 0.0;
+    double vX = 1.0, vY = 0.0, vZ = 0.0;
+    double wX = 0.0, wY = 0.0, wZ = 1.0;
 };
 
 
@@ -42,7 +56,9 @@ public:
     int fnDoF;                // nDoF of the fit
     double fpval;              // p-value of the fit
     double fipErr;            // error on fitted inverse momentum at the first point
-
+    double fQOverP;            // fitted inverse momentum at the first point
+    double fQOverPErr;         // error on fitted inverse momentum at the first point
+    
     TMuTrack() : ftrackID(-1), fcharge(0), fitTrack(nullptr) {}
     virtual ~TMuTrack() {
         if (fitTrack) {

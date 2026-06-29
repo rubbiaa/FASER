@@ -423,6 +423,7 @@ public:
 
     void ReconstructMDT();
     std::vector<double> GetMDTMagnetCentersZ() const;
+    std::vector<ROOT::Math::XYZVector> GetMDTMagnetCentersGlobal() const;
 
 
 
