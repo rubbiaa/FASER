@@ -44,6 +44,8 @@ class PrimaryGeneratorMessenger: public G4UImessenger
     G4UIcmdWithABool* fWantMuonBackground; ///< Input command for muon background option
     G4UIcmdWithABool* fWantSingleParticle; ///< Input command for single particle option
     G4UIcmdWithADoubleAndUnit* fSingleMomentumCmd; ///< Command to set single particle momentum (with unit)
+    G4UIcmdWithAString* fSingleParticleNameCmd; ///< Command to set particle name in single-particle mode
+
   };
 
 #endif

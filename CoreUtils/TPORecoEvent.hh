@@ -421,6 +421,12 @@ public:
     TH2D* Get2DViewXPS() { return xviewPS; };
     TH2D* Get2DViewYPS() { return yviewPS; };
 
+    void ReconstructMDT();
+    std::vector<double> GetMDTMagnetCentersZ() const;
+    std::vector<ROOT::Math::XYZVector> GetMDTMagnetCentersGlobal() const;
+
+
+
     ClassDef(TPORecoEvent,3)
 };
 

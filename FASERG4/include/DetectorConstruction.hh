@@ -154,6 +154,11 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 
 	G4long getRearCalChannelIDfromXYZ(int CopyNumber, XYZVector const& position) const;
 	G4long getHCalChannelIDfromXYZ(int CopyNumber, XYZVector const& position) const;
+	
+	/// @brief Get pointer to MDT sensitive detector for accessing hits
+	/// @return Pointer to MDTSD, or nullptr if MDT not constructed
+	class MDTSD* GetMDTSD() const { return fMDTSD; }
+	
 	///////////
 	// UMUT: tilt angle around Y axis
 	void SetTiltAngleY(G4double angle);
@@ -172,6 +177,10 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	// static data members
 	static G4ThreadLocal G4GlobalMagFieldMessenger* fMagFieldMessenger;  ///< Magnetic field messenger (Currently not used)
 	ParticleManager* fParticleManager = nullptr;  ///< Pointer to the particle manager, which takes care of the tracking of all the partilces
+	
+	// Sensitive detectors - forward declaration handled in source file
+	class MDTSD* fMDTSD = nullptr;  ///< Pointer to MDT sensitive detector for accessing hits
+	
 	// magnetic field messenger
 	// data members
 
@@ -197,6 +206,11 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 
 	/// @brief Create the rear muon spectrometer
 	void CreateRearMuSpectrometer(G4double zLocation, G4LogicalVolume* parent);
+
+	/// @brief Create muon spectrometer with MDT (Monitored Drift Tubes)
+	/// @param zLocation Starting z position
+	/// @param parent Parent logical volume
+	void CreateMuSpectWithMDT(G4double zLocation, G4LogicalVolume* parent);
 
 	/// @brief Create the front Pb target
 	/// @param zLocation 

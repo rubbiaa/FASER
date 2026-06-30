@@ -32,6 +32,7 @@
 #pragma link C++ class TcalEvent+;
 #pragma link C++ class DigitizedTrack+;
 #pragma link C++ class MuTagTrack+;
+#pragma link C++ class MDTTrack+;
 #pragma link C++ struct PO+;
 
 #pragma link C++ class TTauSearch;

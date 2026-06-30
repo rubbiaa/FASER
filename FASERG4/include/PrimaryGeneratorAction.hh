@@ -66,12 +66,12 @@ private:
 
   std::vector<G4ParticleGun*> fParticleGuns; // Multiple particle guns
 
-  int valid_event;
-  int n_passed_event;
+  int valid_event = 0;
+  int n_passed_event = 0;
   
   TFile *m_ROOTInputFile = nullptr;
   TTree *m_POEventTree = nullptr;
-  size_t tree_ientry;
+  size_t tree_ientry = 0;
   TPOEvent fTPOEvent;
   
 // added by Umut: file to dump generated muons (CSV)

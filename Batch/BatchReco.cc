@@ -286,7 +286,8 @@ int main(int argc, char** argv) {
         fPORecoEvent -> ReconstructClusters(0);
         fPORecoEvent -> Reconstruct3DPS_2();
         fPORecoEvent -> ReconstructRearCals();
-        fPORecoEvent -> ReconstructMuonSpectrometer();
+        //fPORecoEvent -> ReconstructMuonSpectrometer();
+        fPORecoEvent -> ReconstructMDT();
         #if 0
         // poor's man fit of beta scan
         float betas[] = {3.5, 4.0, 4.5, 5.0, 5.5, 6.0};

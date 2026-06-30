@@ -72,13 +72,21 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 
 	// DEBUG : only primary lepton if CC otherwise random pion
 	bool want_particleGun = false; //  true;
-	bool want_muon_background = false; // true; changed to true from false
-	bool want_single_particle = false; // true;
+	//bool want_muon_background = true; // true; changed to true from false
+	//bool want_single_particle = false; // true;
+	// Use member variables set via messenger commands instead of hardcoded local variables
+	bool want_muon_background = fWantMuonBackground; // Use member variable instead of hardcoded false
+	bool want_single_particle = fWantSingleParticle; // Use member variable instead of hardcoded false
 	bool want_zeropt_jet = false; // true;
 
+	std::cout << "PrimaryGeneratorAction::GeneratePrimaries called. want_particleGun=" << want_particleGun
+		<< ", want_muon_background=" << want_muon_background
+		<< ", want_single_particle=" << want_single_particle
+		<< ", want_zeropt_jet=" << want_zeropt_jet << std::endl;
+		
 	const TPOEvent *branch_POEvent = GetTPOEvent();
 
-	if (m_ROOTInputFile == nullptr && !want_single_particle) {
+	if (m_ROOTInputFile == nullptr && !want_single_particle && !want_muon_background) {
 		// Open FASERMC PO input ntuple files
 		std::string inputFile = fROOTInputFileName;
 		m_ROOTInputFile = new TFile(inputFile.c_str(), "READ");
@@ -142,7 +150,7 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 		  //y = (G4UniformRand() - 0.5) * 400; // in mm
 		  x = (G4UniformRand() - 0.5) * 100; // in mm
 		  y = (G4UniformRand() - 0.5) * 100; // in mm
-		  z = -2000; // in mm, in front of the detector
+		  z = -1000; // in mm, in front of the detector
 		} else {
 		  std::cout << " Using GENIE vtx:  x=" << x << " y=" << y << " z=" << z << " ";
 		}
@@ -200,9 +208,9 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 		fTPOEvent.POs.clear();
 		fTPOEvent.setVtxTarget(TPOEvent::kVtx_in_Scint);
 		// set vertex position for single particle gun (global coordinates so must adjust for tilted detector)
-		vtxpos.SetX(240.0);
-		vtxpos.SetY(240.0);
-		vtxpos.SetZ(-800); // in mm, in front of the detector
+		vtxpos.SetX(0.0);
+		vtxpos.SetY(0.0);
+		vtxpos.SetZ(-1000); // in mm, in front of the detector
 		fTPOEvent.setPrimaryVtx(vtxpos.x(), vtxpos.y(), vtxpos.z());
 		fParticleManager->setVertexInformation(vtxpos);
 		fTPOEvent.run_number = 888*100000 + popt*10000 + int(momentumMagnitude);
@@ -360,9 +368,15 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 		{
 			G4ParticleGun *particleGun = new G4ParticleGun(1);
 			particleGun->SetParticleDefinition(muon);
+			// Set muon starting position to cover detector face uniformly
+			// X: 48 cm detector → ±240 mm
+			// Y: 48 cm detector → ±240 mm
+			vtxpos.SetX(400); // in mm
+			vtxpos.SetY(280); // in mm
+			vtxpos.SetZ(-100); // in mm, in front of the detector
 			particleGun->SetParticlePosition(G4ThreeVector(vtxpos.x() * mm, vtxpos.y() * mm, vtxpos.z() * mm));
 			// Define angular spread (in radians)
-			double sigmaTheta = -0.1; // 100 mrad
+			double sigmaTheta = -0.08; // 4.5 degrees in radians
 			// Sample θ from Gaussian centered at 0 with std dev 0.1
 			double theta = G4RandGauss::shoot(0.0, sigmaTheta);
 			// Sample φ uniformly from 0 to 2π

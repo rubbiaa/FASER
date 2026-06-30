@@ -221,6 +221,7 @@ namespace display
       void GetRecoTracks();
       void GetMuTagInfo();
       void GetMuonSpectrometerInfo(TGeoShape *bigbox, TGeoMedium *air, TGeoShape *box);
+      void GetMDTInfo(TGeoShape *bigbox, TGeoMedium *air, TGeoShape *box);
 
       void AnalyzeScintVoxelsAndLayerOccupancy(bool drawPlots=false,bool clampOutOfRange=false, int expectedNz=0);
 
@@ -416,6 +417,7 @@ std::vector<int> fSLPParentIDs;
       TEveElementList* fMuTagHitElements;
       TEveElementList* fMuSpectHitElements;
       TEveElementList* fMuonSpectFitElements;
+      TEveElementList* fMDTHitElements;
 
       TEveElementList* fClusterHitElements;
       TEveElementList* fVoxHitElements;

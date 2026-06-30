@@ -6,6 +6,10 @@
 
 #include <AbsBField.h>
 
+#include <TGeoManager.h>
+#include <TGeoNode.h>
+#include <string>
+
 //////////(o^o)///////////
 #include <vector>
 #include <utility>
@@ -91,6 +95,28 @@ private:
             if (z_cm >= zmin && z_cm <= zmax) fieldOnHere = true;
             // Enforce no field near layers
             if (IsNearStation(z_cm, station_dead_half_thickness_cm_)) fieldOnHere = false;
+        }
+        /////////////////////////////////////////
+        // Dedicated MDT magnet field.
+        // GenFit position is in cm. gGeoManager also uses cm.
+        if (gGeoManager) {
+            TGeoNode* node = gGeoManager->FindNode(position.X(), position.Y(), position.Z());
+            if (node) {
+                std::string nodeName = node->GetName() ? node->GetName() : "";
+                if (nodeName.find("MDTMagnet") != std::string::npos) {
+                    // Convert to local-like transverse coordinate.
+                    // position.Y() is cm, slitposition is cm.
+                    double y_local_cm = position.Y() - rearMuSpec_LOS_shiftY;
+                    if (std::abs(y_local_cm) >= slitposition &&
+                        std::abs(y_local_cm) <= 2.0 * slitposition) {
+                        return TVector3(+15.0, 0.0, 0.0); // +1.5 T = +15 kG
+                    }
+                    if (std::abs(y_local_cm) < slitposition) {
+                        return TVector3(-15.0, 0.0, 0.0); // -1.5 T = -15 kG
+                    }
+                    return TVector3(0.0, 0.0, 0.0);
+                }
+            }
         }
 
         if (fieldOnHere) {
