@@ -3562,6 +3562,67 @@ void TPORecoEvent::ReconstructMuonSpectrometer() {
     }
 }
 ///////////////////////////////
+// Configure MDT magnet z-ranges on fMagField by walking the ROOT geometry.
+// Must be called once per event (or at least once after geometry is loaded)
+// before running the analytic or GenFit MDT fits.
+static void SetupMDTMagneticField(GenMagneticField* gfield, TcalEvent* tcal)
+{
+    if (!gfield || !gGeoManager || !gGeoManager->GetTopVolume() || !tcal) return;
+
+    std::vector<std::pair<double,double>> ranges_cm;
+    double sumX_cm = 0.0, sumY_cm = 0.0;
+    int nMagnets = 0;
+    TGeoVolume* top = gGeoManager->GetTopVolume();
+    TGeoIterator next(top);
+    TGeoNode* node = nullptr;
+    while ((node = next())) {
+        std::string nodeName = node->GetName() ? node->GetName() : "";
+        std::string volName  = (node->GetVolume() && node->GetVolume()->GetName())
+                               ? node->GetVolume()->GetName() : "";
+        const bool isMDTMagnet =
+            nodeName.find("MDTMagnet") != std::string::npos ||
+            volName.find("MDTMagnet")  != std::string::npos;
+        if (!isMDTMagnet) continue;
+        const TGeoMatrix* matrix = next.GetCurrentMatrix();
+        if (!matrix) continue;
+        const double* tr_cm = matrix->GetTranslation();  // global center in cm
+        sumX_cm += tr_cm[0];
+        sumY_cm += tr_cm[1];
+        ++nMagnets;
+        double halfZ_cm = 20.0; // fallback: 200 mm half-size
+        TGeoShape* shape = node->GetVolume()->GetShape();
+        if (shape) {
+            double dx, dz;
+            shape->GetAxisRange(3, dx, dz);
+            double half = std::abs(dz - dx) / 2.0;
+            if (half > 1.0) halfZ_cm = half;
+        }
+        ranges_cm.push_back({tr_cm[2] - halfZ_cm, tr_cm[2] + halfZ_cm});
+        std::cout << "[SetupMDTMagneticField] magnet=" << nodeName
+                  << " z_global cm=(" << (tr_cm[2] - halfZ_cm) << ", " << (tr_cm[2] + halfZ_cm) << ")\n";
+    }
+    std::sort(ranges_cm.begin(), ranges_cm.end());
+    std::vector<std::pair<double,double>> unique_ranges;
+    for (const auto& r : ranges_cm) {
+        if (unique_ranges.empty() || std::abs(r.first - unique_ranges.back().first) > 1.0)
+            unique_ranges.push_back(r);
+    }
+    gfield->SetMDTMagnetZRangesCm(unique_ranges);
+    gfield->SetSlitPosition(25.0);
+    // Set the LOS shift so the slit Y-check uses local coordinates centered on the
+    // MDT spectrometer axis. Without this, y_local = Y_global which puts all tracks
+    // in the wrong field region (outer ±15 kG instead of inner ∓15 kG).
+    if (nMagnets > 0) {
+        const double avgX_cm = sumX_cm / nMagnets;
+        const double avgY_cm = sumY_cm / nMagnets;
+        gfield->SetRearMuSpectShift(avgX_cm, avgY_cm);
+        std::cout << "[SetupMDTMagneticField] LOS shift set to X=" << avgX_cm
+                  << " Y=" << avgY_cm << " cm from " << nMagnets << " magnet centers\n";
+    }
+    std::cout << "[SetupMDTMagneticField] configured " << unique_ranges.size()
+              << " MDT magnet z-ranges, slitPos=25 cm\n";
+}
+///////////////////////////////
 void PrintMDTFieldMaterialScan(genfit::AbsBField* field,
                                double x_mm,
                                double y_mm,
@@ -3985,10 +4046,13 @@ void TPORecoEvent::ReconstructMDT()
             std::cout << "  MDT magnet local z = " << z << " mm\n";
         return;
     }
+    // Configure MDT magnet z-ranges on the field so ComputeYKernelFromBx and GenFit see non-zero B.
+    SetupMDTMagneticField(fMagField, fTcalEvent);
     ///////////////////////////////////
     // Set up a random engine to smear the true drift radius into a measured one
     std::random_device rd;
-    std::mt19937 muon_rng(rd());
+    //std::mt19937 muon_rng(rd());
+    std::mt19937 muon_rng(42);
     auto smearRadius = [&](double r_true) {
         std::normal_distribution<double> gaussR(0.0, smear_mm);
         double r = r_true + gaussR(muon_rng);
@@ -4023,8 +4087,8 @@ void TPORecoEvent::ReconstructMDT()
                 << " pos=" << mdt->pos.size()
                 << " tubeCenter=" << mdt->tubeCenter.size()
                 << std::endl;
-        if (n < 5) {
-            std::cout << "[ReconstructMDT] skip: incomplete MDT vectors" << std::endl;
+        if (n < 6) {
+            std::cout << "[ReconstructMDT] skip: fewer than 6 hits (need >= 2 stations x 3 layers)\n";
             continue;
         }
         ////////////////////////////////////////////////
@@ -4065,87 +4129,78 @@ void TPORecoEvent::ReconstructMDT()
             }
             stationGroups[h.sta].push_back(h);
         }
+        if (stationGroups.size() < 2) {
+            std::cout << "[ReconstructMDT] Skip track " << tid << ": only 1 station, need >= 2\n";
+            continue;
+        }
         // ---------------------------------------------------------------------
-        // Execute Local Combinatorial Straight-Line L/R Ambiguity Solver
+        // L/R Ambiguity Resolution – two-phase approach:
+        //
+        // Phase 1: Per-station combinatorial scan with 2-parameter straight-line.
+        //   Within each station the z-spread is ~80 mm, so curvature is negligible.
+        //   This gives a reliable per-station L/R assignment without the degeneracy
+        //   that arises when using a 3-parameter model globally over all 2^N combos.
+        //
+        // Phase 2: Iterative cross-station flip refinement using the full physics
+        //   model y = y0 + slope*(z-z0) + (q/p)*kernelY.
+        //   Try flipping each hit one at a time; keep flips that strictly reduce
+        //   chi2. Repeat up to 5 passes or until no flip improves chi2.
         // ---------------------------------------------------------------------
+
+        // --- Phase 1: per-station straight-line L/R scan ---
         std::vector<Hit> resolvedEventHits;
         for (auto& pair : stationGroups) {
             auto& sHits = pair.second;
-            const int nHitsInStation = static_cast<int>(sHits.size());            
-            if (nHitsInStation <= 0)
-                continue;
-            if (nHitsInStation > 20) {
-                std::cout << "[ReconstructMDT] WARNING: station "
-                          << pair.first
-                          << " has too many hits for 2^N L/R scan: "
-                          << nHitsInStation
-                          << ". Skipping track.\n";
-                resolvedEventHits.clear();
-                break;
+            const int nH = static_cast<int>(sHits.size());
+            if (nH <= 0) continue;
+            if (nH > 20) {
+                std::cout << "[ReconstructMDT] WARNING: station " << pair.first
+                          << " has " << nH << " hits; skipping track.\n";
+                resolvedEventHits.clear(); break;
             }
-            
-            double bestLocalChi2 = 1e12;
-            std::vector<int> bestSides(nHitsInStation, 1);
-            int nCombos = 1 << nHitsInStation; // 2^N combinations for N planes
-            for (int combo = 0; combo < nCombos; ++combo) {
-                double sumZ = 0, sumZ2 = 0, sumY = 0, sumZY = 0;
-                std::vector<double> testY(nHitsInStation);
-                std::vector<int> currentSides(nHitsInStation);
-
-                for (int i = 0; i < nHitsInStation; ++i) {
-                    currentSides[i] = ((combo >> i) & 1) ? 1 : -1;
-                    testY[i] = sHits[i].wy_l + currentSides[i] * sHits[i].r;
-                    double z = sHits[i].wz_l;
-                    
-                    sumZ  += z;
-                    sumZ2 += z * z;
-                    sumY  += testY[i];
-                    sumZY += z * testY[i];
+            double bestLocalChi2 = 1e18;
+            std::vector<int> bestSides(nH, 1);
+            for (int combo = 0; combo < (1 << nH); ++combo) {
+                double sumZ=0, sumZ2=0, sumY=0, sumZY=0;
+                for (int i = 0; i < nH; ++i) {
+                    const int s = ((combo>>i)&1) ? 1 : -1;
+                    const double y = sHits[i].wy_l + s * sHits[i].r;
+                    const double z = sHits[i].wz_l;
+                    sumZ+=z; sumZ2+=z*z; sumY+=y; sumZY+=z*y;
                 }
-
-                double denom = nHitsInStation * sumZ2 - sumZ * sumZ;
+                const double denom = nH*sumZ2 - sumZ*sumZ;
                 if (std::fabs(denom) < 1e-6) continue;
-
-                double slope = (nHitsInStation * sumZY - sumZ * sumY) / denom;
-                double intercept = (sumY - slope * sumZ) / nHitsInStation;
-
-                double currentChi2 = 0.0;
-                for (int i = 0; i < nHitsInStation; ++i) {
-                    double expectedY = intercept + slope * sHits[i].wz_l;
-                    double residual = testY[i] - expectedY;
-                    currentChi2 += (residual * residual) / (smear_mm * smear_mm);
+                const double slope  = (nH*sumZY - sumZ*sumY) / denom;
+                const double intcpt = (sumY - slope*sumZ) / nH;
+                double chi2 = 0;
+                for (int i = 0; i < nH; ++i) {
+                    const int s = ((combo>>i)&1) ? 1 : -1;
+                    const double res = sHits[i].wy_l + s*sHits[i].r
+                                       - (intcpt + slope*sHits[i].wz_l);
+                    chi2 += res*res / (smear_mm*smear_mm);
                 }
-
-                if (currentChi2 < bestLocalChi2) {
-                    bestLocalChi2 = currentChi2;
-                    bestSides = currentSides;
+                if (chi2 < bestLocalChi2) {
+                    bestLocalChi2 = chi2;
+                    for (int i = 0; i < nH; ++i)
+                        bestSides[i] = ((combo>>i)&1) ? 1 : -1;
                 }
             }
-            // Commit the winning drift signs to this station's hit objects
-            for (int i = 0; i < nHitsInStation; ++i) {
+            for (int i = 0; i < nH; ++i) {
                 sHits[i].assignedSide = bestSides[i];
                 resolvedEventHits.push_back(sHits[i]);
             }
         }
-        if (resolvedEventHits.empty())
-            continue;
+        if (resolvedEventHits.empty()) continue;
         std::sort(resolvedEventHits.begin(), resolvedEventHits.end(),
-                  [](const Hit& a, const Hit& b) {
-                    return a.wz_l < b.wz_l;
-                  });
+                  [](const Hit& a, const Hit& b) { return a.wz_l < b.wz_l; });
 
         const int N = static_cast<int>(resolvedEventHits.size());
-        if (N < 5) {
-            std::cout << "[ReconstructMDT] Skip track " << tid << ": insufficient resolved spacepoints." << std::endl;
+        if (N < 6) {
+            std::cout << "[ReconstructMDT] Skip track " << tid << ": only " << N << " hits (need >= 6)\n";
             continue;
         }
-        // ---------------------------------------------------------------------
-        // Analytic local y(z) fit:
-        //
-        // y = y0 + slope * (z - z0) + (q/p) * kernelY
-        //
-        // Field sampled globally, projected onto MDT-local X.
-        // ---------------------------------------------------------------------
+
+        // Pre-compute kernelY (depends only on wire position, not L/R side).
         const double z0Local = resolvedEventHits.front().wz_l;
         std::vector<double> kernelY(N, 0.0);
         for (int h = 0; h < N; ++h) {
@@ -4158,6 +4213,103 @@ void TPORecoEvent::ReconstructMDT()
                                              resolvedEventHits[h].wz_l,
                                              2.0);
         }
+
+        // Helper: solve 3-parameter model for current assignedSides, return chi2.
+        auto fitAndChi2 = [&](double outP[3]) -> double {
+            double lATA[3][3]={}, lATy[3]={};
+            for (int h = 0; h < N; ++h) {
+                const double y_h  = resolvedEventHits[h].wy_l
+                                    + resolvedEventHits[h].assignedSide * resolvedEventHits[h].r;
+                const double zRel = resolvedEventHits[h].wz_l - z0Local;
+                const double A[3] = {1.0, zRel, kernelY[h]};
+                for (int i=0;i<3;i++) {
+                    for (int j=0;j<3;j++) lATA[i][j]+=A[i]*A[j];
+                    lATy[i]+=A[i]*y_h;
+                }
+            }
+            if (!Solve3(lATA, lATy, outP)) return 1e18;
+            double chi2 = 0;
+            for (int h = 0; h < N; ++h) {
+                const double y_h    = resolvedEventHits[h].wy_l
+                                      + resolvedEventHits[h].assignedSide * resolvedEventHits[h].r;
+                const double zRel   = resolvedEventHits[h].wz_l - z0Local;
+                const double y_pred = outP[0] + outP[1]*zRel + outP[2]*kernelY[h];
+                const double res    = (y_h - y_pred) / smear_mm;
+                chi2 += res*res;
+            }
+            return chi2;
+        };
+
+        // --- Phase 2: station-level combinatorial flip using physics model ---
+        // The per-station scan finds the best intra-station L/R, but may pick the
+        // "mirror" orientation (all hits flipped) for an entire station.  With 4
+        // stations there are only 2^4=16 inter-station sign combos to try, so we
+        // can exhaustively test all of them with the full 3-parameter model.
+        // Flipping per-station (not per-hit) preserves intra-station consistency.
+        {
+            // Build station index lists into resolvedEventHits.
+            std::vector<int> stationOfHit(N);
+            std::vector<int> stationIds;
+            {
+                std::map<int, int> staIdx;
+                for (int h = 0; h < N; ++h) {
+                    int sta = resolvedEventHits[h].sta;
+                    if (staIdx.find(sta) == staIdx.end()) {
+                        staIdx[sta] = static_cast<int>(stationIds.size());
+                        stationIds.push_back(sta);
+                    }
+                    stationOfHit[h] = staIdx[sta];
+                }
+            }
+            const int nSta = static_cast<int>(stationIds.size());
+            // Save baseline per-station sides.
+            std::vector<int> baseSide(N);
+            for (int h = 0; h < N; ++h) baseSide[h] = resolvedEventHits[h].assignedSide;
+
+            double bestStaChi2 = 1e18;
+            std::vector<int> bestStaSide = baseSide;
+            const int nStaCombos = 1 << nSta;
+            for (int combo = 0; combo < nStaCombos; ++combo) {
+                for (int h = 0; h < N; ++h) {
+                    const int flip = ((combo >> stationOfHit[h]) & 1) ? -1 : 1;
+                    resolvedEventHits[h].assignedSide = baseSide[h] * flip;
+                }
+                double tryP[3]={};
+                double tryChi2 = fitAndChi2(tryP);
+                if (tryChi2 < bestStaChi2) {
+                    bestStaChi2 = tryChi2;
+                    for (int h = 0; h < N; ++h)
+                        bestStaSide[h] = resolvedEventHits[h].assignedSide;
+                }
+            }
+            for (int h = 0; h < N; ++h)
+                resolvedEventHits[h].assignedSide = bestStaSide[h];
+
+            std::cout << "[ReconstructMDT] Station-flip scan done: chi2=" << bestStaChi2
+                      << " nSta=" << nSta << " combos=" << nStaCombos << " hits=" << N << "\n";
+        }
+
+        // --- Phase 3: single-pass per-hit L/R guided by Phase 2 prediction ---
+        // Use the Phase 2 model prediction to assign each hit's L/R: +1 if
+        // y_pred >= y_wire, -1 otherwise.  Single pass only — iteration causes
+        // oscillation as the model shifts with each assignment change.
+        {
+            double p2P[3]={};
+            fitAndChi2(p2P);
+            for (int h = 0; h < N; ++h) {
+                const double zRel   = resolvedEventHits[h].wz_l - z0Local;
+                const double y_pred = p2P[0] + p2P[1]*zRel + p2P[2]*kernelY[h];
+                resolvedEventHits[h].assignedSide = (y_pred >= resolvedEventHits[h].wy_l) ? 1 : -1;
+            }
+            double p3P[3]={};
+            double p3Chi2 = fitAndChi2(p3P);
+            std::cout << "[ReconstructMDT] Per-hit guided refinement: chi2=" << p3Chi2 << "\n";
+        }
+
+        // ---------------------------------------------------------------------
+        // Analytic local y(z) fit using refined L/R assignment.
+        // (kernelY already computed above)
+        // ---------------------------------------------------------------------
         double ATA[3][3] = {};
         double ATy[3] = {};
         for (int h = 0; h < N; ++h) {
@@ -4263,11 +4415,17 @@ void TPORecoEvent::ReconstructMDT()
         // run GenFit track fitting
         // verbose = 1 for debug prints, 0 for quiet
         // GenFit expects momentum in GeV/c
-        const double seedPForGenFit = (pAnalytic > 0.0 && std::isfinite(pAnalytic))
-                                    ? pAnalytic
-                                    : seedMomentumGeV;
+	// Only reject sub-1-GeV pAnalytic values as degenerate (sagitta floor artifact).
+        // Values 1-1000 GeV are valid seeds even if they may be imprecise.
+        const double seedPForGenFit =
+            (pAnalytic >= 1.0 && pAnalytic <= 1000.0 && std::isfinite(pAnalytic))
+            ? pAnalytic
+            : seedMomentumGeV;
 
+ 
+        trk.fpAnalytic = pAnalytic;
         const bool ok = trk.GenFitMDTFit(meas, mdt->fPDG, seedPForGenFit, 1 /*verbose*/);
+        trk.ffit_ok = ok;
         if (ok) {
             std::cout << "[ReconstructMDT] GenFit Kalman SUCCESS:"
                       << " trackID=" << trk.ftrackID
@@ -4276,12 +4434,11 @@ void TPORecoEvent::ReconstructMDT()
                       << " chi2=" << trk.fchi2
                       << " ndf=" << trk.fnDoF
                       << std::endl;
-
-            fMuTracks.push_back(trk);
+        } else {
+            std::cout << "[ReconstructMDT] GenFit Kalman FAILED for trackID=" << trk.ftrackID
+                      << " pAnalytic=" << pAnalytic << " GeV/c" << std::endl;
         }
-        else {
-            std::cout << "[ReconstructMDT] GenFit Kalman FAILED for trackID=" << trk.ftrackID << std::endl;
-        }
+        fMuTracks.push_back(trk);
     }
 }
 /////////////////////////////////////
