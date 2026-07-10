@@ -58,11 +58,24 @@ public:
     const std::vector<double>& GetEventStationZsCm() const { return event_station_z_cm_; }
     //////////(o^o)///////////
 
+    // Precomputed MDT magnet z-ranges in GLOBAL cm (zmin,zmax per magnet).
+    // Set once per event from the cached geometry so that get() never has to
+    // call gGeoManager->FindNode() while GenFit's RK stepper is mid-propagation:
+    // GenFit's own TGeoMaterialInterface concurrently drives gGeoManager's
+    // (stateful, single) navigator for material stepping, and an independent
+    // FindNode() call from inside the field functor can desynchronize that
+    // navigator's current-node bookkeeping, which manifests as the Kalman fit
+    // diverging/non-converging mid-track.
+    void SetMDTMagnetZRangesCm(const std::vector<std::pair<double,double>>& ranges_cm) {
+        mdt_magnet_z_ranges_cm_ = ranges_cm;
+    }
+
 private:
     std::vector<std::pair<double,double>> magnet_z_ranges_cm_;
     std::vector<double> scifi_layer_z_cm_;
     //////////(o^o)///////////
     std::vector<double> event_station_z_cm_;
+    std::vector<std::pair<double,double>> mdt_magnet_z_ranges_cm_;
     //////////(o^o)///////////
     TVector3 get(const TVector3 &position) const override
     {

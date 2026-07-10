@@ -465,7 +465,9 @@ int main(int argc, char** argv) {
             fTMuonSpectrometer.features.pval[i] = aMuTrack->fpval;
             fTMuonSpectrometer.features.fpErr[i] = aMuTrack->fpErr;
             fTMuonSpectrometer.features.fipErr[i] = aMuTrack->fipErr;
-        }
+            fTMuonSpectrometer.features.fit_ok[i] = aMuTrack->ffit_ok ? 1 : 0;
+            fTMuonSpectrometer.features.p_analytic[i] = aMuTrack->fpAnalytic;
+         }
         fTMuonSpectrometer.Fill_Sel_Tree(m_muonspect_Tree);
 
         m_POEventTree -> Fill();

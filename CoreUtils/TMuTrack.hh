@@ -58,7 +58,10 @@ public:
     double fipErr;            // error on fitted inverse momentum at the first point
     double fQOverP;            // fitted inverse momentum at the first point
     double fQOverPErr;         // error on fitted inverse momentum at the first point
-    
+
+    bool   ffit_ok;     // true if GenFit Kalman converged
+    double fpAnalytic;  // analytic sagitta-fit momentum (GeV/c), always filled
+   
     TMuTrack() : ftrackID(-1), fcharge(0), fitTrack(nullptr) {}
     virtual ~TMuTrack() {
         if (fitTrack) {

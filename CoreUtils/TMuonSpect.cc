@@ -17,4 +17,6 @@ void TMuonSpectrometer::Create_Sel_Tree(TTree *t) {
   t->Branch("pval", &features.pval, "pval[ntracks]/F");
   t->Branch("fpErr", &features.fpErr, "fpErr[ntracks]/F");
   t->Branch("fipErr", &features.fipErr, "fipErr[ntracks]/F");
+  t->Branch("fit_ok", &features.fit_ok, "fit_ok[ntracks]/I");
+  t->Branch("p_analytic", &features.p_analytic, "p_analytic[ntracks]/F");
 };

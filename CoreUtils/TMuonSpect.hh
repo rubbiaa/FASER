@@ -28,12 +28,14 @@ struct FEATURES {
     float pval[MAXMUTRACKS];  // p-value of the fit
     float fpErr[MAXMUTRACKS]; // error on fitted momentum at the first point
     float fipErr[MAXMUTRACKS]; // error on fitted inverse momentum at the first point
+     int   fit_ok[MAXMUTRACKS];     // 1 if GenFit Kalman converged, 0 otherwise
+    float p_analytic[MAXMUTRACKS]; // analytic sagitta-fit momentum (GeV/c)
 };
 
 private:
 
 public:
-    ClassDef(TMuonSpectrometer, 2)
+    ClassDef(TMuonSpectrometer, 3)
 
     struct FEATURES features;
 
