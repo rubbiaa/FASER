@@ -111,24 +111,34 @@ private:
         }
         /////////////////////////////////////////
         // Dedicated MDT magnet field.
-        // GenFit position is in cm. gGeoManager also uses cm.
-        if (gGeoManager) {
-            TGeoNode* node = gGeoManager->FindNode(position.X(), position.Y(), position.Z());
-            if (node) {
-                std::string nodeName = node->GetName() ? node->GetName() : "";
-                if (nodeName.find("MDTMagnet") != std::string::npos) {
-                    // Convert to local-like transverse coordinate.
-                    // position.Y() is cm, slitposition is cm.
-                    double y_local_cm = position.Y() - rearMuSpec_LOS_shiftY;
-                    if (std::abs(y_local_cm) >= slitposition &&
-                        std::abs(y_local_cm) <= 2.0 * slitposition) {
-                        return TVector3(+15.0, 0.0, 0.0); // +1.5 T = +15 kG
-                    }
-                    if (std::abs(y_local_cm) < slitposition) {
-                        return TVector3(-15.0, 0.0, 0.0); // -1.5 T = -15 kG
-                    }
-                    return TVector3(0.0, 0.0, 0.0);
+        // Uses precomputed global z-ranges (set once per event via
+        // SetMDTMagnetZRangesCm) instead of a live gGeoManager->FindNode()
+        // lookup: see the comment on SetMDTMagnetZRangesCm for why a live
+        // lookup here is unsafe during GenFit propagation.
+        for (const auto& rng : mdt_magnet_z_ranges_cm_) {
+            if (z_cm > rng.first && z_cm < rng.second) {
+                // Convert to local-like transverse coordinate.
+                // position.Y() is cm, slitposition is cm.
+                double y_local_cm = position.Y() - rearMuSpec_LOS_shiftY;
+                const double y_abs = std::abs(y_local_cm);
+                // Smooth the central/outer field boundary with a 1 cm linear ramp
+                // to avoid a step-function discontinuity that can destabilise the
+                // Runge-Kutta integrator for tracks near |y_local|=slitposition.
+                const double ramp_half = 0.5; // ±0.5 cm = 1 cm total transition
+                const double lo = slitposition - ramp_half;
+                const double hi = slitposition + ramp_half;
+                if (y_abs < lo) {
+                    return TVector3(-15.0, 0.0, 0.0); // central: -1.5 T
                 }
+                if (y_abs < hi) {
+                    // Linear ramp from -15 kG to +15 kG
+                    double t = (y_abs - lo) / (2.0 * ramp_half);
+                    return TVector3(-15.0 + 30.0 * t, 0.0, 0.0);
+                }
+                if (y_abs <= 2.0 * slitposition) {
+                    return TVector3(+15.0, 0.0, 0.0); // outer: +1.5 T
+                }
+                return TVector3(0.0, 0.0, 0.0);
             }
         }
 
