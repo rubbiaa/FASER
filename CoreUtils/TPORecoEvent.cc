@@ -4049,9 +4049,8 @@ void TPORecoEvent::ReconstructMDT()
     // Configure MDT magnet z-ranges on the field so ComputeYKernelFromBx and GenFit see non-zero B.
     SetupMDTMagneticField(fMagField, fTcalEvent);
     ///////////////////////////////////
-    // Set up a random engine to smear the true drift radius into a measured one
-    std::random_device rd;
-    //std::mt19937 muon_rng(rd());
+    // Set up a random engine to smear the true drift radius into a measured one.
+    // Fixed seed ensures reproducible L/R assignments across platforms and runs.
     std::mt19937 muon_rng(42);
     auto smearRadius = [&](double r_true) {
         std::normal_distribution<double> gaussR(0.0, smear_mm);
@@ -4147,7 +4146,9 @@ void TPORecoEvent::ReconstructMDT()
         //   chi2. Repeat up to 5 passes or until no flip improves chi2.
         // ---------------------------------------------------------------------
 
-        // --- Phase 1: per-station straight-line L/R scan ---
+        // --- Phase 1: collect hits, group by station ---
+        // L/R is NOT assigned here; a global combinatorial search below finds the
+        // optimal assignment using the full physics (kernelY bending) model.
         std::vector<Hit> resolvedEventHits;
         for (auto& pair : stationGroups) {
             auto& sHits = pair.second;
@@ -4158,35 +4159,8 @@ void TPORecoEvent::ReconstructMDT()
                           << " has " << nH << " hits; skipping track.\n";
                 resolvedEventHits.clear(); break;
             }
-            double bestLocalChi2 = 1e18;
-            std::vector<int> bestSides(nH, 1);
-            for (int combo = 0; combo < (1 << nH); ++combo) {
-                double sumZ=0, sumZ2=0, sumY=0, sumZY=0;
-                for (int i = 0; i < nH; ++i) {
-                    const int s = ((combo>>i)&1) ? 1 : -1;
-                    const double y = sHits[i].wy_l + s * sHits[i].r;
-                    const double z = sHits[i].wz_l;
-                    sumZ+=z; sumZ2+=z*z; sumY+=y; sumZY+=z*y;
-                }
-                const double denom = nH*sumZ2 - sumZ*sumZ;
-                if (std::fabs(denom) < 1e-6) continue;
-                const double slope  = (nH*sumZY - sumZ*sumY) / denom;
-                const double intcpt = (sumY - slope*sumZ) / nH;
-                double chi2 = 0;
-                for (int i = 0; i < nH; ++i) {
-                    const int s = ((combo>>i)&1) ? 1 : -1;
-                    const double res = sHits[i].wy_l + s*sHits[i].r
-                                       - (intcpt + slope*sHits[i].wz_l);
-                    chi2 += res*res / (smear_mm*smear_mm);
-                }
-                if (chi2 < bestLocalChi2) {
-                    bestLocalChi2 = chi2;
-                    for (int i = 0; i < nH; ++i)
-                        bestSides[i] = ((combo>>i)&1) ? 1 : -1;
-                }
-            }
             for (int i = 0; i < nH; ++i) {
-                sHits[i].assignedSide = bestSides[i];
+                sHits[i].assignedSide = 1;  // placeholder; overwritten by combo scan below
                 resolvedEventHits.push_back(sHits[i]);
             }
         }
@@ -4240,71 +4214,59 @@ void TPORecoEvent::ReconstructMDT()
             return chi2;
         };
 
-        // --- Phase 2: station-level combinatorial flip using physics model ---
-        // The per-station scan finds the best intra-station L/R, but may pick the
-        // "mirror" orientation (all hits flipped) for an entire station.  With 4
-        // stations there are only 2^4=16 inter-station sign combos to try, so we
-        // can exhaustively test all of them with the full 3-parameter model.
-        // Flipping per-station (not per-hit) preserves intra-station consistency.
+        // --- Phase 2: Per-station local straight-line L/R assignment ---
+        // Within each station (~3 layers, ~80mm z-spread) curvature is negligible.
+        // Enumerate all 2^nHits combos per station, pick the one with smallest
+        // straight-line chi2.  This mirrors the reference reco_mdt_genfit_batch.cc
+        // approach (solveLocalStationLR) and is far more robust than a global
+        // combinatorial that can be confused by contaminating hits.
         {
-            // Build station index lists into resolvedEventHits.
-            std::vector<int> stationOfHit(N);
-            std::vector<int> stationIds;
-            {
-                std::map<int, int> staIdx;
-                for (int h = 0; h < N; ++h) {
-                    int sta = resolvedEventHits[h].sta;
-                    if (staIdx.find(sta) == staIdx.end()) {
-                        staIdx[sta] = static_cast<int>(stationIds.size());
-                        stationIds.push_back(sta);
-                    }
-                    stationOfHit[h] = staIdx[sta];
-                }
-            }
-            const int nSta = static_cast<int>(stationIds.size());
-            // Save baseline per-station sides.
-            std::vector<int> baseSide(N);
-            for (int h = 0; h < N; ++h) baseSide[h] = resolvedEventHits[h].assignedSide;
-
-            double bestStaChi2 = 1e18;
-            std::vector<int> bestStaSide = baseSide;
-            const int nStaCombos = 1 << nSta;
-            for (int combo = 0; combo < nStaCombos; ++combo) {
-                for (int h = 0; h < N; ++h) {
-                    const int flip = ((combo >> stationOfHit[h]) & 1) ? -1 : 1;
-                    resolvedEventHits[h].assignedSide = baseSide[h] * flip;
-                }
-                double tryP[3]={};
-                double tryChi2 = fitAndChi2(tryP);
-                if (tryChi2 < bestStaChi2) {
-                    bestStaChi2 = tryChi2;
-                    for (int h = 0; h < N; ++h)
-                        bestStaSide[h] = resolvedEventHits[h].assignedSide;
-                }
-            }
+            std::map<int, std::vector<int>> stationHitIdx;
             for (int h = 0; h < N; ++h)
-                resolvedEventHits[h].assignedSide = bestStaSide[h];
+                stationHitIdx[resolvedEventHits[h].sta].push_back(h);
 
-            std::cout << "[ReconstructMDT] Station-flip scan done: chi2=" << bestStaChi2
-                      << " nSta=" << nSta << " combos=" << nStaCombos << " hits=" << N << "\n";
-        }
+            const double sigma2 = smear_mm * smear_mm;
+            for (auto& [sta, idxVec] : stationHitIdx) {
+                const int nh = static_cast<int>(idxVec.size());
+                const int nCombos = 1 << nh;
+                double bestChi2Local = 1e18;
+                std::vector<int> bestSidesLocal(nh, 1);
 
-        // --- Phase 3: single-pass per-hit L/R guided by Phase 2 prediction ---
-        // Use the Phase 2 model prediction to assign each hit's L/R: +1 if
-        // y_pred >= y_wire, -1 otherwise.  Single pass only — iteration causes
-        // oscillation as the model shifts with each assignment change.
-        {
-            double p2P[3]={};
-            fitAndChi2(p2P);
-            for (int h = 0; h < N; ++h) {
-                const double zRel   = resolvedEventHits[h].wz_l - z0Local;
-                const double y_pred = p2P[0] + p2P[1]*zRel + p2P[2]*kernelY[h];
-                resolvedEventHits[h].assignedSide = (y_pred >= resolvedEventHits[h].wy_l) ? 1 : -1;
+                for (int combo = 0; combo < nCombos; ++combo) {
+                    double sumZ=0, sumZ2=0, sumY=0, sumZY=0;
+                    std::vector<double> ys(nh);
+                    for (int i = 0; i < nh; ++i) {
+                        const Hit& hit = resolvedEventHits[idxVec[i]];
+                        int side = ((combo >> i) & 1) ? 1 : -1;
+                        double y = hit.wy_l + side * hit.r;
+                        double z = hit.wz_l;
+                        ys[i] = y;
+                        sumZ += z; sumZ2 += z*z; sumY += y; sumZY += z*y;
+                    }
+                    double denom = nh * sumZ2 - sumZ * sumZ;
+                    if (std::fabs(denom) < 1e-6) continue;
+                    double slope     = (nh * sumZY - sumZ * sumY) / denom;
+                    double intercept = (sumY - slope * sumZ) / nh;
+                    double chi2 = 0;
+                    for (int i = 0; i < nh; ++i) {
+                        const Hit& hit = resolvedEventHits[idxVec[i]];
+                        double res = ys[i] - (intercept + slope * hit.wz_l);
+                        chi2 += res*res / sigma2;
+                    }
+                    if (chi2 < bestChi2Local) {
+                        bestChi2Local = chi2;
+                        for (int i = 0; i < nh; ++i)
+                            bestSidesLocal[i] = ((combo >> i) & 1) ? 1 : -1;
+                    }
+                }
+                for (int i = 0; i < nh; ++i)
+                    resolvedEventHits[idxVec[i]].assignedSide = bestSidesLocal[i];
+                std::cout << "[ReconstructMDT] Station " << sta
+                          << " local L/R: chi2=" << bestChi2Local
+                          << " nHits=" << nh << "\n";
             }
-            double p3P[3]={};
-            double p3Chi2 = fitAndChi2(p3P);
-            std::cout << "[ReconstructMDT] Per-hit guided refinement: chi2=" << p3Chi2 << "\n";
         }
+
 
         // ---------------------------------------------------------------------
         // Analytic local y(z) fit using refined L/R assignment.
@@ -4327,7 +4289,175 @@ void TPORecoEvent::ReconstructMDT()
             std::cout << "[ReconstructMDT] Solve3 matrix inversion failed for track "<< tid << std::endl;
             continue;
         }
- 
+
+        // Iterative global L/R refinement: use the analytic trajectory from bestP
+        // to reassign each hit's L/R side, then refit.  Per-station assignment
+        // (Phase 2 above) minimises intra-station chi2 independently per station,
+        // which can leave a few hits on the wrong side when the global bending makes
+        // one side locally and globally inconsistent.  3-4 global passes converge.
+        for (int iter = 0; iter < 4; ++iter) {
+            int nFlipped = 0;
+            for (int h = 0; h < N; ++h) {
+                auto& hit = resolvedEventHits[h];
+                const double zRel = hit.wz_l - z0Local;
+                const double yPred = bestP[0] + bestP[1] * zRel + bestP[2] * kernelY[h];
+                const int newSide = (yPred >= hit.wy_l) ? 1 : -1;
+                if (newSide != hit.assignedSide) {
+                    hit.assignedSide = newSide;
+                    ++nFlipped;
+                }
+            }
+            if (nFlipped == 0) break; // converged
+            // Recompute analytic fit with updated L/R
+            double ATA2[3][3] = {};
+            double ATy2[3] = {};
+            for (int h = 0; h < N; ++h) {
+                const auto& hit = resolvedEventHits[h];
+                const double y_assigned = hit.wy_l + hit.assignedSide * hit.r;
+                const double zRel = hit.wz_l - z0Local;
+                double A[3] = {1.0, zRel, kernelY[h]};
+                for (int i = 0; i < 3; ++i) {
+                    for (int j = 0; j < 3; ++j)
+                        ATA2[i][j] += A[i] * A[j];
+                    ATy2[i] += A[i] * y_assigned;
+                }
+            }
+            double newP[3] = {0.0, 0.0, 0.0};
+            if (!Solve3(ATA2, ATy2, newP)) break;
+            bestP[0] = newP[0]; bestP[1] = newP[1]; bestP[2] = newP[2];
+            std::cout << "[ReconstructMDT] Iter L/R pass " << (iter+1)
+                      << ": flipped=" << nFlipped << " newSlope=" << bestP[1]
+                      << " newQP=" << bestP[2] << "\n";
+        }
+
+        // Phase 3.7: Hough vote-count rescue for events stuck in a local L/R minimum.
+        // Enumerate all triplets (i,j,k) from at least 2 different stations.  For each
+        // of 8 side combos, solve the 3×3 system for (y0, slope, q/p) exactly.  Score
+        // by VOTE COUNT — how many of the N hits agree with the candidate track within a
+        // tolerance window — rather than by chi².  Vote counting is what the ATLAS Legendre
+        // sinogram does and is key: 3 contaminated hits forming a perfect fake line get
+        // only 3 votes, while the true 12-hit muon track gets ≥10 votes and always wins.
+        // Only triggered when the iterative fit (Phase 3.5) is still stuck (chi2 > 1000).
+        {
+            // Current analytic chi² with Phase-3.5 L/R
+            const double sigma2 = smear_mm * smear_mm;
+            double chi2Current = 0.0;
+            for (int h = 0; h < N; ++h) {
+                const double y_a  = resolvedEventHits[h].wy_l + resolvedEventHits[h].assignedSide * resolvedEventHits[h].r;
+                const double zRel = resolvedEventHits[h].wz_l - z0Local;
+                const double res  = y_a - (bestP[0] + bestP[1]*zRel + bestP[2]*kernelY[h]);
+                chi2Current += res*res / sigma2;
+            }
+
+            if (chi2Current > 1000.0) {
+                // 5σ tolerance: real hits on the correct side will always be inside;
+                // hits on the wrong side (offset by ~2r ≈ 14-29mm) will be outside.
+                const double tol = 5.0 * smear_mm;
+
+                struct HC { double yp, ym, zRel, kY; int sta; };
+                std::vector<HC> hc(N);
+                for (int h = 0; h < N; ++h) {
+                    const auto& hit = resolvedEventHits[h];
+                    hc[h].yp   = hit.wy_l + hit.r;
+                    hc[h].ym   = hit.wy_l - hit.r;
+                    hc[h].zRel = hit.wz_l - z0Local;
+                    hc[h].kY   = kernelY[h];
+                    hc[h].sta  = hit.sta;
+                }
+
+                int bestVotes = 0;
+                double bestChi2AtPeak = 1e18;
+                std::vector<int> bestSidesHough(N);
+                for (int h = 0; h < N; ++h)
+                    bestSidesHough[h] = resolvedEventHits[h].assignedSide;
+
+                for (int i = 0; i < N-2; ++i) {
+                    for (int j = i+1; j < N-1; ++j) {
+                        for (int k = j+1; k < N; ++k) {
+                            if (hc[i].sta == hc[j].sta && hc[i].sta == hc[k].sta) continue;
+
+                            for (int combo = 0; combo < 8; ++combo) {
+                                const double yi = (combo & 1) ? hc[i].yp : hc[i].ym;
+                                const double yj = (combo & 2) ? hc[j].yp : hc[j].ym;
+                                const double yk = (combo & 4) ? hc[k].yp : hc[k].ym;
+
+                                double Amat[3][3] = {
+                                    {1.0, hc[i].zRel, hc[i].kY},
+                                    {1.0, hc[j].zRel, hc[j].kY},
+                                    {1.0, hc[k].zRel, hc[k].kY}
+                                };
+                                double rhs[3] = {yi, yj, yk};
+                                double sol[3] = {};
+                                if (!Solve3(Amat, rhs, sol)) continue;
+
+                                const double y0_c = sol[0], sl_c = sol[1], qp_c = sol[2];
+
+                                // Physics cuts: reject unphysical FASER muon candidates
+                                if (std::fabs(sl_c) > 0.15) continue;
+                                if (std::fabs(qp_c) > 1.0)  continue;
+
+                                // Score by VOTE COUNT: count hits within tolerance of the
+                                // candidate track using each hit's best (closest) side.
+                                int votes = 0;
+                                double chi2AtPeak = 0.0;
+                                std::vector<int> sides(N);
+                                for (int h = 0; h < N; ++h) {
+                                    const double yPred = y0_c + sl_c*hc[h].zRel + qp_c*hc[h].kY;
+                                    const double rp = std::fabs(hc[h].yp - yPred);
+                                    const double rm = std::fabs(hc[h].ym - yPred);
+                                    sides[h] = (rp <= rm) ? 1 : -1;
+                                    const double minR = std::min(rp, rm);
+                                    if (minR < tol) ++votes;
+                                    chi2AtPeak += minR*minR / sigma2;
+                                }
+
+                                // Primary rank: most votes; secondary: lowest chi²
+                                if (votes > bestVotes ||
+                                    (votes == bestVotes && chi2AtPeak < bestChi2AtPeak)) {
+                                    bestVotes      = votes;
+                                    bestChi2AtPeak = chi2AtPeak;
+                                    bestSidesHough = sides;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Apply only if Hough found strong consensus (≥ N-2 votes) and
+                // the candidate changes something
+                if (bestVotes >= N - 2) {
+                    int nFlippedH = 0;
+                    for (int h = 0; h < N; ++h) {
+                        if (bestSidesHough[h] != resolvedEventHits[h].assignedSide) {
+                            resolvedEventHits[h].assignedSide = bestSidesHough[h];
+                            ++nFlippedH;
+                        }
+                    }
+                    if (nFlippedH > 0) {
+                        double ATA4[3][3]={}, ATy4[3]={};
+                        for (int h = 0; h < N; ++h) {
+                            const auto& hit = resolvedEventHits[h];
+                            const double y_a = hit.wy_l + hit.assignedSide * hit.r;
+                            const double zRel = hit.wz_l - z0Local;
+                            double A[3] = {1.0, zRel, kernelY[h]};
+                            for (int ii=0;ii<3;++ii){
+                                for (int jj=0;jj<3;++jj) ATA4[ii][jj]+=A[ii]*A[jj];
+                                ATy4[ii]+=A[ii]*y_a;
+                            }
+                        }
+                        double newP[3]={};
+                        if (Solve3(ATA4, ATy4, newP)){
+                            bestP[0]=newP[0]; bestP[1]=newP[1]; bestP[2]=newP[2];
+                        }
+                        std::cout << "[ReconstructMDT] Hough-vote: chi2Current=" << chi2Current
+                                  << " votes=" << bestVotes << "/" << N
+                                  << " flipped=" << nFlippedH
+                                  << " slope=" << bestP[1] << " qp=" << bestP[2] << "\n";
+                    }
+                }
+            }
+        }
+
         const double pAnalytic = (std::fabs(bestP[2]) > 1.0e-12)
                                ? std::fabs(1.0 / bestP[2])
                                : -999.0;
@@ -4415,16 +4545,193 @@ void TPORecoEvent::ReconstructMDT()
         // run GenFit track fitting
         // verbose = 1 for debug prints, 0 for quiet
         // GenFit expects momentum in GeV/c
-	// Only reject sub-1-GeV pAnalytic values as degenerate (sagitta floor artifact).
+        // Only reject sub-1-GeV pAnalytic values as degenerate (sagitta floor artifact).
         // Values 1-1000 GeV are valid seeds even if they may be imprecise.
         const double seedPForGenFit =
             (pAnalytic >= 1.0 && pAnalytic <= 1000.0 && std::isfinite(pAnalytic))
             ? pAnalytic
             : seedMomentumGeV;
 
- 
         trk.fpAnalytic = pAnalytic;
-        const bool ok = trk.GenFitMDTFit(meas, mdt->fPDG, seedPForGenFit, 1 /*verbose*/);
+        // Use the analytic charge sign for the GenFit PDG so that the
+        // RKTrackRep charge matches the bending direction implied by the L/R
+        // assignment.  When the per-station L/R picks the mirror image, the
+        // analytic fit gives the opposite charge sign; using it keeps GenFit's
+        // propagation consistent with the measurements.
+        const int pdgForFit = (qAnalytic > 0.0) ? -13 : 13;  // +1 → mu+, -1 → mu-
+        if (pdgForFit != mdt->fPDG) {
+            std::cout << "[ReconstructMDT] Charge flip: analytic q=" << qAnalytic
+                      << " differs from truth PDG=" << mdt->fPDG
+                      << " → using PDG=" << pdgForFit << " for GenFit\n";
+        }
+        bool ok = trk.GenFitMDTFit(meas, pdgForFit, seedPForGenFit, 1 /*verbose*/, bestP[1]);
+
+        // Outlier-rejection rescue: when the full-hit fit fails AND we have
+        // enough hits, iteratively remove the hit(s) most inconsistent with the
+        // analytic track (bestP) and retry GenFit.  Contaminated hits from a
+        // secondary particle have large analytic residuals even when the L/R is
+        // correct for the muon, so they float to the top of the sorted list.
+        // We try removing 1, 2, 3 hits in sequence; stop as soon as a fit
+        // succeeds or when fewer than 6 hits remain (NDF < 1).
+        if (!ok && N >= 9) {
+            // Sort hit indices by descending |analytic residual| (in σ units).
+            const double sig2Out = smear_mm * smear_mm;
+            std::vector<std::pair<double,int>> resVec(N);
+            for (int h = 0; h < N; ++h) {
+                const auto& rh   = resolvedEventHits[h];
+                const double y_a = rh.wy_l + rh.assignedSide * rh.r;
+                const double zRel = rh.wz_l - z0Local;
+                const double res  = y_a - (bestP[0] + bestP[1]*zRel + bestP[2]*kernelY[h]);
+                resVec[h]         = {res*res / sig2Out, h};
+            }
+            std::sort(resVec.begin(), resVec.end(),
+                      [](const auto& a, const auto& b){ return a.first > b.first; });
+
+            const int maxRemove = std::min(6, N - 6); // keep at least 6 hits (NDF≥1)
+            for (int nRem = 1; nRem <= maxRemove && !ok; ++nRem) {
+                // Build cleaned meas list, then re-fit analytic bestP on the survivors
+                // to get a better seed slope and seed momentum for GenFit.
+                std::vector<bool> excl(N, false);
+                for (int i = 0; i < nRem; ++i) excl[resVec[i].second] = true;
+
+                std::vector<MDTMeas> measClean;
+                measClean.reserve(N - nRem);
+                for (int h = 0; h < N; ++h)
+                    if (!excl[h]) measClean.push_back(meas[h]);
+
+                // Re-fit analytic model on survivors to get uncontaminated slope/qp.
+                double ATA_c[3][3]={}, ATy_c[3]={}, Pc[3]={};
+                for (int h = 0; h < N; ++h) {
+                    if (excl[h]) continue;
+                    const auto& rh   = resolvedEventHits[h];
+                    const double y_a = rh.wy_l + rh.assignedSide * rh.r;
+                    const double zRel = rh.wz_l - z0Local;
+                    const double A[3] = {1.0, zRel, kernelY[h]};
+                    for (int ii=0;ii<3;++ii){ for (int jj=0;jj<3;++jj) ATA_c[ii][jj]+=A[ii]*A[jj]; ATy_c[ii]+=A[ii]*y_a; }
+                }
+                const bool solvedClean = Solve3(ATA_c, ATy_c, Pc);
+                const double slopeClean = solvedClean ? Pc[1] : bestP[1];
+                const double qpClean    = solvedClean ? Pc[2] : bestP[2];
+                const double pClean     = (std::fabs(qpClean) > 1e-12 && std::fabs(qpClean) < 1.0)
+                                           ? std::fabs(1.0 / qpClean) : seedPForGenFit;
+
+                TMuTrack trkC;
+                trkC.ftrackID  = tid;
+                trkC.fPDG      = mdt->fPDG;
+                trkC.fpAnalytic = (std::fabs(qpClean) > 1e-12) ? std::fabs(1.0/qpClean) : pAnalytic;
+                const bool okC = trkC.GenFitMDTFit(measClean, pdgForFit, pClean, 1, slopeClean);
+                if (okC) {
+                    trk = trkC;
+                    ok  = true;
+                    std::cout << "[ReconstructMDT] OutlierRescue nRemoved=" << nRem
+                              << " p=" << trk.fp << " GeV/c  q=" << trk.fcharge
+                              << " chi2=" << trk.fchi2 << " ndf=" << trk.fnDoF << "\n";
+                }
+            }
+        }
+
+        // ── Two-track rescue ──────────────────────────────────────────────────
+        // If any hits are inconsistent with the primary analytic track (bestP),
+        // they may belong to a second independent muon (e.g. from tau decay, a
+        // cosmic, or a second neutrino interaction).  Classify hits by their
+        // residual from bestP, then attempt independent fits on each group.
+        //
+        // Track A (consistent hits): used as a fallback when single-track fits
+        //   all failed AND the outlier rescue was limited (nIncons > maxRemove).
+        // Track B (inconsistent hits): always attempted when ≥ 6 hits are
+        //   inconsistent; if successful it is added to fMuTracks as a second track.
+        TMuTrack trkB;
+        if (N >= 10) {
+            const double tol2t = 5.0 * smear_mm;
+            std::vector<int> idxA, idxB;
+            for (int h = 0; h < N; ++h) {
+                const auto& rh   = resolvedEventHits[h];
+                const double y_a = rh.wy_l + rh.assignedSide * rh.r;
+                const double zRel = rh.wz_l - z0Local;
+                const double res  = std::fabs(y_a - (bestP[0] + bestP[1]*zRel + bestP[2]*kernelY[h]));
+                (res < tol2t ? idxA : idxB).push_back(h);
+            }
+            const int nA = static_cast<int>(idxA.size());
+            const int nB = static_cast<int>(idxB.size());
+
+            if (nA >= 5 && nB >= 5)
+                std::cout << "[ReconstructMDT] TwoTrack: " << nA
+                          << " consistent + " << nB << " inconsistent hits\n";
+
+            // ── Track A: primary-consistent hits, rescue if still failing ──────
+            // Only needed when outlier rescue was blocked (nIncons > maxRemove=6)
+            if (!ok && nA >= 6 && nB > 6) {
+                double ATA_A[3][3]={}, ATy_A[3]={}, PA[3]={};
+                for (int hi : idxA) {
+                    const auto& rh   = resolvedEventHits[hi];
+                    const double y_a = rh.wy_l + rh.assignedSide * rh.r;
+                    const double zRel = rh.wz_l - z0Local;
+                    const double A[3] = {1.0, zRel, kernelY[hi]};
+                    for (int ii=0;ii<3;++ii){ for (int jj=0;jj<3;++jj) ATA_A[ii][jj]+=A[ii]*A[jj]; ATy_A[ii]+=A[ii]*y_a; }
+                }
+                const bool solA   = Solve3(ATA_A, ATy_A, PA);
+                const double slA  = solA ? PA[1] : bestP[1];
+                const double qpA  = solA ? PA[2] : bestP[2];
+                const double pA   = (std::fabs(qpA) > 1e-12 && std::fabs(qpA) < 1.0)
+                                    ? std::fabs(1.0/qpA) : seedPForGenFit;
+                const int pdgA    = (qpA > 0.0) ? -13 : 13;
+
+                std::vector<MDTMeas> measA;
+                for (int hi : idxA) measA.push_back(meas[hi]);
+
+                TMuTrack trkA;
+                trkA.ftrackID  = tid;
+                trkA.fPDG      = mdt->fPDG;
+                trkA.fpAnalytic = std::fabs(qpA) > 1e-12 ? std::fabs(1.0/qpA) : pAnalytic;
+                if (trkA.GenFitMDTFit(measA, pdgA, pA, 1, slA)) {
+                    trk = trkA;
+                    ok  = true;
+                    std::cout << "[ReconstructMDT] TwoTrack-A: p=" << trk.fp
+                              << " q=" << trk.fcharge << " ndf=" << trk.fnDoF << "\n";
+                }
+            }
+
+            // ── Track B: inconsistent hits, fit as independent second track ───
+            if (nB >= 6) {
+                // Analytic seed from wire centers (side-neutral): avoids primary
+                // L/R bias which is wrong for the B-track trajectory.
+                double ATA_B[3][3]={}, ATy_B[3]={}, PB[3]={};
+                for (int hi : idxB) {
+                    const double y_b  = resolvedEventHits[hi].wy_l; // wire center
+                    const double zRel = resolvedEventHits[hi].wz_l - z0Local;
+                    const double A[3] = {1.0, zRel, kernelY[hi]};
+                    for (int ii=0;ii<3;++ii){ for (int jj=0;jj<3;++jj) ATA_B[ii][jj]+=A[ii]*A[jj]; ATy_B[ii]+=A[ii]*y_b; }
+                }
+                const bool solB  = Solve3(ATA_B, ATy_B, PB);
+                const double slB = solB ? PB[1] : 0.0;
+                const double qpB = solB ? PB[2] : 0.0;
+                const double pB  = (std::fabs(qpB) > 1e-12 && std::fabs(qpB) < 1.0)
+                                   ? std::fabs(1.0/qpB) : seedMomentumGeV;
+                const int pdgB   = (qpB > 0.0) ? -13 : 13;
+
+                // Pass measurements with side=+1 as neutral initial guess.
+                // GenFitMDTFit's internal retry (L/R re-assignment from the partial
+                // Kalman state of the B trajectory) will correct the side.
+                std::vector<MDTMeas> measB;
+                for (int hi : idxB) {
+                    MDTMeas mb    = meas[hi];
+                    mb.side       = 1;
+                    mb.y_mm       = mb.wireY_mm + mb.r_meas_mm; // side=+1, global mm
+                    measB.push_back(mb);
+                }
+
+                trkB.ftrackID  = tid;
+                trkB.fPDG      = mdt->fPDG;
+                trkB.fpAnalytic = std::fabs(qpB) > 1e-12 ? std::fabs(1.0/qpB) : -999.0;
+                if (trkB.GenFitMDTFit(measB, pdgB, pB, 1, slB)) {
+                    trkB.ffit_ok = true;
+                    std::cout << "[ReconstructMDT] TwoTrack-B (2nd track): p=" << trkB.fp
+                              << " q=" << trkB.fcharge << " ndf=" << trkB.fnDoF << "\n";
+                }
+            }
+        }
+        // ── end two-track rescue ──────────────────────────────────────────────
+
         trk.ffit_ok = ok;
         if (ok) {
             std::cout << "[ReconstructMDT] GenFit Kalman SUCCESS:"
@@ -4439,6 +4746,7 @@ void TPORecoEvent::ReconstructMDT()
                       << " pAnalytic=" << pAnalytic << " GeV/c" << std::endl;
         }
         fMuTracks.push_back(trk);
+        if (trkB.ffit_ok) fMuTracks.push_back(trkB);
     }
 }
 /////////////////////////////////////
