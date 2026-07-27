@@ -373,11 +373,35 @@ bool TMuTrack::GenFitMDTFit(const std::vector<MDTMeas>& meas,
     if (mdtW.Mag() > 0.0) mdtW = mdtW.Unit();
     else mdtW = mdtU.Cross(mdtV).Unit();
 
-    // Seed position: X=0 because B=(Bx,0,0) → Fx=0 → X is conserved.
-    // The 1D measurement constrains only Y at each Z; X is never measured,
-    // so GenFit's propagator stays at X=0 throughout (avoiding material
-    // corrections from traversing the MDT tube walls at global X≈900mm).
-    TVector3 posSeed(0.0,
+    // Sanity gate on px (wire direction, unmeasured): physically it should
+    // only be a small fraction of pz (~tan(tilt) ~ 0.08 here). GenFit's RK/DAF
+    // fit occasionally converges to an exotic, degenerate solution where px
+    // dominates -- the sparse per-station hits don't rule it out via chi2,
+    // even though it's unphysical for this near-axial spectrometer. Reject
+    // those so the retry/rescue cascade gets another attempt instead.
+    auto pxSane = [](const TVector3& mom) {
+        return std::fabs(mom.X()) < 0.5 * std::fabs(mom.Z()) + 1.0;
+    };
+
+    // Sanity gate on |p| against the independent analytic seed estimate
+    // (seedMomentumGeV, from the sagitta fit, tracks truth to ~20-25%). A
+    // second, distinct degenerate solution exists alongside the px runaway:
+    // a very-low-momentum trajectory can bend sharply enough to thread almost
+    // any sparse set of hits, giving excellent chi2 while being unphysical
+    // (and, empirically, this degeneracy is what breaks charge discrimination
+    // between the two RKTrackRep hypotheses). Reject fits too far from the
+    // seed in either direction.
+    const double seedMomRef = std::max(1.0, seedMomentumGeV);
+    auto pSane = [seedMomRef](const TVector3& mom) {
+        const double pmag = mom.Mag();
+        return pmag > 0.15 * seedMomRef && pmag < 6.0 * seedMomRef;
+    };
+
+    // Seed position: X from the true (tilt-aware) hit position, matching the
+    // measurement planes' origin (also hit.x_mm). With a tilted plane normal,
+    // seeding X=0 while planes sit at the true X≈900mm decouples the seed from
+    // the geometry it must intersect, which let px run away during fitting.
+    TVector3 posSeed(sortedMeas.front().x_mm * 0.1,
                      sortedMeas.front().y_mm * 0.1,
                      sortedMeas.front().z_mm * 0.1); // cm
 
@@ -413,8 +437,10 @@ bool TMuTrack::GenFitMDTFit(const std::vector<MDTMeas>& meas,
       ? seedMomentumGeV
       : 10.0;
 
-    // px=0: no X force, so X-momentum stays negligible.
-    TVector3 momSeed(0.0, dirGlobal.Y() * pSeed, dirGlobal.Z() * pSeed);
+    // px from dirGlobal.X(): the tilted forward direction has a small but
+    // real X-component (~sin(tilt)); seeding px=0 forced a mismatch against
+    // the tilted plane geometry.
+    TVector3 momSeed(dirGlobal.X() * pSeed, dirGlobal.Y() * pSeed, dirGlobal.Z() * pSeed);
 
     if (verbose > 0) {
         std::cout << "[GenFitMDTFit] seed pos cm = "
@@ -474,21 +500,25 @@ bool TMuTrack::GenFitMDTFit(const std::vector<MDTMeas>& meas,
     // Instantiate the GenFit master track container.
     genfit::Track fitTrack(rep, stateSeed, covSeed);
 
-    // 1D measurement: only global Y (drift direction) is measured.
-    // Global X is unmeasured and stays ~0 (no X force from B=(Bx,0,0)).
-    // Plane normal = hU×hV = (0,1,0)×(1,0,0) = (0,0,-1) → plane ⊥ Z, natural for MDT.
+    // 1D measurement: only the drift (U) coordinate is measured; the wire (V)
+    // direction is unmeasured. Use the tilt-aware mdtU/mdtV computed above
+    // (not the global X/Y axes) so the measurement plane matches the wires'
+    // actual (tilted) orientation instead of an axis-aligned approximation.
     const double hitSigmaU_cm = 0.080 * 0.1; // 80 μm drift resolution in cm
     TMatrixDSym hitCov1D(1);
     hitCov1D.Zero();
     hitCov1D(0,0) = hitSigmaU_cm * hitSigmaU_cm;
-    const TVector3 hU_global(0.0, 1.0, 0.0); // measured: global Y (drift direction)
-    const TVector3 hV_global(1.0, 0.0, 0.0); // unmeasured: global X (wire direction)
+    const TVector3& hU_global = mdtU; // measured: drift direction
+    const TVector3& hV_global = mdtV; // unmeasured: wire direction
 
     const int detId = 0;
     int hitCounter = 0;
     for (const auto& hit : sortedMeas) {
-        // X=0: no X force so particle stays at X=0 throughout.
-        TVector3 planeOrigin(0.0, hit.y_mm * 0.1, hit.z_mm * 0.1);
+        // Use the true global X (from hit.x_mm) as the plane origin: with a
+        // tilted hV_global (wire direction), a wrong origin X is no longer
+        // "along the unmeasured axis only" -- it now has a component along
+        // the plane normal (hU x hV) and would offset the whole plane.
+        TVector3 planeOrigin(hit.x_mm * 0.1, hit.y_mm * 0.1, hit.z_mm * 0.1);
 
         TVectorD hitCoords(1);
         hitCoords(0) = 0.0; // measured Y = planeOrigin.Y() = hit.y_mm/10
@@ -596,7 +626,8 @@ bool TMuTrack::GenFitMDTFit(const std::vector<MDTMeas>& meas,
     // Quality gate: accept if GenFit declares convergence OR chi2/NDF is reasonable.
     // With 1D global-axis measurements the fitter is numerically stable, so
     // isFitConverged() is reliable.  Keep chi2/NDF < 100 as a safety backstop.
-    const bool qualityOk = status->isFitConverged() || ((fitNDF > 0) && (chi2ndf < 100.0));
+    const bool qualityOk = (status->isFitConverged() || ((fitNDF > 0) && (chi2ndf < 100.0)))
+                         && pxSane(state.getMom()) && pSane(state.getMom());
     // Also trigger retry if too many hits were silently rejected: a "converged" fit
     // that keeps only 6 of 12 hits (NDF=1 vs expected NDF=7) is not acceptable.
     const int expectedNDF = (int)sortedMeas.size() - 5;
@@ -641,10 +672,11 @@ bool TMuTrack::GenFitMDTFit(const std::vector<MDTMeas>& meas,
         // Second GenFit attempt with corrected measurements, 1D global planes.
         genfit::AbsTrackRep* rep2 = new genfit::RKTrackRep(pdg);
 
-        // Seed from partial state, zeroing X (conserved; keeps propagator at X=0).
+        // Seed from partial state, keeping its own X/px (consistent with the
+        // tilted, true-X measurement planes -- zeroing X here would mismatch them).
         TVectorD stateSeed2(6);
-        stateSeed2(0) = 0.0;            stateSeed2(1) = posPartial.Y(); stateSeed2(2) = posPartial.Z();
-        stateSeed2(3) = 0.0;            stateSeed2(4) = pPartial.Y();   stateSeed2(5) = pPartial.Z();
+        stateSeed2(0) = posPartial.X(); stateSeed2(1) = posPartial.Y(); stateSeed2(2) = posPartial.Z();
+        stateSeed2(3) = pPartial.X();   stateSeed2(4) = pPartial.Y();   stateSeed2(5) = pPartial.Z();
         TMatrixDSym covSeed2(6); covSeed2.Zero();
         for (int i = 0; i < 3; ++i) covSeed2(i,i) = 1.0;
         const double mSig2 = std::max(5.0, 0.3 * pPartial.Mag());
@@ -655,7 +687,7 @@ bool TMuTrack::GenFitMDTFit(const std::vector<MDTMeas>& meas,
 
         int hitCtr2 = 0;
         for (const auto& hit : sortedMeas) {
-            TVector3 origin2(0.0, hit.y_mm * 0.1, hit.z_mm * 0.1);
+            TVector3 origin2(hit.x_mm * 0.1, hit.y_mm * 0.1, hit.z_mm * 0.1);
             TVectorD hc2(1); hc2(0) = 0.0;
             TMatrixDSym hCov2(1); hCov2.Zero();
             hCov2(0,0) = hitSigmaU_cm * hitSigmaU_cm;
@@ -685,16 +717,17 @@ bool TMuTrack::GenFitMDTFit(const std::vector<MDTMeas>& meas,
         try { state2 = fitTrack2.getFittedState(); }
         catch (...) { return false; }
 
-        const bool qualityOk2 = status2->isFitConverged() || ((ndf_2 > 0) && (chi2ndf_2 < 100.0));
+        const bool qualityOk2 = (status2->isFitConverged() || ((ndf_2 > 0) && (chi2ndf_2 < 100.0)))
+                              && pxSane(state2.getMom()) && pSane(state2.getMom());
         if (!qualityOk2) {
             // Attempt 3+: try multiple seed momenta (1D global planes throughout).
             static const double altSeeds[] = { 5.0, 20.0, 100.0 };
             for (double altP : altSeeds) {
                 genfit::AbsTrackRep* rep3 = new genfit::RKTrackRep(pdg);
                 TVectorD ss3(6);
-                // X=0 always; use Y/Z from analytic direction scaled to altP.
-                ss3(0) = 0.0; ss3(1) = posSeed.Y(); ss3(2) = posSeed.Z();
-                TVector3 d3(0.0, dirGlobal.Y() * altP, dirGlobal.Z() * altP);
+                // X from the true hit position (matches the tilted plane geometry).
+                ss3(0) = posSeed.X(); ss3(1) = posSeed.Y(); ss3(2) = posSeed.Z();
+                TVector3 d3(dirGlobal.X() * altP, dirGlobal.Y() * altP, dirGlobal.Z() * altP);
                 ss3(3) = d3.X(); ss3(4) = d3.Y(); ss3(5) = d3.Z();
                 TMatrixDSym cs3(6); cs3.Zero();
                 for (int i = 0; i < 3; ++i) cs3(i,i) = 1.0;
@@ -703,7 +736,7 @@ bool TMuTrack::GenFitMDTFit(const std::vector<MDTMeas>& meas,
                 genfit::Track ft3(rep3, ss3, cs3);
                 int hc3 = 0;
                 for (const auto& hit : sortedMeas) {
-                    TVector3 org3(0.0, hit.y_mm*0.1, hit.z_mm*0.1);
+                    TVector3 org3(hit.x_mm*0.1, hit.y_mm*0.1, hit.z_mm*0.1);
                     TVectorD hc3v(1); hc3v(0) = 0.0;
                     TMatrixDSym hCov3(1); hCov3.Zero();
                     hCov3(0,0) = hitSigmaU_cm*hitSigmaU_cm;
@@ -724,6 +757,7 @@ bool TMuTrack::GenFitMDTFit(const std::vector<MDTMeas>& meas,
                 if (!st3->isFitConverged() && ((n3 <= 0) || (cn3 >= 100.0))) continue;
                 genfit::MeasuredStateOnPlane st3s;
                 try { st3s = ft3.getFittedState(); } catch (...) { continue; }
+                if (!pxSane(st3s.getMom()) || !pSane(st3s.getMom())) continue;
                 TVector3 p3 = st3s.getMom();
                 fpx = p3.X(); fpy = p3.Y(); fpz = p3.Z(); fp = p3.Mag();
                 fcharge = st3s.getCharge();
@@ -749,8 +783,9 @@ bool TMuTrack::GenFitMDTFit(const std::vector<MDTMeas>& meas,
             {
                 genfit::AbsTrackRep* repD = new genfit::RKTrackRep(pdg);
                 TVectorD ssD(6);
-                ssD(0) = 0.0; ssD(1) = posSeed.Y(); ssD(2) = posSeed.Z();
-                TVector3 dD(0.0, dirGlobal.Y() * seedMomentumGeV,
+                ssD(0) = posSeed.X(); ssD(1) = posSeed.Y(); ssD(2) = posSeed.Z();
+                TVector3 dD(dirGlobal.X() * seedMomentumGeV,
+                                 dirGlobal.Y() * seedMomentumGeV,
                                  dirGlobal.Z() * seedMomentumGeV);
                 ssD(3) = dD.X(); ssD(4) = dD.Y(); ssD(5) = dD.Z();
                 TMatrixDSym csD(6); csD.Zero();
@@ -761,7 +796,7 @@ bool TMuTrack::GenFitMDTFit(const std::vector<MDTMeas>& meas,
                 genfit::Track ftD(repD, ssD, csD);
                 int hcD = 0;
                 for (const auto& hit : sortedMeas) {
-                    TVector3 orgD(0.0, hit.y_mm * 0.1, hit.z_mm * 0.1);
+                    TVector3 orgD(hit.x_mm * 0.1, hit.y_mm * 0.1, hit.z_mm * 0.1);
                     TVectorD hcDv(1); hcDv(0) = 0.0;
                     TMatrixDSym hCovD(1); hCovD.Zero();
                     hCovD(0,0) = hitSigmaU_cm * hitSigmaU_cm;
@@ -807,13 +842,14 @@ bool TMuTrack::GenFitMDTFit(const std::vector<MDTMeas>& meas,
                 // hits can inflate the ratio slightly.
                 // Require effective NDF >= 1 (at least one hit with significant
                 // weight survived annealing) and physical momentum (< 10 TeV).
-                const bool qualityDAF = (stD->isFitConverged() || ((nD > 0) && (cnD < 200.0)))
-                                        && (nD >= 1.0) && (cnD < 200.0);
-                if (!qualityDAF) return false;
-
                 genfit::MeasuredStateOnPlane stDs;
                 try { stDs = ftD.getFittedState(); }
                 catch (...) { return false; }
+
+                const bool qualityDAF = (stD->isFitConverged() || ((nD > 0) && (cnD < 200.0)))
+                                        && (nD >= 1.0) && (cnD < 200.0)
+                                        && pxSane(stDs.getMom()) && pSane(stDs.getMom());
+                if (!qualityDAF) return false;
 
                 TVector3 pD = stDs.getMom();
                 fpx = pD.X(); fpy = pD.Y(); fpz = pD.Z(); fp = pD.Mag();

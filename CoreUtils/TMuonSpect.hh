@@ -30,12 +30,14 @@ struct FEATURES {
     float fipErr[MAXMUTRACKS]; // error on fitted inverse momentum at the first point
      int   fit_ok[MAXMUTRACKS];     // 1 if GenFit Kalman converged, 0 otherwise
     float p_analytic[MAXMUTRACKS]; // analytic sagitta-fit momentum (GeV/c)
+    float p_truth[MAXMUTRACKS];    // truth |p| at first MDT hit (GeV/c), from MDTTrack::mom[0]/1000
+    float charge_truth[MAXMUTRACKS]; // truth charge (+1/-1) from MDTTrack::fPDG sign, -999 if unmatched
 };
 
 private:
 
 public:
-    ClassDef(TMuonSpectrometer, 3)
+    ClassDef(TMuonSpectrometer, 4);
 
     struct FEATURES features;
 
