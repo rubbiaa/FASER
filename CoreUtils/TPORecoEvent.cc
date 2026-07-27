@@ -4268,6 +4268,7 @@ void TPORecoEvent::ReconstructMDT()
         }
 
 
+
         // ---------------------------------------------------------------------
         // Analytic local y(z) fit using refined L/R assignment.
         // (kernelY already computed above)
@@ -4553,18 +4554,53 @@ void TPORecoEvent::ReconstructMDT()
             : seedMomentumGeV;
 
         trk.fpAnalytic = pAnalytic;
-        // Use the analytic charge sign for the GenFit PDG so that the
-        // RKTrackRep charge matches the bending direction implied by the L/R
-        // assignment.  When the per-station L/R picks the mirror image, the
-        // analytic fit gives the opposite charge sign; using it keeps GenFit's
-        // propagation consistent with the measurements.
-        const int pdgForFit = (qAnalytic > 0.0) ? -13 : 13;  // +1 → mu+, -1 → mu-
-        if (pdgForFit != mdt->fPDG) {
-            std::cout << "[ReconstructMDT] Charge flip: analytic q=" << qAnalytic
-                      << " differs from truth PDG=" << mdt->fPDG
-                      << " → using PDG=" << pdgForFit << " for GenFit\n";
+        // Charge comes from GenFit, not the analytic pre-fit: the analytic
+        // model's qp sign was found to be a coin flip even with perfect L/R
+        // (likely slope/curvature near-degeneracy over the narrow station
+        // baseline), so it can't be trusted to pick the RKTrackRep charge
+        // hypothesis. Instead, fit both hypotheses through the real nonlinear
+        // RK/Kalman propagation and keep whichever one actually fits better.
+        TMuTrack trkMuMinus, trkMuPlus;
+        trkMuMinus.ftrackID = tid; trkMuMinus.fPDG = mdt->fPDG; trkMuMinus.fpAnalytic = pAnalytic;
+        trkMuPlus.ftrackID  = tid; trkMuPlus.fPDG  = mdt->fPDG; trkMuPlus.fpAnalytic  = pAnalytic;
+        const bool okMinus = trkMuMinus.GenFitMDTFit(meas, 13,  seedPForGenFit, 1 /*verbose*/, bestP[1]);
+        const bool okPlus  = trkMuPlus.GenFitMDTFit(meas, -13, seedPForGenFit, 1 /*verbose*/, bestP[1]);
+
+        // KNOWN LIMITATION (investigated 2026-07): the fitted charge is not
+        // reliable, and no per-track signal currently available here (chi2,
+        // pval, NDF, or which hypothesis converged) separates correct from
+        // incorrect charge -- it is close to a coin flip (~45-50% mis-ID)
+        // even when both hypotheses are fit through the full nonlinear
+        // RK/Kalman propagation and the better chi2/NDF is kept below. This
+        // was checked directly: even tracks where BOTH hypotheses converge
+        // with a clearly-separated chi2/NDF are wrong about as often as
+        // tracks where only one hypothesis converges "cleanly". Root cause
+        // is believed to be a genuine degeneracy of this 1D-measurement,
+        // few-station geometry (a low-momentum, sharply-curved trajectory
+        // can thread almost any sparse hit pattern under either charge
+        // hypothesis), not a fixable bug in this fit. Do not treat fcharge
+        // as trustworthy until this is revisited with additional
+        // information (e.g. an independent upstream charge/direction
+        // measurement).
+        int pdgForFit;
+        if (okMinus && okPlus) {
+            const double cndfMinus = (trkMuMinus.fnDoF > 0) ? trkMuMinus.fchi2 / trkMuMinus.fnDoF : 1e18;
+            const double cndfPlus  = (trkMuPlus.fnDoF  > 0) ? trkMuPlus.fchi2  / trkMuPlus.fnDoF  : 1e18;
+            if (cndfMinus <= cndfPlus) { trk = trkMuMinus; pdgForFit = 13; }
+            else                       { trk = trkMuPlus;  pdgForFit = -13; }
+        } else if (okMinus) {
+            trk = trkMuMinus; pdgForFit = 13;
+        } else if (okPlus) {
+            trk = trkMuPlus; pdgForFit = -13;
+        } else {
+            pdgForFit = (qAnalytic > 0.0) ? -13 : 13;  // both failed; keep a definite PDG for the rescue path below
         }
-        bool ok = trk.GenFitMDTFit(meas, pdgForFit, seedPForGenFit, 1 /*verbose*/, bestP[1]);
+        bool ok = okMinus || okPlus;
+        if (pdgForFit != mdt->fPDG) {
+            std::cout << "[ReconstructMDT] Charge from GenFit: chose PDG=" << pdgForFit
+                      << " (truth PDG=" << mdt->fPDG
+                      << ", analytic q=" << qAnalytic << ")\n";
+        }
 
         // Outlier-rejection rescue: when the full-hit fit fails AND we have
         // enough hits, iteratively remove the hit(s) most inconsistent with the
@@ -4957,8 +4993,33 @@ void TPORecoEvent::DumpRearHCalTruth(int maxPrint, bool uniquePerModuleAndTrack)
 // Converts energy deposits (MeV) to photoelectrons (PE)
 //////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-// DETECTOR RESPONSE MODEL FOR FASERCAL
+// FIBER READOUT GEOMETRY (11 × 48 × 48 voxels per layer)
 // 
+// Three sets of wavelength-shifting (WLS) fibers run through the detector:
+//
+// X-FIBERS (2304 fibers):
+//   - Run along X-direction through all 11 voxels
+//   - One fiber per (Y, Z) position: 48 × 48 = 2,304 fibers
+//   - Each fiber passes through 11 voxels: (0,j,k), (1,j,k), ..., (10,j,k)
+//   - SiPM readout at +X face (maximum X position)
+//
+// Y-FIBERS (5328 fibers):
+//   - Run along Y-direction through all 48 voxels
+//   - One fiber per (X, Z) position: 11 × 48 = 528 fibers
+//   - Each fiber passes through 48 voxels: (i,0,k), (i,1,k), ..., (i,47,k)
+//   - SiPM readout at +Y face (maximum Y position)
+//
+// Z-FIBERS (528 fibers per layer):
+//   - Run along Z-direction within each layer module (48 voxels deep)
+//   - One fiber per (X, Y) position: 11 × 48 = 528 fibers per layer
+//   - Each fiber passes through 48 voxels: (i,j,0), (i,j,1), ..., (i,j,47)
+//   - SiPM readout at +Z face (downstream end of each layer module)
+//
+// LIGHT COLLECTION:
+//   Each voxel contributes scintillation light to exactly 3 fibers (X, Y, Z).
+//   Light propagates along fiber to SiPM, attenuated by distance traveled.
+//
+// DETECTOR RESPONSE MODEL:
 // Formula: NPE = NumberOfPhotonPerMeV × EnergyDeposit × globalFiberCapture 
 //                × FiberTrappingEfficiency × attenuation × SiPM_PDE
 //
@@ -4968,10 +5029,10 @@ void TPORecoEvent::DumpRearHCalTruth(int maxPrint, bool uniquePerModuleAndTrack)
 // 3. globalFiberCapture: Combined light collection efficiency (~10%)
 //    Includes: isotropic emission, geometric coupling, light transport, reflection
 // 4. FiberTrappingEfficiency: Fraction of photons trapped in WLS fiber (~5%)
-// 5. attenuation: Exponential decay along fiber length exp(-L/L_att)
+// 5. attenuation: Exponential decay along fiber length (dual-component model)
 // 6. SiPM_PDE: Photodetector efficiency (~25%)
 //
-// This model is applied separately for X, Y, and Z fiber readouts
+// This model is applied independently for X, Y, and Z fiber readouts
 ////////////////////////////////////////////////////////////////////////////////
 bool TPORecoEvent::decodeFaserCalScintID(long id, int& ix, int& iy, int& iz, int& ilayer) {
     const long hittype = id / 100000000000LL;
@@ -4995,7 +5056,8 @@ bool TPORecoEvent::isValidFaserCalVoxelIndex(int ix, int iy, int iz, int ilayer)
     const auto& g = geom_detector;
     const int nx = static_cast<int>(g.fScintillatorSizeX / g.fScintillatorVoxelSize);
     const int ny = static_cast<int>(g.fScintillatorSizeY / g.fScintillatorVoxelSize);
-    const int nzPerLayer = std::max(1, static_cast<int>(g.fSandwichLength / g.fScintillatorVoxelSize));
+    // Use fScintillatorSizeZ (pure scintillator thickness) instead of fSandwichLength (includes Al plates)
+    const int nzPerLayer = std::max(1, static_cast<int>(g.fScintillatorSizeZ / g.fScintillatorVoxelSize));
     
     if (ix < 0 || ix >= nx) return false;
     if (iy < 0 || iy >= ny) return false;
@@ -5005,7 +5067,8 @@ bool TPORecoEvent::isValidFaserCalVoxelIndex(int ix, int iy, int iz, int ilayer)
 }
 
 double TPORecoEvent::computeFaserCalDirectPE(long channelID, double energyDepositMeV,
-                                              std::array<double, 3>& fiberPE) {
+                                              std::array<double, 3>& fiberPE,
+                                              bool applyStatistics) {
     fiberPE = {0.0, 0.0, 0.0};
     if (energyDepositMeV <= 0.0) return 0.0;
     
@@ -5022,9 +5085,9 @@ double TPORecoEvent::computeFaserCalDirectPE(long channelID, double energyDeposi
 	// STEP 1: Determine voxel center position in detector coordinates (mm)
 	// ========================================================================
     const double voxelX = ix * g.fScintillatorVoxelSize - g.fScintillatorSizeX / 2.0 + 
-                          g.fScintillatorVoxelSize / 2.0 + g.fFASERCal_LOS_shiftX;
+                          g.fScintillatorVoxelSize / 2.0 + g.fFASERCal_LOS_shiftX + g.fThreeD_CAL_shiftX;
     const double voxelY = iy * g.fScintillatorVoxelSize - g.fScintillatorSizeY / 2.0 + 
-                          g.fScintillatorVoxelSize / 2.0 + g.fFASERCal_LOS_shiftY;
+                          g.fScintillatorVoxelSize / 2.0 + g.fFASERCal_LOS_shiftY + g.fThreeD_CAL_shiftY;
     const double voxelZ = ilayer * g.fSandwichLength + iz * g.fScintillatorVoxelSize -
                           (g.NRep * g.fSandwichLength) / 2.0 + g.fScintillatorVoxelSize / 2.0 +
                           g.fAlPlateThickness + g.fTargetSizeZ;
@@ -5032,23 +5095,82 @@ double TPORecoEvent::computeFaserCalDirectPE(long channelID, double energyDeposi
   	// ========================================================================
 	// STEP 2: Calculate fiber path lengths from voxel to readout (mm)
 	// ========================================================================
-    const double distX = cfg.faserCal_readoutAtPositiveX ? 
-                         (g.fScintillatorSizeX / 2.0 - voxelX + g.fFASERCal_LOS_shiftX) :
-                         (voxelX + g.fScintillatorSizeX / 2.0 - g.fFASERCal_LOS_shiftX);
-    const double distY = cfg.faserCal_readoutAtPositiveY ?
-                         (g.fScintillatorSizeY / 2.0 - voxelY + g.fFASERCal_LOS_shiftY) :
-                         (voxelY + g.fScintillatorSizeY / 2.0 - g.fFASERCal_LOS_shiftY);
-    const double distZ = cfg.faserCal_readoutAtPositiveZ ?
-                         (g.fTotalLength / 2.0 - voxelZ) :
-                         (voxelZ + g.fTotalLength / 2.0);
-    
-    // ========================================================================
-	// STEP 3: Calculate attenuation factor = exp(-distance/attenuationLength)
+	// FIBER GEOMETRY (11 x 48 x 48 voxels per layer):
+	// - X-fibers: Run line-by-line along X-direction (11 voxels long)
+	//   Each fiber at fixed (Y=j, Z=k) collects light from voxels (i=0..10, j, k)
+	//   Readout at +X face (maximum X position)
+	// 
+	// - Y-fibers: Run line-by-line along Y-direction (48 voxels long)
+	//   Each fiber at fixed (X=i, Z=k) collects light from voxels (i, j=0..47, k)
+	//   Readout at +Y face (maximum Y position)
+	// 
+	// - Z-fibers: Run line-by-line along Z-direction within each layer
+	//   Each fiber at fixed (X=i, Y=j) collects light from voxels (i, j, k=0..47)
+	//   Readout at +Z face (maximum Z within layer)
+	//
+	// Distance calculation: Light from each voxel propagates along the fiber
+	// to the readout end. Distance = path length remaining to reach SiPM.
 	// ========================================================================
 
-    const double attenuationX = std::exp(-distX / cfg.faserCal_fiberAttenuationLengthX);
-    const double attenuationY = std::exp(-distY / cfg.faserCal_fiberAttenuationLengthY);
-    const double attenuationZ = std::exp(-distZ / cfg.faserCal_fiberAttenuationLengthZ);
+    // X-fiber distance: from this voxel to the +X edge
+    const double distX = g.fScintillatorSizeX / 2.0 - voxelX + g.fFASERCal_LOS_shiftX + g.fThreeD_CAL_shiftX;
+    
+    // Y-fiber distance: from this voxel to the +Y edge  
+    const double distY = g.fScintillatorSizeY / 2.0 - voxelY + g.fFASERCal_LOS_shiftY + g.fThreeD_CAL_shiftY;
+    
+    // Z-fiber distance: from this voxel to the +Z edge within the layer module
+    // Fibers run within each layer module and are read out at the downstream end
+    const int nLayersPerModule = static_cast<int>(g.fSandwichLength / g.fScintillatorVoxelSize);
+    const double distZ = (nLayersPerModule - iz - 0.5) * g.fScintillatorVoxelSize;
+    
+    if (verbose > 1) {
+        std::cout << "[DEBUG Fiber geometry] Voxel indices: (ix=" << ix << ", iy=" << iy << ", iz=" << iz << ")" << std::endl;
+        std::cout << "[DEBUG Fiber geometry] Module layer=" << ilayer << ", voxels per layer=" << nLayersPerModule << std::endl;
+        std::cout << "[DEBUG Fiber distances to +readout (mm)]:" << std::endl;
+        std::cout << "  X-fiber: distX=" << distX << " (to +X edge)" << std::endl;
+        std::cout << "  Y-fiber: distY=" << distY << " (to +Y edge)" << std::endl;
+        std::cout << "  Z-fiber: distZ=" << distZ << " (to +Z edge in layer)" << std::endl;
+    }
+    
+    // ========================================================================
+	// STEP 3: Calculate attenuation factor with dual-component model
+	// Model: Attenuation = f_short * exp(-d/L_short) + (1-f_short) * exp(-d/L_long)
+	// This accounts for both bulk attenuation (short) and Rayleigh scattering (long)
+	// ========================================================================
+
+    // X fiber attenuation
+    const double attenuationX_short = std::exp(-distX / cfg.faserCal_fiberAttenuationLengthShortX);
+    const double attenuationX_long = std::exp(-distX / cfg.faserCal_fiberAttenuationLengthLongX);
+    const double attenuationX = cfg.faserCal_fiberShortComponentFractionX * attenuationX_short +
+                                (1.0 - cfg.faserCal_fiberShortComponentFractionX) * attenuationX_long;
+    
+    // Y fiber attenuation
+    const double attenuationY_short = std::exp(-distY / cfg.faserCal_fiberAttenuationLengthShortY);
+    const double attenuationY_long = std::exp(-distY / cfg.faserCal_fiberAttenuationLengthLongY);
+    const double attenuationY = cfg.faserCal_fiberShortComponentFractionY * attenuationY_short +
+                                (1.0 - cfg.faserCal_fiberShortComponentFractionY) * attenuationY_long;
+    
+    // Z fiber attenuation
+    const double attenuationZ_short = std::exp(-distZ / cfg.faserCal_fiberAttenuationLengthShortZ);
+    const double attenuationZ_long = std::exp(-distZ / cfg.faserCal_fiberAttenuationLengthLongZ);
+    const double attenuationZ = cfg.faserCal_fiberShortComponentFractionZ * attenuationZ_short +
+                                (1.0 - cfg.faserCal_fiberShortComponentFractionZ) * attenuationZ_long;
+    
+    if (verbose > 1) {
+        std::cout << "[DEBUG Attenuation] Dual-component model (light traveling to +readout):" << std::endl;
+        std::cout << "  X-fiber (" << distX << " mm to +X SiPM):" << std::endl;
+        std::cout << "     Short(L=" << cfg.faserCal_fiberAttenuationLengthShortX << "mm): " << attenuationX_short << std::endl;
+        std::cout << "     Long(L=" << cfg.faserCal_fiberAttenuationLengthLongX << "mm): " << attenuationX_long << std::endl;
+        std::cout << "     Combined(f=" << cfg.faserCal_fiberShortComponentFractionX << "): " << attenuationX << std::endl;
+        std::cout << "  Y-fiber (" << distY << " mm to +Y SiPM):" << std::endl;
+        std::cout << "     Short(L=" << cfg.faserCal_fiberAttenuationLengthShortY << "mm): " << attenuationY_short << std::endl;
+        std::cout << "     Long(L=" << cfg.faserCal_fiberAttenuationLengthLongY << "mm): " << attenuationY_long << std::endl;
+        std::cout << "     Combined(f=" << cfg.faserCal_fiberShortComponentFractionY << "): " << attenuationY << std::endl;
+        std::cout << "  Z-fiber (" << distZ << " mm to +Z SiPM):" << std::endl;
+        std::cout << "     Short(L=" << cfg.faserCal_fiberAttenuationLengthShortZ << "mm): " << attenuationZ_short << std::endl;
+        std::cout << "     Long(L=" << cfg.faserCal_fiberAttenuationLengthLongZ << "mm): " << attenuationZ_long << std::endl;
+        std::cout << "     Combined(f=" << cfg.faserCal_fiberShortComponentFractionZ << "): " << attenuationZ << std::endl;
+    }
     
     // ========================================================================
 	// STEP 4: Calculate total scintillation photons produced
@@ -5077,10 +5199,10 @@ double TPORecoEvent::computeFaserCalDirectPE(long channelID, double energyDeposi
     double meanPE_Z = commonFactor * attenuationZ;
     
     // ========================================================================
-	// STEP 7: Apply Poisson statistics (optional)
+	// STEP 6: Apply Poisson statistics (optional)
 	// ========================================================================
 	// Simulate the statistical fluctuations in photoelectron production
-    if (cfg.faserCal_applyPoissonStatistics) {
+    if (applyStatistics && cfg.faserCal_applyPoissonStatistics) {
         // Use Poisson distribution (approximated with Gaussian for large means)
         /*
         std::random_device rd;
@@ -5133,29 +5255,65 @@ double TPORecoEvent::computeFaserCalDirectPE(long channelID, double energyDeposi
     // ========================================================================
 	// EXAMPLE CALCULATION (typical values):
 	// ========================================================================
-	// Input: 1 MeV energy deposit in center voxel (10mm cube)
-	// 
+	// Consider a voxel at position (ix=5, iy=24, iz=24) - approximately center
+	// Detector size: 11×48×48 voxels, 10mm voxel size
+	// (X extent = 11×10 = 110mm; Y extent = 48×10 = 480mm; Z extent per layer = 480mm)
+	//
+	// This voxel contributes light to 3 fibers:
+	//   - X-fiber running through (0→10, 24, 24), readout at +X edge
+	//   - Y-fiber running through (5, 0→47, 24), readout at +Y edge
+	//   - Z-fiber running through (5, 24, 0→47), readout at +Z edge
+	//
+	// Assume: 1 MeV energy deposit in this voxel
+	//
 	// Step 1: Scintillation photons
 	//   N_scint = 1 MeV × 8000 photons/MeV = 8000 photons total
 	//
-	// Step 2: Global fiber capture (10%)
-	//   This single parameter includes:
-	//     - Isotropic light emission from scintillator
-	//     - Geometric coupling to fiber/groove
-	//     - Light transport within voxel
-	//     - Internal reflection effects
-	//   Photons coupled = 8000 × 0.10 = 800 photons
+	// Step 2: Global fiber capture per direction (10%)
+	//   Each fiber (X, Y, Z) captures: 8000 × 0.10 = 800 photons
+	//   (This includes geometric coupling, light transport, reflection)
 	//
 	// Step 3: Fiber trapping efficiency (5%)
-	//   Trapped = 800 × 0.05 = 40 photons
+	//   Trapped in each fiber: 800 × 0.05 = 40 photons
 	//
-	// Step 4: Attenuation (assume 50mm distance, 3000mm atten. length)
-	//   att = exp(-50/3000) = 0.983
-	//   After attenuation = 40 × 0.983 = 39 photons
+	// Step 4: Attenuation (dual-component model)
+	//   Distance to +X readout: ~55 mm (center voxel to +X edge, 110mm extent)
+	//   Distance to +Y readout: ~235 mm (center voxel to +Y edge, 480mm extent)
+	//   Distance to +Z readout: ~235 mm (center voxel to +Z edge within layer, 480mm extent)
+	//
+	//   X-fiber (55mm distance, f_short=0.29, L_short=350mm, L_long=4000mm):
+	//     att_short = exp(-55/350)  = 0.850
+	//     att_long  = exp(-55/4000) = 0.986
+	//     att_combined = 0.29×0.850 + 0.71×0.986 = 0.947
+	//   After attenuation: 40 × 0.947 = 37.9 photons reach +X SiPM
+	//
+	//   Y-fiber (235mm distance, f_short=0.29, L_short=350mm, L_long=4000mm):
+	//     att_short = exp(-235/350)  = 0.512
+	//     att_long  = exp(-235/4000) = 0.943
+	//     att_combined = 0.29×0.512 + 0.71×0.943 = 0.817
+	//   After attenuation: 40 × 0.817 = 32.7 photons reach +Y SiPM
+	//
+	//   Z-fiber (235mm distance, f_short=0.33, L_short=430mm, L_long=5000mm):
+	//     att_short = exp(-235/430)  = 0.579
+	//     att_long  = exp(-235/5000) = 0.955
+	//     att_combined = 0.33×0.579 + 0.67×0.955 = 0.831
+	//   After attenuation: 40 × 0.831 = 33.2 photons reach +Z SiPM
 	//
 	// Step 5: SiPM photodetection (25% PDE)
-	//   PE = 39 × 0.25 = 10 photoelectrons per fiber
-	//   Total (X+Y+Z) ≈ 30 PE for 1 MeV (typical ~20-30 PE/MeV)
+	//   PE_X = 37.9 × 0.25 = 9.5 photoelectrons
+	//   PE_Y = 32.7 × 0.25 = 8.2 photoelectrons
+	//   PE_Z = 33.2 × 0.25 = 8.3 photoelectrons
+	//
+	//   Total: ~26 PE for 1 MeV center voxel (~20-30 PE/MeV typical)
+	//
+	// NOTE: Position dependence differs by axis because of the very different
+	// extents (110mm in X vs 480mm in Y/Z) relative to the ~350-5000mm
+	// attenuation lengths:
+	//   - X-fiber response varies only mildly across the full 110mm width
+	//     (e.g. PE_X ≈ 10.0 at ix=10 near the SiPM vs ≈ 9.1 at ix=0, the far edge)
+	//   - Y/Z-fiber response varies more strongly across their 480mm extent
+	//     (voxels near the +Y/+Z SiPM see substantially more PE than voxels
+	//     near the far -Y/-Z edge)
 	// ========================================================================
     return meanPE_X + meanPE_Y + meanPE_Z;
 }
@@ -5165,22 +5323,24 @@ double TPORecoEvent::computeFaserCalDirectPE(long channelID, double energyDeposi
 // Distributes energy among voxels before PE conversion to account for
 // optical photon leakage to neighboring voxels
 //
-// Configuration:
-//   opticalLeakageSide: fraction of light leaking to each of 4 side faces (±X, ±Y)
-//   opticalLeakageZ: fraction leaking to ±Z neighbors (not currently used)
+// Configuration (measured from data, see recoConfig comments for derivation):
+//   opticalLeakageSideX: fraction of light leaking to each of the ±X neighbors
+//   opticalLeakageSideY: fraction of light leaking to each of the ±Y neighbors
+//   opticalLeakageZ: fraction of light leaking to each of the ±Z (in-layer,
+//                    fiber-depth) neighbors - separate axis, not directly
+//                    measured; set to avg(SideX, SideY) as a placeholder
 //
-// Example with opticalLeakageSide = 0.03 (3% per face):
-//   - 3% --> left neighbor (ix-1)
-//   - 3% --> right neighbor (ix+1)
-//   - 3% --> bottom neighbor (iy-1)
-//   - 3% --> top neighbor (iy+1)
-//   - 88% --> central voxel (1.0 - 4×0.03)
+// Example with current defaults (SideX~0.258%, SideY~0.269%, Z~0.264%):
+//   - 0.258% --> left/right neighbor (ix-1 / ix+1)      [opticalLeakageSideX]
+//   - 0.269% --> bottom/top neighbor (iy-1 / iy+1)       [opticalLeakageSideY]
+//   - 0.264% --> back/front neighbor (iz-1 / iz+1, same layer) [opticalLeakageZ]
+//   - ~98.4% --> central voxel (1.0 - 2*SideX - 2*SideY - 2*Z)
 //
 // IMPORTANT: Voxels can receive light FROM neighbors WITHOUT direct particle hits!
 // Example:
-//   - Particle hits voxel A with large energy --> neighbors B,C,D,E each get 3% leakage
-//   - Voxel B might have NO direct hit, but still gets PE from leaked light
-//   - If another particle later hits voxel B directly, both contributions accumulate
+//   - Particle hits voxel A with large energy --> its neighbors each get their leakage share
+//   - A neighbor might have NO direct hit, but still gets PE from leaked light
+//   - If another particle later hits that neighbor directly, both contributions accumulate
 //
 // ========================================================================
 void TPORecoEvent::accumulateFaserCalPEWithCrosstalk(
@@ -5196,16 +5356,38 @@ void TPORecoEvent::accumulateFaserCalPEWithCrosstalk(
     int ix = 0, iy = 0, iz = 0, ilayer = 0;
     if (!decodeFaserCalScintID(channelID, ix, iy, iz, ilayer)) return;
     
-    const double fSide = std::max(0.0, cfg.faserCal_opticalLeakageSide);
-    const double fZ = std::max(0.0, cfg.faserCal_opticalLeakageZ);
-    
+    const double fSideX = std::max(0.0, cfg.faserCal_opticalLeakageSideX);
+    const double fSideY = std::max(0.0, cfg.faserCal_opticalLeakageSideY);
+    const double fSideZ = std::max(0.0, cfg.faserCal_opticalLeakageZ);
+    // ========================================================================
+    // STEP 1: Compute the MEAN PE from the FULL energy deposit at the central
+    // voxel (statistics deliberately NOT applied yet). Leakage to neighbors is
+    // itself a random process (each photon independently ends up in one voxel
+    // or another), so we must NOT take a fixed fraction of an already-sampled
+    // total: that would make every leakage event exactly frac*totalPE, with no
+    // fluctuation of its own. Instead we split the MEAN, then let each target
+    // voxel fluctuate independently around its own (mean-fraction) expectation
+    // in STEP 3 below.
+    // ========================================================================
+    std::array<double, 3> meanFiberPE = {0.0, 0.0, 0.0};
+    const double meanTotalPE = computeFaserCalDirectPE(channelID, energyDepositMeV, meanFiberPE, false);
+
+    if (meanTotalPE <= 0.0) return;
+
+    // ========================================================================
+    // STEP 2: Build redistribution targets.
+    // faserCal_opticalLeakageSideX/Y/Z are the per-axis fractions of PE
+    // leaking to EACH of that axis's two neighbors. Central voxel retains
+    // (1 - 2*fSideX - 2*fSideY - 2*fSideZ).
+    // ========================================================================
+
     struct TargetVoxel {
         long id;
         double frac;
     };
     
     std::vector<TargetVoxel> targets;
-    targets.reserve(7);
+    targets.reserve(5);
     
     double centralFrac = 1.0;
     
@@ -5219,20 +5401,24 @@ void TPORecoEvent::accumulateFaserCalPEWithCrosstalk(
     };
     
     //////////////////////////////////////////////////////////
-	// ADD SIDE NEIGHBORS (4 faces: ±X, ±Y in same layer)
-	// Each neighbor receives 'fSide' fraction of the energy
-	// Light leaks through voxel faces to adjacent scintillator cubes
+	// ADD ±X SIDE NEIGHBORS
+	// Each neighbor receives 'fSideX' fraction of the energy (measured from
+	// data - nonzero despite Mylar, see recoConfig comments).
 	//////////////////////////////////////////////////////////
-    addNeighbor(ix - 1, iy, iz, ilayer, fSide);  // Left face (-X direction)
-    addNeighbor(ix + 1, iy, iz, ilayer, fSide);  // Right face (+X direction)
-    addNeighbor(ix, iy - 1, iz, ilayer, fSide);  // Bottom face (-Y direction)
-    addNeighbor(ix, iy + 1, iz, ilayer, fSide);  // Top face (+Y direction)
+    addNeighbor(ix - 1, iy, iz, ilayer, fSideX);  // Left face (-X direction)
+    addNeighbor(ix + 1, iy, iz, ilayer, fSideX);  // Right face (+X direction)
     //////////////////////////////////////////////////////////
-	// ADD Z NEIGHBORS (optional, currently not implemented)
-    // Would handle light leaking between layers
+	// ADD ±Y NEIGHBORS (same layer)
+	// Each neighbor receives 'fSideY' fraction of the energy (measured from data).
 	//////////////////////////////////////////////////////////
-    //addNeighbor(ix, iy, iz - 1, ilayer, fZ);  // Back face (-Z direction)
-    //addNeighbor(ix, iy, iz + 1, ilayer, fZ);  // Front face (+Z direction)
+    addNeighbor(ix, iy - 1, iz, ilayer, fSideY);  // Bottom face (-Y direction)
+    addNeighbor(ix, iy + 1, iz, ilayer, fSideY);  // Top face (+Y direction)
+    //////////////////////////////////////////////////////////
+	// ADD ±Z NEIGHBORS (within the same layer module)
+	// Each neighbor receives 'fSideZ' fraction of the energy.
+	//////////////////////////////////////////////////////////
+    addNeighbor(ix, iy, iz - 1, ilayer, fSideZ);  // Back face (-Z direction)
+    addNeighbor(ix, iy, iz + 1, ilayer, fSideZ);  // Front face (+Z direction)
 
     if (centralFrac < 0.0) centralFrac = 0.0;
     
@@ -5242,22 +5428,32 @@ void TPORecoEvent::accumulateFaserCalPEWithCrosstalk(
 
     //////////////////////////////////////////////////////////
 	// ACCUMULATE PE FOR EACH TARGET VOXEL
-	// Energy is distributed among voxels according to optical leakage fractions.
-	// For each voxel, convert energy to scintillation photons and then to photoelectrons
-	// Results accumulate in local maps passed as parameters (multiple hits per voxel are summed):
-	//   - voxelPEMap: total PE per voxel (sum of X + Y + Z fibers)
-	//   - voxelPEFibersMap: PE per fiber [X, Y, Z]
-	//
-	// ENERGY CONSERVATION: Total energy distributed = sum of (frac × energyDepositMeV)
-	// With 4 side neighbors: sum of fractions = centralFrac + 4×fSide = 1.0
-	//////////////////////////////////////////////////////////
+	// Distribute the MEAN PE (not energy) to central voxel and neighbors,
+	// then fluctuate each target independently (STEP 3). This preserves
+	// the expectation value (sum of fracs = centralFrac + leakage = 1.0)
+	// while giving each voxel its own statistical draw, rather than a
+	// fixed cut of one already-fluctuated number.
+    //////////////////////////////////////////////////////////
     for (const auto& t : targets) {
-        const double localEnergy = energyDepositMeV * t.frac;
-        if (localEnergy <= 0.0) continue;
-        
-        std::array<double, 3> fiberPE = {0.0, 0.0, 0.0};
-        const double totalPE = computeFaserCalDirectPE(t.id, localEnergy, fiberPE);
-        
+        if (t.frac <= 0.0) continue;
+
+        double peX = meanFiberPE[0] * t.frac;
+        double peY = meanFiberPE[1] * t.frac;
+        double peZ = meanFiberPE[2] * t.frac;
+
+        // ====================================================================
+        // STEP 3: Apply Poisson statistics independently per target voxel and
+        // per fiber direction, around the mean-fraction expectation computed
+        // above. This is what actually makes the leakage fraction "random"
+        // instead of a deterministic mean split.
+        // ====================================================================
+        if (cfg.faserCal_applyPoissonStatistics) {
+            peX = gRandom->Poisson(peX);
+            peY = gRandom->Poisson(peY);
+            peZ = gRandom->Poisson(peZ);
+        }
+        const double pe = peX + peY + peZ;
+
         // Check if this voxel already has PE (multiple hit to same voxel)
         bool isMultipleHit = (voxelPEMap.find(t.id) != voxelPEMap.end());
 		double previousPE = isMultipleHit ? voxelPEMap[t.id] : 0.0;
@@ -5270,30 +5466,30 @@ void TPORecoEvent::accumulateFaserCalPEWithCrosstalk(
 		// 2. Optical leakage from neighboring voxels (fSide × neighbor's energy)
 		// 3. Multiple particles hitting this voxel in the same event
 		//
-		// Example scenario:
-		//   - Particle A hits voxel (5,5,5) with 100 MeV
-		//     → Voxel (6,5,5) receives 3% leakage = 3 MeV → converts to PE → stored
-		//   - Particle B hits voxel (7,5,5) with 200 MeV  
-		//     → Voxel (6,5,5) receives 3% leakage = 6 MeV → converts to PE → ADDED
-		//   - Particle C hits voxel (6,5,5) directly with 50 MeV
-		//     → Voxel (6,5,5) keeps 88% = 44 MeV → converts to PE → ADDED
-		//   Total in voxel (6,5,5): PE from 3 MeV + 6 MeV + 44 MeV
-		//
+		// 
 		// The += operator ensures all contributions are summed correctly!
 		//////////////////////////////////////////////////////////
-        voxelPEMap[t.id] += totalPE;
-        auto& fib = voxelPEFibersMap[t.id];
-        fib[0] += fiberPE[0];  // X fiber PE
-        fib[1] += fiberPE[1];  // Y fiber PE
-        fib[2] += fiberPE[2];  // Z fiber PE
+        voxelPEMap[t.id]          += pe;
+        voxelPEFibersMap[t.id][0] += peX;
+        voxelPEFibersMap[t.id][1] += peY;
+        voxelPEFibersMap[t.id][2] += peZ;
         
         // Debug output for multiple hits to same voxel
 		if (isMultipleHit && verbose > 1) {
 			std::cout << "[DEBUG] Multiple hit to voxel " << t.id 
 				   << ": previous PE=" << previousPE 
-				   << " + new PE=" << totalPE
+				   << " + new PE=" << pe
 				   << " = total PE=" << voxelPEMap[t.id] << std::endl;
 		}
+    }
+    if (verbose > 1) {
+        std::cout << "[DEBUG Crosstalk] channelID=" << channelID
+                  << " meanTotalPE=" << meanTotalPE
+                  << " centralFrac=" << centralFrac
+                  << " nNeighbors=" << (targets.size() - 1) << std::endl;
+        std::cout << "  mean PE_X=" << meanFiberPE[0]
+                  << " mean PE_Y=" << meanFiberPE[1]
+                  << " mean PE_Z=" << meanFiberPE[2] << std::endl;
     }
 }
 
@@ -5315,17 +5511,31 @@ std::vector<TcalEvent::FASERCALVOXELRESPONSE> TPORecoEvent::applyFaserCalDetecto
         std::cout << "  Global fiber capture: " << (recoConfig.faserCal_globalFiberCapture * 100) << "%" << std::endl;
         std::cout << "  Fiber trapping: " << (recoConfig.faserCal_fiberTrappingEfficiency * 100) << "%" << std::endl;
         std::cout << "  SiPM PDE: " << (recoConfig.faserCal_sensorPDE * 100) << "%" << std::endl;
-        std::cout << "  Optical leakage (side): " << (recoConfig.faserCal_opticalLeakageSide * 100) << "% per face" << std::endl;
+        std::cout << "  Optical leakage X: " << (recoConfig.faserCal_opticalLeakageSideX * 100) << "% per face" << std::endl;
+        std::cout << "  Optical leakage Y: " << (recoConfig.faserCal_opticalLeakageSideY * 100) << "% per face" << std::endl;
+        std::cout << "  Optical leakage Z: " << (recoConfig.faserCal_opticalLeakageZ * 100) << "% per face" << std::endl;
         std::cout << "  Poisson statistics: " << (recoConfig.faserCal_applyPoissonStatistics ? "ON" : "OFF") << std::endl;
     }
     
     // Maps to accumulate PE
     std::map<long, double> voxelPEMap;
     std::map<long, std::array<double, 3>> voxelPEFibersMap;
+    std::map<long, double> voxelEnergyMap;  // Total energy deposited per voxel (MeV)
+    
+    // Statistics
+    double totalEnergyDeposited = 0.0;
+    double maxEnergyDeposit = 0.0;
+    long maxEdepHitID = 0;
+    size_t nHitsProcessed = 0;
     
     // Collect energy deposits from all tracks
+    // Note: Multiple particles can legitimately hit the same voxel in one event
+    // We accumulate all their energy deposits
     for (const auto* track : tracks) {
         if (!track) continue;
+        
+        // Track hits within THIS track to avoid duplicates within one track's hit list
+        std::set<std::pair<long, double>> trackHits;
         
         const size_t nhits = std::min(track->fhitIDs.size(), track->fEnergyDeposits.size());
         for (size_t i = 0; i < nhits; ++i) {
@@ -5335,6 +5545,28 @@ std::vector<TcalEvent::FASERCALVOXELRESPONSE> TPORecoEvent::applyFaserCalDetecto
             // Check if this is a FASERCal scintillator hit (hittype == 0)
             const long hittype = hitID / 100000000000LL;
             if (hittype != 0) continue;
+            
+            // Check for duplicate within THIS track's hit list only
+            std::pair<long, double> hitKey = {hitID, edep};
+            if (trackHits.find(hitKey) != trackHits.end()) {
+                if (verbose > 1) {
+                    std::cout << "[WARNING] Duplicate hit within track: hitID=" << hitID 
+                              << ", edep=" << edep << " MeV (skipping)" << std::endl;
+                }
+                continue;  // Skip duplicate within same track
+            }
+            trackHits.insert(hitKey);
+            
+            // Track total energy deposited per voxel
+            voxelEnergyMap[hitID] += edep;
+            
+            // Track statistics
+            totalEnergyDeposited += edep;
+            nHitsProcessed++;
+            if (edep > maxEnergyDeposit) {
+                maxEnergyDeposit = edep;
+                maxEdepHitID = hitID;
+            }
             
             // Apply detector response with optical cross talk
             accumulateFaserCalPEWithCrosstalk(voxelPEMap, voxelPEFibersMap, hitID, edep);
@@ -5353,21 +5585,58 @@ std::vector<TcalEvent::FASERCALVOXELRESPONSE> TPORecoEvent::applyFaserCalDetecto
         resp.nPEFiber1Direct = fibers[1];
         resp.nPEFiber2Direct = fibers[2];
         
+        // Add total energy deposited in this voxel
+        auto energyIt = voxelEnergyMap.find(kv.first);
+        resp.totalEnergyDeposit = (energyIt != voxelEnergyMap.end()) ? energyIt->second : 0.0;
+        
         result.push_back(resp);
     }
     
     if (verbose > 0) {
+        std::cout << "[FASERCal DetectorResponse] Energy statistics:" << std::endl;
+        std::cout << "  Hits processed: " << nHitsProcessed << std::endl;
+        std::cout << "  Total energy deposited: " << totalEnergyDeposited << " MeV";
+        if (totalEnergyDeposited > 1000.0) {
+            std::cout << " (" << (totalEnergyDeposited/1000.0) << " GeV)";
+        }
+        std::cout << std::endl;
+        std::cout << "  Average energy/hit: " << (nHitsProcessed > 0 ? totalEnergyDeposited/nHitsProcessed : 0.0) << " MeV" << std::endl;
+        std::cout << "  Max energy deposit: " << maxEnergyDeposit << " MeV (hitID=" << maxEdepHitID << ")" << std::endl;
+        
         std::cout << "[FASERCal DetectorResponse] Generated " << result.size() << " voxel responses" << std::endl;
         if (!result.empty()) {
             double totalPE = 0.0;
             double maxPE = 0.0;
+            double maxVoxelEnergy = 0.0;
+            long maxPE_channelID = 0;
+            long maxEnergy_channelID = 0;
+            
             for (const auto& r : result) {
                 totalPE += r.nPE;
-                maxPE = std::max(maxPE, r.nPE);
+                if (r.nPE > maxPE) {
+                    maxPE = r.nPE;
+                    maxPE_channelID = r.channelID;
+                }
+                if (r.totalEnergyDeposit > maxVoxelEnergy) {
+                    maxVoxelEnergy = r.totalEnergyDeposit;
+                    maxEnergy_channelID = r.channelID;
+                }
             }
+            
             std::cout << "  Total PE: " << totalPE << std::endl;
             std::cout << "  Average PE/voxel: " << (totalPE / result.size()) << std::endl;
-            std::cout << "  Max PE in single voxel: " << maxPE << std::endl;
+            std::cout << "  Max PE in single voxel: " << maxPE << " (channelID=" << maxPE_channelID << ")" << std::endl;
+            std::cout << "  Max total energy per voxel: " << maxVoxelEnergy << " MeV (channelID=" << maxEnergy_channelID << ")" << std::endl;
+            std::cout << "  Overall PE/MeV conversion: " << (totalEnergyDeposited > 0 ? totalPE/totalEnergyDeposited : 0.0) << " PE/MeV" << std::endl;
+            
+            // Find the voxel with max PE and show its energy
+            for (const auto& r : result) {
+                if (r.channelID == maxPE_channelID) {
+                    std::cout << "  Voxel with max PE: Energy=" << r.totalEnergyDeposit << " MeV, PE=" << r.nPE 
+                              << ", PE/MeV=" << (r.totalEnergyDeposit > 0 ? r.nPE/r.totalEnergyDeposit : 0.0) << std::endl;
+                    break;
+                }
+            }
         }
     }
     
@@ -5411,4 +5680,333 @@ void TPORecoEvent::ApplyFaserCalDetectorResponse() {
         std::cout << "  Stored " << voxelResponses.size() << " voxel responses in TPORecoEvent" << std::endl;
         std::cout << "========================================\n" << std::endl;
     }
+    
+    // Automatically compute fiber channel distributions
+    ComputeFaserCalFiberChannels();
+}
+
+//////////////////////////////////////////////////////////
+// COMPUTE FIBER CHANNEL PE DISTRIBUTIONS
+// Aggregates light from all voxels along each fiber
+//////////////////////////////////////////////////////////
+
+void TPORecoEvent::ComputeFaserCalFiberChannels() {
+    // Clear previous results
+    faserCalFiberChannelsX.clear();
+    faserCalFiberChannelsY.clear();
+    faserCalFiberChannelsZ.clear();
+    
+    if (faserCalVoxelResponse.empty()) {
+        if (verbose > 0) {
+            std::cout << "[ComputeFaserCalFiberChannels] No voxel responses available. "
+                      << "Call ApplyFaserCalDetectorResponse() first." << std::endl;
+        }
+        return;
+    }
+    
+    if (verbose > 0) {
+        std::cout << "\n========================================" << std::endl;
+        std::cout << "Computing Fiber Channel PE Distributions" << std::endl;
+        std::cout << "========================================" << std::endl;
+    }
+    
+    // Maps to accumulate PE per fiber channel
+    // X-fibers: key = (iy, iz), each fiber runs through all ix at fixed (iy, iz)
+    // Y-fibers: key = (ix, iz), each fiber runs through all iy at fixed (ix, iz)
+    // Z-fibers: key = (ix, iy, ilayer), each fiber runs through all iz at fixed (ix, iy, ilayer)
+    std::map<std::pair<int, int>, double> fiberPE_X;
+    std::map<std::pair<int, int>, double> fiberPE_Y;
+    std::map<std::tuple<int, int, int>, double> fiberPE_Z;
+    
+    std::map<std::pair<int, int>, int> fiberHits_X;
+    std::map<std::pair<int, int>, int> fiberHits_Y;
+    std::map<std::tuple<int, int, int>, int> fiberHits_Z;
+    
+    // Process each voxel response
+    for (const auto& voxel : faserCalVoxelResponse) {
+        int ix, iy, iz, ilayer;
+        if (!decodeFaserCalScintID(voxel.channelID, ix, iy, iz, ilayer)) {
+            continue;
+        }
+        
+        // X-fiber: runs along X direction, identified by (Y, Z) position
+        // This fiber collects light from voxels (0,iy,iz), (1,iy,iz), ..., (110,iy,iz)
+        std::pair<int, int> keyX = {iy, iz + ilayer * 48}; // Use global Z index
+        fiberPE_X[keyX] += voxel.nPEFiber0Direct;
+        fiberHits_X[keyX]++;
+        
+        // Y-fiber: runs along Y direction, identified by (X, Z) position
+        // This fiber collects light from voxels (ix,0,iz), (ix,1,iz), ..., (ix,47,iz)
+        std::pair<int, int> keyY = {ix, iz + ilayer * 48}; // Use global Z index
+        fiberPE_Y[keyY] += voxel.nPEFiber1Direct;
+        fiberHits_Y[keyY]++;
+        
+        // Z-fiber: runs along Z direction within layer, identified by (X, Y, layer)
+        // This fiber collects light from voxels (ix,iy,0), (ix,iy,1), ..., (ix,iy,47) in layer
+        std::tuple<int, int, int> keyZ = {ix, iy, ilayer};
+        fiberPE_Z[keyZ] += voxel.nPEFiber2Direct;
+        fiberHits_Z[keyZ]++;
+    }
+    
+    // Electronic noise / resolution smearing, applied once per aggregated
+    // SiPM channel (not per voxel) - see recoConfig.faserCal_electronicNoiseSigma{X,Y,Z}
+    const auto& cfg = recoConfig;
+    auto applyElectronicNoise = [&cfg](double pe, double sigma) -> double {
+        if (!cfg.faserCal_applyElectronicNoise || sigma <= 0.0) return pe;
+        return std::max(0.0, pe + gRandom->Gaus(0.0, sigma));
+    };
+
+    // Convert maps to vectors with proper structure
+    int channelID = 0;
+    for (const auto& [key, pe] : fiberPE_X) {
+        FIBERCHANNEL ch;
+        ch.channel_id = channelID++;
+        ch.coord1 = key.first;   // Y
+        ch.coord2 = key.second;  // Z (global)
+        ch.layer = -1;
+        ch.totalPE = applyElectronicNoise(pe, cfg.faserCal_electronicNoiseSigmaX);
+        ch.nVoxelsHit = fiberHits_X[key];
+        faserCalFiberChannelsX.push_back(ch);
+    }
+
+    channelID = 0;
+    for (const auto& [key, pe] : fiberPE_Y) {
+        FIBERCHANNEL ch;
+        ch.channel_id = channelID++;
+        ch.coord1 = key.first;   // X
+        ch.coord2 = key.second;  // Z (global)
+        ch.layer = -1;
+        ch.totalPE = applyElectronicNoise(pe, cfg.faserCal_electronicNoiseSigmaY);
+        ch.nVoxelsHit = fiberHits_Y[key];
+        faserCalFiberChannelsY.push_back(ch);
+    }
+
+    channelID = 0;
+    for (const auto& [key, pe] : fiberPE_Z) {
+        FIBERCHANNEL ch;
+        ch.channel_id = channelID++;
+        ch.coord1 = std::get<0>(key);  // X
+        ch.coord2 = std::get<1>(key);  // Y
+        ch.layer = std::get<2>(key);   // layer
+        ch.totalPE = applyElectronicNoise(pe, cfg.faserCal_electronicNoiseSigmaZ);
+        ch.nVoxelsHit = fiberHits_Z[key];
+        faserCalFiberChannelsZ.push_back(ch);
+    }
+    
+    if (verbose > 0) {
+        std::cout << "  X-fibers (run along X, readout at +X): " << faserCalFiberChannelsX.size() << " channels" << std::endl;
+        std::cout << "  Y-fibers (run along Y, readout at +Y): " << faserCalFiberChannelsY.size() << " channels" << std::endl;
+        std::cout << "  Z-fibers (run along Z, readout at +Z): " << faserCalFiberChannelsZ.size() << " channels" << std::endl;
+        
+        double totalPE_X = 0, totalPE_Y = 0, totalPE_Z = 0;
+        for (const auto& ch : faserCalFiberChannelsX) totalPE_X += ch.totalPE;
+        for (const auto& ch : faserCalFiberChannelsY) totalPE_Y += ch.totalPE;
+        for (const auto& ch : faserCalFiberChannelsZ) totalPE_Z += ch.totalPE;
+        
+        std::cout << "  Total PE collected:" << std::endl;
+        std::cout << "    X-fibers: " << totalPE_X << " PE" << std::endl;
+        std::cout << "    Y-fibers: " << totalPE_Y << " PE" << std::endl;
+        std::cout << "    Z-fibers: " << totalPE_Z << " PE" << std::endl;
+        std::cout << "========================================\n" << std::endl;
+    }
+}
+
+//////////////////////////////////////////////////////////
+// DUMP FIBER CHANNEL PE DISTRIBUTIONS
+//////////////////////////////////////////////////////////
+
+void TPORecoEvent::DumpFaserCalFiberChannels(int maxChannels, bool sortByPE) {
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "FASERCal Fiber Channel PE Distributions" << std::endl;
+    std::cout << "========================================" << std::endl;
+    
+    if (faserCalFiberChannelsX.empty() && faserCalFiberChannelsY.empty() && faserCalFiberChannelsZ.empty()) {
+        std::cout << "No fiber channel data available. Call ComputeFaserCalFiberChannels() first." << std::endl;
+        std::cout << "========================================\n" << std::endl;
+        return;
+    }
+    
+    auto dumpChannels = [&](const std::vector<FIBERCHANNEL>& channels, 
+                            const std::string& fiberType,
+                            const std::string& coord1Name,
+                            const std::string& coord2Name) {
+        if (channels.empty()) {
+            std::cout << "\n" << fiberType << ": No channels with signal" << std::endl;
+            return;
+        }
+        
+        // Copy and optionally sort
+        auto sortedChannels = channels;
+        if (sortByPE) {
+            std::sort(sortedChannels.begin(), sortedChannels.end(),
+                     [](const FIBERCHANNEL& a, const FIBERCHANNEL& b) {
+                         return a.totalPE > b.totalPE;
+                     });
+        }
+        
+        // Statistics
+        double totalPE = 0, maxPE = 0, minPE = 1e9;
+        int totalVoxelsHit = 0;
+        for (const auto& ch : sortedChannels) {
+            totalPE += ch.totalPE;
+            totalVoxelsHit += ch.nVoxelsHit;
+            maxPE = std::max(maxPE, ch.totalPE);
+            if (ch.totalPE > 0) minPE = std::min(minPE, ch.totalPE);
+        }
+        double avgPE = totalPE / sortedChannels.size();
+        
+        std::cout << "\n" << fiberType << " (" << sortedChannels.size() << " channels with signal)" << std::endl;
+        std::cout << "  Total PE: " << totalPE << std::endl;
+        std::cout << "  Average PE/channel: " << avgPE << std::endl;
+        std::cout << "  Max PE: " << maxPE << std::endl;
+        std::cout << "  Min PE: " << (minPE < 1e9 ? minPE : 0.0) << std::endl;
+        std::cout << "  Total voxels hit: " << totalVoxelsHit << std::endl;
+        
+        int nToPrint = (maxChannels > 0) ? std::min(maxChannels, (int)sortedChannels.size()) 
+                                         : sortedChannels.size();
+        
+        std::cout << "\n  " << std::left << std::setw(10) << "Channel"
+                  << std::setw(12) << coord1Name
+                  << std::setw(12) << coord2Name;
+        if (fiberType.find("Z-fiber") != std::string::npos) {
+            std::cout << std::setw(10) << "Layer";
+        }
+        std::cout << std::setw(15) << "Total PE"
+                  << std::setw(12) << "Voxels Hit" << std::endl;
+        std::cout << "  " << std::string(60, '-') << std::endl;
+        
+        for (int i = 0; i < nToPrint; ++i) {
+            const auto& ch = sortedChannels[i];
+            std::cout << "  " << std::left << std::setw(10) << ch.channel_id
+                      << std::setw(12) << ch.coord1
+                      << std::setw(12) << ch.coord2;
+            if (fiberType.find("Z-fiber") != std::string::npos) {
+                std::cout << std::setw(10) << ch.layer;
+            }
+            std::cout << std::setw(15) << std::fixed << std::setprecision(2) << ch.totalPE
+                      << std::setw(12) << ch.nVoxelsHit << std::endl;
+        }
+        
+        if (nToPrint < (int)sortedChannels.size()) {
+            std::cout << "  ... (" << (sortedChannels.size() - nToPrint) << " more channels)" << std::endl;
+        }
+    };
+    
+    dumpChannels(faserCalFiberChannelsX, "X-fibers (along X, readout +X)", "Y", "Z_global");
+    dumpChannels(faserCalFiberChannelsY, "Y-fibers (along Y, readout +Y)", "X", "Z_global");
+    dumpChannels(faserCalFiberChannelsZ, "Z-fibers (along Z, readout +Z)", "X", "Y");
+    
+    std::cout << "\n========================================\n" << std::endl;
+}
+
+//////////////////////////////////////////////////////////
+// CREATE HISTOGRAMS OF FIBER CHANNEL PE DISTRIBUTIONS
+//////////////////////////////////////////////////////////
+
+std::map<std::string, TH1*> TPORecoEvent::PlotFaserCalFiberChannels(const std::string& prefix) {
+    std::map<std::string, TH1*> histograms;
+    
+    if (faserCalFiberChannelsX.empty() && faserCalFiberChannelsY.empty() && faserCalFiberChannelsZ.empty()) {
+        std::cerr << "[PlotFaserCalFiberChannels] No fiber channel data available. "
+                  << "Call ComputeFaserCalFiberChannels() first." << std::endl;
+        return histograms;
+    }
+    
+    // Determine PE ranges for histograms
+    double maxPE_X = 0, maxPE_Y = 0, maxPE_Z = 0;
+    for (const auto& ch : faserCalFiberChannelsX) maxPE_X = std::max(maxPE_X, ch.totalPE);
+    for (const auto& ch : faserCalFiberChannelsY) maxPE_Y = std::max(maxPE_Y, ch.totalPE);
+    for (const auto& ch : faserCalFiberChannelsZ) maxPE_Z = std::max(maxPE_Z, ch.totalPE);
+    
+    double maxPE_all = std::max({maxPE_X, maxPE_Y, maxPE_Z});
+    int nbins_PE = std::min(200, std::max(50, (int)(maxPE_all / 10)));
+    
+    // 1D histograms: PE distribution per channel
+    TH1D* h_X_PE = new TH1D((prefix + "_X_PE").c_str(), 
+                            "X-fibers: PE per channel;PE;Channels", 
+                            nbins_PE, 0, maxPE_all * 1.1);
+    TH1D* h_Y_PE = new TH1D((prefix + "_Y_PE").c_str(), 
+                            "Y-fibers: PE per channel;PE;Channels", 
+                            nbins_PE, 0, maxPE_all * 1.1);
+    TH1D* h_Z_PE = new TH1D((prefix + "_Z_PE").c_str(), 
+                            "Z-fibers: PE per channel;PE;Channels", 
+                            nbins_PE, 0, maxPE_all * 1.1);
+    
+    for (const auto& ch : faserCalFiberChannelsX) h_X_PE->Fill(ch.totalPE);
+    for (const auto& ch : faserCalFiberChannelsY) h_Y_PE->Fill(ch.totalPE);
+    for (const auto& ch : faserCalFiberChannelsZ) h_Z_PE->Fill(ch.totalPE);
+    
+    histograms["X_PE"] = h_X_PE;
+    histograms["Y_PE"] = h_Y_PE;
+    histograms["Z_PE"] = h_Z_PE;
+    
+    // 1D histograms: Number of voxels hit per channel
+    TH1D* h_X_nHits = new TH1D((prefix + "_X_nHits").c_str(), 
+                               "X-fibers: Voxels hit per channel;N voxels;Channels", 
+                               120, 0, 120);
+    TH1D* h_Y_nHits = new TH1D((prefix + "_Y_nHits").c_str(), 
+                               "Y-fibers: Voxels hit per channel;N voxels;Channels", 
+                               50, 0, 50);
+    TH1D* h_Z_nHits = new TH1D((prefix + "_Z_nHits").c_str(), 
+                               "Z-fibers: Voxels hit per channel;N voxels;Channels", 
+                               50, 0, 50);
+    
+    for (const auto& ch : faserCalFiberChannelsX) h_X_nHits->Fill(ch.nVoxelsHit);
+    for (const auto& ch : faserCalFiberChannelsY) h_Y_nHits->Fill(ch.nVoxelsHit);
+    for (const auto& ch : faserCalFiberChannelsZ) h_Z_nHits->Fill(ch.nVoxelsHit);
+    
+    histograms["X_nHits"] = h_X_nHits;
+    histograms["Y_nHits"] = h_Y_nHits;
+    histograms["Z_nHits"] = h_Z_nHits;
+    
+    // 2D histograms: Spatial distribution of PE
+    histograms["X_2D"] = CreateFiberPEMap(0, prefix + "_X_map", 
+                                          "X-fibers PE map;Y (voxel);Z (voxel);PE");
+    histograms["Y_2D"] = CreateFiberPEMap(1, prefix + "_Y_map", 
+                                          "Y-fibers PE map;X (voxel);Z (voxel);PE");
+    histograms["Z_2D"] = CreateFiberPEMap(2, prefix + "_Z_map", 
+                                          "Z-fibers PE map (all layers);X (voxel);Y (voxel);PE");
+    
+    if (verbose > 0) {
+        std::cout << "[PlotFaserCalFiberChannels] Created " << histograms.size() 
+                  << " histograms with prefix '" << prefix << "'" << std::endl;
+    }
+    
+    return histograms;
+}
+
+//////////////////////////////////////////////////////////
+// CREATE 2D MAP OF FIBER PE
+//////////////////////////////////////////////////////////
+
+TH2D* TPORecoEvent::CreateFiberPEMap(int direction, const std::string& name, const std::string& title) {
+    const auto& g = geom_detector;
+    const int nx = static_cast<int>(g.fScintillatorSizeX / g.fScintillatorVoxelSize);  // 11
+    const int ny = static_cast<int>(g.fScintillatorSizeY / g.fScintillatorVoxelSize);  // 48
+    const int nz_per_layer = std::max(1, static_cast<int>(g.fSandwichLength / g.fScintillatorVoxelSize));  // 48
+    const int total_z = nz_per_layer * g.NRep;  // Total Z voxels across all layers
+    
+    TH2D* hist = nullptr;
+    
+    if (direction == 0) {
+        // X-fibers: map PE as function of (Y, Z)
+        hist = new TH2D(name.c_str(), title.c_str(), ny, 0, ny, total_z, 0, total_z);
+        for (const auto& ch : faserCalFiberChannelsX) {
+            hist->Fill(ch.coord1 + 0.5, ch.coord2 + 0.5, ch.totalPE);
+        }
+    } else if (direction == 1) {
+        // Y-fibers: map PE as function of (X, Z)
+        hist = new TH2D(name.c_str(), title.c_str(), nx, 0, nx, total_z, 0, total_z);
+        for (const auto& ch : faserCalFiberChannelsY) {
+            hist->Fill(ch.coord1 + 0.5, ch.coord2 + 0.5, ch.totalPE);
+        }
+    } else if (direction == 2) {
+        // Z-fibers: map PE as function of (X, Y), summed over all layers
+        hist = new TH2D(name.c_str(), title.c_str(), nx, 0, nx, ny, 0, ny);
+        for (const auto& ch : faserCalFiberChannelsZ) {
+            hist->Fill(ch.coord1 + 0.5, ch.coord2 + 0.5, ch.totalPE);
+        }
+    }
+    
+    return hist;
 }
