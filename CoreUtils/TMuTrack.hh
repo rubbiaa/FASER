@@ -62,7 +62,7 @@ public:
 
     bool   ffit_ok;     // true if GenFit Kalman converged
     double fpAnalytic;  // analytic sagitta-fit momentum (GeV/c), always filled
-    
+
     TMuTrack() : ftrackID(-1), fcharge(0), fitTrack(nullptr), ffit_ok(false), fpAnalytic(0.0) {}
     virtual ~TMuTrack() {
         if (fitTrack) {

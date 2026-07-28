@@ -77,41 +77,66 @@ private:
 
     //////////////////////////////////////////////////////////
     // FASERCAL DETECTOR RESPONSE FUNCTIONS
-    // Convert energy deposits to photoelectrons
-    // Moved from Geant4 to reconstruction level
+    // Convert energy deposits to photoelectrons (PE)
+    // 
+    // Fiber geometry: 11×48×48 voxels per layer
+    // - Each voxel contributes light to 3 fibers (X, Y, Z directions)
+    // - Fibers run line-by-line through voxels collecting light
+    // - All fibers read out at positive (+) end with SiPMs
+    // - Light attenuates with distance along fiber to readout
     //////////////////////////////////////////////////////////
     
     /// @brief Apply FASERCal detector response to convert energy deposits to PE
+    /// @details Processes all tracks and voxel hits, computing PE for X/Y/Z fibers.
+    ///          Includes optical crosstalk between neighboring voxels.
     /// @param tracks Input digitized tracks with energy deposits
-    /// @return Vector of voxel PE responses
+    /// @return Vector of voxel PE responses (one per voxel with signal)
     std::vector<TcalEvent::FASERCALVOXELRESPONSE> applyFaserCalDetectorResponse(
         const std::vector<DigitizedTrack*>& tracks);
     
     /// @brief Compute PE for a single voxel from energy deposit
-    /// @param channelID Voxel channel ID
+    /// @details Calculates light propagation from voxel to SiPM readout at +X, +Y, +Z ends.
+    ///          Uses dual-component attenuation model (bulk + Rayleigh scattering).
+    /// @param channelID Voxel channel ID (encoded ix, iy, iz, ilayer)
     /// @param energyDepositMeV Energy deposited in MeV
-    /// @param fiberPE Output array for X,Y,Z fiber PE
-    /// @return Total PE (sum of all fibers)
-    double computeFaserCalDirectPE(long channelID, double energyDepositMeV, 
-                                   std::array<double, 3>& fiberPE);
+    /// @param fiberPE Output array for X,Y,Z fiber PE [out]
+    /// @param applyStatistics If true (default), apply Poisson fluctuations (per
+    ///        recoConfig.faserCal_applyPoissonStatistics) before returning. Pass
+    ///        false to get the raw mean PE, e.g. when the caller needs to split
+    ///        the mean across several voxels (crosstalk) before fluctuating each
+    ///        target independently.
+    /// @return Total PE (sum of all three fibers)
+    double computeFaserCalDirectPE(long channelID, double energyDepositMeV,
+                                   std::array<double, 3>& fiberPE,
+                                   bool applyStatistics = true);
     
     /// @brief Apply optical leakage and accumulate PE with crosstalk
-    /// @param voxelPEMap Map to accumulate total PE per voxel
-    /// @param voxelPEFibersMap Map to accumulate PE per fiber direction
+    /// @details Light can leak through voxel faces to neighbors (1% per face).
+    ///          Voxels without direct hits can still receive PE from neighbors.
+    /// @param voxelPEMap Map to accumulate total PE per voxel [in/out]
+    /// @param voxelPEFibersMap Map to accumulate PE per fiber direction [in/out]
     /// @param channelID Central voxel ID where energy was deposited
-    /// @param energyDepositMeV Energy deposited in central voxel
+    /// @param energyDepositMeV Energy deposited in central voxel (MeV)
     void accumulateFaserCalPEWithCrosstalk(
         std::map<long, double>& voxelPEMap,
         std::map<long, std::array<double, 3>>& voxelPEFibersMap,
         long channelID, double energyDepositMeV);
     
     /// @brief Helper function to decode FASERCal voxel ID
+    /// @param id Encoded channel ID
+    /// @param ix X voxel index [out]
+    /// @param iy Y voxel index [out]
+    /// @param iz Z voxel index within layer [out]
+    /// @param ilayer Layer/module index [out]
+    /// @return true if valid scintillator ID (hittype==0)
     bool decodeFaserCalScintID(long id, int& ix, int& iy, int& iz, int& ilayer);
     
     /// @brief Helper function to encode FASERCal voxel ID
+    /// @return Encoded channel ID
     long encodeFaserCalScintID(int ix, int iy, int iz, int ilayer);
     
     /// @brief Helper function to check if voxel indices are valid
+    /// @return true if indices within detector bounds
     bool isValidFaserCalVoxelIndex(int ix, int iy, int iz, int ilayer);
 
     /// @brief The vector that holds all the PORec (Reconstructed POs) in the event
@@ -233,6 +258,19 @@ public:
     // FASERCal detector response (PE values per voxel)
     std::vector<TcalEvent::FASERCALVOXELRESPONSE> faserCalVoxelResponse;
 
+    /// @brief FASERCal fiber channel PE distributions (what each SiPM sees)
+    /// Each fiber collects light from all voxels along its path
+    struct FIBERCHANNEL {
+        int channel_id;      // Unique channel identifier
+        int coord1, coord2;  // Position indices (Y,Z for X-fiber; X,Z for Y-fiber; X,Y for Z-fiber)
+        int layer;           // Layer index (relevant for Z-fibers)
+        double totalPE;      // Total PE collected by this fiber (sum from all voxels)
+        int nVoxelsHit;      // Number of voxels along this fiber with energy deposits
+    };
+    std::vector<FIBERCHANNEL> faserCalFiberChannelsX;  // X-fibers: indexed by (Y, Z) - SAVED TO ROOT
+    std::vector<FIBERCHANNEL> faserCalFiberChannelsY;  // Y-fibers: indexed by (X, Z) - SAVED TO ROOT  
+    std::vector<FIBERCHANNEL> faserCalFiberChannelsZ;  // Z-fibers: indexed by (X, Y, layer) - SAVED TO ROOT
+    
     // @brief A copy of the geometry originally stored in TCalEvent
     struct TcalEvent::GEOM_DETECTOR geom_detector;
 
@@ -306,6 +344,14 @@ public:
         //////////////////////////////////////////////////////////
         // FASERCAL DETECTOR RESPONSE CONFIGURATION
         // Parameters for converting energy deposits to photoelectrons
+        // 
+        // FIBER GEOMETRY (11 x 48 x 48 voxels per layer):
+        // - X-fibers: 48×48 fibers running along X (11 voxels/fiber), readout at +X
+        // - Y-fibers: 11×48 fibers running along Y (48 voxels/fiber), readout at +Y  
+        // - Z-fibers: 11×48 fibers running along Z (48 voxels/fiber per layer), readout at +Z
+        // 
+        // Each voxel contributes light to 3 fibers (one in each direction).
+        // Light propagates along fiber to SiPM at positive (+) end with attenuation.
         //////////////////////////////////////////////////////////
         
         // Scintillation and light collection
@@ -314,23 +360,72 @@ public:
         double faserCal_fiberTrappingEfficiency = 0.05;   // 5% trapping in fiber
         double faserCal_sensorPDE = 0.25;                 // 25% SiPM photon detection efficiency
         
-        // Attenuation lengths for each fiber direction (mm)
-        double faserCal_fiberAttenuationLengthX = 3000.0;
-        double faserCal_fiberAttenuationLengthY = 3000.0;
-        double faserCal_fiberAttenuationLengthZ = 3000.0;
+        // Dual-component attenuation model for each fiber direction (mm)
+        // Model: Attenuation = f_short * exp(-d/L_short) + (1-f_short) * exp(-d/L_long)
+        // Short component: fast attenuation (bulk absorption, defects)
+        // Long component: slow attenuation (Rayleigh scattering, high-quality transmission)
         
-        // Readout configuration (which end of detector has SiPM readout)
-        bool faserCal_readoutAtPositiveX = true;
-        bool faserCal_readoutAtPositiveY = true;
-        bool faserCal_readoutAtPositiveZ = true;
+        // Short attenuation lengths (from SuperFGD) https://arxiv.org/html/2603.14921v1
+        double faserCal_fiberAttenuationLengthShortX = 350.0; // in mm
+        double faserCal_fiberAttenuationLengthShortY = 350.0;
+        double faserCal_fiberAttenuationLengthShortZ = 430.0;
         
-        // Optical crosstalk between neighboring voxels
-        double faserCal_opticalLeakageSide = 0.03;  // 3% to each side neighbor (±X, ±Y)
-        double faserCal_opticalLeakageZ = 0.0;      // leakage to ±Z neighbors (not implemented)
+        // Long attenuation lengths (from SuperFGD) https://arxiv.org/html/2603.14921v1
+        double faserCal_fiberAttenuationLengthLongX = 4000.0; // in mm
+        double faserCal_fiberAttenuationLengthLongY = 4000.0;
+        double faserCal_fiberAttenuationLengthLongZ = 5000.0;
+        
+        // Fraction of light in short component (typically 0.2-0.4) https://arxiv.org/html/2603.14921v1
+        double faserCal_fiberShortComponentFractionX = 0.29;
+        double faserCal_fiberShortComponentFractionY = 0.29;
+        double faserCal_fiberShortComponentFractionZ = 0.33;
+        
+        // Optical crosstalk between neighboring voxels, measured from data as
+        // XT_face = sum(light leakage hits in that neighbor) / sum(light yield
+        // in the central/seed cube), separately for the 4 transverse-plane
+        // neighbors (x+1, x-1, y+1, y-1). VALUES ARE IN PERCENT:
+        //   XT y+1 = 0.2660%, XT y-1 = 0.2784%, XT x+1 = 0.2818%, XT x-1 = 0.2398%
+        // Despite Mylar foils, data shows nonzero crosstalk in X too (contrary
+        // to the original "no leakage in X" prototype assumption), at a level
+        // similar to Y. NOTE: the data ratio is likely an UNDERESTIMATE - the
+        // 1 p.e. detection threshold suppresses low-PE leakage counts, so the
+        // true crosstalk may be somewhat higher.
+        //
+        // These are RATIOS to the central signal (PE_neighbor / PE_central), not
+        // fractions of a shared total (the 4 ratios sum to ~1.07%). They are
+        // converted to model fractions (frac_face, used directly in addNeighbor
+        // below) via: frac_face = ratio_face * (1 - S), S = R/(1+R), where R is
+        // the sum of the 4 ratios (as fractions, i.e. divided by 100). Solving
+        // gives centralFrac ~= 0.989 (~98.9% of light stays in the seed cube,
+        // ~1.1% leaks out total), and per-face fractions ~0.24%-0.28%.
+        // faserCal_opticalLeakageSideX/Y below are set to the per-axis AVERAGE
+        // of the +/- fractions (the code applies one value to both +/-
+        // neighbors on a given axis).
+        //
+        // faserCal_opticalLeakageZ is for the ±iz neighbors (in-layer,
+        // along-fiber depth) - a different axis, NOT covered by the
+        // transverse-plane crosstalk study above (no direct data). Rather than
+        // the old ad hoc 1% guess, it is set to the same order of magnitude as
+        // the measured X/Y values (average of SideX, SideY) as a placeholder
+        // until Z crosstalk is measured directly.
+        double faserCal_opticalLeakageSideX = 0.00258;  // leakage to ±X neighbors (avg of x+1=0.279%, x-1=0.237%)
+        double faserCal_opticalLeakageSideY = 0.00269;  // leakage to ±Y neighbors (avg of y+1=0.263%, y-1=0.276%)
+        double faserCal_opticalLeakageZ = 0.00264;       // leakage to ±Z (in-layer fiber-depth) neighbors - placeholder = avg(SideX, SideY), not yet measured directly
         
         // Statistical fluctuations
         bool faserCal_applyPoissonStatistics = true;  // Apply Poisson fluctuations to PE
-        
+
+        // Electronic noise / resolution at the SiPM channel level.
+        // From data/MC comparison of the 2D view PE spectra: the width of the
+        // Gaussian peak in data exceeds MC by these amounts (in PE), attributed
+        // to SiPM+electronics noise not modeled by Poisson photon statistics alone.
+        // Applied once per aggregated fiber channel (not per voxel), added in
+        // quadrature-equivalent as an independent zero-mean Gaussian smearing.
+        bool faserCal_applyElectronicNoise = true;
+        double faserCal_electronicNoiseSigmaX = 5.11;  // PE, from XZ view data/MC comparison
+        double faserCal_electronicNoiseSigmaY = 6.24;  // PE, from YZ view data/MC comparison
+        double faserCal_electronicNoiseSigmaZ = 0.0;   // PE, not yet measured
+
         // Enable/disable detector response (set false to use energy deposits directly)
         bool faserCal_applyDetectorResponse = true;
 
@@ -380,6 +475,29 @@ public:
     /// Results are stored in faserCalVoxelResponse member variable
     void ApplyFaserCalDetectorResponse();
 
+    /// @brief Compute fiber channel PE distributions from voxel responses
+    /// @details Aggregates PE from all voxels along each fiber to show what each SiPM sees.
+    ///          Must be called after ApplyFaserCalDetectorResponse().
+    ///          Results stored in faserCalFiberChannelsX/Y/Z member variables.
+    void ComputeFaserCalFiberChannels();
+
+    /// @brief Dump FASERCal fiber channel PE distributions
+    /// @param maxChannels Maximum number of channels to print per direction (0=all)
+    /// @param sortByPE If true, sort channels by PE (highest first)
+    void DumpFaserCalFiberChannels(int maxChannels = 50, bool sortByPE = true);
+
+    /// @brief Create histograms of fiber channel PE distributions
+    /// @param prefix Histogram name prefix (default: "h_fiber")
+    /// @return Map of histogram pointers: "X_PE", "Y_PE", "Z_PE", "X_2D", "Y_2D", "Z_2D"
+    std::map<std::string, TH1*> PlotFaserCalFiberChannels(const std::string& prefix = "h_fiber");
+
+    /// @brief Create 2D map of fiber PE for a given direction
+    /// @param direction 0=X-fibers, 1=Y-fibers, 2=Z-fibers
+    /// @param name Histogram name
+    /// @param title Histogram title
+    /// @return TH2D showing PE distribution in detector coordinates
+    TH2D* CreateFiberPEMap(int direction, const std::string& name, const std::string& title);
+
     /// @brief Reconstruct the muon spectrometer's tracks
     void ReconstructMuonSpectrometer(); // added by Umut
     void ReconstructMuonSpectrometer_obs(); 
@@ -427,7 +545,7 @@ public:
 
 
 
-    ClassDef(TPORecoEvent,3)
+    ClassDef(TPORecoEvent,4)
 };
 
 #endif

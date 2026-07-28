@@ -170,6 +170,7 @@ public:
         Double_t nPEFiber0Direct;
         Double_t nPEFiber1Direct;
         Double_t nPEFiber2Direct;
+        Double_t totalEnergyDeposit;  // Total energy deposited in this voxel (MeV)
     };
     // Umut: to understand whats happening at rear hadron calorimeter
     #if 0

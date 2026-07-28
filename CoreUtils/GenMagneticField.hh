@@ -119,6 +119,8 @@ private:
             if (z_cm > rng.first && z_cm < rng.second) {
                 // Convert to local-like transverse coordinate.
                 // position.Y() is cm, slitposition is cm.
+                // Rotation around Y leaves Y unchanged, so global Y already
+                // equals the tilted assembly's local Y -- no correction needed.
                 double y_local_cm = position.Y() - rearMuSpec_LOS_shiftY;
                 const double y_abs = std::abs(y_local_cm);
                 // Smooth the central/outer field boundary with a 1 cm linear ramp
@@ -127,18 +129,25 @@ private:
                 const double ramp_half = 0.5; // ±0.5 cm = 1 cm total transition
                 const double lo = slitposition - ramp_half;
                 const double hi = slitposition + ramp_half;
+                double Blocal = 0.0;
                 if (y_abs < lo) {
-                    return TVector3(-15.0, 0.0, 0.0); // central: -1.5 T
-                }
-                if (y_abs < hi) {
+                    Blocal = -15.0; // central: -1.5 T
+                } else if (y_abs < hi) {
                     // Linear ramp from -15 kG to +15 kG
                     double t = (y_abs - lo) / (2.0 * ramp_half);
-                    return TVector3(-15.0 + 30.0 * t, 0.0, 0.0);
+                    Blocal = -15.0 + 30.0 * t;
+                } else if (y_abs <= 2.0 * slitposition) {
+                    Blocal = +15.0; // outer: +1.5 T
+                } else {
+                    return TVector3(0.0, 0.0, 0.0);
                 }
-                if (y_abs <= 2.0 * slitposition) {
-                    return TVector3(+15.0, 0.0, 0.0); // outer: +1.5 T
-                }
-                return TVector3(0.0, 0.0, 0.0);
+                // The field points along the Fe slab's local +x axis. rearMuSpec_tilt_deg
+                // is set to -fTiltAngleY (deg) (see TPORecoEvent.cc), so recover the
+                // detector-frame tilt (rad) and rotate the local field vector (Blocal,0,0)
+                // into global coordinates the same way TcalEvent::DetToWorld rotates
+                // local positions into the world frame, keeping B aligned with the iron.
+                const double tiltY_rad = -rearMuSpec_tilt_deg * M_PI / 180.0;
+                return TVector3(Blocal * std::cos(tiltY_rad), 0.0, Blocal * std::sin(tiltY_rad));
             }
         }
 

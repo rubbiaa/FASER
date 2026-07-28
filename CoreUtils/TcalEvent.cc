@@ -259,55 +259,60 @@ int TcalEvent::Load_event(std::string base_path, int run_number, int ievent,
     m_rootFile -> Close();
     delete m_rootFile;
 
-    // check geometry
-        const char *volumeName = "ContainerLogical";
-    TGeoVolume *targetVolume = gGeoManager->GetVolume(volumeName);
-
-    if (targetVolume)
+    // check geometry — search for the FASERCal container volume by name prefix
+    // (ROOT 6.36+ preserves GDML hex-address suffixes like "ContainerLogical0xb85090",
+    //  so GetVolume("ContainerLogical") may not find it; iterate instead)
     {
-        //std::cout << "Found volume: " << targetVolume->GetName() << std::endl;
-        // You can now draw it, modify it, or use it for positioning
-        // targetVolume->Draw();
-        // check its dimensions
-        Double_t dims[3] = {0.0, 0.0, 0.0};
-        TGeoShape *shape = targetVolume->GetShape();
-        if (shape) {
-            // If it's a box, use the typed accessors (ROOT shapes are in cm)
-            TGeoBBox *bbox = dynamic_cast<TGeoBBox*>(shape);
-            if (bbox) {
-                // GetDx/GetDy/GetDz return half-lengths in cm -> convert to mm and full length
-                dims[0] = 2.0 * bbox->GetDX() * 10.0; // X in mm
-                dims[1] = 2.0 * bbox->GetDY() * 10.0; // Y in mm
-                dims[2] = 2.0 * bbox->GetDZ() * 10.0; // Z in mm
-            } 
-        }
-        // Compare to what is stored in geom_detector.
-        // Use realistic tolerances because regenerated ROOT/GDML may differ at the 0.01-0.1 mm level.
-        const double dx = std::fabs(dims[0] - geom_detector.fScintillatorSizeX);
-        const double dy = std::fabs(dims[1] - geom_detector.fScintillatorSizeY);
-        const double dz = std::fabs(dims[2] - geom_detector.fTotalLength);
-
-        const double warnToleranceMm = 0.05;
-        const double fatalToleranceMm = 1.0;
-
-        if (dx > warnToleranceMm || dy > warnToleranceMm || dz > warnToleranceMm) {
-            std::cerr << "Geometry size check for " << volumeName << ": "
-                      << "TGeoManager(X,Y,Z)=(" << dims[0] << ", " << dims[1] << ", " << dims[2] << ") mm, "
-                      << "geom_detector(X,Y,Z)=(" << geom_detector.fScintillatorSizeX << ", "
-                      << geom_detector.fScintillatorSizeY << ", " << geom_detector.fTotalLength << ") mm, "
-                      << "|delta|=(" << dx << ", " << dy << ", " << dz << ") mm" << std::endl;
+        const std::string prefix = "ContainerLogical";
+        TGeoVolume *targetVolume = nullptr;
+        std::string foundName;
+        TIter next(gGeoManager->GetListOfVolumes());
+        while (TObject *obj = next()) {
+            std::string vname = obj->GetName();
+            // Match "ContainerLogical" but exclude ECal/HCal sub-containers
+            if (vname.rfind(prefix, 0) == 0 &&
+                vname.find("ECal") == std::string::npos &&
+                vname.find("HCal") == std::string::npos) {
+                targetVolume = static_cast<TGeoVolume*>(obj);
+                foundName = vname;
+                break;
+            }
         }
 
-        if (dx > fatalToleranceMm || dy > fatalToleranceMm || dz > fatalToleranceMm) {
-            std::cerr << "FATAL error: Geometry mismatch for " << volumeName
-                      << " exceeds tolerance (" << fatalToleranceMm << " mm)." << std::endl;
-            exit(1);
+        if (targetVolume) {
+            Double_t dims[3] = {0.0, 0.0, 0.0};
+            TGeoShape *shape = targetVolume->GetShape();
+            if (shape) {
+                TGeoBBox *bbox = dynamic_cast<TGeoBBox*>(shape);
+                if (bbox) {
+                    dims[0] = 2.0 * bbox->GetDX() * 10.0;
+                    dims[1] = 2.0 * bbox->GetDY() * 10.0;
+                    dims[2] = 2.0 * bbox->GetDZ() * 10.0;
+                }
+            }
+            const double dx = std::fabs(dims[0] - geom_detector.fScintillatorSizeX);
+            const double dy = std::fabs(dims[1] - geom_detector.fScintillatorSizeY);
+            const double dz = std::fabs(dims[2] - geom_detector.fTotalLength);
+
+            const double warnToleranceMm = 0.05;
+            const double fatalToleranceMm = 1.0;
+
+            if (dx > warnToleranceMm || dy > warnToleranceMm || dz > warnToleranceMm) {
+                std::cerr << "Geometry size check for " << foundName << ": "
+                          << "TGeoManager(X,Y,Z)=(" << dims[0] << ", " << dims[1] << ", " << dims[2] << ") mm, "
+                          << "geom_detector(X,Y,Z)=(" << geom_detector.fScintillatorSizeX << ", "
+                          << geom_detector.fScintillatorSizeY << ", " << geom_detector.fTotalLength << ") mm, "
+                          << "|delta|=(" << dx << ", " << dy << ", " << dz << ") mm" << std::endl;
+            }
+
+            if (dx > fatalToleranceMm || dy > fatalToleranceMm || dz > fatalToleranceMm) {
+                std::cerr << "FATAL error: Geometry mismatch for " << foundName
+                          << " exceeds tolerance (" << fatalToleranceMm << " mm)." << std::endl;
+                exit(1);
+            }
+        } else {
+            std::cerr << "Warning: Volume matching '" << prefix << "' not found in geometry — skipping size check." << std::endl;
         }
-    }
-    else
-    {
-        std::cerr << "Volume '" << volumeName << "' not found." << std::endl;
-        exit(1);
     }
 
     //std::cout << "[TcalEvent] TcalEvent initialized and event loaded." << std::endl;
@@ -596,44 +601,80 @@ ROOT::Math::XYZVector TcalEvent::getChannelXYZRearHCal(int moduleID) const
     return finalGlobalPos;
 }
 
-ROOT::Math::XYZVector TcalEvent::GlobalToMDTLocal(const ROOT::Math::XYZVector& pGlobal_mm) const
+ROOT::Math::XYZVector
+TcalEvent::GlobalToMDTLocal(const ROOT::Math::XYZVector& pGlobal_mm) const
 {
     if (!fHasRearMuSpectGlobalMatrix) {
         std::cerr << "[GlobalToMDTLocal] ERROR: rear muon spectrometer global matrix not cached\n";
         return pGlobal_mm;
     }
-    double global_cm[3] = { pGlobal_mm.X() / 10.0, pGlobal_mm.Y() / 10.0, pGlobal_mm.Z() / 10.0 };
+
+    double global_cm[3] = {
+        pGlobal_mm.X() / 10.0,
+        pGlobal_mm.Y() / 10.0,
+        pGlobal_mm.Z() / 10.0
+    };
+
     double local_cm[3] = {0.0, 0.0, 0.0};
+
     frearMuSpectLocalToGlobal_cm.MasterToLocal(global_cm, local_cm);
-    return ROOT::Math::XYZVector(local_cm[0] * 10.0, local_cm[1] * 10.0,local_cm[2] * 10.0);
+
+    return ROOT::Math::XYZVector(local_cm[0] * 10.0,
+                                 local_cm[1] * 10.0,
+                                 local_cm[2] * 10.0);
 }
 
-ROOT::Math::XYZVector TcalEvent::MDTLocalToGlobal(const ROOT::Math::XYZVector& pLocal_mm) const
+
+ROOT::Math::XYZVector
+TcalEvent::MDTLocalToGlobal(const ROOT::Math::XYZVector& pLocal_mm) const
 {
     if (!fHasRearMuSpectGlobalMatrix) {
         std::cerr << "[MDTLocalToGlobal] ERROR: rear muon spectrometer global matrix not cached\n";
         return pLocal_mm;
     }
-    double local_cm[3] = { pLocal_mm.X() / 10.0, pLocal_mm.Y() / 10.0, pLocal_mm.Z() / 10.0 };
+
+    double local_cm[3] = {
+        pLocal_mm.X() / 10.0,
+        pLocal_mm.Y() / 10.0,
+        pLocal_mm.Z() / 10.0
+    };
+
     double global_cm[3] = {0.0, 0.0, 0.0};
+
     frearMuSpectLocalToGlobal_cm.LocalToMaster(local_cm, global_cm);
 
-    return ROOT::Math::XYZVector(global_cm[0] * 10.0, global_cm[1] * 10.0, global_cm[2] * 10.0);
+    return ROOT::Math::XYZVector(global_cm[0] * 10.0,
+                                 global_cm[1] * 10.0,
+                                 global_cm[2] * 10.0);
 }
 
-ROOT::Math::XYZVector TcalEvent::MDTLocalDirToGlobal(const ROOT::Math::XYZVector& vLocal_mm) const
+
+ROOT::Math::XYZVector
+TcalEvent::MDTLocalDirToGlobal(const ROOT::Math::XYZVector& vLocal_mm) const
 {
-    ROOT::Math::XYZVector oG = MDTLocalToGlobal(ROOT::Math::XYZVector(0.0, 0.0, 0.0));
-    ROOT::Math::XYZVector vG = MDTLocalToGlobal(vLocal_mm);
-    ROOT::Math::XYZVector d(vG.X() - oG.X(), vG.Y() - oG.Y(), vG.Z() - oG.Z());
-    const double mag = std::sqrt(d.X()*d.X() + d.Y()*d.Y() + d.Z()*d.Z());
+    ROOT::Math::XYZVector oG =
+        MDTLocalToGlobal(ROOT::Math::XYZVector(0.0, 0.0, 0.0));
+
+    ROOT::Math::XYZVector vG =
+        MDTLocalToGlobal(vLocal_mm);
+
+    ROOT::Math::XYZVector d(vG.X() - oG.X(),
+                            vG.Y() - oG.Y(),
+                            vG.Z() - oG.Z());
+
+    const double mag =
+        std::sqrt(d.X()*d.X() + d.Y()*d.Y() + d.Z()*d.Z());
+
     if (mag <= 0.0)
         return ROOT::Math::XYZVector(0.0, 0.0, 0.0);
 
-    return ROOT::Math::XYZVector(d.X()/mag, d.Y()/mag, d.Z()/mag);
+    return ROOT::Math::XYZVector(d.X()/mag,
+                                 d.Y()/mag,
+                                 d.Z()/mag);
 }
 
-bool TcalEvent::CacheMDTGlobalMatrix()
+bool
+TcalEvent::CacheMDTGlobalMatrix()
 {
     if (!gGeoManager || !gGeoManager->GetTopVolume()) {
         std::cerr << "[CacheMDTGlobalMatrix] ERROR: geometry not loaded\n";
@@ -643,30 +684,39 @@ bool TcalEvent::CacheMDTGlobalMatrix()
 
     TGeoVolume* top = gGeoManager->GetTopVolume();
     TGeoIterator next(top);
+
     TGeoNode* node = nullptr;
+
     while ((node = next())) {
         std::string nodeName = node->GetName() ? node->GetName() : "";
         std::string volName  = node->GetVolume() && node->GetVolume()->GetName()
                              ? node->GetVolume()->GetName()
                              : "";
+
         const bool isMDTContainer =
             nodeName.find("MDTContainer") != std::string::npos ||
             volName.find("MDTContainer")  != std::string::npos;
 
         if (!isMDTContainer)
             continue;
+
         const TGeoMatrix* fullMat = next.GetCurrentMatrix();
+
         if (!fullMat) {
             std::cerr << "[CacheMDTGlobalMatrix] ERROR: full matrix is null for node="
                       << nodeName << " volume=" << volName << "\n";
             fHasRearMuSpectGlobalMatrix = false;
             return false;
         }
+
         frearMuSpectTGeomNode = node;
+
         // Full MDT-local -> world/master transform, including parent tilt/shift.
         frearMuSpectLocalToGlobal_cm = *fullMat;
         fHasRearMuSpectGlobalMatrix = true;
+
         const double* tr = frearMuSpectLocalToGlobal_cm.GetTranslation();
+
         std::cout << "[CacheMDTGlobalMatrix] cached MDT container\n"
                   << "  node=" << nodeName
                   << " volume=" << volName << "\n"
@@ -680,15 +730,19 @@ bool TcalEvent::CacheMDTGlobalMatrix()
     fHasRearMuSpectGlobalMatrix = false;
     return false;
 }
-void TcalEvent::DumpMDTCandidateNodes() const
+void
+TcalEvent::DumpMDTCandidateNodes() const
 {
     if (!gGeoManager || !gGeoManager->GetTopVolume()) {
         std::cerr << "[DumpMDTCandidateNodes] ERROR: geometry not loaded\n";
         return;
     }
+
     TGeoIterator next(gGeoManager->GetTopVolume());
     TGeoNode* node = nullptr;
+
     std::cout << "\n[DumpMDTCandidateNodes] Candidate MDT/rear-muon nodes:\n";
+
     while ((node = next())) {
         std::string nodeName = node->GetName() ? node->GetName() : "";
         std::string volName  = node->GetVolume() && node->GetVolume()->GetName()
@@ -704,12 +758,15 @@ void TcalEvent::DumpMDTCandidateNodes() const
             volName.find("MuSpect")    != std::string::npos ||
             nodeName.find("Rear")      != std::string::npos ||
             volName.find("Rear")       != std::string::npos;
+
         if (!match)
             continue;
 
         const TGeoMatrix* mat = next.GetCurrentMatrix();
+
         std::cout << "  node=" << nodeName
                   << "  volume=" << volName;
+
         if (mat) {
             const double* tr = mat->GetTranslation();
             std::cout << "  global translation cm=("
@@ -717,11 +774,12 @@ void TcalEvent::DumpMDTCandidateNodes() const
                       << tr[1] << ", "
                       << tr[2] << ")";
         }
+
         std::cout << "\n";
     }
+
     std::cout << "[DumpMDTCandidateNodes] End\n\n";
 }
-
 
 void TcalEvent::fillTree()
 {

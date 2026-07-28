@@ -48,16 +48,25 @@ void MuonMagneticField::GetFieldValue(const G4double point[4], G4double* Bfield)
 #endif
     Bfield[0] = Bfield[1] = Bfield[2] = 0.0;
 
-    // Assume ±1.5 Tesla in steel, depending on y (top/bottom vs center)
+    // Assume ±1.5 Tesla in steel, depending on y (top/bottom vs center).
+    // Rotation around Y leaves y unchanged, so the global y coordinate
+    // already equals the tilted assembly's local y — no correction needed here.
+    G4double Blocal = 0.0;
     if (std::abs(y) >= slitposition * mm && std::abs(y) <= 2 * slitposition * mm) {
       // Top or Bottom: +1.5 T
-      Bfield[0] = +1.5 * tesla;
+      Blocal = +1.5 * tesla;
     } else if (std::abs(y) < slitposition * mm) {
       // Middle: –1.5 T
-      Bfield[0] = -1.5 * tesla;
+      Blocal = -1.5 * tesla;
     }
 
-    
+    // The field points along the Fe slab's local +x axis, which is tilted
+    // by tiltAngleY (rad) around Y with respect to the global frame (same
+    // rotation as new G4RotationMatrix()->rotateY(fTiltAngleY) used to place
+    // the detector assembly). Rotate the local field vector into global
+    // coordinates so it stays aligned with the iron even when tilted.
+    Bfield[0] = Blocal * std::cos(tiltAngleY);
+    Bfield[2] = Blocal * std::sin(tiltAngleY);
 }
 /*
 // previously used code

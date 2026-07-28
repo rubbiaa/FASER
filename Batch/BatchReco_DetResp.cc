@@ -8,6 +8,7 @@
 #include <atomic>
 #include <iostream>
 #include <fstream>
+#include <map>
 #include <sys/resource.h>
 #include <unistd.h>
 #include <chrono>
@@ -189,6 +190,19 @@ int main(int argc, char** argv) {
     TH1D h_charm_Enuall = TH1D("h_charm_Enuall", "Neutrino energy", 50, 0, 4000.0);
     TH1D h_charm_Enucharmed = TH1D("h_charm_Enucharmed", "Neutrino energy", 50, 0, 4000.0);
     
+    // FASERCal fiber channel PE distributions (summary across all events)
+    TH1D h_fiber_X_PE_all = TH1D("h_fiber_X_PE_all", "X-fibers: PE per channel (all events);PE;Channels", 200, 0., 2000.);
+    TH1D h_fiber_Y_PE_all = TH1D("h_fiber_Y_PE_all", "Y-fibers: PE per channel (all events);PE;Channels", 200, 0., 2000.);
+    TH1D h_fiber_Z_PE_all = TH1D("h_fiber_Z_PE_all", "Z-fibers: PE per channel (all events);PE;Channels", 200, 0., 2000.);
+    TH2D h_fiber_X_map_sum = TH2D("h_fiber_X_map_sum", "X-fibers: PE map (all events);Y;Z;PE", 48, 0, 48, 48, 0, 48);
+    TH2D h_fiber_Y_map_sum = TH2D("h_fiber_Y_map_sum", "Y-fibers: PE map (all events);X;Z;PE", 11, 0, 11, 48, 0, 48);
+    TH2D h_fiber_Z_map_sum = TH2D("h_fiber_Z_map_sum", "Z-fibers: PE map (all events);X;Y;PE", 11, 0, 11, 48, 0, 48);
+    
+    // FASERCal fiber channel nVoxelsHit distributions (fiber sharing)
+    TH1D h_fiber_X_nHits_all = TH1D("h_fiber_X_nHits_all", "X-fibers: Voxels hit per channel (all events);N voxels;Channels", 111, 0, 111);
+    TH1D h_fiber_Y_nHits_all = TH1D("h_fiber_Y_nHits_all", "Y-fibers: Voxels hit per channel (all events);N voxels;Channels", 48, 0, 48);
+    TH1D h_fiber_Z_nHits_all = TH1D("h_fiber_Z_nHits_all", "Z-fibers: Voxels hit per channel (all events);N voxels;Channels", 48, 0, 48);
+    
     // TParticleGun
     TParticleGun fTParticleGun;
     TTree *m_particlegun_Tree = new TTree("ParticleGun","ParticleGun");
@@ -278,16 +292,42 @@ int main(int argc, char** argv) {
         /////
 #endif
         TPORecoEvent* fPORecoEvent = new TPORecoEvent(fTcalEvent, fTcalEvent->fTPOEvent);
-        fPORecoEvent -> verbose = 0;   // 0: no output, 1: some output, 2: more output, 3: full output;
-        if(!dump_event_cout) fPORecoEvent -> verbose = 0;
+        fPORecoEvent -> verbose = 2;   // 0: no output, 1: some output, 2: more output, 3: full output;
+        if(!dump_event_cout) fPORecoEvent -> verbose = 1;  // Enable for duplicate detection debugging
         fPORecoEvent -> multiThread = multiThread_option;
         fPORecoEvent -> ReconstructTruth();
+        
+        // Add detector response (uses defaults: see TPORecoEvent.hh, or customize here)
+        fPORecoEvent->ApplyFaserCalDetectorResponse();
+        
+        // Fill summary fiber channel histograms
+        for (const auto& ch : fPORecoEvent->faserCalFiberChannelsX) {
+            h_fiber_X_PE_all.Fill(ch.totalPE);
+            h_fiber_X_map_sum.Fill(ch.coord1 + 0.5, ch.coord2 + 0.5, ch.totalPE);
+            h_fiber_X_nHits_all.Fill(ch.nVoxelsHit);
+        }
+        for (const auto& ch : fPORecoEvent->faserCalFiberChannelsY) {
+            h_fiber_Y_PE_all.Fill(ch.totalPE);
+            h_fiber_Y_map_sum.Fill(ch.coord1 + 0.5, ch.coord2 + 0.5, ch.totalPE);
+            h_fiber_Y_nHits_all.Fill(ch.nVoxelsHit);
+        }
+        for (const auto& ch : fPORecoEvent->faserCalFiberChannelsZ) {
+            h_fiber_Z_PE_all.Fill(ch.totalPE);
+            h_fiber_Z_map_sum.Fill(ch.coord1 + 0.5, ch.coord2 + 0.5, ch.totalPE);
+            h_fiber_Z_nHits_all.Fill(ch.nVoxelsHit);
+        }
+        
+        // Dump fiber channel PE distributions for early events
+        if(dump_event_cout) {
+            fPORecoEvent->DumpFaserCalFiberChannels(10, true);  // Show top 10 channels sorted by PE
+        }
+        //
+        //fPORecoEvent -> verbose = 0;   // 0: no output, 1: some output, 2: more output, 3: full output;
         fPORecoEvent -> Reconstruct2DViewsPS();
         fPORecoEvent -> ReconstructClusters(0);
         fPORecoEvent -> Reconstruct3DPS_2();
         fPORecoEvent -> ReconstructRearCals();
-        //fPORecoEvent -> ReconstructMuonSpectrometer();
-        fPORecoEvent -> ReconstructMDT();
+        fPORecoEvent -> ReconstructMuonSpectrometer();
         #if 0
         // poor's man fit of beta scan
         float betas[] = {3.5, 4.0, 4.5, 5.0, 5.5, 6.0};
@@ -465,20 +505,6 @@ int main(int argc, char** argv) {
             fTMuonSpectrometer.features.pval[i] = aMuTrack->fpval;
             fTMuonSpectrometer.features.fpErr[i] = aMuTrack->fpErr;
             fTMuonSpectrometer.features.fipErr[i] = aMuTrack->fipErr;
-            fTMuonSpectrometer.features.fit_ok[i] = aMuTrack->ffit_ok ? 1 : 0;
-            fTMuonSpectrometer.features.p_analytic[i] = aMuTrack->fpAnalytic;
-            // Match to MDTTrack by trackID to get truth momentum at first MDT hit.
-            // MDTTrack::mom is stored in MeV/c (Geant4 units) → divide by 1000 for GeV/c.
-            fTMuonSpectrometer.features.p_truth[i] = -999.0f;
-            fTMuonSpectrometer.features.charge_truth[i] = -999.0f;
-            for (const auto* mdtT : fTcalEvent->fMDTTracks) {
-                if (mdtT->ftrackID == aMuTrack->ftrackID && !mdtT->mom.empty()) {
-                    fTMuonSpectrometer.features.p_truth[i] = (float)(mdtT->mom[0].R() / 1000.0);
-                    // PDG 13 = mu- (charge -1), PDG -13 = mu+ (charge +1)
-                    fTMuonSpectrometer.features.charge_truth[i] = (mdtT->fPDG > 0) ? -1.0f : 1.0f;
-                    break;
-                }
-            }
         }
         fTMuonSpectrometer.Fill_Sel_Tree(m_muonspect_Tree);
 

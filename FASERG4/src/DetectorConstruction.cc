@@ -209,7 +209,7 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	// DetectorAssemblyPV into the world volume. This simplifies the geometry and ensures
 	// consistent transformations for tilting. The origin of the assembly frame is at the
 	// front middle face of the FaserCal.
-
+	
 	// Sizes of the principal geometrical components (solids)
 	// The values are given via the messenger, same as the units
 
@@ -297,7 +297,7 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 //	CreateFrontTarget(-sizeZ/2.0-20.0*cm, worldLV);
 
 //	zLocation += sizeZ/2.0;
-	zLocation += fTotalLength;  // Move zLocation to the end of FASERCal
+zLocation += fTotalLength;  // Move zLocation to the end of FASERCal
 
 #if magnet
 	// CreateMagnetSystem(zLocation, worldLV);
@@ -307,7 +307,7 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 
 	if (!fonlyFaserCal)
 	{
-		const G4double rearSectionGap = 25.0*cm; // add 25 cm between subdetectors
+		const G4double rearSectionGap = 25.0*cm;
 
 		zLocation += rearSectionGap;
 		fRearCalLocZ = zLocation;
@@ -324,9 +324,9 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 
 		// Keep the same gap between rear HCal and muon spectrometer
 		G4double locMuSpect = locZHcal + fRearHCalLength + rearSectionGap;
-		//fRearMuSpect_LOS_shiftX = fFASERCal_LOS_shiftX + (fRearMuSpectSizeX - fECalSizeX) / 2.0;
-		//fRearMuSpect_LOS_shiftY = fFASERCal_LOS_shiftY + (fRearMuSpectSizeY - fECalSizeY) / 2.0;		//CreateRearMuSpectrometer(locMuSpect, worldLV);
+		// UMUT: LoS shifts removed - applied at assembly level instead
 		//CreateRearMuSpectrometer(locMuSpect, worldLV);
+		// Previous version of the muon spectrometer with scintillator planes
 		//CreateRearMuSpectrometer(locMuSpect, detLV);
 		// New version of the muon spectrometer with MDT (Monitored Drift Tubes)
 		CreateMuSpectWithMDT(locMuSpect, detLV);
@@ -337,8 +337,8 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	// Put ContainerPlacement front face at world z≈0 by setting assemblyOffsetZ=0
 	// Container is already placed with front face at z=0 in detector frame
 	G4double assemblyOffsetZ = 0;
-	G4double assemblyOffsetX = fFASERCal_LOS_shiftX + fThreeD_CAL_shiftX;
-	G4double assemblyOffsetY = fFASERCal_LOS_shiftY + fThreeD_CAL_shiftY;
+	G4double assemblyOffsetX = fFASERCal_LOS_shiftX;
+	G4double assemblyOffsetY = fFASERCal_LOS_shiftY;
 	new G4PVPlacement(detRot,								// <<< tiltY
 					  G4ThreeVector(assemblyOffsetX, assemblyOffsetY, assemblyOffsetZ), // <<< shift assembly
 					  detLV,
@@ -369,18 +369,15 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 		// RearHCal container translation relative to detector assembly
 		G4ThreeVector t_hcalCont = hcalContPV->GetTranslation();
 
-		// Apply assembly rotation to get world frame
-		G4ThreeVector inWorld = detRot->inverse() * t_hcalCont;
+		// Apply assembly rotation to get world frame (detRot is nullptr when
+		// tiltY==0, meaning "no rotation" -- identity, not an error).
+		G4ThreeVector inWorld = detRot ? (detRot->inverse() * t_hcalCont) : t_hcalCont;
 
 		G4cout << "=== RearHCal Container center in WORLD ===" << G4endl;
 		G4cout << "  In detector frame (x,y,z) = ("
 			   << t_hcalCont.x() / cm << ", " << t_hcalCont.y() / cm << ", " << t_hcalCont.z() / cm << ") cm" << G4endl;
 		G4cout << "  In world frame    (x,y,z) = ("
 			   << inWorld.x() / cm << ", " << inWorld.y() / cm << ", " << inWorld.z() / cm << ") cm" << G4endl;
-	}
-	else
-	{
-		G4cout << "WARNING: Could not find volumes in store!" << G4endl;
 	}
 
 	G4VPhysicalVolume* containerPV = pvStore->GetVolume("ContainerPlacement");
@@ -477,7 +474,8 @@ void DetectorConstruction::ConstructSDandField()
 		SetSensitiveDetector("rearCalscintillatorLogical", aTrackerSD, false);
 		SetSensitiveDetector("rearHCalscintillatorLogical", aTrackerSD, false);
 		//	SetSensitiveDetector("muCalscintillatorLogical", aTrackerSD, false);
-		//  SetSensitiveDetector("SciFiLayerLV", aTrackerSD, false);
+		//SetSensitiveDetector("SciFiLayerLV", aTrackerSD, false);  // Only for CreateRearMuSpectrometer
+		
 		// Create separate sensitive detector for MDT drift tubes
 		G4String MDTSDname = "/MDTSD";
 		fMDTSD = new MDTSD(MDTSDname);
@@ -644,6 +642,8 @@ void DetectorConstruction::CreateFaserCal(G4double zLocation, G4Material* materi
 	}
 	G4LogicalVolume* trackerSiLogic = new G4LogicalVolume(trackerSiSolid, G4_Si, "trackerSiLogical");
 	G4LogicalVolume* AlPlateLogic = new G4LogicalVolume(AlPlateSolid, G4_Al, "AlPlateLogical");
+
+
     // UMUT: The following layer ordering done
     // Order: AlPlate -> targetW -> Scintillator -> AlPlate -> SiTrackers (disabled)
 	double zShift = -fSandwichLength/2.0 + fAlPlateThickness/2.0;
@@ -656,7 +656,6 @@ void DetectorConstruction::CreateFaserCal(G4double zLocation, G4Material* materi
 	zShift += size1.getZ()/2.0 + fAlPlateThickness/2.0;
 	new G4PVPlacement(0, G4ThreeVector(0,0,zShift), AlPlateLogic, "AlPlate", replicaLogic, false, 1, true);
 
-	//zShift = fSandwichLength/2.0;
 	// UMUT: Silicon trackers disabled
 	#if 0
     new G4PVPlacement(0, G4ThreeVector(0,0,zShift - fSiTrackerGap - fSiTrackerSizeZ/2), 
@@ -700,11 +699,13 @@ void DetectorConstruction::CreateFaserCal(G4double zLocation, G4Material* materi
 static int getchannelIDerrorcount = 0;
 
 G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, int CopyNumber, int MotherCopyNumber, XYZVector const& position) const {
+
 	// UMUT: position is given in the local coordinate system of the volume
 	// Since detectors are now centered in assembly frame, no LoS shift correction needed here
 	G4double epsilon = 1e-6;   // avoid rounding errors at volume boundary
 	G4double dx = position.X()+fScintillatorSizeX/2.0;
 	G4double dy = position.Y()+fScintillatorSizeY/2.0;
+
 	//G4double dz = position.Z()+fTotalLength/2.0-epsilon;
 	G4double zModule = position.Z() + fSandwichLength/2.0;
     G4double zScint  = zModule - fAlPlateThickness - ftargetWSizeZ;
@@ -730,7 +731,7 @@ G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, 
 
 	if(VolumeName == "ScintillatorLogical") {
 
-				G4long ix = floor(((dx-epsilon) / fScintillatorVoxelSize));
+		G4long ix = floor(((dx-epsilon) / fScintillatorVoxelSize));
 		G4long iy = floor(((dy-epsilon) / fScintillatorVoxelSize));
 		//G4long iz = floor((dz-ilayer*fSandwichLength-fAlPlateThickness-ftargetWSizeZ)/ fScintillatorVoxelSize);
 		G4long iz = std::floor((zScint-epsilon) / fScintillatorVoxelSize);
@@ -1104,7 +1105,7 @@ void DetectorConstruction::CreateRearMuSpectrometer(G4double zLocation, G4Logica
 	// Need to shift the muon spectrometer in x and y to account for the fact that it's placed after the rear calorimeter
 	double x =  (fRearMuSpectSizeX - fECalSizeX) / 2.0;
 	double y = (fRearMuSpectSizeY - fECalSizeY) / 2.0;		
-	
+		
 	double z = zLocation + totalLength / 2;
 	G4Box* muonSpectrometerBox = new G4Box("MuonSpectrometer", magnetSizeX / 2, magnetSizeY / 2, totalLength / 2);
 	G4LogicalVolume* muonSpectrometerLV = new G4LogicalVolume(muonSpectrometerBox, air, "MuonSpectrometerLV");
@@ -1160,6 +1161,7 @@ void DetectorConstruction::CreateRearMuSpectrometer(G4double zLocation, G4Logica
 		// Magnetic field on the magnet volume
 		auto field = new MuonMagneticField();
 		field->SetSlitPosition(slitPosition);
+		field->SetTiltAngleY(fTiltAngleY);
 		auto fieldManager = new G4FieldManager(field);
 		fieldManager->CreateChordFinder(field);
 		magnetLV->SetFieldManager(fieldManager, true);
@@ -1426,6 +1428,7 @@ void DetectorConstruction::CreateMuSpectWithMDT(G4double zLocation, G4LogicalVol
 		// Magnetic field on the magnet volume
 		auto field = new MuonMagneticField();
 		field->SetSlitPosition(250.*mm);
+		field->SetTiltAngleY(fTiltAngleY);
 		auto fieldManager = new G4FieldManager(field);
 		fieldManager->CreateChordFinder(field);
 		magnetLV->SetFieldManager(fieldManager, true);

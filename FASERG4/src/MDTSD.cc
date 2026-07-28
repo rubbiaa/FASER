@@ -85,18 +85,32 @@ G4bool MDTSD::ProcessHits(G4Step* step, G4TouchableHistory*)
   G4ThreeVector trueMom = pre->GetMomentum();
 
   // ------------------------------------------------------------
-  // MDT wire is along global X (assumption: tubes oriented along X).
-  // If the geometry changes tube orientation this must be updated.
-  // Therefore the drift radius is calculated in the Y-Z plane.
-  //
-  // We compute the minimum distance between the Geant4 step segment
-  // and the wire center in the Y-Z plane.
+  // True wire axis in global coordinates, from the actual accumulated
+  // placement transform (tube's own rotation + all parent rotations,
+  // including any detector-assembly tilt). The G4Tubs solid's cylinder
+  // axis is along its own local Z; this correctly follows wherever that
+  // axis actually points after tilting, instead of assuming global X.
   // ------------------------------------------------------------
-  G4double y0 = p0.y() - tubeCenter.y();
-  G4double z0 = p0.z() - tubeCenter.z();
+  G4ThreeVector wireAxis =
+    touchable->GetHistory()->GetTopTransform().Inverse().TransformAxis(G4ThreeVector(0., 0., 1.));
+  wireAxis = wireAxis.unit();
 
-  G4double y1 = p1.y() - tubeCenter.y();
-  G4double z1 = p1.z() - tubeCenter.z();
+  // Transverse basis perpendicular to the wire axis. Global Y is exactly
+  // perpendicular to any wire axis produced by a rotation about Y (a tilt
+  // about Y never changes the Y-component), so it stays valid and matches
+  // the "measured" (drift) direction convention used in reconstruction.
+  const G4ThreeVector uAxis(0., 1., 0.);
+  G4ThreeVector vAxis = wireAxis.cross(uAxis).unit();
+
+  // We compute the minimum distance between the Geant4 step segment
+  // and the wire center in the plane transverse to the true wire axis.
+  G4ThreeVector d0 = p0 - tubeCenter;
+  G4ThreeVector d1 = p1 - tubeCenter;
+
+  G4double y0 = d0 * uAxis;
+  G4double z0 = d0 * vAxis;
+  G4double y1 = d1 * uAxis;
+  G4double z1 = d1 * vAxis;
 
   G4double dy = y1 - y0;
   G4double dz = z1 - z0;
@@ -112,7 +126,7 @@ G4bool MDTSD::ProcessHits(G4Step* step, G4TouchableHistory*)
     if (t > 1.0) t = 1.0;
   }
 
-  // Closest point on the step segment to the wire center in Y-Z plane
+  // Closest point on the step segment to the wire center in the transverse plane.
   // This is the point of closest approach to the wire
   // close to what we see in the real detector, where the drift radius is measured.
   G4double yClosest = y0 + t * dy;
@@ -123,14 +137,12 @@ G4bool MDTSD::ProcessHits(G4Step* step, G4TouchableHistory*)
 
   G4double driftAngle = std::atan2(zClosest, yClosest);
 
-  G4ThreeVector closestPos(
-    p0.x() + t * (p1.x() - p0.x()),
-    tubeCenter.y() + yClosest,
-    tubeCenter.z() + zClosest
-  );
+  // Point on the step segment at parameter t: exact regardless of basis,
+  // since t was chosen to minimize transverse distance to the wire line.
+  G4ThreeVector closestPos = p0 + t * (p1 - p0);
 
-  // hitX: position along the tube in local (tube-centered) X coordinates
-  G4double hitX = closestPos.x() - tubeCenter.x();
+  // hitX: true position along the (possibly tilted) wire axis, not just the X component.
+  G4double hitX = (closestPos - tubeCenter) * wireAxis;
 
   // Simple reference drift time
   const G4double driftVelocity = 0.025 * mm / ns;
