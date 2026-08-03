@@ -335,6 +335,120 @@ void TMuTrack::CircleFitTaubin(int verbose, double detectorResolutionPSmm) {
                   << ", q= " << fcharge << std::endl;
     }
 }
+// ─────────────────────────────────────────────────────────────────────────────
+// WCBruteForceAssignLR: brute-force wire-centre L/R assignment (standalone approach).
+//
+// Tries all 2^N left/right combinations for N MDT hits and fits the 3-parameter
+// analytic model  Y = Y₀ + slope·(z−z̄) + (q/p)·K(z−z̄)  to the assigned hit
+// positions for each combo (K = 0.3·B·z²·5×10⁻⁴ mm, uniform-field kernel).
+// Picks the combo with the smallest normalised chi²
+//   χ² = Σ [(y_fit − y_assigned) / r_meas]²
+// where r_meas is the measured drift radius — this scale gives ~0 for the
+// correct L/R and ~4 per wrong hit, giving robust discrimination even for
+// high-p tracks where the model approximation is less accurate.
+//
+// Outputs: best-L/R measurement vector, fitted q/p (qpBest), best chi².
+// Returns false when N > 20 (guard) or every matrix is numerically singular.
+// ─────────────────────────────────────────────────────────────────────────────
+static bool WCBruteForceAssignLR(const std::vector<MDTMeas>& meas,
+                                  std::vector<MDTMeas>&       best,
+                                  double& qpBest,
+                                  double& chi2Best,
+                                  double  B0_T = 1.5)
+{
+    const int N = static_cast<int>(meas.size());
+    if (N < 3 || N > 20) return false;
+
+    double zMean = 0.0;
+    for (const auto& m : meas) zMean += m.wireZ_mm;
+    zMean /= N;
+
+    int    bestCombo = -1;
+    chi2Best  = 1e99;
+    qpBest    = 0.0;
+    double bestCoef[3] = {};
+
+    const int nComb = 1 << N;
+    for (int combo = 0; combo < nComb; ++combo) {
+        // Build 3×3 normal equations for [Y₀, slope, q/p]
+        double M[3][3] = {}, b[3] = {};
+        for (int h = 0; h < N; ++h) {
+            const int    ns   = ((combo >> h) & 1) ? +1 : -1;
+            const double yass = meas[h].wireY_mm + ns * meas[h].r_meas_mm;
+            const double z    = meas[h].wireZ_mm - zMean;
+            const double K    = 0.3 * B0_T * z * z * 5.0e-4;
+            const double A[3] = {1.0, z, K};
+            for (int i = 0; i < 3; ++i) {
+                for (int j = 0; j < 3; ++j) M[i][j] += A[i] * A[j];
+                b[i] += A[i] * yass;
+            }
+        }
+        // Gaussian elimination with partial pivoting
+        double a[3][4];
+        for (int i = 0; i < 3; ++i) {
+            for (int j = 0; j < 3; ++j) a[i][j] = M[i][j];
+            a[i][3] = b[i];
+        }
+        bool sing = false;
+        for (int c = 0; c < 3; ++c) {
+            int piv = c;
+            for (int r = c+1; r < 3; ++r)
+                if (std::fabs(a[r][c]) > std::fabs(a[piv][c])) piv = r;
+            for (int k = 0; k < 4; ++k) std::swap(a[c][k], a[piv][k]);
+            if (std::fabs(a[c][c]) < 1e-9) { sing = true; break; }
+            for (int r = c+1; r < 3; ++r) {
+                const double f = a[r][c] / a[c][c];
+                for (int k = c; k < 4; ++k) a[r][k] -= f * a[c][k];
+            }
+        }
+        if (sing) continue;
+        double P[3];
+        for (int i = 2; i >= 0; --i) {
+            P[i] = a[i][3];
+            for (int j = i+1; j < 3; ++j) P[i] -= a[i][j] * P[j];
+            P[i] /= a[i][i];
+        }
+        // χ² = Σ [(y_fit − y_assigned) / r_meas]²
+        // Correct L/R: residual ≈ model_error/r ≈ 0.  Wrong L/R: residual ≈ ±2.
+        double chi2 = 0.0;
+        for (int h = 0; h < N; ++h) {
+            const int    ns   = ((combo >> h) & 1) ? +1 : -1;
+            const double yass = meas[h].wireY_mm + ns * meas[h].r_meas_mm;
+            const double z    = meas[h].wireZ_mm - zMean;
+            const double K    = 0.3 * B0_T * z * z * 5.0e-4;
+            const double yfit = P[0] + P[1]*z + P[2]*K;
+            const double r    = std::max(0.5, meas[h].r_meas_mm);
+            chi2 += (yfit - yass) * (yfit - yass) / (r * r);
+        }
+        if (chi2 < chi2Best) {
+            chi2Best  = chi2;
+            bestCombo = combo;
+            for (int i = 0; i < 3; ++i) bestCoef[i] = P[i];
+        }
+    }
+
+    if (bestCombo < 0) return false;
+
+    qpBest = bestCoef[2];
+
+    // Build output with best L/R.  Update all three global coordinates:
+    // hit = wireCenter + side * r * mdtU (proper 3D for tilted planes).
+    best = meas;
+    for (int h = 0; h < N; ++h) {
+        const int ns  = ((bestCombo >> h) & 1) ? +1 : -1;
+        best[h].side  = ns;
+        best[h].x_mm  = best[h].wireX_mm + ns * best[h].r_meas_mm * best[h].uX;
+        best[h].y_mm  = best[h].wireY_mm + ns * best[h].r_meas_mm * best[h].uY;
+        best[h].z_mm  = best[h].wireZ_mm + ns * best[h].r_meas_mm * best[h].uZ;
+    }
+
+    std::cerr << "[WCBruteForce] N=" << N
+              << " chi2=" << chi2Best
+              << " qp=" << qpBest
+              << " p=" << (std::fabs(qpBest)>1e-5 ? std::fabs(1.0/qpBest) : 9999.0)
+              << " GeV\n";
+    return true;
+}
 /////////////////////////////////////////////////
 bool TMuTrack::GenFitMDTFit(const std::vector<MDTMeas>& meas,
                             int pdg,
@@ -392,14 +506,19 @@ bool TMuTrack::GenFitMDTFit(const std::vector<MDTMeas>& meas,
     // between the two RKTrackRep hypotheses). Reject fits too far from the
     // seed in either direction.
     const double seedMomRef = std::max(1.0, seedMomentumGeV);
+    // Widen the pSane gate relative to the seed because pAnalytic is often a
+    // large over-estimate (mean bias +165%, RMS 1360% from 5k-event study),
+    // causing the correct-momentum fit to be rejected when the seed is too high.
+    // Hard floor of 1 GeV prevents unphysical low-momentum spirals regardless
+    // of seed.  Upper factor 50× gives room for the (rare) underestimated seed.
     auto pSane = [seedMomRef](const TVector3& mom) {
         const double pmag = mom.Mag();
-        return pmag > 0.15 * seedMomRef && pmag < 6.0 * seedMomRef;
+        return pmag > std::max(1.0, 0.05 * seedMomRef) && pmag < 50.0 * seedMomRef;
     };
 
     // Seed position: X from the true (tilt-aware) hit position, matching the
     // measurement planes' origin (also hit.x_mm). With a tilted plane normal,
-    // seeding X=0 while planes sit at the true X≈900mm decouples the seed from
+    // seeding X=0 while planes sit at the true X≈900mm decouples the seed fn?rom
     // the geometry it must intersect, which let px run away during fitting.
     TVector3 posSeed(sortedMeas.front().x_mm * 0.1,
                      sortedMeas.front().y_mm * 0.1,
@@ -633,6 +752,10 @@ bool TMuTrack::GenFitMDTFit(const std::vector<MDTMeas>& meas,
     const int expectedNDF = (int)sortedMeas.size() - 5;
     const bool tooFewHits = (fitNDF > 0) && (fitNDF < expectedNDF - 3);
     if (!qualityOk || tooFewHits) {
+        // Snapshot of the Phase-3.5 L/R before any refinement. Used as the base
+        // for each alt-seed's curvature-corrected L/R assignment (see below).
+        const std::vector<MDTMeas> measPhase35 = sortedMeas;
+
         std::cerr << "[GenFitMDTFit] Attempt 1 rejected: chi2/NDF=" << chi2ndf
                   << "  pval=" << fitPval
                   << (tooFewHits ? "  (too few hits: NDF=" + std::to_string(fitNDF)
@@ -666,13 +789,20 @@ bool TMuTrack::GenFitMDTFit(const std::vector<MDTMeas>& meas,
             }
         }
 
-        if (nFlipped == 0) return false;
-        std::cerr << "[GenFitMDTFit] " << nFlipped << " hit(s) L/R refined — retrying\n";
+        if (nFlipped == 0) {
+            // L/R is already consistent with the partial state — the re-fitted
+            // second attempt (below) would give the same bad result, so skip it.
+            // Fall straight through to the alt-seed loop (5/20/100 GeV): those
+            // use independent fixed momenta and can still succeed when only the
+            // original analytic seed momentum was wrong.
+        } else {
+            std::cerr << "[GenFitMDTFit] " << nFlipped << " hit(s) L/R refined — retrying\n";
+        }
 
         // Second GenFit attempt with corrected measurements, 1D global planes.
         genfit::AbsTrackRep* rep2 = new genfit::RKTrackRep(pdg);
 
-        // Seed from partial state, keeping its own X/px (consistent with the
+      // Seed from partial state, keeping its own X/px (consistent with the
         // tilted, true-X measurement planes -- zeroing X here would mismatch them).
         TVectorD stateSeed2(6);
         stateSeed2(0) = posPartial.X(); stateSeed2(1) = posPartial.Y(); stateSeed2(2) = posPartial.Z();
@@ -720,33 +850,212 @@ bool TMuTrack::GenFitMDTFit(const std::vector<MDTMeas>& meas,
         const bool qualityOk2 = (status2->isFitConverged() || ((ndf_2 > 0) && (chi2ndf_2 < 100.0)))
                               && pxSane(state2.getMom()) && pSane(state2.getMom());
         if (!qualityOk2) {
+            // ── Brute-force wire-centre L/R (WCBF) ─────────────────────────────────
+            // Adapted from the standalone sim (genfit_reco_batch.cc) that achieves
+            // 99.75% correct charge.  Tries all 2^N L/R combinations, fits
+            // Y = Y₀ + slope·z + (q/p)·K(z) analytically, picks best chi².
+            // Discrimination: correct L/R → chi²≈0; each wrong hit → Δchi²≈4.
+            // After finding best L/R, runs GenFit Kalman with 7mm tube-radius sigma
+            // (same as alt-seed loop): accepts hits when seed is slightly off.
+            {
+                std::vector<MDTMeas> bfMeas;
+                double qpBF = 0.0, chi2BF = 1e99;
+                if (WCBruteForceAssignLR(measPhase35, bfMeas, qpBF, chi2BF)) {
+                    sortedMeas = bfMeas;
+                    const double pBF = std::min(1000.0, std::max(1.0,
+                        std::fabs(qpBF) > 1e-5 ? std::fabs(1.0/qpBF) : 10.0));
+
+                    // Guard 1: sagitta must exceed tube radius for reliable discrimination.
+                    // At p=20 GeV, sagitta ≈ 6 mm ≈ tube radius → marginal; above this
+                    // the brute-force chi2 is near-zero for ALL combos (track nearly
+                    // straight) so the best combo is random and the WCBF Kalman (7 mm σ)
+                    // produces chi2/NDF ≈ 0 for BOTH hypotheses → sigma mismatch with the
+                    // 80 µm primary Kalman destroys the dual-hypothesis comparison.
+                    if (pBF >= 20.0) {
+                        std::cerr << "[WCBF] skip: pBF=" << pBF << " >= 20 GeV (sagitta < tube_r)\n";
+                        // Fall through to alt-seed loop; sortedMeas already set to bfMeas
+                        // (harmless — alt-seed loop resets sortedMeas = measPhase35).
+                    } else {
+
+                    constexpr double wclrSigmaU_cm = 0.7; // 7 mm ≈ MDT tube radius
+                    genfit::AbsTrackRep* repWC = new genfit::RKTrackRep(pdg);
+                    TVectorD ssWC(6);
+                    { const auto& f = sortedMeas.front();
+                      ssWC(0)=f.x_mm*0.1; ssWC(1)=f.y_mm*0.1; ssWC(2)=f.z_mm*0.1; }
+                    { // Seed direction: tangent to helical model at first hit
+                      double zMbf = 0.0;
+                      for (const auto& m : sortedMeas) zMbf += m.wireZ_mm;
+                      zMbf /= static_cast<double>(sortedMeas.size());
+                      // Slope from straight-line fit through wire centres
+                      double sN=0,sZ=0,sZ2=0,sY=0,sZY=0;
+                      for (const auto& m : sortedMeas) {
+                          const double z=m.wireZ_mm-zMbf;
+                          sN+=1;sZ+=z;sZ2+=z*z;sY+=m.wireY_mm;sZY+=z*m.wireY_mm;
+                      }
+                      const double det=(sN*sZ2-sZ*sZ);
+                      const double slp=(det>1e-9)?(sN*sZY-sZ*sY)/det:0.0;
+                      const double zF=sortedMeas.front().wireZ_mm-zMbf;
+                      const double dydz=slp+qpBF*0.3*1.5*2.0*zF*5.0e-4;
+                      TVector3 dWC=mdtU*dydz+mdtW;
+                      if(dWC.Mag()>0) dWC=dWC.Unit();
+                      ssWC(3)=dWC.X()*pBF; ssWC(4)=dWC.Y()*pBF; ssWC(5)=dWC.Z()*pBF; }
+                    TMatrixDSym csWC(6); csWC.Zero();
+                    for (int i=0;i<3;++i) csWC(i,i)=1.0;
+                    csWC(3,3)=1.0; csWC(4,4)=1.0;
+                    csWC(5,5)=std::max(5.0,0.3*pBF)*std::max(5.0,0.3*pBF);
+                    genfit::Track ftWC(repWC, ssWC, csWC);
+                    int hcWC=0;
+                    for (const auto& hit : sortedMeas) {
+                        TVector3 oWC(hit.x_mm*0.1, hit.y_mm*0.1, hit.z_mm*0.1);
+                        TVectorD hcvWC(1); hcvWC(0)=0.0;
+                        TMatrixDSym hcovWC(1); hcovWC.Zero();
+                        hcovWC(0,0)=wclrSigmaU_cm*wclrSigmaU_cm;
+                        auto* mptWC = new genfit::PlanarMeasurement(hcvWC, hcovWC, 0, hcWC, nullptr);
+                        mptWC->setPlane(genfit::SharedPlanePtr(new genfit::DetPlane(oWC, hU_global, hV_global)), hcWC);
+                        ftWC.insertPoint(new genfit::TrackPoint(mptWC, &ftWC));
+                        ++hcWC;
+                    }
+                    genfit::KalmanFitterRefTrack fitterWC;
+                    fitterWC.setMaxIterations(20);
+                    fitterWC.setRelChi2Change(0.001);
+                    bool wcKalOk = false;
+                    try {
+                        fitterWC.processTrack(&ftWC);
+                        genfit::FitStatus* stWC = ftWC.getFitStatus(repWC);
+                        if (stWC) {
+                            const double nWC=stWC->getNdf(), cWC=stWC->getChi2();
+                            const double cnWC=(nWC>0)?cWC/nWC:1e9;
+                            // Guard 2: tighter chi2/NDF gate (10 instead of 100).
+                            // For wrong hypothesis with sagitta ≈ 12 mm (10 GeV), the
+                            // 7 mm residuals give chi2/NDF ≈ 24 → rejected here.
+                            // Correct hypothesis: chi2/NDF ≈ 0.001 → accepted.
+                            if ((stWC->isFitConverged()||(nWC>0&&cnWC<10.0))&&cnWC<10.0) {
+                                genfit::MeasuredStateOnPlane stWCs = ftWC.getFittedState();
+                                const double wcRef = std::max(1.0, pBF);
+                                const double pmWC  = stWCs.getMom().Mag();
+                                if (pxSane(stWCs.getMom())
+                                    && pmWC >= std::max(1.0, 0.05*wcRef)
+                                    && pmWC <= 50.0*wcRef) {
+                                    const TVector3 pWCf = stWCs.getMom();
+                                    fpx=pWCf.X(); fpy=pWCf.Y(); fpz=pWCf.Z(); fp=pmWC;
+                                    fcharge    = stWCs.getCharge();
+                                    fchi2      = cWC;
+                                    fnDoF      = static_cast<int>(nWC);
+                                    fpval      = stWC->getPVal();
+                                    fQOverP    = stWCs.getState()(0);
+                                    fQOverPErr = std::sqrt(stWCs.getCov()(0,0));
+                                    fpErr      = fQOverPErr * fp * fp;
+                                    fpos.clear(); layerID.clear();
+                                    for (const auto& m : sortedMeas) {
+                                        fpos.emplace_back(m.x_mm, m.y_mm, m.z_mm);
+                                        layerID.push_back(m.stationID*10000+m.planeID*1000+m.tubeID);
+                                    }
+                                    wcKalOk = true;
+                                    std::cerr << "[WCBF] success: p=" << fp
+                                              << " q=" << fcharge << " chi2/NDF=" << cnWC
+                                              << " qpBF=" << qpBF << "\n";
+                                }
+                            }
+                        }
+                    } catch (...) { std::cerr << "[WCBF] Kalman exception\n"; }
+                    if (!wcKalOk)
+                        std::cerr << "[WCBF] Kalman failed (NDF/chi2 gate)\n";
+                    if (wcKalOk) return true;
+                    // Fall through: brute-force Kalman failed; alt-seed loop resets sortedMeas.
+                    }  // end pBF < 20 GeV guard
+                }
+            }  // end WCBF block
+
             // Attempt 3+: try multiple seed momenta (1D global planes throughout).
-            static const double altSeeds[] = { 5.0, 20.0, 100.0 };
+            static const double altSeeds[] = { 5.0, 20.0, 100.0, 500.0 };
             for (double altP : altSeeds) {
+                // ── Curvature-corrected L/R for this (pdg, altP) hypothesis ─────────
+                // For low-momentum tracks the Phase 3.5 straight-line L/R is wrong
+                // (sagitta ≫ tube radius → all hits on wrong side → NDF=0 for ANY
+                // seed).  Re-assign using a uniform-B helical approximation so that
+                // each alt-seed starts from a self-consistent measurement set.
+                sortedMeas = measPhase35;  // restore Phase-3.5 L/R
+                const double qSignAlt = (pdg == -13) ? -1.0 : +1.0;
+                const double B0_T     = 1.5;  // approx avg MDT B-field [T]
+                // Step 1: straight-line fit through wire centres.
+                double zMeanW = 0.0;
+                for (const auto& mm : sortedMeas) zMeanW += mm.wireZ_mm;
+                zMeanW /= static_cast<double>(sortedMeas.size());
+                {
+                    double sNw=0, sZw=0, sZ2w=0, sYw=0, sZYw=0;
+                    for (const auto& mm : sortedMeas) {
+                        const double z = mm.wireZ_mm - zMeanW;
+                        sNw+=1; sZw+=z; sZ2w+=z*z; sYw+=mm.wireY_mm; sZYw+=z*mm.wireY_mm;
+                    }
+                    const double detW = sNw*sZ2w - sZw*sZw;
+                    const double slpW = (std::fabs(detW) > 1e-9) ? (sNw*sZYw - sZw*sYw)/detW : 0.0;
+                    const double y0W  = (std::fabs(detW) > 1e-9) ? (sYw - slpW*sZw)/sNw  : 0.0;
+                    // Step 2: helical prediction Δy ≈ (q/p)×0.3×B×zRel²×5×10⁻⁴ [mm]
+                    for (auto& mm : sortedMeas) {
+                        const double zRel = mm.wireZ_mm - zMeanW;
+                        const double K_mm = 0.3 * B0_T * zRel * zRel * 5.0e-4;
+                        const double yPred = y0W + slpW * zRel + (qSignAlt / altP) * K_mm;
+                        const int ns = (yPred >= mm.wireY_mm) ? 1 : -1;
+                        mm.side = ns;
+                        mm.y_mm = mm.wireY_mm + ns * mm.r_meas_mm;
+                    }
+                }
+                // ─────────────────────────────────────────────────────────────────
+
                 genfit::AbsTrackRep* rep3 = new genfit::RKTrackRep(pdg);
                 TVectorD ss3(6);
-                // X from the true hit position (matches the tilted plane geometry).
-                ss3(0) = posSeed.X(); ss3(1) = posSeed.Y(); ss3(2) = posSeed.Z();
-                TVector3 d3(dirGlobal.X() * altP, dirGlobal.Y() * altP, dirGlobal.Z() * altP);
+                // Seed position: use the curvature-corrected first-hit Y so that
+                // GenFit's 80-µm sigma does not immediately reject the first station
+                // (which would happen if the Phase-3.5 L/R was on the wrong side).
+                {
+                    const auto& f = sortedMeas.front();
+                    ss3(0) = f.x_mm * 0.1; ss3(1) = f.y_mm * 0.1; ss3(2) = f.z_mm * 0.1;
+                }
+                // Seed direction: tangent to the helical model at the first station.
+                // dy/dz|_z1 = slpW + (q/p)×0.3×B×2×zRel1×5×10⁻⁴  (local-frame slope)
+                // We recompute slpW quickly from the first/last wire-centre positions.
+                TVector3 dirAlt;
+                {
+                    const double zRelFront = sortedMeas.front().wireZ_mm - zMeanW;
+                    double sNw=0, sZw=0, sZ2w=0, sYw=0, sZYw=0;
+                    for (const auto& mm : sortedMeas) {
+                        const double z = mm.wireZ_mm - zMeanW;
+                        sNw+=1; sZw+=z; sZ2w+=z*z; sYw+=mm.wireY_mm; sZYw+=z*mm.wireY_mm;
+                    }
+                    const double detW = sNw*sZ2w - sZw*sZw;
+                    const double slpW2 = (std::fabs(detW) > 1e-9) ? (sNw*sZYw - sZw*sYw)/detW : 0.0;
+                    const double slopeAtFront = slpW2
+                        + (qSignAlt / altP) * 0.3 * B0_T * 2.0 * zRelFront * 5.0e-4;
+                    dirAlt = mdtU * slopeAtFront + mdtW;
+                    if (dirAlt.Mag() > 0.0) dirAlt = dirAlt.Unit(); else dirAlt = mdtW;
+                }
+                TVector3 d3(dirAlt.X() * altP, dirAlt.Y() * altP, dirAlt.Z() * altP);
                 ss3(3) = d3.X(); ss3(4) = d3.Y(); ss3(5) = d3.Z();
                 TMatrixDSym cs3(6); cs3.Zero();
                 for (int i = 0; i < 3; ++i) cs3(i,i) = 1.0;
                 const double ms3 = std::max(5.0, 0.3 * altP);
                 cs3(3,3) = 1.0; cs3(4,4) = 1.0; cs3(5,5) = ms3 * ms3;
                 genfit::Track ft3(rep3, ss3, cs3);
+                // Use tube-radius sigma (7 mm) instead of the 80 µm drift resolution
+                // so that the Kalman outlier cut (chi2 < 100) accepts hits even when
+                // the seed direction is slightly wrong.  With the curvature-corrected
+                // L/R, the correct-hypothesis fit will have chi2/NDF ≈ 0 while the
+                // wrong-hypothesis fit has chi2/NDF ≈ (14mm/7mm)² ≈ 4, giving a clear
+                // delta-chi2 signal for charge assignment.
+                constexpr double altSigmaU_cm = 0.7; // 7 mm ≈ MDT tube radius
                 int hc3 = 0;
                 for (const auto& hit : sortedMeas) {
                     TVector3 org3(hit.x_mm*0.1, hit.y_mm*0.1, hit.z_mm*0.1);
                     TVectorD hc3v(1); hc3v(0) = 0.0;
                     TMatrixDSym hCov3(1); hCov3.Zero();
-                    hCov3(0,0) = hitSigmaU_cm*hitSigmaU_cm;
+                    hCov3(0,0) = altSigmaU_cm * altSigmaU_cm;
                     auto* mpt3 = new genfit::PlanarMeasurement(hc3v, hCov3, 0, hc3, nullptr);
                     mpt3->setPlane(genfit::SharedPlanePtr(new genfit::DetPlane(org3, hU_global, hV_global)), hc3);
                     ft3.insertPoint(new genfit::TrackPoint(mpt3, &ft3));
                     ++hc3;
                 }
                 genfit::KalmanFitterRefTrack fitter3;
-                fitter3.setMaxIterations(10);
+                fitter3.setMaxIterations(20);
                 fitter3.setRelChi2Change(0.001);
                 try { fitter3.processTrack(&ft3); } catch (...) { continue; }
                 genfit::FitStatus* st3 = ft3.getFitStatus(rep3);
@@ -754,25 +1063,123 @@ bool TMuTrack::GenFitMDTFit(const std::vector<MDTMeas>& meas,
                 const double c3 = st3->getChi2(), n3 = st3->getNdf(), pv3 = st3->getPVal();
                 const double cn3 = (n3 > 0) ? c3/n3 : 1e9;
                 std::cerr << "[GenFitMDTFit] AltSeed " << altP << " GeV: chi2/NDF=" << cn3 << "  pval=" << pv3 << "\n";
-                if (!st3->isFitConverged() && ((n3 <= 0) || (cn3 >= 100.0))) continue;
+                if (!st3->isFitConverged() && ((n3 <= 0) || (cn3 >= 100.0))) {
+                    std::cerr << "[GenFitMDTFit] AltSeed " << altP << " GeV FAIL:badChi2 conv="
+                              << st3->isFitConverged() << " cn3=" << cn3 << "\n";
+                    continue;
+                }
                 genfit::MeasuredStateOnPlane st3s;
-                try { st3s = ft3.getFittedState(); } catch (...) { continue; }
-                if (!pxSane(st3s.getMom()) || !pSane(st3s.getMom())) continue;
-                TVector3 p3 = st3s.getMom();
-                fpx = p3.X(); fpy = p3.Y(); fpz = p3.Z(); fp = p3.Mag();
-                fcharge = st3s.getCharge();
-                fchi2 = c3; fnDoF = static_cast<int>(n3); fpval = pv3;
-                fQOverP = st3s.getState()(0);
-                fQOverPErr = std::sqrt(st3s.getCov()(0,0));
-                fpErr = fQOverPErr * fp * fp;
+                try { st3s = ft3.getFittedState(); } catch (...) {
+                    std::cerr << "[GenFitMDTFit] AltSeed " << altP << " GeV FAIL:getFitState exception\n";
+                    continue;
+                }
+                // Gate on pxSane + a per-alt-seed pSane (NOT the analytic-estimate
+                // pSane).  When the analytic estimate is far from truth (common for
+                // high-momentum nearly-straight tracks), the original pSane rejects
+                // the CORRECT solution.  Using the alt-seed momentum as the reference
+                // allows the 20/100/500 GeV seeds to accept solutions in a wide range
+                // while still blocking very-low-momentum degenerate spirals.
+                if (!pxSane(st3s.getMom())) {
+                    std::cerr << "[GenFitMDTFit] AltSeed " << altP << " GeV FAIL:pxSane px="
+                              << st3s.getMom().X() << " pz=" << st3s.getMom().Z() << "\n";
+                    continue;
+                }
+                {
+                    const double altRef = std::max(1.0, altP);
+                    const double pmag3  = st3s.getMom().Mag();
+                    if (pmag3 < std::max(1.0, 0.05 * altRef) || pmag3 > 50.0 * altRef) {
+                        std::cerr << "[GenFitMDTFit] AltSeed " << altP << " GeV FAIL:pSaneAlt p="
+                                  << pmag3 << " range=[" << std::max(1.0, 0.05*altRef)
+                                  << "," << 50.0*altRef << "]\n";
+                        continue;
+                    }
+                }
+                // ── Stage 2: DAF refit with drift resolution ────────────────────────
+                // Use the tube-sigma Stage-1 result as seed.  With 80 µm sigma the
+                // wrong-hypothesis measurements (displaced ~14 mm = 175 σ) are driven
+                // to weight≈0 by the annealing scheme → NDF→0 → skip this altP.
+                // Correct-hypothesis measurements (residuals ≪ σ) → DAF converges.
+                // T_start=5000 so that wrong hits (chi2≈30625) start with
+                // weight≈exp(-30625/10000)≈0.05 and are immediately nearly zeroed,
+                // while correct hits (chi2≈0) always have weight≈1.
+                {
+                    genfit::AbsTrackRep* repS2 = new genfit::RKTrackRep(pdg);
+                    const TVector3 xS2 = st3s.getPos(); // cm
+                    const TVector3 pS2 = st3s.getMom(); // GeV/c
+                    TVectorD ssS2(6);
+                    ssS2(0)=xS2.X(); ssS2(1)=xS2.Y(); ssS2(2)=xS2.Z();
+                    ssS2(3)=pS2.X(); ssS2(4)=pS2.Y(); ssS2(5)=pS2.Z();
+                    TMatrixDSym csS2(6); csS2.Zero();
+                    for (int i=0;i<3;++i) csS2(i,i)=0.01;
+                    const double msS2 = std::max(0.1, 0.2 * fp);
+                    csS2(3,3)=msS2*msS2; csS2(4,4)=msS2*msS2; csS2(5,5)=msS2*msS2;
+                    genfit::Track ftS2(repS2, ssS2, csS2);
+                    int hcS2 = 0;
+                    for (const auto& hit : sortedMeas) {
+                        TVector3 orgS2(hit.x_mm*0.1, hit.y_mm*0.1, hit.z_mm*0.1);
+                        TVectorD hcS2v(1); hcS2v(0) = 0.0;
+                        TMatrixDSym hCovS2(1); hCovS2.Zero();
+                        hCovS2(0,0) = hitSigmaU_cm * hitSigmaU_cm;
+                        auto* mptS2 = new genfit::PlanarMeasurement(hcS2v, hCovS2, 0, hcS2, nullptr);
+                        mptS2->setPlane(genfit::SharedPlanePtr(
+                            new genfit::DetPlane(orgS2, hU_global, hV_global)), hcS2);
+                        ftS2.insertPoint(new genfit::TrackPoint(mptS2, &ftS2));
+                        ++hcS2;
+                    }
+                    genfit::DAF dafS2;
+                    dafS2.setAnnealingScheme(5000.0, 9.0, 30);
+                    dafS2.setMaxIterations(40);
+                    bool dafS2ok = false;
+                    try {
+                        dafS2.processTrack(&ftS2);
+                        genfit::FitStatus* stS2 = ftS2.getFitStatus(repS2);
+                        if (stS2) {
+                            const double nS2 = stS2->getNdf(), cS2 = stS2->getChi2();
+                            const double cnS2 = (nS2 > 0) ? cS2/nS2 : 1e9;
+                            if (nS2 >= 1.0 && cnS2 < 200.0) {
+                                try {
+                                    genfit::MeasuredStateOnPlane stS2s = ftS2.getFittedState();
+                                    const TVector3 pS2f = stS2s.getMom();
+                                    const double pmagS2 = pS2f.Mag();
+                                    const double altRefS2 = std::max(1.0, altP);
+                                    if (pxSane(pS2f)
+                                     && pmagS2 >= std::max(1.0, 0.05*altRefS2)
+                                     && pmagS2 <= 50.0*altRefS2) {
+                                        fpx=pS2f.X(); fpy=pS2f.Y(); fpz=pS2f.Z(); fp=pmagS2;
+                                        fcharge    = stS2s.getCharge();
+                                        fchi2      = cS2;
+                                        fnDoF      = static_cast<int>(nS2);
+                                        fpval      = stS2->getPVal();
+                                        fQOverP    = stS2s.getState()(0);
+                                        fQOverPErr = std::sqrt(stS2s.getCov()(0,0));
+                                        fpErr      = fQOverPErr * fp * fp;
+                                        dafS2ok    = true;
+                                        std::cerr << "[GenFitMDTFit] AltSeed " << altP
+                                                  << " GeV Stage2 ok: chi2/NDF=" << cnS2 << "\n";
+                                    }
+                                } catch (...) {}
+                            }
+                        }
+                    } catch (...) {}
+                    if (!dafS2ok) {
+                        std::cerr << "[GenFitMDTFit] AltSeed " << altP
+                                  << " GeV Stage2 FAIL (wrong hyp?)\n";
+                        continue; // likely wrong hypothesis – try next altP
+                    }
+                }
+                // Stage 2 succeeded: record hit positions and return.
                 fpos.clear(); layerID.clear();
                 for (const auto& m : sortedMeas) {
                     fpos.emplace_back(m.x_mm, m.y_mm, m.z_mm);
                     layerID.push_back(m.stationID*10000 + m.planeID*1000 + m.tubeID);
                 }
-                std::cerr << "[GenFitMDTFit] AltSeed SUCCESS: p=" << fp << " q=" << fcharge << "\n";
+                std::cerr << "[GenFitMDTFit] AltSeed SUCCESS (Stage2 DAF): p=" << fp
+                          << " q=" << fcharge << "\n";
                 return true;
             }
+            // Restore Phase-3.5 L/R for the DAF rescue that follows (so it
+            // doesn't start from the last alt-seed's curvature-corrected state).
+            sortedMeas = measPhase35;
 
             // ── DAF rescue ────────────────────────────────────────────────────
             // All Kalman attempts failed.  Try GenFit's Deterministic Annealing

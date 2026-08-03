@@ -12,8 +12,12 @@ void check_mdt_reco(const char* fname = "Batch-TPORecevent_6000_0_5210.root")
     TTree* t = (TTree*)f->Get("MuonSpectrometer");
     if (!t) { std::cerr << "TTree 'MuonSpectrometer' not found\n"; return; }
 
-    const bool hasTruth = (t->GetBranch("p_truth") != nullptr);
+    const bool hasTruth  = (t->GetBranch("p_truth") != nullptr);
+    const bool hasQTruth = (t->GetBranch("charge_truth") != nullptr);
+    const bool hasNPoints = (t->GetBranch("npoints") != nullptr);
     if (!hasTruth) printf("[WARNING] p_truth branch not found — truth resolution plots disabled.\n");
+    if (!hasQTruth) printf("[WARNING] charge_truth branch not found — charge correctness counters disabled.\n");
+    if (!hasNPoints) printf("[WARNING] npoints branch not found — fit-failure hit-count breakdown disabled.\n");
 
     const Long64_t nEntries = t->GetEntries();
 
@@ -22,22 +26,28 @@ void check_mdt_reco(const char* fname = "Batch-TPORecevent_6000_0_5210.root")
     int   ntracks = 0;
     int   fit_ok [MAXTRK] = {};
     int   nDoF   [MAXTRK] = {};
+    int   npoints[MAXTRK] = {};
     float p      [MAXTRK] = {};
     float p_analytic[MAXTRK] = {};
     float p_truth   [MAXTRK] = {};
     float chi2   [MAXTRK] = {};
     float charge [MAXTRK] = {};
+    int   charge_mode[MAXTRK] = {};
+    float charge_truth[MAXTRK] = {};
     float fpErr  [MAXTRK] = {};
 
     t->SetBranchAddress("ntracks",     &ntracks);
     t->SetBranchAddress("fit_ok",       fit_ok);
     t->SetBranchAddress("nDoF",         nDoF);
+    if (hasNPoints) t->SetBranchAddress("npoints", npoints);
     t->SetBranchAddress("p",            p);
     t->SetBranchAddress("p_analytic",   p_analytic);
     t->SetBranchAddress("chi2",         chi2);
     t->SetBranchAddress("charge",       charge);
+    if (t->GetBranch("charge_mode")) t->SetBranchAddress("charge_mode", charge_mode);
     t->SetBranchAddress("fpErr",        fpErr);
     if (hasTruth) t->SetBranchAddress("p_truth", p_truth);
+    if (hasQTruth) t->SetBranchAddress("charge_truth", charge_truth);
 
     // --- counters ---
     int nEventsTotal     = 0;
@@ -46,6 +56,56 @@ void check_mdt_reco(const char* fname = "Batch-TPORecevent_6000_0_5210.root")
     int nFitFailed       = 0;
     int nSecondTrack     = 0;
     int nNDF0            = 0;
+
+    // fit-failure diagnostic (events with tracks but no fit_ok)
+    int nFailMaxHitsLE5  = 0;
+    int nFailMaxHits6to8 = 0;
+    int nFailMaxHitsGE9  = 0;
+
+    const int NBINS_P = 8;
+    double pEdges[NBINS_P+1];
+    for (int i = 0; i <= NBINS_P; ++i)
+        pEdges[i] = std::pow(10.0, std::log10(5.0) + i*(std::log10(5000.0)-std::log10(5.0))/NBINS_P);
+
+    // charge diagnostics (track-level, fit_ok + NDF>0)
+    int nChargeTracks          = 0;
+    int nChargeAssignedTracks  = 0;
+    int nChargeAmbiguousTracks = 0;
+    int nChargeTruthTracks     = 0;
+    int nChargeCorrectTracks   = 0;
+    int nChargeWrongTracks     = 0;
+    int nChargeTot_ndf[8]    = {};
+    int nChargeAss_ndf[8]    = {};
+    int nChargeWrong_ndf[8]  = {};
+    int nChargeTot_mode[6]   = {};
+    int nChargeAss_mode[6]   = {};
+    int nChargeWrong_mode[6] = {};
+    int nChargeTot_pndf[NBINS_P][8] = {};
+    int nChargeAss_pndf[NBINS_P][8] = {};
+    int nChargeWrong_pndf[NBINS_P][8] = {};
+
+    // charge diagnostics (event-level, leading track tr=0 if fit_ok + NDF>0)
+    int nLeadChargeEvents          = 0;
+    int nLeadChargeAssignedEvents  = 0;
+    int nLeadChargeAmbiguousEvents = 0;
+    int nLeadChargeTruthEvents     = 0;
+    int nLeadChargeCorrectEvents   = 0;
+    int nLeadChargeWrongEvents     = 0;
+    int nLeadChargeTot_ndf[8]      = {};
+    int nLeadChargeAss_ndf[8]      = {};
+    int nLeadChargeWrong_ndf[8]    = {};
+    int nLeadChargeTot_mode[6]     = {};
+    int nLeadChargeAss_mode[6]     = {};
+    int nLeadChargeWrong_mode[6]    = {};
+    int nLeadChargeTot_pndf[NBINS_P][8] = {};
+    int nLeadChargeAss_pndf[NBINS_P][8] = {};
+    int nLeadChargeWrong_pndf[NBINS_P][8] = {};
+    int nChargeTot_p[NBINS_P]      = {};
+    int nChargeAss_p[NBINS_P]      = {};
+    int nChargeWrong_p[NBINS_P]    = {};
+    int nLeadChargeTot_p[NBINS_P]   = {};
+    int nLeadChargeAss_p[NBINS_P]   = {};
+    int nLeadChargeWrong_p[NBINS_P] = {};
 
     std::map<int,int> ndfHist;
 
@@ -72,7 +132,9 @@ void check_mdt_reco(const char* fname = "Batch-TPORecevent_6000_0_5210.root")
         if (ntracks >= 2) ++nSecondTrack;
 
         bool anyOk = false;
+        int maxHitsThisEvent = -1;
         for (int tr = 0; tr < std::min(ntracks, MAXTRK); ++tr) {
+            if (hasNPoints) maxHitsThisEvent = std::max(maxHitsThisEvent, npoints[tr]);
             if (!fit_ok[tr]) continue;
             anyOk = true;
 
@@ -87,6 +149,127 @@ void check_mdt_reco(const char* fname = "Batch-TPORecevent_6000_0_5210.root")
             const float pf = p[tr];
             const float pa = p_analytic[tr];
             const float pt = hasTruth ? p_truth[tr] : -999.f;
+
+            // Charge diagnostics on all successful tracks with valid NDF.
+            const bool assigned = (std::abs(charge[tr]) > 0.5f);
+            ++nChargeTracks;
+            if (assigned) ++nChargeAssignedTracks;
+            else          ++nChargeAmbiguousTracks;
+
+            if (hasQTruth && std::abs(charge_truth[tr]) > 0.5f) {
+                ++nChargeTruthTracks;
+                int mode = (charge_mode[tr] >= 0 && charge_mode[tr] <= 5) ? charge_mode[tr] : 0;
+                ++nChargeTot_mode[mode];
+                if (assigned) ++nChargeAss_mode[mode];
+                if (ndf >= 1 && ndf <= 7) {
+                    ++nChargeTot_ndf[ndf];
+                    if (assigned) ++nChargeAss_ndf[ndf];
+                }
+                if (std::isfinite(pt) && pt > 0 && pt < PMAX && ndf >= 1 && ndf <= 7) {
+                    for (int b = 0; b < NBINS_P; ++b) {
+                        if (pt >= pEdges[b] && pt < pEdges[b+1]) {
+                            ++nChargeTot_pndf[b][ndf];
+                            if (assigned) ++nChargeAss_pndf[b][ndf];
+                            break;
+                        }
+                    }
+                }
+                if (std::isfinite(pt) && pt > 0 && pt < PMAX) {
+                    for (int b = 0; b < NBINS_P; ++b) {
+                        if (pt >= pEdges[b] && pt < pEdges[b+1]) {
+                            ++nChargeTot_p[b];
+                            if (assigned) ++nChargeAss_p[b];
+                            break;
+                        }
+                    }
+                }
+                if (!assigned) {
+                    // Count as ambiguous, not as wrong-sign.
+                } else if (charge[tr] * charge_truth[tr] > 0.f) {
+                    ++nChargeCorrectTracks;
+                } else {
+                    ++nChargeWrongTracks;
+                    ++nChargeWrong_mode[mode];
+                    if (ndf >= 1 && ndf <= 7) ++nChargeWrong_ndf[ndf];
+                        if (std::isfinite(pt) && pt > 0 && pt < PMAX && ndf >= 1 && ndf <= 7) {
+                            for (int b = 0; b < NBINS_P; ++b) {
+                                if (pt >= pEdges[b] && pt < pEdges[b+1]) {
+                                    ++nChargeWrong_pndf[b][ndf];
+                                    break;
+                                }
+                            }
+                        }
+                    if (std::isfinite(pt) && pt > 0 && pt < PMAX) {
+                        for (int b = 0; b < NBINS_P; ++b) {
+                            if (pt >= pEdges[b] && pt < pEdges[b+1]) {
+                                ++nChargeWrong_p[b];
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Event-level leading-track charge diagnostics.
+            if (tr == 0) {
+                ++nLeadChargeEvents;
+                if (assigned) ++nLeadChargeAssignedEvents;
+                else          ++nLeadChargeAmbiguousEvents;
+
+                if (hasQTruth && std::abs(charge_truth[tr]) > 0.5f) {
+                    ++nLeadChargeTruthEvents;
+                    int mode = (charge_mode[tr] >= 0 && charge_mode[tr] <= 5) ? charge_mode[tr] : 0;
+                    ++nLeadChargeTot_mode[mode];
+                    if (assigned) ++nLeadChargeAss_mode[mode];
+                    if (ndf >= 1 && ndf <= 7) {
+                        ++nLeadChargeTot_ndf[ndf];
+                        if (assigned) ++nLeadChargeAss_ndf[ndf];
+                    }
+                    if (std::isfinite(pt) && pt > 0 && pt < PMAX && ndf >= 1 && ndf <= 7) {
+                        for (int b = 0; b < NBINS_P; ++b) {
+                            if (pt >= pEdges[b] && pt < pEdges[b+1]) {
+                                ++nLeadChargeTot_pndf[b][ndf];
+                                if (assigned) ++nLeadChargeAss_pndf[b][ndf];
+                                break;
+                            }
+                        }
+                    }
+                    if (std::isfinite(pt) && pt > 0 && pt < PMAX) {
+                        for (int b = 0; b < NBINS_P; ++b) {
+                            if (pt >= pEdges[b] && pt < pEdges[b+1]) {
+                                ++nLeadChargeTot_p[b];
+                                if (assigned) ++nLeadChargeAss_p[b];
+                                break;
+                            }
+                        }
+                    }
+                    if (!assigned) {
+                        // ambiguous
+                    } else if (charge[tr] * charge_truth[tr] > 0.f) {
+                        ++nLeadChargeCorrectEvents;
+                    } else {
+                        ++nLeadChargeWrongEvents;
+                        ++nLeadChargeWrong_mode[mode];
+                        if (ndf >= 1 && ndf <= 7) ++nLeadChargeWrong_ndf[ndf];
+                        if (std::isfinite(pt) && pt > 0 && pt < PMAX && ndf >= 1 && ndf <= 7) {
+                            for (int b = 0; b < NBINS_P; ++b) {
+                                if (pt >= pEdges[b] && pt < pEdges[b+1]) {
+                                    ++nLeadChargeWrong_pndf[b][ndf];
+                                    break;
+                                }
+                            }
+                        }
+                        if (std::isfinite(pt) && pt > 0 && pt < PMAX) {
+                            for (int b = 0; b < NBINS_P; ++b) {
+                                if (pt >= pEdges[b] && pt < pEdges[b+1]) {
+                                    ++nLeadChargeWrong_p[b];
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             // GenFit vs truth
             if (hasTruth
@@ -116,7 +299,14 @@ void check_mdt_reco(const char* fname = "Batch-TPORecevent_6000_0_5210.root")
                 }
             }
         }
-        if (!anyOk) ++nFitFailed;
+        if (!anyOk) {
+            ++nFitFailed;
+            if (hasNPoints) {
+                if (maxHitsThisEvent <= 5)      ++nFailMaxHitsLE5;
+                else if (maxHitsThisEvent <= 8) ++nFailMaxHits6to8;
+                else                            ++nFailMaxHitsGE9;
+            }
+        }
     }
 
     // compute mean and RMS of a vector
@@ -155,12 +345,51 @@ void check_mdt_reco(const char* fname = "Batch-TPORecevent_6000_0_5210.root")
            nEventsAttempted - nFitFailed,
            nEventsAttempted ? 100.0*(nEventsAttempted-nFitFailed)/nEventsAttempted : 0.0);
     printf("  Fit FAILED  events            : %d\n", nFitFailed);
+    if (hasNPoints && nFitFailed > 0) {
+        printf("    - failure with max npoints <=5 : %d\n", nFailMaxHitsLE5);
+        printf("    - failure with max npoints 6-8 : %d\n", nFailMaxHits6to8);
+        printf("    - failure with max npoints >=9 : %d\n", nFailMaxHitsGE9);
+    }
     printf("\n");
     printf("  NDF distribution (fit_ok tracks):\n");
     for (auto& kv : ndfHist)
         printf("    NDF = %3d : %d tracks\n", kv.first, kv.second);
     printf("  fit_ok tracks with NDF=0      : %d  (DAF garbage)\n", nNDF0);
     printf("  Mean chi2/NDF (NDF>0)         : %.2f\n", mu_chi2);
+        printf("\n");
+        printf("  Charge (track-level, fit_ok and NDF>0):\n");
+        printf("    assigned (|q|>0.5)          : %d/%d (%.1f%%)\n",
+            nChargeAssignedTracks, nChargeTracks,
+            nChargeTracks ? 100.0*nChargeAssignedTracks/nChargeTracks : 0.0);
+        printf("    ambiguous (q=0)             : %d/%d (%.1f%%)\n",
+            nChargeAmbiguousTracks, nChargeTracks,
+            nChargeTracks ? 100.0*nChargeAmbiguousTracks/nChargeTracks : 0.0);
+        if (hasQTruth) {
+         printf("    correct sign (assigned only): %d/%d (%.1f%%)\n",
+             nChargeCorrectTracks, nChargeAssignedTracks,
+             nChargeAssignedTracks ? 100.0*nChargeCorrectTracks/nChargeAssignedTracks : 0.0);
+         printf("    wrong sign   (assigned only): %d/%d (%.1f%%)\n",
+             nChargeWrongTracks, nChargeAssignedTracks,
+             nChargeAssignedTracks ? 100.0*nChargeWrongTracks/nChargeAssignedTracks : 0.0);
+         printf("    truth-tagged tracks          : %d\n", nChargeTruthTracks);
+        }
+        printf("\n");
+        printf("  Charge (event-level, leading track tr=0):\n");
+        printf("    assigned events             : %d/%d (%.1f%%)\n",
+            nLeadChargeAssignedEvents, nLeadChargeEvents,
+            nLeadChargeEvents ? 100.0*nLeadChargeAssignedEvents/nLeadChargeEvents : 0.0);
+        printf("    ambiguous events            : %d/%d (%.1f%%)\n",
+            nLeadChargeAmbiguousEvents, nLeadChargeEvents,
+            nLeadChargeEvents ? 100.0*nLeadChargeAmbiguousEvents/nLeadChargeEvents : 0.0);
+        if (hasQTruth) {
+         printf("    correct sign (assigned only): %d/%d (%.1f%%)\n",
+             nLeadChargeCorrectEvents, nLeadChargeAssignedEvents,
+             nLeadChargeAssignedEvents ? 100.0*nLeadChargeCorrectEvents/nLeadChargeAssignedEvents : 0.0);
+         printf("    wrong sign   (assigned only): %d/%d (%.1f%%)\n",
+             nLeadChargeWrongEvents, nLeadChargeAssignedEvents,
+             nLeadChargeAssignedEvents ? 100.0*nLeadChargeWrongEvents/nLeadChargeAssignedEvents : 0.0);
+         printf("    truth-tagged leading tracks : %d\n", nLeadChargeTruthEvents);
+        }
     printf("\n");
     if (hasTruth) {
         printf("  --- GenFit vs truth  ALL (N=%zu) ---\n", pFit.size());
@@ -176,6 +405,99 @@ void check_mdt_reco(const char* fname = "Batch-TPORecevent_6000_0_5210.root")
         printf("  --- Analytic vs truth  chi2/NDF<%.0f (N=%zu) ---\n", chi2Cut, pAnaG.size());
         printf("  (p_ana-p_truth)/p_truth    : mean=%+.3f  RMS=%.3f\n", mu_dpp_ana_g, sig_dpp_ana_g);
         printf("  1/p_ana-1/p_truth [1/GeV]  : mean=%+.3e  RMS=%.3e\n", mu_dinvp_ana_g, sig_dinvp_ana_g);
+    }
+    if (hasQTruth) {
+        auto rate = [](int k, int n) -> double { return (n > 0) ? 100.0 * double(k) / double(n) : 0.0; };
+        printf("\n  Charge vs truth momentum (track-level, fit_ok and NDF>0):\n");
+        printf("    p_truth bin [GeV/c]         assigned  wrong-sign  wrong/assigned\n");
+        for (int b = 0; b < NBINS_P; ++b) {
+            printf("    [%7.1f, %7.1f)   %8d  %9d  %6.1f%%\n",
+                   pEdges[b], pEdges[b+1], nChargeAss_p[b], nChargeWrong_p[b], rate(nChargeWrong_p[b], nChargeAss_p[b]));
+        }
+        printf("\n  Charge vs truth momentum (event-level, leading track tr=0):\n");
+        printf("    p_truth bin [GeV/c]         assigned  wrong-sign  wrong/assigned\n");
+        for (int b = 0; b < NBINS_P; ++b) {
+            printf("    [%7.1f, %7.1f)   %8d  %9d  %6.1f%%\n",
+                   pEdges[b], pEdges[b+1], nLeadChargeAss_p[b], nLeadChargeWrong_p[b], rate(nLeadChargeWrong_p[b], nLeadChargeAss_p[b]));
+        }
+
+        printf("\n  Charge vs NDF (track-level, fit_ok and truth-tagged):\n");
+        printf("    NDF   assigned  wrong-sign  wrong/assigned\n");
+        for (int ndf = 1; ndf <= 7; ++ndf) {
+            printf("    %3d   %8d  %9d  %6.1f%%\n",
+                   ndf, nChargeAss_ndf[ndf], nChargeWrong_ndf[ndf], rate(nChargeWrong_ndf[ndf], nChargeAss_ndf[ndf]));
+        }
+
+        printf("\n  Charge vs NDF (event-level, leading track tr=0):\n");
+        printf("    NDF   assigned  wrong-sign  wrong/assigned\n");
+        for (int ndf = 1; ndf <= 7; ++ndf) {
+            printf("    %3d   %8d  %9d  %6.1f%%\n",
+                   ndf, nLeadChargeAss_ndf[ndf], nLeadChargeWrong_ndf[ndf], rate(nLeadChargeWrong_ndf[ndf], nLeadChargeAss_ndf[ndf]));
+        }
+
+        printf("\n  Charge vs charge_mode (track-level, truth-tagged):\n");
+        printf("    [mode key: 0=both-hyp ambiguous, 1=clear chi2 winner, 2=only mu- ok,\n");
+        printf("               3=only mu+ ok (charge flipped), 4=slope tiebreaker, 5=rescue]\n");
+        printf("    mode  assigned  wrong-sign  wrong/assigned\n");
+        for (int mode = 0; mode <= 5; ++mode) {
+            printf("    %4d  %8d  %9d  %6.1f%%\n",
+                   mode, nChargeAss_mode[mode], nChargeWrong_mode[mode], rate(nChargeWrong_mode[mode], nChargeAss_mode[mode]));
+        }
+        printf("    -- what-if flip sign within mode --\n");
+        printf("    mode  correct_now/assigned  correct_if_flip/assigned\n");
+        for (int mode = 0; mode <= 5; ++mode) {
+            const int ass = nChargeAss_mode[mode];
+            const int wrong = nChargeWrong_mode[mode];
+            const int correctNow = ass - wrong;
+            const int correctIfFlip = wrong;
+            printf("    %4d  %8d/%d (%.1f%%)     %8d/%d (%.1f%%)\n",
+                   mode,
+                   correctNow, ass, rate(correctNow, ass),
+                   correctIfFlip, ass, rate(correctIfFlip, ass));
+        }
+
+        printf("\n  Charge vs charge_mode (event-level, leading track tr=0):\n");
+        printf("    mode  assigned  wrong-sign  wrong/assigned\n");
+        for (int mode = 0; mode <= 5; ++mode) {
+            printf("    %4d  %8d  %9d  %6.1f%%\n",
+                   mode, nLeadChargeAss_mode[mode], nLeadChargeWrong_mode[mode], rate(nLeadChargeWrong_mode[mode], nLeadChargeAss_mode[mode]));
+        }
+        printf("    -- what-if flip sign within mode --\n");
+        printf("    mode  correct_now/assigned  correct_if_flip/assigned\n");
+        for (int mode = 0; mode <= 5; ++mode) {
+            const int ass = nLeadChargeAss_mode[mode];
+            const int wrong = nLeadChargeWrong_mode[mode];
+            const int correctNow = ass - wrong;
+            const int correctIfFlip = wrong;
+            printf("    %4d  %8d/%d (%.1f%%)     %8d/%d (%.1f%%)\n",
+                   mode,
+                   correctNow, ass, rate(correctNow, ass),
+                   correctIfFlip, ass, rate(correctIfFlip, ass));
+        }
+
+        printf("\n  Charge vs p_truth x NDF (track-level):\n");
+        printf("    p_truth bin [GeV/c]      NDF  assigned  wrong-sign  wrong/assigned\n");
+        for (int b = 0; b < NBINS_P; ++b) {
+            for (int ndf = 1; ndf <= 7; ++ndf) {
+                if (nChargeAss_pndf[b][ndf] == 0 && nChargeWrong_pndf[b][ndf] == 0) continue;
+                printf("    [%7.1f, %7.1f)     %3d   %8d  %9d  %6.1f%%\n",
+                       pEdges[b], pEdges[b+1], ndf,
+                       nChargeAss_pndf[b][ndf], nChargeWrong_pndf[b][ndf],
+                       rate(nChargeWrong_pndf[b][ndf], nChargeAss_pndf[b][ndf]));
+            }
+        }
+
+        printf("\n  Charge vs p_truth x NDF (event-level, leading track tr=0):\n");
+        printf("    p_truth bin [GeV/c]      NDF  assigned  wrong-sign  wrong/assigned\n");
+        for (int b = 0; b < NBINS_P; ++b) {
+            for (int ndf = 1; ndf <= 7; ++ndf) {
+                if (nLeadChargeAss_pndf[b][ndf] == 0 && nLeadChargeWrong_pndf[b][ndf] == 0) continue;
+                printf("    [%7.1f, %7.1f)     %3d   %8d  %9d  %6.1f%%\n",
+                       pEdges[b], pEdges[b+1], ndf,
+                       nLeadChargeAss_pndf[b][ndf], nLeadChargeWrong_pndf[b][ndf],
+                       rate(nLeadChargeWrong_pndf[b][ndf], nLeadChargeAss_pndf[b][ndf]));
+            }
+        }
     }
     printf("========================================\n\n");
 

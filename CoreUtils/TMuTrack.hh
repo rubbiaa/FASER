@@ -47,6 +47,9 @@ public:
     int ftrackID;       // the unique track ID
     int fPDG;         // the PDG code of the particle
     float fcharge;    // the charge of the particle
+    int fchargeMode;   // charge decision mode: 0 ambiguous/both-failed,
+                       // 1 both-hyp clear chi2/NDF winner, 2 only mu- converged,
+                       // 3 only mu+ converged, 4 slope-change tiebreaker, 5 rescue path
     std::vector<ROOT::Math::XYZVector> fpos;
     std::vector<int> layerID; // the layer index in the muon spectrometer (0-43)
 
@@ -63,7 +66,7 @@ public:
     bool   ffit_ok;     // true if GenFit Kalman converged
     double fpAnalytic;  // analytic sagitta-fit momentum (GeV/c), always filled
 
-    TMuTrack() : ftrackID(-1), fcharge(0), fitTrack(nullptr), ffit_ok(false), fpAnalytic(0.0) {}
+    TMuTrack() : ftrackID(-1), fcharge(0), fchargeMode(0), fitTrack(nullptr), ffit_ok(false), fpAnalytic(0.0) {}
     virtual ~TMuTrack() {
         if (fitTrack) {
             delete fitTrack;
@@ -97,7 +100,7 @@ public:
     void CircleFitTaubin(int verbose, double detectorResolutionPSmm);
     // ////////    ///////////
 
-    ClassDef(TMuTrack,2) // A reconstructed track in the muon spectrometer
+    ClassDef(TMuTrack,3) // A reconstructed track in the muon spectrometer
 };
 
 #endif
