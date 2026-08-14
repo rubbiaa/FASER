@@ -1,0 +1,31 @@
+# MuonDIS example: single background muons, with the primary muon's nuclear
+# interaction replaced by an on-the-fly Pythia8 deep-inelastic-scattering
+# event (see README_MuonDIS.md). Cross-section is biased x150 so DIS
+# interactions are frequent enough to study without huge statistics.
+/FASER/scint/material PVT
+/FASER/scint/lightYield 12000.
+/FASER/scint/sizeX 48 cm
+/FASER/scint/sizeY 48 cm
+/FASER/scint/sizeZ 20 cm
+/FASER/scint/voxel 10 mm
+/FASER/targetW/sizeX 48 cm
+/FASER/targetW/sizeY 48 cm
+/FASER/targetW/sizeZ 1 mm
+/FASER/layers 10
+/FASER/LOS/shiftX 0 cm
+/FASER/LOS/shiftY 0 cm
+#
+/tracking/verbose 0
+/run/numberOfThreads 1
+#
+# MuonDIS configuration -- MUST be set before /run/initialize, see README_MuonDIS.md
+/physics/muondis/enable true
+/physics/muondis/crossSectionBias 150
+/physics/muondis/q2min 1.0
+/physics/muondis/interactionLog muondis_interactions.csv
+#/physics/muondis/debug true
+#
+/run/initialize
+/generator/wantMuonBackground true
+/generator/singleMomentum 100
+/run/beamOn 10

@@ -16,6 +16,8 @@
 
 #include "TauDecayPhysics.hh"
 
+#include "MuonDISPhysics.hh"
+
 #include "TFile.h"
 #include "TH2F.h"
 #include <cstring>
@@ -66,6 +68,10 @@ int main(int argc, char** argv)
 
 	// add custom tau and charm decays
 	physicsList->RegisterPhysics(new TauDecayPhysics());
+
+	// add MuonDIS (disabled by default -- opt in via /physics/muondis/enable
+	// true in your macro, BEFORE /run/initialize; see MuonDISPhysics.hh)
+	physicsList->RegisterPhysics(new MuonDISPhysics());
 
 	runManager->SetUserInitialization(physicsList);
 	// Set the ParticleManager in RunAction and EventAction
