@@ -25,6 +25,7 @@
 #pragma link C++ class DigitizedTrack+;
 #pragma link C++ class MagnetTrack+;
 #pragma link C++ class MuTagTrack+;
+#pragma link C++ class MDTTrack+;
 #pragma link C++ struct PO+;
 
 #pragma link C++ class TTauSearch;
