@@ -108,6 +108,9 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, bool pre, const TGW
     fButton = new TGTextButton(hFrame2, "Move right");
     fButton->Connect("Clicked()", "MyMainFrame", this, "MoveRight()");
     hFrame2->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
+    fButton = new TGTextButton(hFrame2, "Save Image");
+    fButton->Connect("Clicked()", "MyMainFrame", this, "SaveEventImage()");
+    hFrame2->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
 
     // Add the horizontal frame to the main frame
     tab1->AddFrame(hFrame, new TGLayoutHints(kLHintsCenterX | kLHintsBottom, 5, 5, 3, 4));
@@ -490,8 +493,13 @@ void MyMainFrame::Draw_event() {
     {
         ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZRearCal(it.moduleID);
         double zBox = it.energyDeposit / 1e2; // 1cm is 1 GeV
-        TGeoShape *box = new TGeoBBox("rearcalbox", fTcalEvent->geom_detector.rearCalSizeX / 20.0,
-                                      fTcalEvent->geom_detector.rearCalSizeY / 20.0, zBox / 20.0);
+        // Use the per-module cell size (rearCalVoxelSize), not the full ECAL face size
+        // (rearCalSizeX/Y) -- using the full size here drew every hit module's box spanning
+        // the entire ECAL footprint, all overlapping at full width/height and differing only
+        // in Z thickness, which is what produced the oversized/overlapping blue rectangles.
+        // Mirrors the rearHCal box below, which already uses rearHCalVoxelSize correctly.
+        TGeoShape *box = new TGeoBBox("rearcalbox", fTcalEvent->geom_detector.rearCalVoxelSize / 20.0,
+                                      fTcalEvent->geom_detector.rearCalVoxelSize / 20.0, zBox / 20.0);
         TGeoVolume *hitVolume = new TGeoVolume("RearCalVolume", box, air);
         hitVolume->SetLineColor(kBlue);
         TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0,
@@ -1159,6 +1167,13 @@ void MyMainFrame::MoveRight() {
     view->MoveWindow('h');
     canvas->Modified();
     canvas->Update();
+}
+void MyMainFrame::SaveEventImage() {
+    TCanvas *canvas = fCanvas->GetCanvas();
+    TString base = Form("event_display_run%d_evt%d", frun_number, ievent);
+    canvas->SaveAs(base + ".png");
+    canvas->SaveAs(base + ".pdf");
+    std::cout << "Saved event display image to " << base << ".png and " << base << ".pdf" << std::endl;
 }
 void MyMainFrame::on_fullreco_toggle(Bool_t state)
 {
