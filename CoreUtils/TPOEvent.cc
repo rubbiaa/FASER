@@ -241,12 +241,12 @@ void TPOEvent::kinematics_event() {
   tauvis_px=tauvis_py=tauvis_pz=0;
   for (size_t i=0; i<n_particles(); i++) {
     struct PO aPO = POs[i];
-    // Incoming beam particle: either a GENIE-style neutrino (status==4, only ever at index 0)
-    // or a MuonDIS-style charged lepton primary (status==1, nparent==0, also only at index 0).
-    // Either way it must be excluded below, or it would get picked up as its own outgoing
-    // lepton and double-counted into the visible final-state momentum sum.
-    if(!got_in_lepton && i==0 && is_lepton(aPO.m_pdg_id) &&
-       (aPO.m_status == 4 || (aPO.m_status == 1 && aPO.nparent == 0))) {
+    // Incoming beam particle (status==4, only ever at index 0): a GENIE-style incoming
+    // neutrino, or -- since PrimaryGeneratorAction now uses the same convention -- a
+    // MuonDIS-style incoming charged lepton primary. It must be excluded below, or it would
+    // get picked up as its own outgoing lepton and double-counted into the visible final-state
+    // momentum sum.
+    if(!got_in_lepton && i==0 && aPO.m_status == 4 && is_lepton(aPO.m_pdg_id)) {
       in_neutrino = aPO;
       istau = (abs(aPO.m_pdg_id) == 16);
       got_in_lepton = true;

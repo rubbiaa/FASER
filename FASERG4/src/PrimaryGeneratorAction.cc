@@ -407,20 +407,34 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 			double slope_y_bg = (pz_bg != 0.0) ? py_bg / pz_bg : 0.0;
 			// Determine PDG explicitly from the chosen particle (handles mu- vs mu+ correctly)
 			int pdg_mu = muon->GetPDGEncoding();
-			dump_muon(fTPOEvent.run_number, fTPOEvent.event_id, vtxpos.x(), vtxpos.y(), vtxpos.z(),
+			// valid_event was already incremented (above, before the want_muon_background branch),
+			// so it is 1-based by the time we get here; "valid_event - 1" recovers the 0-based
+			// event number for *this* call, consistent with the want_single_particle branch
+			// (which assigns fTPOEvent.event_id from valid_event before that increment happens).
+			// Previously this used the stale fTPOEvent.event_id left over from the *previous*
+			// call (not updated until a few lines below), which produced a bogus "-1" for the
+			// very first event and then numbered every event one behind the one it actually
+			// describes.
+			const int this_event_id = valid_event - 1;
+			dump_muon(fTPOEvent.run_number, this_event_id, vtxpos.x(), vtxpos.y(), vtxpos.z(),
 					 slope_x_bg, slope_y_bg, px_bg, py_bg, pz_bg, p_bg, pdg_mu);
 			/// fill TPOEvent information
 			fTPOEvent.clear_event();
 			fTPOEvent.POs.clear();
 			fTPOEvent.run_number = 999;
-			fTPOEvent.event_id = valid_event;
+			fTPOEvent.event_id = this_event_id;
 			fTPOEvent.setPrimaryVtx(vtxpos.x(), vtxpos.y(), vtxpos.z());
 			struct PO aPO;
 			aPO.m_pdg_id = pdg_mu;
 			G4ParticleDefinition *particle = particleTable->FindParticle(aPO.m_pdg_id);
 			double mass = particle->GetPDGMass()/GeV;
 			aPO.m_track_id = 1;
-			aPO.m_status = 1;
+			// Status 4 marks this as the incoming beam particle (matching the convention already
+			// used for the incoming neutrino in GENIE-derived events), not a final-state particle --
+			// TPOEvent::kinematics_event() relies on this to exclude it from out_lepton/jet/Evis
+			// accounting. It has no bearing on G4 simulation: the muon is still injected into G4
+			// directly via the particleGun object above, independently of this PO's status field.
+			aPO.m_status = 4;
 			// Store PO momentum in GeV
 			aPO.m_px = px_bg;
 			aPO.m_py = py_bg;
