@@ -51,6 +51,7 @@ public:
     void MoveDown();
     void MoveLeft();
     void MoveRight();
+    void SaveEventImage();
 
     ClassDef(MyMainFrame,1)
 
