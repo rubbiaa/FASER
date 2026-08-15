@@ -61,26 +61,46 @@ TPOEvent* currentTPOEvent() {
 void recordDISFinalStateTruth(const MuonDISPythiaGenerator::GeneratedEvent& generated,
                               int muonTrackId, bool hasInteractionPosition,
                               const G4ThreeVector& interactionPosition,
-                              const std::string& volumeName) {
+                              const std::string& volumeName,
+                              double muEnergyGeV, const G4ThreeVector& muMomentumGeV) {
   TPOEvent* tpoEvent = currentTPOEvent();
   if (!tpoEvent) {
     return;
   }
 
   int parentPOTrackId = muonTrackId;
-  bool foundParent = false;
-  for (const auto& candidate : tpoEvent->POs) {
+  PO* parentPO = nullptr;
+  for (auto& candidate : tpoEvent->POs) {
     if (candidate.m_track_id == muonTrackId) {
-      foundParent = true;
+      parentPO = &candidate;
       break;
     }
   }
-  if (!foundParent && !tpoEvent->POs.empty()) {
+  if (!parentPO && !tpoEvent->POs.empty()) {
     // Fall back to the first PO (the primary muon, in the muon-background running mode this
     // extension currently targets) if the track ID recorded by MuonDISNuclearWrapperProcess
     // could not be matched -- better to link to *something* sensible than to silently drop
     // the parent reference.
-    parentPOTrackId = tpoEvent->POs.front().m_track_id;
+    parentPO = &tpoEvent->POs.front();
+  }
+  if (parentPO) {
+    parentPOTrackId = parentPO->m_track_id;
+
+    // The incoming muon PO was filled once at event-generation time (PrimaryGeneratorAction),
+    // recording the muon's momentum where it was injected in front of the detector. By the
+    // time this DIS interaction actually fires, the real G4 track has typically lost some
+    // energy (ionization etc. along the flight path) -- TPOEvent::kinematics_event()'s
+    // nu/Q2/x/y only make sense if in_neutrino and the generated final state are evaluated
+    // at the same instant, so overwrite the muon PO with its actual momentum right at the
+    // interaction vertex: the same 4-momentum just handed to Pythia8 as beam A. Without this,
+    // in_neutrino stayed at the launch-time value while out_lepton/jet came from a final
+    // state balanced against the (lower-energy, possibly redirected) vertex momentum, which
+    // could make Q2 inconsistent with nu/W2 (even yielding an unphysical negative W2).
+    parentPO->m_px = muMomentumGeV.x();
+    parentPO->m_py = muMomentumGeV.y();
+    parentPO->m_pz = muMomentumGeV.z();
+    parentPO->m_energy = muEnergyGeV;
+    parentPO->m_kinetic_energy = muEnergyGeV - parentPO->m_mass();
   }
 
   const double vx = hasInteractionPosition ? interactionPosition.x() / mm : 0.0;
@@ -227,7 +247,9 @@ G4HadFinalState* MuonDISMuonNuclearModel::ApplyYourself(const G4HadProjectile& a
   // covers every particle Pythia8 reported, even any whose PDG code G4ParticleTable could not
   // resolve above (and which therefore did not become a real G4 secondary) -- truth-level POs
   // are meant to capture the full generator output, not just what G4 could instantiate.
-  recordDISFinalStateTruth(generated, trackId, hasInteractionPosition, interactionPosition, volumeName);
+  const G4ThreeVector muMomentumGeV = aTrack.Get4Momentum().vect() / GeV;
+  recordDISFinalStateTruth(generated, trackId, hasInteractionPosition, interactionPosition, volumeName,
+                           muEnergyGeV, muMomentumGeV);
 
   MuonDISInteractionRecorder::instance().record({
       geantEventId,
