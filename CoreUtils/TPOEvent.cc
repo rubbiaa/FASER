@@ -75,6 +75,7 @@ void TPOEvent::clear_event() {
   istau = false;
   spx=spy=spz=0;
   tauvis_px=tauvis_py=tauvis_pz=0;
+  nuE = Q2 = W2 = xBj = yInel = 0;
 };
 
 #ifdef _INCLUDE_PYTHIA_
@@ -234,14 +235,22 @@ size_t TPOEvent::n_charged() const {
 }
 
 void TPOEvent::kinematics_event() {
+  bool got_in_lepton = false;
   bool got_out_lepton = false;
   spx=spy=spz=0;
   tauvis_px=tauvis_py=tauvis_pz=0;
   for (size_t i=0; i<n_particles(); i++) {
     struct PO aPO = POs[i];
-    if(aPO.m_status == 4 && i==0) {
+    // Incoming beam particle: either a GENIE-style neutrino (status==4, only ever at index 0)
+    // or a MuonDIS-style charged lepton primary (status==1, nparent==0, also only at index 0).
+    // Either way it must be excluded below, or it would get picked up as its own outgoing
+    // lepton and double-counted into the visible final-state momentum sum.
+    if(!got_in_lepton && i==0 && is_lepton(aPO.m_pdg_id) &&
+       (aPO.m_status == 4 || (aPO.m_status == 1 && aPO.nparent == 0))) {
       in_neutrino = aPO;
       istau = (abs(aPO.m_pdg_id) == 16);
+      got_in_lepton = true;
+      continue;
     }
     if(!got_out_lepton && aPO.m_status == 1 && is_lepton(aPO.m_pdg_id) ) {
       out_lepton = aPO;
@@ -302,6 +311,25 @@ void TPOEvent::kinematics_event() {
   }
   Evis = sqrt(vis_spx*vis_spx + vis_spy*vis_spy + vis_spz*vis_spz);
   ptmiss = sqrt(vis_spx*vis_spx + vis_spy*vis_spy);
+
+  // Standard deep inelastic scattering kinematics (lab frame, target nucleon at rest). The
+  // nucleon mass is approximated by the average of the proton/neutron mass -- consistent with
+  // the isoscalar-nucleon-mix approximation already used for the MuonDIS target -- rather than
+  // tracking the exact struck nucleon species here.
+  constexpr double kNucleonMassGeV = 0.93892; // average of m_p=0.938272, m_n=0.939565 GeV
+  nuE = Q2 = W2 = xBj = yInel = 0;
+  if(got_in_lepton && got_out_lepton && in_neutrino.m_energy > 0) {
+    nuE = in_neutrino.m_energy - out_lepton.m_energy;
+    const double dpx = in_neutrino.m_px - out_lepton.m_px;
+    const double dpy = in_neutrino.m_py - out_lepton.m_py;
+    const double dpz = in_neutrino.m_pz - out_lepton.m_pz;
+    Q2 = dpx*dpx + dpy*dpy + dpz*dpz - nuE*nuE;
+    W2 = kNucleonMassGeV*kNucleonMassGeV + 2*kNucleonMassGeV*nuE - Q2;
+    yInel = nuE / in_neutrino.m_energy;
+    if(nuE > 0) {
+      xBj = Q2 / (2*kNucleonMassGeV*nuE);
+    }
+  }
 }
 
 double TPOEvent::tauDecaylength() {
@@ -406,6 +434,8 @@ void TPOEvent::dump_event(std::ostream& out) const {
   out << std::setw(10) << "Sum final state particles: " << spx << " " << spy << " " << spz << std::endl;
   out << std::setw(10) << "Sum final state particles (VIS): " << vis_spx << " " << vis_spy << " " << vis_spz << std::endl;
   out << std::setw(10) << "Ptmiss = " << ptmiss << "  Evis = " << Evis << std::endl;
+  out << std::setw(10) << "DIS kinematics: " << "nu=" << nuE << " GeV  Q2=" << Q2 << " GeV^2  W2=" << W2
+      << " GeV^2  x=" << xBj << "  y=" << yInel << std::endl;
   out << "--------------------------------------------------------------------------------------------" << std::endl;
   if(n_taudecay()>0) {
     out << "Tau decay mode : " << tau_decaymode << std::endl;

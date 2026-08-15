@@ -108,6 +108,13 @@ void recordDISFinalStateTruth(const MuonDISPythiaGenerator::GeneratedEvent& gene
     aPO.geanttrackID = -1;
     tpoEvent->POs.push_back(aPO);
   }
+
+  // Recompute in_neutrino/out_lepton/jet/Evis/ptmiss/DIS-kinematics now that the DIS final
+  // state has been appended -- otherwise these stay at whatever kinematics_event() last
+  // computed (or their cleared defaults) until something else happens to call it again, and
+  // PrimaryGeneratorAction::GeneratePrimaries's dump_event() call for the *next* event would
+  // print stale/default values for this one.
+  tpoEvent->kinematics_event();
 }
 
 }  // namespace
@@ -224,7 +231,7 @@ G4HadFinalState* MuonDISMuonNuclearModel::ApplyYourself(const G4HadProjectile& a
       targetZ,
       targetA,
       static_cast<int>(generated.finalState.size()),
-      theParticleChange.GetNumberOfSecondaries(),
+      static_cast<int>(theParticleChange.GetNumberOfSecondaries()),
       disFinalPdgs,
   });
 
