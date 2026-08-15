@@ -80,6 +80,10 @@ class DetectorMessenger : public G4UImessenger {
 	// UMUT: tilt angle command
 	G4UIcmdWithADoubleAndUnit* fTiltYCmd; ///< Command to set the tilt angle around Y axis
 
+	// MDT sensitive-detector verbosity (independent top-level /mdt/ directory)
+	G4UIdirectory* fMDTDirectory = nullptr; ///< Directory for MDT sensitive-detector commands
+	G4UIcmdWithAnInteger* fMDTVerboseCmd = nullptr; ///< Command to set MDTSD::fVerbose (0=silent, 1=one line/hit, 2-3=more detail)
+
 
 };
 

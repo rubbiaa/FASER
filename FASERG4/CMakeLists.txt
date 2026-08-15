@@ -38,7 +38,17 @@ find_package(ROOT REQUIRED COMPONENTS Geom)
 # Built via the top-level Makefile's `pythia8` target into ../pythia8312
 # relative to this CMakeLists.txt (i.e. fasermuondis/pythia8312). Adjust
 # PYTHIA8_DIR below if your Pythia8 install lives elsewhere.
-set(PYTHIA8_DIR "${CMAKE_SOURCE_DIR}/../pythia8312" CACHE PATH "Path to the Pythia8 install used by MuonDIS")
+# Default to the $PYTHIA8 environment variable (exported by this repo's
+# setup.sh / mac_setup.sh) if it's set in the environment CMake was invoked
+# from; otherwise fall back to ../pythia8312 relative to this source tree.
+# Either way, -DPYTHIA8_DIR=/path/to/pythia8312 on the cmake command line
+# always wins.
+if(DEFINED ENV{PYTHIA8})
+  set(_MUONDIS_PYTHIA8_DEFAULT "$ENV{PYTHIA8}")
+else()
+  set(_MUONDIS_PYTHIA8_DEFAULT "${CMAKE_SOURCE_DIR}/../pythia8312")
+endif()
+set(PYTHIA8_DIR "${_MUONDIS_PYTHIA8_DEFAULT}" CACHE PATH "Path to the Pythia8 install used by MuonDIS")
 include_directories(${PYTHIA8_DIR}/include)
 set(PYTHIA8_LIBRARY "${PYTHIA8_DIR}/lib/libpythia8.a")
 if(NOT EXISTS ${PYTHIA8_LIBRARY})

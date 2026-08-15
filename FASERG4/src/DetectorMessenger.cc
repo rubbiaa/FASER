@@ -1,5 +1,7 @@
 #include "DetectorMessenger.hh"
 
+#include "MDTSD.hh"
+
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -116,6 +118,14 @@ DetectorMessenger::DetectorMessenger(DetectorConstruction* det) : fDetectorConst
 	fThreeDCALShiftYCmd->SetUnitCategory("Length");
 	fThreeDCALShiftYCmd->SetDefaultUnit("cm");
 	fThreeDCALShiftYCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+	fMDTDirectory = new G4UIdirectory("/mdt/");
+	fMDTDirectory->SetGuidance("MDT (Monitored Drift Tube) sensitive-detector control.");
+
+	fMDTVerboseCmd = new G4UIcmdWithAnInteger("/mdt/verbose", this);
+	fMDTVerboseCmd->SetGuidance("Set MDTSD hit-printout verbosity: 0=silent, 1=one line per hit (default), 2=adds raw/closest positions, 3=full dump.");
+	fMDTVerboseCmd->SetParameterName("level", false);
+	fMDTVerboseCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -142,6 +152,8 @@ DetectorMessenger::~DetectorMessenger()
 	delete fTiltYCmd;
 	delete fThreeDCALShiftXCmd;
 	delete fThreeDCALShiftYCmd;
+	delete fMDTVerboseCmd;
+	delete fMDTDirectory;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -215,6 +227,10 @@ void DetectorMessenger::SetNewValue(G4UIcommand* command, G4String newValue)
 
 	if (command == fThreeDCALShiftYCmd) {
     	fDetectorConstruction->fThreeD_CAL_shiftY = fThreeDCALShiftYCmd->GetNewDoubleValue(newValue);
+	}
+
+	if (command == fMDTVerboseCmd) {
+		MDTSD::SetVerbose(fMDTVerboseCmd->GetNewIntValue(newValue));
 	}
 }
 
