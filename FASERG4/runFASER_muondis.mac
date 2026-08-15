@@ -12,8 +12,9 @@
 /FASER/targetW/sizeY 48 cm
 /FASER/targetW/sizeZ 5 mm
 /FASER/layers 10
-/FASER/LOS/shiftX 0 cm
-/FASER/LOS/shiftY 0 cm
+/FASER/LOS/shiftX 45 cm 
+/FASER/LOS/shiftY 24 cm 
+/FASER/tiltY -4.5 deg
 #
 /tracking/verbose 0
 /mdt/verbose 0

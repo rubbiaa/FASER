@@ -2,7 +2,7 @@ EXE = evDisplay.exe
 
 include ../Makefile.common
 
-ROOTCFLAGS +=  -fsanitize=address
+# ROOTCFLAGS +=  -fsanitize=address
 
 SRC = evDisplay.C MyMainFrame.cc 
 

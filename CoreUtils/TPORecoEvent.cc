@@ -2853,7 +2853,7 @@ void TPORecoEvent::Reconstruct3DPS_Eflow() {
             weight = pow(weight, 1.0/float(v.second.pdgs.size()));
             ehit *= weight;
         }
-        if(verbose>0 && !v.second.ghost) {
+        if(verbose>3 && !v.second.ghost) {
             std::cout << "Voxel " << ID << " e=" << ehit << " pdgs: ";
             for(auto pdg : v.second.pdgs) {
                 std::cout << pdg << " ";

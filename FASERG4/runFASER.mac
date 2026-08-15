@@ -15,4 +15,4 @@
 /run/numberOfThreads 1
 /run/initialize
 /generator/rootinputfilename ../ConvertFASERMC/FASERMC-PO-Run200026-0_10000.root
-/run/beamOn 10000
+/run/beamOn 10

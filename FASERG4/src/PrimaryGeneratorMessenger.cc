@@ -36,7 +36,6 @@ PrimaryGeneratorMessenger::PrimaryGeneratorMessenger(PrimaryGeneratorAction* Gun
 	fWantSingleParticle->SetParameterName("wantSingleParticle", false);
 	fWantSingleParticle->AvailableForStates(G4State_PreInit, G4State_Idle);
 
-	// Umut::adding for single particle momentum command
 	fSingleMomentumCmd = new G4UIcmdWithADoubleAndUnit("/generator/singleMomentum", this);
 	fSingleMomentumCmd->SetGuidance("Set momentum magnitude for single-particle mode (with unit, e.g. 50 GeV)");
 	fSingleMomentumCmd->SetParameterName("SingleMomentum", false);
