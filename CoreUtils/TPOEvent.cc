@@ -263,7 +263,20 @@ void TPOEvent::kinematics_event() {
     }
   }
   isCC = !(in_neutrino.m_pdg_id == out_lepton.m_pdg_id);
-  if(isCC) {
+  // The jet (hadronic system) must exclude out_lepton's momentum whenever out_lepton actually
+  // carries momentum that was counted into spx/spy/spz above -- which the aggregation loop only
+  // does for non-neutrino particles (its "!is_neutrino(aPO.m_pdg_id)" condition). So the right
+  // test here is "is out_lepton a neutrino", not "isCC":
+  //  - Neutrino CC (e.g. numuCC -> mu-): out_lepton is the charged lepton, was summed into spx,
+  //    must be subtracted.
+  //  - Neutrino NC (e.g. numuNC -> numu): out_lepton is itself a neutrino, was never summed into
+  //    spx in the first place, and must NOT be subtracted again (that would double-remove it and
+  //    corrupt the hadronic jet for genuine NC events).
+  //  - MuonDIS "NC" (mu- -> mu- via WeakBosonExchange:ff2ff(t:gmZ)): isCC is false (same PDG in
+  //    and out) but out_lepton is still a real, momentum-carrying charged muon that *was* summed
+  //    into spx -- so it must be subtracted here too, even though isCC is false. This is the case
+  //    the old "isCC ? subtract : don't" logic got wrong.
+  if(!is_neutrino(out_lepton.m_pdg_id)) {
     jetpx = spx-out_lepton.m_px;
     jetpy = spy-out_lepton.m_py;
     jetpz = spz-out_lepton.m_pz;
