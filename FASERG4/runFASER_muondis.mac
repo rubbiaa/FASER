@@ -16,6 +16,7 @@
 /FASER/LOS/shiftY 0 cm
 #
 /tracking/verbose 0
+/mdt/verbose 0
 /run/numberOfThreads 1
 #
 # MuonDIS configuration -- MUST be set before /run/initialize, see README_MuonDIS.md
