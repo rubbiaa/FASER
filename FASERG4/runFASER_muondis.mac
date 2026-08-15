@@ -10,7 +10,7 @@
 /FASER/scint/voxel 10 mm
 /FASER/targetW/sizeX 48 cm
 /FASER/targetW/sizeY 48 cm
-/FASER/targetW/sizeZ 1 mm
+/FASER/targetW/sizeZ 5 mm
 /FASER/layers 10
 /FASER/LOS/shiftX 0 cm
 /FASER/LOS/shiftY 0 cm
