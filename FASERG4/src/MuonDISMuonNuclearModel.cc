@@ -60,7 +60,8 @@ TPOEvent* currentTPOEvent() {
 // TrackingAction::PreUserTrackingAction() -- which is not yet wired up for MuonDIS secondaries.
 void recordDISFinalStateTruth(const MuonDISPythiaGenerator::GeneratedEvent& generated,
                               int muonTrackId, bool hasInteractionPosition,
-                              const G4ThreeVector& interactionPosition) {
+                              const G4ThreeVector& interactionPosition,
+                              const std::string& volumeName) {
   TPOEvent* tpoEvent = currentTPOEvent();
   if (!tpoEvent) {
     return;
@@ -85,6 +86,19 @@ void recordDISFinalStateTruth(const MuonDISPythiaGenerator::GeneratedEvent& gene
   const double vx = hasInteractionPosition ? interactionPosition.x() / mm : 0.0;
   const double vy = hasInteractionPosition ? interactionPosition.y() / mm : 0.0;
   const double vz = hasInteractionPosition ? interactionPosition.z() / mm : 0.0;
+
+  // The primary vertex PrimaryGeneratorAction set at the start of the event is just where the
+  // muon was injected in front of the detector, not where the physics interaction actually
+  // happened. Move it to the real DIS interaction point, the same way a GENIE-derived event's
+  // prim_vx records where the neutrino actually interacted rather than where it originated.
+  if (hasInteractionPosition) {
+    tpoEvent->setPrimaryVtx(vx, vy, vz);
+    if (volumeName == "targetW") {
+      tpoEvent->setVtxTarget(TPOEvent::kVtx_in_W);
+    } else if (volumeName == "Scintillator") {
+      tpoEvent->setVtxTarget(TPOEvent::kVtx_in_Scint);
+    }
+  }
 
   for (const auto& particle : generated.finalState) {
     const double mass2 = particle.e * particle.e - particle.px * particle.px -
@@ -213,7 +227,7 @@ G4HadFinalState* MuonDISMuonNuclearModel::ApplyYourself(const G4HadProjectile& a
   // covers every particle Pythia8 reported, even any whose PDG code G4ParticleTable could not
   // resolve above (and which therefore did not become a real G4 secondary) -- truth-level POs
   // are meant to capture the full generator output, not just what G4 could instantiate.
-  recordDISFinalStateTruth(generated, trackId, hasInteractionPosition, interactionPosition);
+  recordDISFinalStateTruth(generated, trackId, hasInteractionPosition, interactionPosition, volumeName);
 
   MuonDISInteractionRecorder::instance().record({
       geantEventId,
