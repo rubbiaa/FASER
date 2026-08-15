@@ -1,0 +1,27 @@
+# Macro example
+# tilted geometry
+/FASER/scint/material PVT
+/FASER/scint/lightYield 12000.
+/FASER/scint/sizeX 48 cm
+/FASER/scint/sizeY 48 cm
+/FASER/scint/sizeZ 20 cm
+/FASER/scint/voxel 10 mm
+/FASER/targetW/sizeX 48 cm
+/FASER/targetW/sizeY 48 cm
+/FASER/targetW/sizeZ 5 mm
+/FASER/layers 10
+/FASER/LOS/shiftX 45 cm 
+/FASER/LOS/shiftY 24 cm 
+/FASER/tiltY -4.5 deg
+#
+/tracking/verbose 0
+/mdt/verbose 0
+/run/verbose 0
+/control/verbose 0
+#/process/optical/processActivation Cerenkov false
+/run/numberOfThreads 1
+/run/initialize
+/generator/rootinputfilename /home/rubbiaa/FASERV6/TILTED/FASER/FASERG4/../ConvertGENIE/FASERMC-PO-Run501-0_1255174.root
+/generator/startevent 0
+/run/beamOn 10
+
