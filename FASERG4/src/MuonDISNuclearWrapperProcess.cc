@@ -88,8 +88,16 @@ MuonDISNuclearWrapperProcess::MuonDISNuclearWrapperProcess(const G4String& name,
 }
 
 MuonDISNuclearWrapperProcess::~MuonDISNuclearWrapperProcess() {
-  delete m_biasedProcess;
-  delete m_unbiasedProcess;
+  // Do NOT delete m_biasedProcess / m_unbiasedProcess here. Every G4VProcess
+  // object (including these two, and this wrapper itself) self-registers
+  // into Geant4's global/thread-local G4ProcessTable when constructed, and
+  // G4ProcessTable::Clear() (invoked from G4TaskRunManager's destructor at
+  // shutdown) independently deletes every process it tracks -- including
+  // m_biasedProcess and m_unbiasedProcess directly, separately from this
+  // wrapper. Explicitly deleting them here as well raced with that and
+  // produced a double-free segfault inside G4ProcessTable::~G4ProcessTable()
+  // at program exit (observed 2026-08, ryzen01 build). G4ProcessTable owns
+  // their cleanup; we just drop our raw pointers.
   m_biasedProcess = nullptr;
   m_unbiasedProcess = nullptr;
 }
