@@ -102,6 +102,16 @@ public:
   double tauvis_px, tauvis_py, tauvis_pz; // Sum of tau decay products except neutrinos
   double Evis, ptmiss;              // Visible energy and miss transverse momentum
 
+  // Deep inelastic scattering kinematic variables, computed by kinematics_event() from
+  // in_neutrino/out_lepton (lab frame). The target nucleon is treated as at rest with an
+  // average nucleon mass, consistent with the isoscalar-nucleon-mix approximation used
+  // elsewhere (Fermi motion, binding energy, shadowing and the EMC effect are all neglected).
+  double nuE;      // energy transfer, nu = E_in - E_out (GeV)
+  double Q2;       // four-momentum transfer squared, Q^2 = |q|^2 - nu^2 (GeV^2)
+  double W2;       // invariant mass squared of the hadronic system, W^2 = M^2 + 2*M*nu - Q^2 (GeV^2)
+  double xBj;      // Bjorken x = Q^2 / (2*M*nu)
+  double yInel;    // inelasticity y = nu / E_in
+
   /// @brief Main constructor
   TPOEvent() { clear_event(); };
 
@@ -236,7 +246,7 @@ public:
   void update_stats();
   void dump_stats();
 
-  ClassDef(TPOEvent, 5)
+  ClassDef(TPOEvent, 6)
 };
 
 #endif
