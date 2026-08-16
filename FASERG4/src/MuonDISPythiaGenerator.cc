@@ -97,14 +97,27 @@ int MuonDISPythiaGenerator::chooseNucleon(int targetZ, int targetA) const {
   return (G4UniformRand() < protonFraction) ? 2212 : 2112;
 }
 
+MuonDISPythiaGenerator::PythiaInstance& MuonDISPythiaGenerator::pythiaFor(int muonPdgId) {
+  // See the big comment on m_pythiaMuMinus/m_pythiaMuPlus in the header: Beams:idA must
+  // never flip sign on an already-constructed Pythia object, so route each muon charge
+  // to its own permanently-separate instance instead of sharing one.
+  return (muonPdgId == 13) ? m_pythiaMuMinus : m_pythiaMuPlus;
+}
+
 void MuonDISPythiaGenerator::ensureInitialized(int muonPdgId, int nucleonPdgId,
                                                double muonEnergyGeV,
                                                const G4ThreeVector& muonDirection) {
-  if (!m_pythia) {
-    m_pythia = std::make_unique<Pythia8::Pythia>();
-  }
+  // Cleared until this call succeeds below, so a thrown exception can't leave a stale
+  // pointer from a previous (different-charge) call sitting in m_activePythia.
+  m_activePythia = nullptr;
 
-  if (!m_settingsApplied) {
+  PythiaInstance& slot = pythiaFor(muonPdgId);
+  if (!slot.pythia) {
+    slot.pythia = std::make_unique<Pythia8::Pythia>();
+  }
+  Pythia8::Pythia& pythia = *slot.pythia;
+
+  if (!slot.settingsApplied) {
     // "Print:quiet = true" is documented (Pythia8 manual, Print Statements) as pure shorthand
     // for exactly the eight Init:show*/Next:number* flags below -- it does NOT touch Pythia8's
     // own ErrorMsg subsystem (the "Error/Abort in Pythia::init: ..." lines explaining exactly
@@ -116,34 +129,39 @@ void MuonDISPythiaGenerator::ensureInitialized(int muonPdgId, int nucleonPdgId,
     // (verbose) defaults, and explicitly set Print:quiet = false rather than merely skipping the
     // "true" branch, so debug behavior does not depend on Pythia8's own default ever changing.
     if (m_enableDebug) {
-      m_pythia->readString("Print:quiet = false");
+      pythia.readString("Print:quiet = false");
     } else {
       // Keep Pythia8's own banner/summary output out of the way; MuonDISPhysics already logs
       // what it installs, and per-event listings would be far too verbose for a production run.
-      m_pythia->readString("Print:quiet = true");
-      m_pythia->readString("Init:showProcesses = false");
-      m_pythia->readString("Init:showMultipartonInteractions = false");
-      m_pythia->readString("Init:showChangedSettings = false");
-      m_pythia->readString("Init:showChangedParticleData = false");
-      m_pythia->readString("Next:numberCount = 0");
-      m_pythia->readString("Next:numberShowInfo = 0");
-      m_pythia->readString("Next:numberShowProcess = 0");
-      m_pythia->readString("Next:numberShowEvent = 0");
+      pythia.readString("Print:quiet = true");
+      pythia.readString("Init:showProcesses = false");
+      pythia.readString("Init:showMultipartonInteractions = false");
+      pythia.readString("Init:showChangedSettings = false");
+      pythia.readString("Init:showChangedParticleData = false");
+      pythia.readString("Next:numberCount = 0");
+      pythia.readString("Next:numberShowInfo = 0");
+      pythia.readString("Next:numberShowProcess = 0");
+      pythia.readString("Next:numberShowEvent = 0");
     }
 
     // Neutral-current t-channel gamma*/Z exchange: the standard Pythia8 route
     // to lepton-nucleon DIS (see MuonDISPythiaGenerator.hh for the caveats
     // and the charged-current toggle).
-    m_pythia->readString("WeakBosonExchange:ff2ff(t:gmZ) = on");
+    pythia.readString("WeakBosonExchange:ff2ff(t:gmZ) = on");
 
     // Recommended scale choice for this class of t-channel process (Pythia8
     // manual, Electroweak Processes).
-    m_pythia->readString("SigmaProcess:factorScale2 = 6");
-    m_pythia->readString("SigmaProcess:renormScale2 = 6");
+    pythia.readString("SigmaProcess:factorScale2 = 6");
+    pythia.readString("SigmaProcess:renormScale2 = 6");
 
     // Arbitrary 3-momentum beams (Pythia8 manual, Beam Parameters, option 3)
     // so beam A can track the true Geant4 muon direction every interaction.
-    m_pythia->readString("Beams:frameType = 3");
+    pythia.readString("Beams:frameType = 3");
+
+    // Beams:idA is fixed for the lifetime of this instance (see pythiaFor()): mu- always
+    // gets m_pythiaMuMinus, mu+ always gets m_pythiaMuPlus, so this never needs to change
+    // after the instance's first-ever init() below.
+    pythia.settings.mode("Beams:idA", muonPdgId);
 
     // Optional non-default PDF for the struck nucleon (beam B), e.g. one of the grids bundled
     // for the muDIS charm-asymmetry study (see MuonDISPythiaGenerator.hh and
@@ -151,33 +169,35 @@ void MuonDISPythiaGenerator::ensureInitialized(int muonPdgId, int nucleonPdgId,
     // external LHAPDF6 install needed. Left at Pythia8's own built-in proton PDF if empty
     // (the default, set via /physics/muondis/pdfSet if you want to change it).
     if (!m_pdfSetPath.empty()) {
-      m_pythia->readString("PDF:pSet = LHAGrid1:" + m_pdfSetPath);
+      pythia.readString("PDF:pSet = LHAGrid1:" + m_pdfSetPath);
     }
 
-    m_settingsApplied = true;
+    slot.settingsApplied = true;
   }
 
   const double muonMomentumGeV =
       std::sqrt(std::max(muonEnergyGeV * muonEnergyGeV - kMuonMassGeV * kMuonMassGeV, 0.0));
   const G4ThreeVector p = muonDirection.unit() * muonMomentumGeV;
 
-  m_pythia->settings.mode("Beams:idA", muonPdgId);
-  m_pythia->settings.mode("Beams:idB", nucleonPdgId);
-  m_pythia->settings.parm("Beams:pxA", p.x());
-  m_pythia->settings.parm("Beams:pyA", p.y());
-  m_pythia->settings.parm("Beams:pzA", p.z());
+  // Beams:idA is deliberately NOT set here -- it's latched once per instance above and must
+  // never change sign on this object again (see header comment). Only idB/kinematics, which
+  // legitimately do change every call, are set here.
+  pythia.settings.mode("Beams:idB", nucleonPdgId);
+  pythia.settings.parm("Beams:pxA", p.x());
+  pythia.settings.parm("Beams:pyA", p.y());
+  pythia.settings.parm("Beams:pzA", p.z());
   // Beam B (the struck nucleon) at rest in this lab frame -- i.e. this frame
   // *is* the target-nucleon rest frame, consistent with a fixed-target setup.
-  m_pythia->settings.parm("Beams:pxB", 0.0);
-  m_pythia->settings.parm("Beams:pyB", 0.0);
-  m_pythia->settings.parm("Beams:pzB", 0.0);
-  m_pythia->settings.parm("PhaseSpace:Q2Min", m_q2MinGeV2);
+  pythia.settings.parm("Beams:pxB", 0.0);
+  pythia.settings.parm("Beams:pyB", 0.0);
+  pythia.settings.parm("Beams:pzB", 0.0);
+  pythia.settings.parm("PhaseSpace:Q2Min", m_q2MinGeV2);
 
   // Beam species/kinematics are latched at init() time; since the muon
   // direction and energy differ essentially every call here, we simply
   // re-init() every time (see header comment on setKinematics as a possible
   // optimization once this is running).
-  const bool ok = m_pythia->init();
+  const bool ok = pythia.init();
   if (!ok) {
     // sqrt(s) for this fixed-target-like configuration (nucleon at rest): s = m_mu^2 + M^2 +
     // 2*M*E_mu. Included so repeated failures can be checked for clustering near a specific
@@ -190,6 +210,7 @@ void MuonDISPythiaGenerator::ensureInitialized(int muonPdgId, int nucleonPdgId,
         "configuration (E_mu=" + std::to_string(muonEnergyGeV) + " GeV, nucleon pdg=" +
         std::to_string(nucleonPdgId) + ", sqrt(s)=" + std::to_string(sqrtS) + " GeV).");
   }
+  m_activePythia = &pythia;
   m_lastMuonPdg = muonPdgId;
   m_lastNucleonPdg = nucleonPdgId;
 }
@@ -208,12 +229,12 @@ MuonDISPythiaGenerator::GeneratedEvent MuonDISPythiaGenerator::generate(
     return result;
   }
 
-  if (!m_pythia->next()) {
+  if (!m_activePythia->next()) {
     if (m_enableDebug) {
       G4cout << "MuonDISPythiaGenerator: Pythia8 next() failed for this interaction, retrying "
                 "once." << G4endl;
     }
-    if (!m_pythia->next()) {
+    if (!m_activePythia->next()) {
       return result;  // caller decides how many times to retry / whether to abort
     }
   }
@@ -229,9 +250,9 @@ MuonDISPythiaGenerator::GeneratedEvent MuonDISPythiaGenerator::generate(
   if (m_xBjMin > 0.0) {
     int xBjAttempt = 0;
     int consecutiveNextFailures = 0;
-    while (observedXBj(m_pythia->event) < m_xBjMin) {
+    while (observedXBj(m_activePythia->event) < m_xBjMin) {
       ++xBjAttempt;
-      if (!m_pythia->next()) {
+      if (!m_activePythia->next()) {
         ++consecutiveNextFailures;
         if (consecutiveNextFailures >= kMaxConsecutiveNextFailures) {
           if (m_enableDebug) {
@@ -248,7 +269,7 @@ MuonDISPythiaGenerator::GeneratedEvent MuonDISPythiaGenerator::generate(
       if (m_enableDebug && xBjAttempt % 1000 == 0) {
         G4cout << "MuonDISPythiaGenerator: still hunting for xBj >= " << m_xBjMin << " after "
                << xBjAttempt << " draw(s) (most recent reconstructed x="
-               << observedXBj(m_pythia->event) << ")." << G4endl;
+               << observedXBj(m_activePythia->event) << ")." << G4endl;
       }
     }
   }
@@ -257,16 +278,16 @@ MuonDISPythiaGenerator::GeneratedEvent MuonDISPythiaGenerator::generate(
   // -tHat() is the standard proxy for the (spacelike) momentum-transfer Q^2
   // of a t-channel 2->2 process; this is a diagnostic field only and does not
   // feed back into the injected kinematics below.
-  result.q2GeV2 = -m_pythia->info.tHat();
+  result.q2GeV2 = -m_activePythia->info.tHat();
   // Record the same RECONSTRUCTED (post-shower) Bjorken x used to enforce /physics/muondis/
   // xbjmin above (always populated, whether or not the cut is active), so callers get a value
   // that should closely match the independently-recomputed truth-level TPOEvent::xBj -- unlike
   // Info::x2(), which is the pre-shower hard-vertex value and can differ substantially (see
   // observedXBj() above).
-  result.pythiaX2 = observedXBj(m_pythia->event);
+  result.pythiaX2 = observedXBj(m_activePythia->event);
 
-  for (int i = 0; i < m_pythia->event.size(); ++i) {
-    const Pythia8::Particle& particle = m_pythia->event[i];
+  for (int i = 0; i < m_activePythia->event.size(); ++i) {
+    const Pythia8::Particle& particle = m_activePythia->event[i];
     if (!particle.isFinal()) {
       continue;
     }

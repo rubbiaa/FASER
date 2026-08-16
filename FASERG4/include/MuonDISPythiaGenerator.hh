@@ -125,8 +125,37 @@ private:
                          const G4ThreeVector& muonDirection);
   int chooseNucleon(int targetZ, int targetA) const;
 
-  std::unique_ptr<Pythia8::Pythia> m_pythia;
-  bool m_settingsApplied{false};
+  // *** Charge-asymmetry fix (see git history / README_MuonDIS.md) ***
+  // Pythia8 does NOT support flipping the beam-A particle species (here: muon charge,
+  // Beams:idA between 13 and -13) across successive init() calls on the same Pythia
+  // object -- confirmed by an isolated, standalone Pythia8 reproduction outside of
+  // Geant4/FASER entirely. Whichever charge is used on an object's very first-ever
+  // init() call "wins"; every later init() call requesting the OTHER charge on that
+  // same object then fails deterministically (Pythia8 reports a spurious "all
+  // processes have vanishing cross sections", even though the requested beam
+  // configuration is otherwise physically fine -- confirmed by re-running the exact
+  // same (energy, nucleon) pairs on a freshly-constructed object, where they succeed).
+  // A 200-event statistics run showed this exactly: mu- failed 350/350 attempts and
+  // mu+ succeeded 74/79, purely because the run's very first Pythia8 call happened to
+  // be a mu+ event; reversing which charge is used first reverses which charge then
+  // fails, regardless of energy or target nucleon.
+  //
+  // Fix: never let Beams:idA flip sign on one Pythia object. Keep two permanently
+  // separate instances instead, one pinned to each muon charge; each is still
+  // re-init()'d repeatedly (nucleon species/energy/direction change essentially every
+  // call, exactly as before) but NEVER has its Beams:idA changed to the other sign.
+  struct PythiaInstance {
+    std::unique_ptr<Pythia8::Pythia> pythia;
+    bool settingsApplied{false};
+  };
+  PythiaInstance& pythiaFor(int muonPdgId);
+
+  PythiaInstance m_pythiaMuMinus;  // permanently pinned to Beams:idA =  13 (mu-)
+  PythiaInstance m_pythiaMuPlus;   // permanently pinned to Beams:idA = -13 (mu+)
+  Pythia8::Pythia* m_activePythia{nullptr};  // non-owning; set by ensureInitialized() to
+                                              // whichever of the above was selected for
+                                              // the call currently in progress
+
   bool m_enableDebug{false};
   double m_q2MinGeV2{1.0};
   std::string m_pdfSetPath;
