@@ -390,9 +390,18 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 			G4ParticleGun *particleGun = new G4ParticleGun(1);
 			particleGun->SetParticleDefinition(muon);
 			// Set muon starting position uniformly across the 48x48 cm entrance face of the
-			// 3D calorimeter/tracker (3DCAL), at its front-face Z -- the same zfront formula
-			// used above to place the GENIE-vtx target position.
-			const G4double zFront3DCAL = -detector->getNumberReplicas() * detector->fSandwichLength / 2.0;
+			// 3D calorimeter/tracker (3DCAL). IMPORTANT: the true front face of the FASERCal/3DCAL
+			// module stack is at Z=0 in the detector/world frame, NOT at
+			// -getNumberReplicas()*fSandwichLength/2. That formula (copied from the GENIE-vtx
+			// in-target vertex code above) wrongly assumes the module stack is centered on Z=0;
+			// in fact DetectorConstruction::Construct() places the FASERCal container with its
+			// front face at zLocation=0 and extends it downstream to +fTotalLength (see that
+			// function's own "In world frame front face" diagnostic print, which evaluates to
+			// ~0). Starting muons at the old (wrong, too-far-upstream-by-roughly-half-the-stack)
+			// Z was the root cause of the muon-background regression: essentially every
+			// background muon ended up displaced from the module stack's actual entrance, so the
+			// MuonDIS process never had a real chance to fire and every event came out empty.
+			const G4double zFront3DCAL = -1.0; // in mm, 1 mm upstream of the true front face (Z=0)
 			vtxpos.SetX((G4UniformRand() - 0.5) * 480.0); // in mm, uniform over ±240 mm (48 cm face)
 			vtxpos.SetY((G4UniformRand() - 0.5) * 480.0); // in mm, uniform over ±240 mm (48 cm face)
 			vtxpos.SetZ(zFront3DCAL); // in mm, front face of 3DCAL
