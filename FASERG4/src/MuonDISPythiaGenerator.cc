@@ -15,9 +15,12 @@ namespace {
 // G4ParticleDefinition).
 constexpr double kMuonMassGeV = 0.1056583755;
 
-// Cap on how many extra Pythia8 next() calls (cheap -- the beam is already init()'d) we'll
-// try when hunting for an event that clears /physics/muondis/xbjmin.
-constexpr int kMaxXBjRetries = 50;
+// /physics/muondis/xbjmin is enforced by re-drawing next() (cheap -- the beam is already
+// init()'d) until an event clears the cut; there is no cap on that search itself (see
+// generate()). This cap instead guards against a genuinely broken/exhausted beam
+// configuration where Pythia8's next() itself keeps failing outright (unrelated to the xbj
+// value of any generated event) -- without it, that pathological case would spin forever.
+constexpr int kMaxConsecutiveNextFailures = 25;
 }  // namespace
 
 MuonDISPythiaGenerator& MuonDISPythiaGenerator::instance() {
@@ -154,14 +157,27 @@ MuonDISPythiaGenerator::GeneratedEvent MuonDISPythiaGenerator::generate(
   // here rather than pushing every attempt out to the caller's much coarser retry loop.
   if (m_xBjMin > 0.0) {
     int xBjAttempt = 0;
+    int consecutiveNextFailures = 0;
     while (m_pythia->info.x2() < m_xBjMin) {
       ++xBjAttempt;
-      if (xBjAttempt >= kMaxXBjRetries || !m_pythia->next()) {
-        if (m_enableDebug) {
-          G4cout << "MuonDISPythiaGenerator: gave up after " << xBjAttempt
-                 << " attempt(s) trying to clear xBjMin=" << m_xBjMin << G4endl;
+      if (!m_pythia->next()) {
+        ++consecutiveNextFailures;
+        if (consecutiveNextFailures >= kMaxConsecutiveNextFailures) {
+          if (m_enableDebug) {
+            G4cout << "MuonDISPythiaGenerator: giving up after " << consecutiveNextFailures
+                   << " consecutive Pythia8 next() failures while hunting for an event with "
+                      "xBj >= " << m_xBjMin << " (" << xBjAttempt << " draw(s) total)."
+                   << G4endl;
+          }
+          return result;  // caller treats this like any other failed-to-generate attempt
         }
-        return result;  // caller treats this like any other failed-to-generate attempt
+        continue;  // next() itself failed -- retry, does not count against the xBj search
+      }
+      consecutiveNextFailures = 0;
+      if (m_enableDebug && xBjAttempt % 1000 == 0) {
+        G4cout << "MuonDISPythiaGenerator: still hunting for xBj >= " << m_xBjMin << " after "
+               << xBjAttempt << " draw(s) (most recent x2=" << m_pythia->info.x2() << ")."
+               << G4endl;
       }
     }
   }
