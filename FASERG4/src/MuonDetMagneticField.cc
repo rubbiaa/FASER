@@ -48,14 +48,22 @@ void MuonMagneticField::GetFieldValue(const G4double point[4], G4double* Bfield)
 #endif
     Bfield[0] = Bfield[1] = Bfield[2] = 0.0;
 
-    // Assume ±1.5 Tesla in steel, depending on y (top/bottom vs center).
-    // Rotation around Y leaves y unchanged, so the global y coordinate
-    // already equals the tilted assembly's local y — no correction needed here.
+    // BUG FIX (2026-08-14): Translate y to be relative to magnet center!
+    // The detector assembly can be shifted in Y (global coordinates).
+    // The field boundaries (slit position, ±1.5 T regions) are defined
+    // in the assembly's LOCAL frame, not global frame.
+    // Without this translation, field signs are WRONG in shifted regions.
+    G4double y_local = y - centreY;  // Translate to local y (relative to magnet center)
+
+   // Assume ±1.5 Tesla in steel, depending on local y (top/bottom vs center).
+    // Field regions:
+    //   |y_local| < slitposition:  middle region → –1.5 T (B along Fe slab axis)
+    //   slit <= |y_local| <= 2*slit: top/bottom → +1.5 T
     G4double Blocal = 0.0;
-    if (std::abs(y) >= slitposition * mm && std::abs(y) <= 2 * slitposition * mm) {
+    if (std::abs(y_local) >= slitposition * mm && std::abs(y_local) <= 2 * slitposition * mm) {
       // Top or Bottom: +1.5 T
       Blocal = +1.5 * tesla;
-    } else if (std::abs(y) < slitposition * mm) {
+    } else if (std::abs(y_local) < slitposition * mm) {
       // Middle: –1.5 T
       Blocal = -1.5 * tesla;
     }

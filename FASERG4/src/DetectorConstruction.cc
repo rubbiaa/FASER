@@ -270,8 +270,16 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
     }   	//	
 	// DETECTOR ASSEMBLY (the whole detector lives inside this LV)
     //
+	// UMUT: Z half-length must contain the full downstream chain
+    // (FASERCal + magnet + gaps + RearCal + RearHCal + MDT spectrometer).
+    // WorldSizeZ/3 (~6666.7mm) was too small once the MDT stations were added
+    // (they pushed the assembly out to ~6963.5mm), causing a "MDTContainerPV
+    // overlaps with mother DetectorAssemblyLV" G4Exception. Use WorldSizeZ/2
+    // minus a safety margin so it still fits inside the World volume.
     auto detSolid = new G4Box("DetectorAssemblySolid",
-                              WorldSizeX/3, WorldSizeY/3, WorldSizeZ/3);
+                              WorldSizeX/3, WorldSizeY/3, WorldSizeZ/2 - 50.0*cm);
+    //auto detSolid = new G4Box("DetectorAssemblySolid",
+    //                          WorldSizeX/3, WorldSizeY/3, WorldSizeZ/3);
     auto detLV = new G4LogicalVolume(detSolid, fWorldMaterial, "DetectorAssemblyLV");
 	// ------------------------------------------------
 	// target is composed of W or Copper
@@ -1162,6 +1170,9 @@ void DetectorConstruction::CreateRearMuSpectrometer(G4double zLocation, G4Logica
 		auto field = new MuonMagneticField();
 		field->SetSlitPosition(slitPosition);
 		field->SetTiltAngleY(fTiltAngleY);
+		// BUG FIX (2026-08-14): Set the global y-offset of the magnet center!
+		// The detector can be shifted in Y, so field boundaries must be translated.
+		field->SetCentreY(fFASERCal_LOS_shiftY * mm);
 		auto fieldManager = new G4FieldManager(field);
 		fieldManager->CreateChordFinder(field);
 		magnetLV->SetFieldManager(fieldManager, true);
@@ -1429,6 +1440,9 @@ void DetectorConstruction::CreateMuSpectWithMDT(G4double zLocation, G4LogicalVol
 		auto field = new MuonMagneticField();
 		field->SetSlitPosition(250.*mm);
 		field->SetTiltAngleY(fTiltAngleY);
+		// BUG FIX (2026-08-14): Set the global y-offset of the magnet center!
+		// The detector can be shifted in Y, so field boundaries must be translated.
+		field->SetCentreY(fFASERCal_LOS_shiftY * mm);
 		auto fieldManager = new G4FieldManager(field);
 		fieldManager->CreateChordFinder(field);
 		magnetLV->SetFieldManager(fieldManager, true);

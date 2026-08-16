@@ -11,9 +11,11 @@ public:
 
     G4double slitposition = 0.0; // position of the slit along y in mm
     G4double tiltAngleY = 0.0;   // detector assembly tilt around Y, in radians (same as fTiltAngleY)
+    G4double centreY = 0.0;      // global Y offset 
 
     void SetSlitPosition(G4double pos) { slitposition = pos; }
     void SetTiltAngleY(G4double angle) { tiltAngleY = angle; }
+    void SetCentreY(G4double y) { centreY = y; }  // SET GLOBAL Y OFFSET!
     virtual void GetFieldValue(const G4double point[4], G4double* Bfield) const override;
 };
 
