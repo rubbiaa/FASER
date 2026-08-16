@@ -18,16 +18,10 @@
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
-#include <stdexcept>
 #include <string>
 #include <vector>
 
 namespace {
-
-[[noreturn]] void failModel(const std::string& message) {
-  G4Exception("MuonDISMuonNuclearModel", "MuonDISModelFailure", FatalException, message.c_str());
-  throw std::runtime_error(message);
-}
 
 // Obtain write access to the current event's TPOEvent truth structure. TPOEvent is owned by
 // PrimaryGeneratorAction (one instance per worker thread) and GetTPOEvent() only exposes a
@@ -179,8 +173,30 @@ G4HadFinalState* MuonDISMuonNuclearModel::ApplyYourself(const G4HadProjectile& a
                                                             targetZ, targetA);
   }
   if (!generated.valid) {
-    failModel("MuonDISMuonNuclearModel: Pythia8 failed to produce a usable DIS final state "
-              "after several attempts.");
+    // Pythia8 occasionally fails to init()/generate a usable DIS final state for some
+    // (E_mu, nucleon) combinations -- observed at E_mu ~ 2.1 TeV, well within the real
+    // FASERnu muon flux's range (the extreme lab-frame asymmetry between a multi-TeV muon
+    // beam and an at-rest nucleon apparently trips up Pythia8's arbitrary-momentum-beam
+    // (frameType=3) initialization for some configurations). This is not a programming
+    // error worth aborting an entire production run over -- this used to call
+    // G4Exception(..., FatalException, ...), which killed the whole job the first time any
+    // muon in the sampled flux hit such an energy. Instead, treat this specific biased step
+    // as a no-op: the muon survives with its kinematics unchanged, exactly as
+    // MuonDISNuclearWrapperProcess::demoteSurvivingPrimary() already expects for a step
+    // where the biased process didn't actually produce a hard interaction -- it converts
+    // the surviving primary back to an ordinary (unbiased) muon and tracking continues
+    // normally, so the muon simply gets another chance to undergo MuonDIS further along its
+    // path.
+    static G4int failureCount = 0;
+    ++failureCount;
+    G4cout << "MuonDISMuonNuclearModel: Pythia8 failed to produce a usable DIS final state for "
+              "E_mu=" << muEnergyGeV << " GeV after " << kMaxAttempts << " attempts (failure #"
+           << failureCount << "); muon survives this step unchanged." << G4endl;
+    theParticleChange.Clear();
+    theParticleChange.SetStatusChange(isAlive);
+    theParticleChange.SetEnergyChange(aTrack.GetKineticEnergy());
+    theParticleChange.SetMomentumChange(aTrack.Get4Momentum().vect().unit());
+    return &theParticleChange;
   }
 
   // Fetch the interaction context recorded by MuonDISNuclearWrapperProcess (the muon's own G4
@@ -239,7 +255,21 @@ G4HadFinalState* MuonDISMuonNuclearModel::ApplyYourself(const G4HadProjectile& a
   }
 
   if (theParticleChange.GetNumberOfSecondaries() <= 0) {
-    failModel("MuonDISMuonNuclearModel: no Geant4 secondaries were created.");
+    // Same reasoning as the Pythia8-failure fallback above: a valid-looking generated final
+    // state whose PDG codes G4ParticleTable/G4IonTable could not resolve into any real
+    // secondary is a rare generator/table mismatch, not something worth crashing a production
+    // run over. Undo the stopAndKill/zero-momentum commitment made above and let the muon
+    // survive this step unchanged instead.
+    static G4int noSecondaryFailureCount = 0;
+    ++noSecondaryFailureCount;
+    G4cout << "MuonDISMuonNuclearModel: generated DIS final state produced no resolvable Geant4 "
+              "secondaries (failure #" << noSecondaryFailureCount
+           << "); muon survives this step unchanged." << G4endl;
+    theParticleChange.Clear();
+    theParticleChange.SetStatusChange(isAlive);
+    theParticleChange.SetEnergyChange(aTrack.GetKineticEnergy());
+    theParticleChange.SetMomentumChange(aTrack.Get4Momentum().vect().unit());
+    return &theParticleChange;
   }
 
   // Record the full Pythia8 final state as generator-level truth, the same way
