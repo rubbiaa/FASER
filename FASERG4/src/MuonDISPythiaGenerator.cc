@@ -105,30 +105,31 @@ void MuonDISPythiaGenerator::ensureInitialized(int muonPdgId, int nucleonPdgId,
   }
 
   if (!m_settingsApplied) {
-    // Keep Pythia8's own banner/summary output out of the way; MuonDISPhysics
-    // already logs what it installs, and per-event listings would be far too
-    // verbose for a production run.
-    //
-    // "Print:quiet = true" is a blanket switch: besides the banner/summary output, it also
-    // silences Pythia8's own error/warning messages (the ones its ErrorMsg subsystem would
-    // otherwise print explaining exactly why an init()/next() call failed -- e.g. "no accepted
-    // processes found", a beam energy-momentum consistency check failing, an out-of-range PDF
-    // extrapolation, etc). That is why "Pythia8 init() failed ..." failures upstream in
-    // MuonDISMuonNuclearModel/ensureInitialized() show only our own generic wrapper message and
-    // never Pythia8's actual diagnostic. When /physics/muondis/debug is enabled we leave quiet
-    // mode off instead, at the cost of a much more verbose log, so the next such failure prints
-    // Pythia8's own explanation immediately above our wrapper message.
-    if (!m_enableDebug) {
+    // "Print:quiet = true" is documented (Pythia8 manual, Print Statements) as pure shorthand
+    // for exactly the eight Init:show*/Next:number* flags below -- it does NOT touch Pythia8's
+    // own ErrorMsg subsystem (the "Error/Abort in Pythia::init: ..." lines explaining exactly
+    // why an init()/next() call failed), which prints to std::cout regardless of Print:quiet.
+    // That earlier fix (gating only the "Print:quiet = true" line behind !m_enableDebug) was
+    // therefore a no-op: whether or not that one line ran, the exact same eight flags used to be
+    // set unconditionally right below it, so nothing about the actual printout ever changed.
+    // Gate all nine settings together instead: in debug mode leave everything at Pythia8's own
+    // (verbose) defaults, and explicitly set Print:quiet = false rather than merely skipping the
+    // "true" branch, so debug behavior does not depend on Pythia8's own default ever changing.
+    if (m_enableDebug) {
+      m_pythia->readString("Print:quiet = false");
+    } else {
+      // Keep Pythia8's own banner/summary output out of the way; MuonDISPhysics already logs
+      // what it installs, and per-event listings would be far too verbose for a production run.
       m_pythia->readString("Print:quiet = true");
+      m_pythia->readString("Init:showProcesses = false");
+      m_pythia->readString("Init:showMultipartonInteractions = false");
+      m_pythia->readString("Init:showChangedSettings = false");
+      m_pythia->readString("Init:showChangedParticleData = false");
+      m_pythia->readString("Next:numberCount = 0");
+      m_pythia->readString("Next:numberShowInfo = 0");
+      m_pythia->readString("Next:numberShowProcess = 0");
+      m_pythia->readString("Next:numberShowEvent = 0");
     }
-    m_pythia->readString("Init:showProcesses = false");
-    m_pythia->readString("Init:showMultipartonInteractions = false");
-    m_pythia->readString("Init:showChangedSettings = false");
-    m_pythia->readString("Init:showChangedParticleData = false");
-    m_pythia->readString("Next:numberCount = 0");
-    m_pythia->readString("Next:numberShowInfo = 0");
-    m_pythia->readString("Next:numberShowProcess = 0");
-    m_pythia->readString("Next:numberShowEvent = 0");
 
     // Neutral-current t-channel gamma*/Z exchange: the standard Pythia8 route
     // to lepton-nucleon DIS (see MuonDISPythiaGenerator.hh for the caveats
