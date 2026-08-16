@@ -45,6 +45,7 @@ class PrimaryGeneratorMessenger: public G4UImessenger
     G4UIcmdWithABool* fWantSingleParticle; ///< Input command for single particle option
     G4UIcmdWithADoubleAndUnit* fSingleMomentumCmd; ///< Command to set single particle momentum (with unit)
     G4UIcmdWithAString* fSingleParticleNameCmd; ///< Command to set particle name in single-particle mode
+    G4UIcmdWithAString* fMuonFluxFileNameCmd; ///< Input command for the muon flux grid file name
 
   };
 

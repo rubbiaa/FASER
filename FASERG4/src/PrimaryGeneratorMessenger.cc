@@ -41,6 +41,12 @@ PrimaryGeneratorMessenger::PrimaryGeneratorMessenger(PrimaryGeneratorAction* Gun
 	fSingleMomentumCmd->SetParameterName("SingleMomentum", false);
 	fSingleMomentumCmd->SetDefaultUnit("GeV");
 	fSingleMomentumCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+	fMuonFluxFileNameCmd = new G4UIcmdWithAString("/generator/muonFluxFile", this);
+	fMuonFluxFileNameCmd->SetGuidance("Select the muon flux grid file (lhagrid1-format .dat) used to "
+	                                  "sample the incoming muon's charge/energy in muon-background mode.");
+	fMuonFluxFileNameCmd->SetParameterName("MuonFluxFileName", false);
+	fMuonFluxFileNameCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -53,6 +59,7 @@ PrimaryGeneratorMessenger::~PrimaryGeneratorMessenger()
 	delete fWantMuonBackground;
 	delete fWantSingleParticle;	
 	delete fSingleMomentumCmd;
+	delete fMuonFluxFileNameCmd;
 	delete fGunDir;
 }
 
@@ -89,5 +96,9 @@ void PrimaryGeneratorMessenger::SetNewValue(G4UIcommand* command, G4String newVa
 		double val_GeV = val_raw / GeV;
 		G4cout << "PrimaryGeneratorMessenger: parsed raw value = " << val_raw << " (internal units), converted to " << val_GeV << " GeV" << G4endl;
 		fAction->SetSingleParticleMomentum(val_GeV);
+	}
+
+	if (command == fMuonFluxFileNameCmd) {
+		fAction->SetMuonFluxFileName(newValue);
 	}
 }

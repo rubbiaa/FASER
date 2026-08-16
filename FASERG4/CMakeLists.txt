@@ -71,6 +71,7 @@ set(SOURCES
     src/EventAction.cc
     src/ParticleManager.cc
     src/PrimaryGeneratorAction.cc
+    src/MuonFluxSampler.cc
     src/PrimaryGeneratorMessenger.cc
     src/RunAction.cc
     src/TrackerSD.cc

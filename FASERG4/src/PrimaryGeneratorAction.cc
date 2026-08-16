@@ -17,6 +17,7 @@
 #include "TPOEvent.hh"
 #include "TVector3.h"
 #include "TRotation.h"
+#include "MuonFluxSampler.hh"
 
 PrimaryGeneratorAction::PrimaryGeneratorAction(ParticleManager* f_particleManager) : G4VUserPrimaryGeneratorAction()
 {
@@ -363,20 +364,40 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 	{
 		// generate muon background
 		fTPOEvent.run_number = 999;
-		G4ParticleDefinition *muon = particleTable->FindParticle("mu-");
+
+		// Sample the incoming muon's charge and energy from the real FASERnu Run 3 FLUKA
+		// muon flux (see MuonFluxSampler) instead of a fixed species/momentum. The grid is
+		// loaded once (loadFromFile() is a no-op on later calls with the same path) and is
+		// expected next to the executable -- FASERG4/CMakeLists.txt copies everything under
+		// FASERG4/input/ into the run/build directory at configure time.
+		if (!MuonFluxSampler::instance().isLoaded()) {
+			MuonFluxSampler::instance().loadFromFile(fMuonFluxFileName);
+		}
+		int fluxPdgId = 13;
+		double fluxEnergyGeV = fSingleParticleMomentum;
+		if (!MuonFluxSampler::instance().sample(fluxPdgId, fluxEnergyGeV)) {
+			G4cout << "PrimaryGeneratorAction: muon flux sampler unavailable (grid not loaded "
+			          "from '" << fMuonFluxFileName << "'); falling back to a fixed mu- at "
+			       << fSingleParticleMomentum << " GeV." << G4endl;
+			fluxPdgId = 13;
+			fluxEnergyGeV = fSingleParticleMomentum;
+		}
+
+		G4ParticleDefinition *muon = particleTable->FindParticle(fluxPdgId);
 		if (muon != nullptr)
 		{
 			G4ParticleGun *particleGun = new G4ParticleGun(1);
 			particleGun->SetParticleDefinition(muon);
-			// Set muon starting position to cover detector face uniformly
-			// X: 48 cm detector → ±240 mm
-			// Y: 48 cm detector → ±240 mm
-			vtxpos.SetX(400); // in mm
-			vtxpos.SetY(280); // in mm
-			vtxpos.SetZ(-100); // in mm, in front of the detector
+			// Set muon starting position uniformly across the 48x48 cm entrance face of the
+			// 3D calorimeter/tracker (3DCAL), at its front-face Z -- the same zfront formula
+			// used above to place the GENIE-vtx target position.
+			const G4double zFront3DCAL = -detector->getNumberReplicas() * detector->fSandwichLength / 2.0;
+			vtxpos.SetX((G4UniformRand() - 0.5) * 480.0); // in mm, uniform over ±240 mm (48 cm face)
+			vtxpos.SetY((G4UniformRand() - 0.5) * 480.0); // in mm, uniform over ±240 mm (48 cm face)
+			vtxpos.SetZ(zFront3DCAL); // in mm, front face of 3DCAL
 			particleGun->SetParticlePosition(G4ThreeVector(vtxpos.x() * mm, vtxpos.y() * mm, vtxpos.z() * mm));
 			// Define angular spread (in radians)
-			double sigmaTheta = -0.08; // 4.5 degrees in radians
+			double sigmaTheta = 1.0 * CLHEP::pi / 180.0; // 1 degree, in radians
 			// Sample θ from Gaussian centered at 0 with std dev 0.1
 			double theta = G4RandGauss::shoot(0.0, sigmaTheta);
 			// Sample φ uniformly from 0 to 2π
@@ -386,14 +407,15 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 			double py = std::sin(theta) * std::sin(phi);
 			double pz = std::cos(theta);
 
-			// Set direction vector with given momentum magnitude
-			//double momentumMagnitude = 500.0; // in GeV
-			// added by Umut: use fSingleParticleMomentum
-			double momentumMagnitude = fSingleParticleMomentum; // in GeV (can be set via /generator/singleMomentum)
+			// Momentum magnitude from the flux-sampled energy and this particle's actual mass
+			// (previously a fixed fSingleParticleMomentum for every event, regardless of species).
+			double massGeV = muon->GetPDGMass() / GeV;
+			double momentumMagnitude = std::sqrt(std::max(fluxEnergyGeV * fluxEnergyGeV - massGeV * massGeV, 0.0)); // in GeV
 
 			G4ThreeVector StartMomentum(px, py, pz);
-			// Diagnostic: print the configured momentum magnitude (GeV) used for scaling the direction
-			G4cout << "Using momentumMagnitude = " << momentumMagnitude << " GeV for background muon generation." << G4endl;
+			// Diagnostic: print the flux-sampled energy/momentum used for this background muon
+			G4cout << "Using flux-sampled E=" << fluxEnergyGeV << " GeV (p=" << momentumMagnitude
+			       << " GeV) for background " << muon->GetParticleName() << " generation." << G4endl;
 			StartMomentum = StartMomentum.unit() * (momentumMagnitude * GeV); // Normalize and scale
 			particleGun->SetParticleMomentum(StartMomentum);
 			fParticleGuns.push_back(particleGun);
