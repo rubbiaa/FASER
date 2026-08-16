@@ -131,8 +131,31 @@ void MuonFluxSampler::loadFromFile(const std::string& path) {
          << m_muMinus.totalWeight << ", mu+ weight=" << m_muPlus.totalWeight << ")" << G4endl;
 }
 
-double MuonFluxSampler::sampleX(const Species& sp) const {
-  const double target = G4UniformRand() * sp.totalWeight;
+double MuonFluxSampler::cumAtX(const Species& sp, double x) const {
+  if (sp.x.empty()) {
+    return 0.0;
+  }
+  if (x <= sp.x.front()) {
+    return 0.0;
+  }
+  if (x >= sp.x.back()) {
+    return sp.totalWeight;
+  }
+  size_t hi = 1;
+  while (hi < sp.x.size() && sp.x[hi] < x) {
+    ++hi;
+  }
+  const size_t lo = hi - 1;
+  const double xlo = sp.x[lo];
+  const double xhi = sp.x[hi];
+  const double wlo = sp.cumWeight[lo];
+  const double whi = sp.cumWeight[hi];
+  const double frac = (xhi > xlo) ? (x - xlo) / (xhi - xlo) : 0.0;
+  return wlo + frac * (whi - wlo);
+}
+
+double MuonFluxSampler::sampleXAbove(const Species& sp, double cumLo) const {
+  const double target = cumLo + G4UniformRand() * (sp.totalWeight - cumLo);
   size_t hi = 1;
   while (hi < sp.cumWeight.size() && sp.cumWeight[hi] < target) {
     ++hi;
@@ -147,24 +170,34 @@ double MuonFluxSampler::sampleX(const Species& sp) const {
   return sp.x[lo] + frac * (sp.x[hi] - sp.x[lo]);
 }
 
-bool MuonFluxSampler::sample(int& pdgId, double& energyGeV) const {
+bool MuonFluxSampler::sample(int& pdgId, double& energyGeV, double minEnergyGeV) const {
   if (!m_loaded) {
     return false;
   }
 
-  const double totalWeight = m_muMinus.totalWeight + m_muPlus.totalWeight;
+  // Restrict each species' sampling range to the portion of its flux at/above the cutoff,
+  // so both the mu-/mu+ mix and the energy spectrum are correctly renormalized to the
+  // surviving (>= minEnergyGeV) population, rather than rejection-sampling the full flux
+  // (which would be arbitrarily wasteful for a high cutoff that discards most of the flux).
+  const double minX = (minEnergyGeV > 0.0) ? minEnergyGeV / kReferenceBeamEnergyGeV : 0.0;
+
+  const double cumMinusLo = cumAtX(m_muMinus, minX);
+  const double cumPlusLo = cumAtX(m_muPlus, minX);
+  const double weightMinus = m_muMinus.totalWeight - cumMinusLo;
+  const double weightPlus = m_muPlus.totalWeight - cumPlusLo;
+  const double totalWeight = weightMinus + weightPlus;
   if (totalWeight <= 0.0) {
-    return false;
+    return false;  // no flux at/above this cutoff
   }
 
-  const bool isMuMinus = (G4UniformRand() * totalWeight) < m_muMinus.totalWeight;
+  const bool isMuMinus = (G4UniformRand() * totalWeight) < weightMinus;
   const Species& sp = isMuMinus ? m_muMinus : m_muPlus;
-  if (sp.totalWeight <= 0.0) {
-    return false;
-  }
+  const double cumLo = isMuMinus ? cumMinusLo : cumPlusLo;
 
-  const double x = sampleX(sp);
+  const double x = sampleXAbove(sp, cumLo);
   pdgId = isMuMinus ? 13 : -13;
-  energyGeV = x * kReferenceBeamEnergyGeV;
+  // Guard against the cutoff landing exactly on a grid point plus floating-point roundoff
+  // nudging the sampled x a hair below minX.
+  energyGeV = std::max(x, minX) * kReferenceBeamEnergyGeV;
   return true;
 }

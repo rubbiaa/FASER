@@ -375,10 +375,11 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 		}
 		int fluxPdgId = 13;
 		double fluxEnergyGeV = fSingleParticleMomentum;
-		if (!MuonFluxSampler::instance().sample(fluxPdgId, fluxEnergyGeV)) {
-			G4cout << "PrimaryGeneratorAction: muon flux sampler unavailable (grid not loaded "
-			          "from '" << fMuonFluxFileName << "'); falling back to a fixed mu- at "
-			       << fSingleParticleMomentum << " GeV." << G4endl;
+		if (!MuonFluxSampler::instance().sample(fluxPdgId, fluxEnergyGeV, fMuonFluxMinEnergyGeV)) {
+			G4cout << "PrimaryGeneratorAction: muon flux sampler returned no muon (grid not loaded "
+			          "from '" << fMuonFluxFileName << "', or no flux survives the "
+			       << fMuonFluxMinEnergyGeV << " GeV minimum-energy cutoff); falling back to a "
+			          "fixed mu- at " << fSingleParticleMomentum << " GeV." << G4endl;
 			fluxPdgId = 13;
 			fluxEnergyGeV = fSingleParticleMomentum;
 		}

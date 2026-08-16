@@ -30,9 +30,10 @@ public:
   void loadFromFile(const std::string& path);
 
   /// Sample a muon PDG code (+-13) and energy (GeV) from the loaded flux, weighting mu-/mu+
-  /// by their respective integrated flux. Returns false (leaving outputs untouched) if no grid
-  /// has been loaded yet.
-  bool sample(int& pdgId, double& energyGeV) const;
+  /// by their respective integrated flux above minEnergyGeV (default 0 = no cutoff -- the full
+  /// flux). Returns false (leaving outputs untouched) if no grid has been loaded yet, or if the
+  /// cutoff is at or above the grid's maximum energy (no flux survives it).
+  bool sample(int& pdgId, double& energyGeV, double minEnergyGeV = 0.0) const;
 
   bool isLoaded() const { return m_loaded; }
 
@@ -45,7 +46,14 @@ private:
     double totalWeight = 0.0;      // cumWeight.back(), or 0 if this species has no flux
   };
 
-  double sampleX(const Species& sp) const;
+  // Cumulative weight of a species' flux below x (linearly interpolated between grid
+  // points, consistent with sampleXAbove's inverse). 0 for x at/below the grid minimum, and
+  // sp.totalWeight for x at/above the grid maximum.
+  double cumAtX(const Species& sp, double x) const;
+
+  // Inverse-transform sample x from the portion of a species' flux with cumulative weight >=
+  // cumLo (i.e. x >= whatever x maps to cumLo) -- cumLo=0 recovers the unrestricted sample.
+  double sampleXAbove(const Species& sp, double cumLo) const;
 
   Species m_muMinus; // PDG 13
   Species m_muPlus;  // PDG -13

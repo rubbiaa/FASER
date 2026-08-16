@@ -47,6 +47,14 @@ PrimaryGeneratorMessenger::PrimaryGeneratorMessenger(PrimaryGeneratorAction* Gun
 	                                  "sample the incoming muon's charge/energy in muon-background mode.");
 	fMuonFluxFileNameCmd->SetParameterName("MuonFluxFileName", false);
 	fMuonFluxFileNameCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+
+	fMuonFluxMinEnergyCmd = new G4UIcmdWithADoubleAndUnit("/generator/muonFluxMinEnergy", this);
+	fMuonFluxMinEnergyCmd->SetGuidance("Set a minimum energy cutoff for muons sampled from the flux grid "
+	                                   "in muon-background mode (with unit, e.g. 100 GeV keeps only muons "
+	                                   "above 100 GeV). Default 0 GeV = no cutoff, the full flux.");
+	fMuonFluxMinEnergyCmd->SetParameterName("MuonFluxMinEnergy", false);
+	fMuonFluxMinEnergyCmd->SetDefaultUnit("GeV");
+	fMuonFluxMinEnergyCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -60,6 +68,7 @@ PrimaryGeneratorMessenger::~PrimaryGeneratorMessenger()
 	delete fWantSingleParticle;	
 	delete fSingleMomentumCmd;
 	delete fMuonFluxFileNameCmd;
+	delete fMuonFluxMinEnergyCmd;
 	delete fGunDir;
 }
 
@@ -100,5 +109,11 @@ void PrimaryGeneratorMessenger::SetNewValue(G4UIcommand* command, G4String newVa
 
 	if (command == fMuonFluxFileNameCmd) {
 		fAction->SetMuonFluxFileName(newValue);
+	}
+
+	if (command == fMuonFluxMinEnergyCmd) {
+		double val_GeV = fMuonFluxMinEnergyCmd->GetNewDoubleValue(newValue) / GeV;
+		G4cout << "PrimaryGeneratorMessenger: /generator/muonFluxMinEnergy set to " << val_GeV << " GeV" << G4endl;
+		fAction->SetMuonFluxMinEnergy(val_GeV);
 	}
 }
