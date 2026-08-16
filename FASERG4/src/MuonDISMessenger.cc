@@ -43,6 +43,27 @@ MuonDISMessenger::MuonDISMessenger(MuonDISPhysics* physics) : fPhysics(physics) 
   fDebugCmd->SetGuidance("Emit verbose MuonDIS process/Pythia8 installation logs.");
   fDebugCmd->SetParameterName("debug", false);
   fDebugCmd->AvailableForStates(G4State_PreInit);
+
+  fPdfSetCmd = new G4UIcmdWithAString("/physics/muondis/pdfSet", this);
+  fPdfSetCmd->SetGuidance(
+      "Path to an LHAPDF-style 'lhagrid1' grid file to use for the struck nucleon's PDF, "
+      "loaded natively via Pythia8's built-in LHAGrid1 reader (no external LHAPDF6 install "
+      "needed). Leave unset (default) to use Pythia8's own built-in proton PDF. Bundled "
+      "examples from the muDIS charm-asymmetry study, under FASERG4/input/: "
+      "NNPDF40_nnlo_as_01180_charmasy_0000.dat (NNPDF4.0 charm-asymmetry) and "
+      "CT18FC_0003.dat / _0004.dat / _0005.dat (CT18 MBMC, Delta-chi2=0/10/30).");
+  fPdfSetCmd->SetParameterName("path", false);
+  fPdfSetCmd->AvailableForStates(G4State_PreInit);
+
+  fXBjMinCmd = new G4UIcmdWithADouble("/physics/muondis/xbjmin", this);
+  fXBjMinCmd->SetGuidance(
+      "Minimum Bjorken x accepted for a generated MuonDIS event (default: 0, no cut). "
+      "Enforced by re-sampling Pythia8's already-initialized event generator (cheap, no "
+      "re-init) until an event with x2() >= xbjmin is found or a retry cap is hit; see "
+      "MuonDISPythiaGenerator::generate(). A very aggressive cutoff can make MuonDIS "
+      "interactions rare (most attempts give up and the muon survives that step unchanged).");
+  fXBjMinCmd->SetParameterName("xbjmin", false);
+  fXBjMinCmd->AvailableForStates(G4State_PreInit);
 }
 
 MuonDISMessenger::~MuonDISMessenger() {
@@ -51,6 +72,8 @@ MuonDISMessenger::~MuonDISMessenger() {
   delete fQ2MinCmd;
   delete fInteractionLogCmd;
   delete fDebugCmd;
+  delete fPdfSetCmd;
+  delete fXBjMinCmd;
   delete fDirectory;
 }
 
@@ -65,5 +88,9 @@ void MuonDISMessenger::SetNewValue(G4UIcommand* command, G4String newValue) {
     fPhysics->SetInteractionLogPath(newValue);
   } else if (command == fDebugCmd) {
     fPhysics->SetDebug(fDebugCmd->GetNewBoolValue(newValue));
+  } else if (command == fPdfSetCmd) {
+    fPhysics->SetPdfSet(newValue);
+  } else if (command == fXBjMinCmd) {
+    fPhysics->SetXBjMin(fXBjMinCmd->GetNewDoubleValue(newValue));
   }
 }

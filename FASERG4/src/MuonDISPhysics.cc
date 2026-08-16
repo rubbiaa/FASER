@@ -48,7 +48,7 @@ void MuonDISPhysics::ConstructProcess() {
     return;
   }
 
-  MuonDISPythiaGenerator::instance().configure(fEnableDebug, fQ2Min);
+  MuonDISPythiaGenerator::instance().configure(fEnableDebug, fQ2Min, fPdfSetPath, fXBjMin);
 
   auto patchParticle = [&](G4ParticleDefinition* particle) {
     if (!particle) {

@@ -14,6 +14,10 @@ namespace {
 // pulled from Geant4 directly since this header avoids depending on
 // G4ParticleDefinition).
 constexpr double kMuonMassGeV = 0.1056583755;
+
+// Cap on how many extra Pythia8 next() calls (cheap -- the beam is already init()'d) we'll
+// try when hunting for an event that clears /physics/muondis/xbjmin.
+constexpr int kMaxXBjRetries = 50;
 }  // namespace
 
 MuonDISPythiaGenerator& MuonDISPythiaGenerator::instance() {
@@ -23,9 +27,12 @@ MuonDISPythiaGenerator& MuonDISPythiaGenerator::instance() {
 
 MuonDISPythiaGenerator::~MuonDISPythiaGenerator() = default;
 
-void MuonDISPythiaGenerator::configure(bool enableDebug, double q2MinGeV2) {
+void MuonDISPythiaGenerator::configure(bool enableDebug, double q2MinGeV2,
+                                       const std::string& pdfSetPath, double xBjMin) {
   m_enableDebug = enableDebug;
   m_q2MinGeV2 = q2MinGeV2;
+  m_pdfSetPath = pdfSetPath;
+  m_xBjMin = xBjMin;
 }
 
 int MuonDISPythiaGenerator::chooseNucleon(int targetZ, int targetA) const {
@@ -70,6 +77,15 @@ void MuonDISPythiaGenerator::ensureInitialized(int muonPdgId, int nucleonPdgId,
     // Arbitrary 3-momentum beams (Pythia8 manual, Beam Parameters, option 3)
     // so beam A can track the true Geant4 muon direction every interaction.
     m_pythia->readString("Beams:frameType = 3");
+
+    // Optional non-default PDF for the struck nucleon (beam B), e.g. one of the grids bundled
+    // for the muDIS charm-asymmetry study (see MuonDISPythiaGenerator.hh and
+    // README_MuonDIS.md). Loaded natively via Pythia8's built-in LHAGrid1 reader -- no
+    // external LHAPDF6 install needed. Left at Pythia8's own built-in proton PDF if empty
+    // (the default, set via /physics/muondis/pdfSet if you want to change it).
+    if (!m_pdfSetPath.empty()) {
+      m_pythia->readString("PDF:pSet = LHAGrid1:" + m_pdfSetPath);
+    }
 
     m_settingsApplied = true;
   }
@@ -126,6 +142,27 @@ MuonDISPythiaGenerator::GeneratedEvent MuonDISPythiaGenerator::generate(
     }
     if (!m_pythia->next()) {
       return result;  // caller decides how many times to retry / whether to abort
+    }
+  }
+
+  // Enforce the minimum Bjorken-x cut (/physics/muondis/xbjmin), if configured. Beam A (the
+  // muon) is a point-like lepton, not resolved into partons, so Pythia8's own Info::x1() is
+  // trivially 1; Info::x2() is the momentum fraction of the parton drawn from beam B's (the
+  // nucleon's) PDF that was actually struck -- exactly Bjorken x for this t-channel
+  // lepton-nucleon process. Re-generating via next() on the already-init()'d beam is cheap
+  // (unlike ensureInitialized(), which re-inits Pythia8's full beam setup), so retry the cut
+  // here rather than pushing every attempt out to the caller's much coarser retry loop.
+  if (m_xBjMin > 0.0) {
+    int xBjAttempt = 0;
+    while (m_pythia->info.x2() < m_xBjMin) {
+      ++xBjAttempt;
+      if (xBjAttempt >= kMaxXBjRetries || !m_pythia->next()) {
+        if (m_enableDebug) {
+          G4cout << "MuonDISPythiaGenerator: gave up after " << xBjAttempt
+                 << " attempt(s) trying to clear xBjMin=" << m_xBjMin << G4endl;
+        }
+        return result;  // caller treats this like any other failed-to-generate attempt
+      }
     }
   }
 

@@ -47,6 +47,31 @@ against the online Pythia8 manual but not run:
   (A-Z)/A (isoscalar mix), at rest -- no Fermi motion, binding energy,
   shadowing or EMC effect. Pythia8 ships no nuclear PDFs itself; see
   `MuonDISPythiaGenerator::chooseNucleon()` if you want to refine this later.
+- PDF for the struck nucleon: Pythia8's own built-in proton PDF by default.
+  `/physics/muondis/pdfSet <path>` points it at any LHAPDF-style `lhagrid1`
+  grid file instead, loaded natively through Pythia8's built-in LHAGrid1
+  reader (`PDF:pSet = LHAGrid1:<path>`) -- no external LHAPDF6 install
+  needed. Two grids from the muDIS charm-asymmetry study are bundled under
+  `FASERG4/input/` for this (see that study's Dropbox folder,
+  `faser-muon-dis-charm-asymmetry/README.md` and `scripts/run_flux_full.py`,
+  for where these came from and what they're for):
+  - `NNPDF40_nnlo_as_01180_charmasy_0000.dat` -- NNPDF4.0's dedicated
+    charm-asymmetry fit, letting c(x) and cbar(x) float independently
+    (central replica).
+  - `CT18FC_0003.dat` / `_0004.dat` / `_0005.dat` -- CT18's intrinsic-charm
+    MBMC (meson-baryon confining model) variant, at Delta-chi2 = 0/10/30
+    respectively (members 3/4/5 of the 12-member CT18FC set; see
+    `CT18FC.info`, also bundled, for the full member list).
+- Minimum Bjorken x: `/physics/muondis/xbjmin <value>` (default 0, no cut)
+  rejects generated events below this x. Enforced via Pythia8's own
+  `Info::x2()` (the momentum fraction of the struck parton drawn from the
+  nucleon's PDF -- exactly Bjorken x here, since the muon beam is point-like
+  and unresolved) by re-sampling the already-initialized event generator up
+  to a small retry cap; see the comment in
+  `MuonDISPythiaGenerator::generate()`. A very aggressive cutoff can make
+  MuonDIS interactions rare in practice (most attempts give up and the muon
+  simply survives that step unchanged, per the graceful-degradation
+  behavior described above).
 - The recoil nucleus added to the Geant4 secondaries is at rest (no recoil
   kinematics against the struck nucleon) -- see the comment on
   `GetFatalEnergyCheckLevels()` in `MuonDISMuonNuclearModel.cc`.
@@ -78,9 +103,15 @@ existing `/generator/wantMuonBackground` single-muon mode.
 /physics/muondis/crossSectionBias 150
 /physics/muondis/q2min 1.0
 /physics/muondis/interactionLog muondis_interactions.csv
+#/physics/muondis/pdfSet input/NNPDF40_nnlo_as_01180_charmasy_0000.dat
+#/physics/muondis/pdfSet input/CT18FC_0003.dat
+#/physics/muondis/xbjmin 0.01
 #/physics/muondis/debug true
 /run/initialize
 ```
 
 MuonDIS is disabled by default -- nothing changes for existing macros that
-don't set `/physics/muondis/enable true`.
+don't set `/physics/muondis/enable true`. Likewise, leaving `pdfSet` unset
+(the default, as commented out above) keeps Pythia8's own built-in proton
+PDF; uncomment one line to switch to NNPDF4.0 charm-asymmetry or CT18 MBMC.
+And leaving `xbjmin` at its default of 0 applies no Bjorken-x cut at all.

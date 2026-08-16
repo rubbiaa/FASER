@@ -14,6 +14,8 @@
 //   /physics/muondis/crossSectionBias 150
 //   /physics/muondis/q2min 1.0
 //   /physics/muondis/interactionLog muondis_interactions.csv
+//   /physics/muondis/pdfSet input/NNPDF40_nnlo_as_01180_charmasy_0000.dat
+//   /physics/muondis/xbjmin 0.01
 // See MuonDISMessenger.hh for the full command list and MuonDISPythiaGenerator.hh
 // for the physics settings these commands feed into.
 
@@ -37,6 +39,8 @@ public:
   void SetInteractionLogPath(const G4String& path) { fInteractionLogPath = path; }
   void SetDebug(G4bool value) { fEnableDebug = value; }
   void SetQ2Min(G4double value) { fQ2Min = value; }
+  void SetPdfSet(const G4String& path) { fPdfSetPath = path; }
+  void SetXBjMin(G4double value) { fXBjMin = value; }
 
 private:
   G4bool fEnabled{false};
@@ -44,6 +48,8 @@ private:
   G4String fInteractionLogPath{""};
   G4bool fEnableDebug{false};
   G4double fQ2Min{1.0};
+  G4String fPdfSetPath{""};
+  G4double fXBjMin{0.0};
   MuonDISMessenger* fMessenger{};
 };
 

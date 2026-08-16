@@ -36,6 +36,8 @@ private:
   G4UIcmdWithADouble* fQ2MinCmd{};
   G4UIcmdWithAString* fInteractionLogCmd{};
   G4UIcmdWithABool* fDebugCmd{};
+  G4UIcmdWithAString* fPdfSetCmd{};
+  G4UIcmdWithADouble* fXBjMinCmd{};
 };
 
 #endif

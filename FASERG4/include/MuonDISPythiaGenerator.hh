@@ -42,10 +42,27 @@
 // Z/A and (A-Z)/A respectively (isoscalar mix), at rest, ignoring Fermi
 // motion, binding energy, shadowing and the EMC effect. Pythia8 ships no
 // nuclear PDFs itself.
+//
+// PDF choice: by default Pythia8 uses its own built-in proton PDF for the
+// struck nucleon (beam B); /physics/muondis/pdfSet lets a run macro instead
+// point at any LHAPDF-style "lhagrid1" grid file, loaded natively through
+// Pythia8's own built-in LHAGrid1 reader (PDF:pSet = LHAGrid1:<path>) -- no
+// external LHAPDF6 install needed. This mirrors the PDF handling already
+// validated in the muDIS charm-asymmetry study (see the muDIS Dropbox
+// folder, faser-muon-dis-charm-asymmetry/scripts/run_flux_full.py and
+// README.md), which bundled two grids of physics interest for charm
+// production: NNPDF4.0's dedicated charm-asymmetry fit (letting c(x) and
+// cbar(x) float independently) and CT18's intrinsic-charm MBMC (meson-
+// baryon confining model) variant, at Delta-chi2 = 0/10/30 (members 3/4/5
+// of CT18FC). Bundled under FASERG4/input/:
+//   NNPDF40_nnlo_as_01180_charmasy_0000.dat   (NNPDF4.0 charm-asymmetry, central)
+//   CT18FC_0003.dat / _0004.dat / _0005.dat   (CT18 MBMC, Delta-chi2=0/10/30)
+// See README_MuonDIS.md for example macro lines selecting each.
 
 #include "G4ThreeVector.hh"
 
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace Pythia8 {
@@ -72,8 +89,16 @@ public:
   MuonDISPythiaGenerator& operator=(const MuonDISPythiaGenerator&) = delete;
 
   /// Must be called (idempotent) before the first generate(); safe to call again to
-  /// change debug/Q2Min before they take effect on the next re-init.
-  void configure(bool enableDebug, double q2MinGeV2);
+  /// change debug/Q2Min/pdfSetPath/xBjMin before they take effect on the next re-init.
+  /// @param pdfSetPath  path to an LHAPDF-style "lhagrid1" grid file to use for the struck
+  ///                    nucleon's PDF (loaded via Pythia8's built-in PDF:pSet = LHAGrid1:...,
+  ///                    no external LHAPDF6 needed); pass "" (the default) to leave Pythia8's
+  ///                    own built-in proton PDF in place.
+  /// @param xBjMin      minimum Bjorken x accepted for a generated event (0 = no cut, the
+  ///                    default); see the comment on Info::x2() in generate() for how this
+  ///                    is enforced.
+  void configure(bool enableDebug, double q2MinGeV2, const std::string& pdfSetPath = "",
+                double xBjMin = 0.0);
 
   /// Generate one muon-nucleon DIS event.
   /// @param muonPdgId      13 (mu-) or -13 (mu+)
@@ -95,6 +120,8 @@ private:
   bool m_settingsApplied{false};
   bool m_enableDebug{false};
   double m_q2MinGeV2{1.0};
+  std::string m_pdfSetPath;
+  double m_xBjMin{0.0};
   int m_lastMuonPdg{0};
   int m_lastNucleonPdg{0};
 };

@@ -25,6 +25,11 @@
 /physics/muondis/crossSectionBias 150
 /physics/muondis/q2min 1.0
 /physics/muondis/interactionLog muondis_interactions.csv
+# Non-default nucleon PDF, e.g. from the muDIS charm-asymmetry study (default: Pythia8's
+# own built-in proton PDF, i.e. leave both lines below commented out):
+#/physics/muondis/pdfSet input/NNPDF40_nnlo_as_01180_charmasy_0000.dat
+#/physics/muondis/pdfSet input/CT18FC_0003.dat
+#/physics/muondis/xbjmin 0.01
 #/physics/muondis/debug true
 #
 /run/initialize
