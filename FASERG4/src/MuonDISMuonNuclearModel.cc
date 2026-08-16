@@ -57,6 +57,10 @@ void recordDISFinalStateTruth(const MuonDISPythiaGenerator::GeneratedEvent& gene
                               const G4ThreeVector& interactionPosition,
                               const std::string& volumeName,
                               double muEnergyGeV, const G4ThreeVector& muMomentumGeV) {
+  // For MuonDIS events only: record the actual Info::x2() Pythia8 used to accept this event, so
+  // it can be directly cross-checked against the truth-level TPOEvent::xBj recomputed below by
+  // kinematics_event() from in_neutrino/out_lepton -- a separate calculation that should agree
+  // closely but is not literally the same quantity.
   TPOEvent* tpoEvent = currentTPOEvent();
   if (!tpoEvent) {
     return;
@@ -143,6 +147,7 @@ void recordDISFinalStateTruth(const MuonDISPythiaGenerator::GeneratedEvent& gene
   // PrimaryGeneratorAction::GeneratePrimaries's dump_event() call for the *next* event would
   // print stale/default values for this one.
   tpoEvent->kinematics_event();
+  tpoEvent->pythiaXbj = generated.pythiaX2;
 }
 
 }  // namespace
@@ -285,6 +290,7 @@ G4HadFinalState* MuonDISMuonNuclearModel::ApplyYourself(const G4HadProjectile& a
       geantEventId,
       muEnergyGeV,
       generated.q2GeV2,
+      generated.pythiaX2,
       generated.targetNucleonPdg,
       trackId,
       parentTrackId,

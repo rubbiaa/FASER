@@ -187,6 +187,10 @@ MuonDISPythiaGenerator::GeneratedEvent MuonDISPythiaGenerator::generate(
   // of a t-channel 2->2 process; this is a diagnostic field only and does not
   // feed back into the injected kinematics below.
   result.q2GeV2 = -m_pythia->info.tHat();
+  // Record the actual generator-level Bjorken x used to accept this event (always populated,
+  // whether or not /physics/muondis/xbjmin is active), so callers can cross-check it against
+  // the independently-recomputed truth-level TPOEvent::xBj.
+  result.pythiaX2 = m_pythia->info.x2();
 
   for (int i = 0; i < m_pythia->event.size(); ++i) {
     const Pythia8::Particle& particle = m_pythia->event[i];

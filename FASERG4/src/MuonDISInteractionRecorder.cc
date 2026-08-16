@@ -67,7 +67,8 @@ void MuonDISInteractionRecorder::configure(const std::string& outputPath) {
     throw std::runtime_error("MuonDISInteractionRecorder: failed to open " + m_outputPath);
   }
   output
-      << "interaction_index,geant_event_id,geant_muon_energy_GeV,q2_GeV2,target_nucleon_pdg,"
+      << "interaction_index,geant_event_id,geant_muon_energy_GeV,q2_GeV2,pythia_x2,"
+      << "target_nucleon_pdg,"
       << "track_id,parent_track_id,has_interaction_position,"
       << "interaction_x_mm,interaction_y_mm,interaction_z_mm,interaction_t_ns,"
       << "has_interaction_local_position,"
@@ -137,6 +138,7 @@ void MuonDISInteractionRecorder::record(const Record& record) {
          << record.geantEventId << ','
          << record.geantMuonEnergyGeV << ','
          << record.q2GeV2 << ','
+         << record.pythiaX2 << ','
          << record.targetNucleonPdg << ','
          << record.trackId << ','
          << record.parentTrackId << ','

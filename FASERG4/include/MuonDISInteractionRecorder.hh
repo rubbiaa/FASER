@@ -23,6 +23,8 @@ public:
     int geantEventId{-1};
     double geantMuonEnergyGeV{0.0};
     double q2GeV2{0.0};
+    double pythiaX2{0.0};  // Info::x2() from MuonDISPythiaGenerator -- Bjorken x actually used
+                           // to accept this event; cross-check against TPOEvent::xBj.
     int targetNucleonPdg{0};
     int trackId{-1};
     int parentTrackId{-1};

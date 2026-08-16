@@ -79,6 +79,14 @@ public:
   struct GeneratedEvent {
     bool valid{false};
     double q2GeV2{0.0};        // -tHat() of the hard 2->2 process; diagnostic only
+    double pythiaX2{0.0};      // Info::x2() of the accepted event -- the momentum fraction of
+                               // the struck parton in the target nucleon's PDF, i.e. exactly
+                               // Bjorken x for this t-channel process (see the /xbjmin comment
+                               // in generate()). Recorded into TPOEvent::pythiaXbj so it can be
+                               // cross-checked directly against the truth-level TPOEvent::xBj
+                               // recomputed independently by TPOEvent::kinematics_event() from
+                               // in_neutrino/out_lepton -- the two should agree closely, but are
+                               // not the same calculation, so this lets you verify that.
     int targetNucleonPdg{0};   // 2212 or 2112 -- the isoscalar pick actually used this call
     std::vector<GeneratedParticle> finalState;
   };

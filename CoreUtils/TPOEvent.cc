@@ -76,6 +76,7 @@ void TPOEvent::clear_event() {
   spx=spy=spz=0;
   tauvis_px=tauvis_py=tauvis_pz=0;
   nuE = Q2 = W2 = xBj = yInel = 0;
+  pythiaXbj = -1;
 };
 
 #ifdef _INCLUDE_PYTHIA_
@@ -448,7 +449,11 @@ void TPOEvent::dump_event(std::ostream& out) const {
   out << std::setw(10) << "Sum final state particles (VIS): " << vis_spx << " " << vis_spy << " " << vis_spz << std::endl;
   out << std::setw(10) << "Ptmiss = " << ptmiss << "  Evis = " << Evis << std::endl;
   out << std::setw(10) << "DIS kinematics: " << "nu=" << nuE << " GeV  Q2=" << Q2 << " GeV^2  W2=" << W2
-      << " GeV^2  x=" << xBj << "  y=" << yInel << std::endl;
+      << " GeV^2  x=" << xBj << "  y=" << yInel;
+  if (pythiaXbj >= 0) {
+    out << "   (Pythia8 x2=" << pythiaXbj << ")";
+  }
+  out << std::endl;
   out << "--------------------------------------------------------------------------------------------" << std::endl;
   if(n_taudecay()>0) {
     out << "Tau decay mode : " << tau_decaymode << std::endl;

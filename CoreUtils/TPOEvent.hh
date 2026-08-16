@@ -112,6 +112,17 @@ public:
   double xBj;      // Bjorken x = Q^2 / (2*M*nu)
   double yInel;    // inelasticity y = nu / E_in
 
+  // For MuonDIS events only: the generator-level Bjorken x (Pythia8's Info::x2(), the momentum
+  // fraction of the struck parton actually drawn from the target nucleon's PDF -- exactly what
+  // /physics/muondis/xbjmin enforces) for the event that was actually accepted. Set by
+  // MuonDISMuonNuclearModel's recordDISFinalStateTruth() right after a MuonDIS interaction
+  // fires; left at -1 (not -- unlike xBj above -- 0, since 0 is a valid Bjorken-x value) by
+  // clear_event() otherwise, i.e. for any event with no MuonDIS interaction. Compare this
+  // against xBj above as a direct cross-check: xBj is an independent recomputation from the
+  // recorded in_neutrino/out_lepton truth 4-momenta, not literally the same calculation, so the
+  // two should agree closely but are not guaranteed to be bit-identical.
+  double pythiaXbj;
+
   /// @brief Main constructor
   TPOEvent() { clear_event(); };
 
@@ -246,7 +257,7 @@ public:
   void update_stats();
   void dump_stats();
 
-  ClassDef(TPOEvent, 6)
+  ClassDef(TPOEvent, 7)
 };
 
 #endif

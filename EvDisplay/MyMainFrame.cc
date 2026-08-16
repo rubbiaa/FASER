@@ -663,6 +663,12 @@ void MyMainFrame::Draw_event() {
     std::ostringstream kinematics;
     kinematics << Form("DIS kinematics:  nu=%6.2f GeV   Q2=%6.3f GeV^2   W2=%6.2f GeV^2   x=%6.4f   y=%6.4f",
         POevent->nuE, POevent->Q2, POevent->W2, POevent->xBj, POevent->yInel);
+    // pythiaXbj is only set (>=0) for events where a MuonDIS interaction actually fired --
+    // append it so the truth-level recomputation above (x=...) can be cross-checked directly
+    // against the generator-level Info::x2() Pythia8 actually used to accept the event.
+    if (POevent->pythiaXbj >= 0) {
+        kinematics << Form("   [Pythia8 x2=%6.4f]", POevent->pythiaXbj);
+    }
     kinematicsText = new TText(0.05, 0.8, kinematics.str().c_str());
     kinematicsText->SetNDC();
     kinematicsText->SetTextSize(0.03);
