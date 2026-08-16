@@ -108,7 +108,19 @@ void MuonDISPythiaGenerator::ensureInitialized(int muonPdgId, int nucleonPdgId,
     // Keep Pythia8's own banner/summary output out of the way; MuonDISPhysics
     // already logs what it installs, and per-event listings would be far too
     // verbose for a production run.
-    m_pythia->readString("Print:quiet = true");
+    //
+    // "Print:quiet = true" is a blanket switch: besides the banner/summary output, it also
+    // silences Pythia8's own error/warning messages (the ones its ErrorMsg subsystem would
+    // otherwise print explaining exactly why an init()/next() call failed -- e.g. "no accepted
+    // processes found", a beam energy-momentum consistency check failing, an out-of-range PDF
+    // extrapolation, etc). That is why "Pythia8 init() failed ..." failures upstream in
+    // MuonDISMuonNuclearModel/ensureInitialized() show only our own generic wrapper message and
+    // never Pythia8's actual diagnostic. When /physics/muondis/debug is enabled we leave quiet
+    // mode off instead, at the cost of a much more verbose log, so the next such failure prints
+    // Pythia8's own explanation immediately above our wrapper message.
+    if (!m_enableDebug) {
+      m_pythia->readString("Print:quiet = true");
+    }
     m_pythia->readString("Init:showProcesses = false");
     m_pythia->readString("Init:showMultipartonInteractions = false");
     m_pythia->readString("Init:showChangedSettings = false");
@@ -166,10 +178,16 @@ void MuonDISPythiaGenerator::ensureInitialized(int muonPdgId, int nucleonPdgId,
   // optimization once this is running).
   const bool ok = m_pythia->init();
   if (!ok) {
+    // sqrt(s) for this fixed-target-like configuration (nucleon at rest): s = m_mu^2 + M^2 +
+    // 2*M*E_mu. Included so repeated failures can be checked for clustering near a specific
+    // sqrt(s) (e.g. close to PhaseSpace:Q2Min's kinematic reach, or Pythia8's own numerical
+    // limits for the huge lab-to-CM boost implied by such an asymmetric beam configuration).
+    const double sqrtS = std::sqrt(kMuonMassGeV * kMuonMassGeV + kNucleonMassGeV * kNucleonMassGeV +
+                                    2.0 * kNucleonMassGeV * muonEnergyGeV);
     throw std::runtime_error(
         "MuonDISPythiaGenerator: Pythia8 init() failed for the requested muon-nucleon DIS beam "
         "configuration (E_mu=" + std::to_string(muonEnergyGeV) + " GeV, nucleon pdg=" +
-        std::to_string(nucleonPdgId) + ").");
+        std::to_string(nucleonPdgId) + ", sqrt(s)=" + std::to_string(sqrtS) + " GeV).");
   }
   m_lastMuonPdg = muonPdgId;
   m_lastNucleonPdg = nucleonPdgId;
