@@ -79,14 +79,15 @@ public:
   struct GeneratedEvent {
     bool valid{false};
     double q2GeV2{0.0};        // -tHat() of the hard 2->2 process; diagnostic only
-    double pythiaX2{0.0};      // Info::x2() of the accepted event -- the momentum fraction of
-                               // the struck parton in the target nucleon's PDF, i.e. exactly
-                               // Bjorken x for this t-channel process (see the /xbjmin comment
-                               // in generate()). Recorded into TPOEvent::pythiaXbj so it can be
-                               // cross-checked directly against the truth-level TPOEvent::xBj
-                               // recomputed independently by TPOEvent::kinematics_event() from
-                               // in_neutrino/out_lepton -- the two should agree closely, but are
-                               // not the same calculation, so this lets you verify that.
+    double pythiaX2{0.0};      // RECONSTRUCTED (post-shower) Bjorken x of the accepted event --
+                               // see observedXBj() in the .cc for the exact formula, which is
+                               // deliberately the SAME one TPOEvent::kinematics_event() applies
+                               // to in_neutrino/out_lepton, NOT Pythia8's own Info::x2() (the
+                               // pre-shower, hard-vertex value -- final-state radiation off the
+                               // outgoing muon leg can lower Info::x2() by several-fold relative
+                               // to what's actually observable). Recorded into TPOEvent::pythiaXbj
+                               // so it can be cross-checked against the independently-recomputed
+                               // truth-level TPOEvent::xBj; the two should now agree closely.
     int targetNucleonPdg{0};   // 2212 or 2112 -- the isoscalar pick actually used this call
     std::vector<GeneratedParticle> finalState;
   };
@@ -103,8 +104,8 @@ public:
   ///                    no external LHAPDF6 needed); pass "" (the default) to leave Pythia8's
   ///                    own built-in proton PDF in place.
   /// @param xBjMin      minimum Bjorken x accepted for a generated event (0 = no cut, the
-  ///                    default); see the comment on Info::x2() in generate() for how this
-  ///                    is enforced.
+  ///                    default); enforced against the RECONSTRUCTED post-shower x (see
+  ///                    observedXBj() in the .cc), not Pythia8's own pre-shower Info::x2().
   void configure(bool enableDebug, double q2MinGeV2, const std::string& pdfSetPath = "",
                 double xBjMin = 0.0);
 
