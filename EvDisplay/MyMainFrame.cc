@@ -14,6 +14,7 @@
 #include <TGTab.h>
 #include <TGListTree.h>
 #include <TGClient.h>
+#include <TGTextView.h>
 
 #include "MyMainFrame.h"
 #include "TPORecoEvent.hh"
@@ -129,6 +130,10 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, bool pre, const TGW
 
     fCanvas_eldepo = new TRootEmbeddedCanvas("EmbeddedCanvas4", tab4, 1200, 600);;
     tab4->AddFrame(fCanvas_eldepo, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY));
+
+    TGCompositeFrame *tab5 = tab->AddTab("Truth Dump");
+    fTruthDumpView = new TGTextView(tab5, 1200, 600);
+    tab5->AddFrame(fTruthDumpView, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY));
 
     // Create a horizontal frame to contain the next and goto event buttons
     TGHorizontalFrame *hFrame3 = new TGHorizontalFrame(fMain);
@@ -654,6 +659,17 @@ void MyMainFrame::Draw_event() {
     energyText->SetTextSize(0.03);
     energyText->Draw();
 
+    delete kinematicsText;
+    std::ostringstream kinematics;
+    kinematics << Form("DIS kinematics:  nu=%6.2f GeV   Q2=%6.3f GeV^2   W2=%6.2f GeV^2   x=%6.4f   y=%6.4f",
+        POevent->nuE, POevent->Q2, POevent->W2, POevent->xBj, POevent->yInel);
+    kinematicsText = new TText(0.05, 0.8, kinematics.str().c_str());
+    kinematicsText->SetNDC();
+    kinematicsText->SetTextSize(0.03);
+    kinematicsText->Draw();
+
+    UpdateTruthDumpView();
+
     if (fPORecoEvent != nullptr)
     {
         Draw_event_reco_tracks();
@@ -1174,6 +1190,17 @@ void MyMainFrame::SaveEventImage() {
     canvas->SaveAs(base + ".png");
     canvas->SaveAs(base + ".pdf");
     std::cout << "Saved event display image to " << base << ".png and " << base << ".pdf" << std::endl;
+}
+
+void MyMainFrame::UpdateTruthDumpView() {
+    // Populate the "Truth Dump" tab with the same generator-level (truth) PO listing that
+    // dump_event() prints to std::cout, so it's visible directly in the GUI instead of only
+    // in the terminal log.
+    if (fTruthDumpView == nullptr || POevent == nullptr) return;
+    std::ostringstream oss;
+    POevent->dump_event(oss);
+    fTruthDumpView->Clear();
+    fTruthDumpView->LoadBuffer(oss.str().c_str());
 }
 void MyMainFrame::on_fullreco_toggle(Bool_t state)
 {
