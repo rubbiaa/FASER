@@ -414,6 +414,23 @@ void TPOEvent::dump_header(std::ostream& out) const {
 }
  
 void TPOEvent::dump_event(std::ostream& out) const {
+  // Force a known, adequate floating-point format for this entire dump, and restore whatever
+  // was there before on return. Without this, whatever numeric format the LAST thing to touch
+  // `out` (typically std::cout, shared globally with Geant4/Pythia8) left behind silently
+  // carries over here -- and Pythia8's own debug-mode diagnostics (Settings/Particle Data
+  // Table listings, active whenever /physics/muondis/debug true) are known to leave `std::cout`
+  // switched to std::fixed with as little as 1 digit after the decimal point, and never restore
+  // it. That does not affect the underlying physics (nuE/Q2/xBj etc. below are computed to full
+  // double precision regardless), but it silently rounds every printed value below ~0.05 down to
+  // "0.0" -- most visibly Bjorken x, which is legitimately small (often 0.01-0.1) for these DIS
+  // events, making it LOOK like x is always zero when it is not (confirmed: the very first two
+  // events of a debug run, printed before Pythia8's diagnostics first pollute the format, show
+  // the real nonzero values, e.g. x=0.036/0.070, matching Pythia8's own independently-tracked
+  // x2 cross-check to 1-2%).
+  const std::ios::fmtflags savedFlags = out.flags();
+  const std::streamsize savedPrecision = out.precision();
+  out << std::defaultfloat << std::setprecision(6);
+
   TDatabasePDG *pdgDB = TDatabasePDG::Instance();
   dump_header(out);
   out << " Primary vtx = " << prim_vx.x() << " " << prim_vx.y() << " " << prim_vx.z() << " mm ";
@@ -473,6 +490,11 @@ void TPOEvent::dump_event(std::ostream& out) const {
     }
     out << "--------------------------------------------------------------------------------------------" << std::endl;
   }
+
+  // Restore whatever format state `out` had on entry -- don't leak our own formatting choice
+  // into whatever prints next, the same way we don't want to inherit Pythia8's (see above).
+  out.flags(savedFlags);
+  out.precision(savedPrecision);
 }
 
 int TPOEvent::findFromGEANT4TrackID(int trackID) {
