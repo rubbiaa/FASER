@@ -6,6 +6,7 @@
 #include "G4LogicalVolumeStore.hh"
 #include "G4ParticleDefinition.hh"
 #include "G4ParticleGun.hh"
+#include "G4RotationMatrix.hh"
 #include "G4ParticleTable.hh"
 #include "G4SystemOfUnits.hh"
 #include "Randomize.hh"
@@ -390,32 +391,55 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 			G4ParticleGun *particleGun = new G4ParticleGun(1);
 			particleGun->SetParticleDefinition(muon);
 			// Set muon starting position uniformly across the 48x48 cm entrance face of the
-			// 3D calorimeter/tracker (3DCAL). IMPORTANT: the true front face of the FASERCal/3DCAL
-			// module stack is at Z=0 in the detector/world frame, NOT at
-			// -getNumberReplicas()*fSandwichLength/2. That formula (copied from the GENIE-vtx
-			// in-target vertex code above) wrongly assumes the module stack is centered on Z=0;
-			// in fact DetectorConstruction::Construct() places the FASERCal container with its
-			// front face at zLocation=0 and extends it downstream to +fTotalLength (see that
-			// function's own "In world frame front face" diagnostic print, which evaluates to
-			// ~0). Starting muons at the old (wrong, too-far-upstream-by-roughly-half-the-stack)
-			// Z was the root cause of the muon-background regression: essentially every
-			// background muon ended up displaced from the module stack's actual entrance, so the
-			// MuonDIS process never had a real chance to fire and every event came out empty.
-			const G4double zFront3DCAL = -1.0; // in mm, 1 mm upstream of the true front face (Z=0)
-			vtxpos.SetX((G4UniformRand() - 0.5) * 480.0); // in mm, uniform over ±240 mm (48 cm face)
-			vtxpos.SetY((G4UniformRand() - 0.5) * 480.0); // in mm, uniform over ±240 mm (48 cm face)
-			vtxpos.SetZ(zFront3DCAL); // in mm, front face of 3DCAL
+			// 3D calorimeter/tracker (3DCAL), expressed in the DETECTOR-ASSEMBLY's LOCAL frame:
+			// X,Y uniform over the face, Z = 1 mm upstream of the local front face (Z=0 in that
+			// frame -- confirmed by DetectorConstruction::Construct()'s own "In world frame front
+			// face" diagnostic print).
+			//
+			// G4ParticleGun::SetParticlePosition() needs WORLD (absolute) coordinates, and the
+			// muondis run macro (runFASER_muondis.mac) does NOT place the detector assembly at the
+			// world origin: it sets /FASER/LOS/shiftX 45 cm, /FASER/LOS/shiftY 24 cm and
+			// /FASER/tiltY -4.5 deg. The previous fix computed a correct LOCAL front-face Z but
+			// then used it as if it were already a WORLD coordinate, so the sampled X/Y stayed
+			// centered on the WORLD origin while the actual (shifted) detector sits ~45/24 cm away
+			// -- nearly every muon still missed the detector's physical footprint, so events stayed
+			// empty. Build the point (and the launch direction) in local coordinates and transform
+			// to world coordinates the same way Construct() places the assembly:
+			// world = tiltRot.inverse() * local + (LOS_shiftX, LOS_shiftY, 0) -- see
+			// DetectorConstruction.cc's own front-face diagnostic, which uses this exact transform.
+			const G4double zFront3DCAL_local = -1.0; // in mm, 1 mm upstream of the local front face (Z=0)
+			G4double xLocal = (G4UniformRand() - 0.5) * 480.0; // in mm, uniform over ±240 mm (48 cm face)
+			G4double yLocal = (G4UniformRand() - 0.5) * 480.0; // in mm, uniform over ±240 mm (48 cm face)
+
+			G4RotationMatrix tiltRot;
+			tiltRot.rotateY(detector->GetTiltAngleY()); // identity when tiltY==0
+
+			G4ThreeVector localVtx(xLocal, yLocal, zFront3DCAL_local);
+			G4ThreeVector worldVtx = tiltRot.inverse() * localVtx;
+			worldVtx += G4ThreeVector(detector->fFASERCal_LOS_shiftX, detector->fFASERCal_LOS_shiftY, 0.0);
+
+			vtxpos.SetX(worldVtx.x());
+			vtxpos.SetY(worldVtx.y());
+			vtxpos.SetZ(worldVtx.z());
 			particleGun->SetParticlePosition(G4ThreeVector(vtxpos.x() * mm, vtxpos.y() * mm, vtxpos.z() * mm));
-			// Define angular spread (in radians)
+			// Define angular spread (in radians), around the detector's LOCAL +Z axis (i.e.
+			// "mostly straight into the detector" in the detector's own frame, not the world
+			// frame -- these differ by the same tilt applied to the position above).
 			double sigmaTheta = 1.0 * CLHEP::pi / 180.0; // 1 degree, in radians
 			// Sample θ from Gaussian centered at 0 with std dev 0.1
 			double theta = G4RandGauss::shoot(0.0, sigmaTheta);
 			// Sample φ uniformly from 0 to 2π
 			double phi = G4UniformRand() * 2.0 * CLHEP::pi;
-			// Convert (θ, φ) to Cartesian direction vector
-			double px = std::sin(theta) * std::cos(phi);
-			double py = std::sin(theta) * std::sin(phi);
-			double pz = std::cos(theta);
+			// Convert (θ, φ) to a Cartesian direction vector in the detector's local frame, then
+			// rotate into world coordinates (translation doesn't apply to a direction vector).
+			double pxLocal = std::sin(theta) * std::cos(phi);
+			double pyLocal = std::sin(theta) * std::sin(phi);
+			double pzLocal = std::cos(theta);
+			G4ThreeVector localDir(pxLocal, pyLocal, pzLocal);
+			G4ThreeVector worldDir = tiltRot.inverse() * localDir;
+			double px = worldDir.x();
+			double py = worldDir.y();
+			double pz = worldDir.z();
 
 			// Momentum magnitude from the flux-sampled energy and this particle's actual mass
 			// (previously a fixed fSingleParticleMomentum for every event, regardless of species).
