@@ -422,24 +422,23 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 			vtxpos.SetY(worldVtx.y());
 			vtxpos.SetZ(worldVtx.z());
 			particleGun->SetParticlePosition(G4ThreeVector(vtxpos.x() * mm, vtxpos.y() * mm, vtxpos.z() * mm));
-			// Define angular spread (in radians), around the detector's LOCAL +Z axis (i.e.
-			// "mostly straight into the detector" in the detector's own frame, not the world
-			// frame -- these differ by the same tilt applied to the position above).
+			// Define angular spread (in radians) of the incoming cosmic-ray-like muon flux,
+			// around the WORLD +Z axis. The flux direction is a property of the beam/cosmic
+			// source, NOT of the detector: only the detector (and hence the physical entrance
+			// face sampled above) is tilted by /FASER/tiltY, the flux itself is not. So, unlike
+			// the vertex position (which must be transformed local->world to land on the tilted
+			// physical face), the direction must NOT be rotated by tiltRot -- it is generated
+			// directly in world coordinates.
 			double sigmaTheta = 1.0 * CLHEP::pi / 180.0; // 1 degree, in radians
 			// Sample θ from Gaussian centered at 0 with std dev 0.1
 			double theta = G4RandGauss::shoot(0.0, sigmaTheta);
 			// Sample φ uniformly from 0 to 2π
 			double phi = G4UniformRand() * 2.0 * CLHEP::pi;
-			// Convert (θ, φ) to a Cartesian direction vector in the detector's local frame, then
-			// rotate into world coordinates (translation doesn't apply to a direction vector).
-			double pxLocal = std::sin(theta) * std::cos(phi);
-			double pyLocal = std::sin(theta) * std::sin(phi);
-			double pzLocal = std::cos(theta);
-			G4ThreeVector localDir(pxLocal, pyLocal, pzLocal);
-			G4ThreeVector worldDir = tiltRot.inverse() * localDir;
-			double px = worldDir.x();
-			double py = worldDir.y();
-			double pz = worldDir.z();
+			// Convert (θ, φ) to a Cartesian direction vector directly in world coordinates --
+			// no rotation by the detector tilt.
+			double px = std::sin(theta) * std::cos(phi);
+			double py = std::sin(theta) * std::sin(phi);
+			double pz = std::cos(theta);
 
 			// Momentum magnitude from the flux-sampled energy and this particle's actual mass
 			// (previously a fixed fSingleParticleMomentum for every event, regardless of species).
