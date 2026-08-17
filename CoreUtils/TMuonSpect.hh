@@ -18,6 +18,7 @@ public:
 struct FEATURES {
     int ntracks;        // number of tracks in the muon spectrometer
     float charge[MAXMUTRACKS]; // the charges of the tracks
+    int charge_mode[MAXMUTRACKS]; // charge decision mode per track
     int npoints[MAXMUTRACKS]; // number of points in each track
     float px[MAXMUTRACKS];    // the fitted momentum x component at the first point
     float py[MAXMUTRACKS];    // the fitted momentum y component at the first point
@@ -28,7 +29,7 @@ struct FEATURES {
     float pval[MAXMUTRACKS];  // p-value of the fit
     float fpErr[MAXMUTRACKS]; // error on fitted momentum at the first point
     float fipErr[MAXMUTRACKS]; // error on fitted inverse momentum at the first point
-     int   fit_ok[MAXMUTRACKS];     // 1 if GenFit Kalman converged, 0 otherwise
+    int   fit_ok[MAXMUTRACKS];     // 1 if GenFit Kalman converged, 0 otherwise
     float p_analytic[MAXMUTRACKS]; // analytic sagitta-fit momentum (GeV/c)
     float p_truth[MAXMUTRACKS];    // truth |p| at first MDT hit (GeV/c), from MDTTrack::mom[0]/1000
     float charge_truth[MAXMUTRACKS]; // truth charge (+1/-1) from MDTTrack::fPDG sign, -999 if unmatched
@@ -37,7 +38,7 @@ struct FEATURES {
 private:
 
 public:
-    ClassDef(TMuonSpectrometer, 4);
+    ClassDef(TMuonSpectrometer, 5)
 
     struct FEATURES features;
 

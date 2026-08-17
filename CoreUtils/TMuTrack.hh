@@ -89,8 +89,23 @@ public:
     /// @brief Use GenFit to fit the track
     void GenFitTrackFit(int verbose, double detectorResolutionPSmm);
     bool GenFitMDTFit(const std::vector<MDTMeas>& meas, int pdg, double seedMomentumGeV = 10.0, int verbose = 0, double seedSlopeDyDz = std::numeric_limits<double>::quiet_NaN());
-    
-    
+
+    /// @brief Improved independent GenFit MDT fit (v2) with better charge discrimination
+    /// Fits both hypotheses independently and returns detailed results for external charge decision
+    bool GenFitMDTFit_v2(const std::vector<MDTMeas>& meas,
+                        double seedMomentumGeV = 10.0,
+                        int verbose = 0,
+                        double seedSlopeDyDz = std::numeric_limits<double>::quiet_NaN());
+
+    /// @brief Clean single-hypothesis MDT fit: Stage1 Kalman -> Stage2 L/R
+    /// refinement -> Stage3 curvature-corrected alt-seeds -> Stage4 DAF rescue.
+    /// Every stage's accept gate requires isFitConverged() AND chi2/NDF < gate
+    /// (never OR) -- see TMuTrack_fin.cc for why that distinction matters.
+    bool GenFitMDTFit_fin(const std::vector<MDTMeas>& meas, int pdg,
+                        double seedMomentumGeV = 10.0,
+                        int verbose = 0,
+                        double seedSlopeDyDz = std::numeric_limits<double>::quiet_NaN());
+
     // ////////    ///////////
     /// Fast circle fit (Taubin-style) in the bending plane (y-z) under Bx field
     /// Fills fpx,fpy,fpz,fp as a lightweight alternative to GenFit. Units:

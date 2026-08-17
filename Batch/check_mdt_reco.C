@@ -80,6 +80,12 @@ void check_mdt_reco(const char* fname = "Batch-TPORecevent_6000_0_5210.root")
     int nChargeTot_mode[6]   = {};
     int nChargeAss_mode[6]   = {};
     int nChargeWrong_mode[6] = {};
+    // chi2/NDF accumulated per charge_mode, to see whether the elevated mean
+    // chi2/NDF is concentrated in the rescue modes (4/5) or spread uniformly.
+    int    nChi2Tot_mode[6]    = {};
+    double sumChi2Ndf_mode[6]  = {};
+    double sumChi2Ndf2_mode[6] = {}; // for RMS
+    std::vector<double> chi2ndfVec_mode[6];
     int nChargeTot_pndf[NBINS_P][8] = {};
     int nChargeAss_pndf[NBINS_P][8] = {};
     int nChargeWrong_pndf[NBINS_P][8] = {};
@@ -120,6 +126,19 @@ void check_mdt_reco(const char* fname = "Batch-TPORecevent_6000_0_5210.root")
     std::vector<double> dinvp_genfit,       dinvp_genfit_g;
     std::vector<double> dinvp_analytic,     dinvp_analytic_g;
     std::vector<double> chi2ndfVec;
+    std::vector<double> nhitsVec; // npoints (raw MDT hit count) of fit_ok muon tracks
+
+    // Per-species (truth mu-/mu+) charge and momentum breakdown.
+    // Index convention: [0] = mu- (charge_truth<0), [1] = mu+ (charge_truth>0).
+    int nChargeTot_sp[2]   = {};
+    int nChargeWrong_sp[2] = {};
+    std::vector<double> dp_over_p_genfit_sp[2];
+    std::vector<double> dinvp_genfit_sp[2];
+
+    // Resolution vs p_truth (good chi2 subset): per-bin (p_fit-p_truth)/p_truth,
+    // used to build a single-canvas resolution-vs-momentum plot below.
+    std::vector<double> dp_over_p_genfit_pbin[NBINS_P];
+    std::vector<double> dp_over_p_analytic_pbin[NBINS_P];
 
     const float PMAX = 1e4f; // upper sanity cut
 
@@ -140,6 +159,7 @@ void check_mdt_reco(const char* fname = "Batch-TPORecevent_6000_0_5210.root")
 
             int ndf = nDoF[tr];
             ndfHist[ndf]++;
+            if (hasNPoints) nhitsVec.push_back(npoints[tr]);
             if (ndf == 0) { ++nNDF0; continue; }
 
             const double cndf = (ndf > 0) ? chi2[tr] / ndf : 1e9;
@@ -161,6 +181,22 @@ void check_mdt_reco(const char* fname = "Batch-TPORecevent_6000_0_5210.root")
                 int mode = (charge_mode[tr] >= 0 && charge_mode[tr] <= 5) ? charge_mode[tr] : 0;
                 ++nChargeTot_mode[mode];
                 if (assigned) ++nChargeAss_mode[mode];
+                if (cndf < 1e6) {
+                    ++nChi2Tot_mode[mode];
+                    sumChi2Ndf_mode[mode]  += cndf;
+                    sumChi2Ndf2_mode[mode] += cndf * cndf;
+                    chi2ndfVec_mode[mode].push_back(cndf);
+                    // Mode 5 (rescue path) has a mean/median split pointing at a
+                    // handful of catastrophic outliers -- print any offender so we
+                    // can trace it back to the specific rescue sub-path in the C++.
+                    if (mode == 5 && cndf > 20.0) {
+                        printf("  [OUTLIER] event=%lld track=%d mode=5 chi2/NDF=%.2f"
+                               " ndf=%d chi2=%.2f p=%.2f q=%.0f p_truth=%.2f q_truth=%.0f\n",
+                               ev, tr, cndf, ndf, chi2[tr], p[tr], charge[tr],
+                               hasTruth ? p_truth[tr] : -999.f,
+                               hasQTruth ? charge_truth[tr] : -999.f);
+                    }
+                }
                 if (ndf >= 1 && ndf <= 7) {
                     ++nChargeTot_ndf[ndf];
                     if (assigned) ++nChargeAss_ndf[ndf];
@@ -182,6 +218,11 @@ void check_mdt_reco(const char* fname = "Batch-TPORecevent_6000_0_5210.root")
                             break;
                         }
                     }
+                }
+                const int spIdx = (charge_truth[tr] < 0.f) ? 0 : 1;  // 0=mu-, 1=mu+
+                if (assigned) {
+                    ++nChargeTot_sp[spIdx];
+                    if (!(charge[tr] * charge_truth[tr] > 0.f)) ++nChargeWrong_sp[spIdx];
                 }
                 if (!assigned) {
                     // Count as ambiguous, not as wrong-sign.
@@ -283,6 +324,17 @@ void check_mdt_reco(const char* fname = "Batch-TPORecevent_6000_0_5210.root")
                     pFitG.push_back(pf); pTruG.push_back(pt);
                     dp_over_p_genfit_g.push_back((pf - pt) / pt);
                     dinvp_genfit_g.push_back(1.0/pf - 1.0/pt);
+                    for (int b = 0; b < NBINS_P; ++b) {
+                        if (pt >= pEdges[b] && pt < pEdges[b+1]) {
+                            dp_over_p_genfit_pbin[b].push_back((pf - pt) / pt);
+                            break;
+                        }
+                    }
+                }
+                if (hasQTruth && std::abs(charge_truth[tr]) > 0.5f) {
+                    const int spIdx = (charge_truth[tr] < 0.f) ? 0 : 1;  // 0=mu-, 1=mu+
+                    dp_over_p_genfit_sp[spIdx].push_back((pf - pt) / pt);
+                    dinvp_genfit_sp[spIdx].push_back(1.0/pf - 1.0/pt);
                 }
             }
             // Analytic vs truth
@@ -296,6 +348,12 @@ void check_mdt_reco(const char* fname = "Batch-TPORecevent_6000_0_5210.root")
                     pAnaG.push_back(pa);
                     dp_over_p_analytic_g.push_back((pa - pt) / pt);
                     dinvp_analytic_g.push_back(1.0/pa - 1.0/pt);
+                    for (int b = 0; b < NBINS_P; ++b) {
+                        if (pt >= pEdges[b] && pt < pEdges[b+1]) {
+                            dp_over_p_analytic_pbin[b].push_back((pa - pt) / pt);
+                            break;
+                        }
+                    }
                 }
             }
         }
@@ -435,6 +493,24 @@ void check_mdt_reco(const char* fname = "Batch-TPORecevent_6000_0_5210.root")
                    ndf, nLeadChargeAss_ndf[ndf], nLeadChargeWrong_ndf[ndf], rate(nLeadChargeWrong_ndf[ndf], nLeadChargeAss_ndf[ndf]));
         }
 
+        printf("\n  Charge & momentum vs truth species (track-level, assigned + truth-tagged):\n");
+        printf("    species  assigned  wrong-sign  wrong/assigned   <dp/p>     RMS(dp/p)   <d(1/p)>[1/GeV]  RMS(d(1/p))\n");
+        {
+            const char* spName[2] = {"mu-", "mu+"};
+            for (int s = 0; s < 2; ++s) {
+                const double mu_dpp  = vecMean(dp_over_p_genfit_sp[s]);
+                const double rms_dpp = vecRMS(dp_over_p_genfit_sp[s]);
+                const double mu_dip  = vecMean(dinvp_genfit_sp[s]);
+                const double rms_dip = vecRMS(dinvp_genfit_sp[s]);
+                printf("    %-6s   %8d  %9d  %6.1f%%      %+7.3f    %7.3f     %+9.3e      %9.3e\n",
+                       spName[s], nChargeTot_sp[s], nChargeWrong_sp[s],
+                       rate(nChargeWrong_sp[s], nChargeTot_sp[s]),
+                       mu_dpp, rms_dpp, mu_dip, rms_dip);
+            }
+            printf("    -- if mu+ and mu- differ noticeably, GenFit favors one charge hypothesis\n");
+            printf("       over the other (a sign/curvature-convention asymmetry), not just noise --\n");
+        }
+
         printf("\n  Charge vs charge_mode (track-level, truth-tagged):\n");
         printf("    [mode key: 0=both-hyp ambiguous, 1=clear chi2 winner, 2=only mu- ok,\n");
         printf("               3=only mu+ ok (charge flipped), 4=slope tiebreaker, 5=rescue]\n");
@@ -454,6 +530,23 @@ void check_mdt_reco(const char* fname = "Batch-TPORecevent_6000_0_5210.root")
                    mode,
                    correctNow, ass, rate(correctNow, ass),
                    correctIfFlip, ass, rate(correctIfFlip, ass));
+        }
+
+        printf("\n  chi2/NDF vs charge_mode (track-level, truth-tagged):\n");
+        printf("    -- distinguishes a uniform inflation from a few hard-mode outliers --\n");
+        printf("    mode      N      mean       RMS     median\n");
+        for (int mode = 0; mode <= 5; ++mode) {
+            const int    n  = nChi2Tot_mode[mode];
+            const double mu = (n > 0) ? sumChi2Ndf_mode[mode] / n : 0.0;
+            const double var = (n > 0) ? (sumChi2Ndf2_mode[mode] / n - mu * mu) : 0.0;
+            const double rms = (var > 0) ? std::sqrt(var) : 0.0;
+            double med = 0.0;
+            if (n > 0) {
+                std::vector<double> v = chi2ndfVec_mode[mode];
+                std::sort(v.begin(), v.end());
+                med = v[v.size() / 2];
+            }
+            printf("    %4d  %5d  %9.2f  %8.2f  %9.2f\n", mode, n, mu, rms, med);
         }
 
         printf("\n  Charge vs charge_mode (event-level, leading track tr=0):\n");
@@ -501,39 +594,51 @@ void check_mdt_reco(const char* fname = "Batch-TPORecevent_6000_0_5210.root")
     }
     printf("========================================\n\n");
 
-    // --- Histograms ---
-    TCanvas* c = new TCanvas("c_mdt","MDT Reco Check",1800,1000);
-    int ncols = hasTruth ? 4 : 3;
-    c->Divide(ncols, 2);
-    int pad = 1;
+    // --- Histograms: each plot gets its own page in one multi-page PDF.
+    // IMPORTANT: reuse a single TCanvas (Clear() between plots) rather than
+    // `new TCanvas` per page -- creating a fresh TCanvas per page (as an
+    // earlier version of this script did) produces a PDF that LOOKS valid
+    // (correct page count, opens fine) but renders every page blank in this
+    // ROOT build. Reusing one canvas is the combination verified to work.
+    const char* pdfName = "mdt_reco_check.pdf";
+    TCanvas* c = new TCanvas("c_mdt","MDT Reco Check",900,650);
+    c->Print(Form("%s[", pdfName)); // open, no page drawn
+    auto printPage = [&]() { c->Print(pdfName); c->Clear(); c->SetLogx(0); c->SetLogy(0); c->SetGrid(0); };
 
     // 1) NDF
-    c->cd(pad++);
     TH1D* hNDF = new TH1D("hNDF","NDF of fit_ok tracks;NDF;Tracks",25,-0.5,24.5);
     for (auto& kv : ndfHist)
         for (int i = 0; i < kv.second; ++i) hNDF->Fill(kv.first);
     hNDF->Draw();
+    printPage();
+
+    // 1b) Number of MDT hits per muon track (fit_ok)
+    if (hasNPoints) {
+        TH1D* hNHits = new TH1D("hNHits","MDT hits per fitted muon track (fit_ok);hits (npoints);Tracks",30,-0.5,29.5);
+        for (double v : nhitsVec) hNHits->Fill(v);
+        hNHits->Draw();
+        printPage();
+    }
 
     // 2) chi2/NDF
-    c->cd(pad++);
     TH1D* hChi2 = new TH1D("hChi2","#chi^{2}/NDF (fit_ok, NDF>0);#chi^{2}/NDF;Tracks",60,0,60);
     for (double v : chi2ndfVec) hChi2->Fill(v);
     hChi2->Draw();
+    printPage();
 
     // 3) Fitted p spectrum — log x
-    c->cd(pad++);
-    gPad->SetLogx();
+    c->SetLogx();
     const int NBINS = 50;
     double logBins[NBINS+1];
     for (int i = 0; i <= NBINS; ++i) logBins[i] = std::pow(10.0, 0.0 + i * 4.0/NBINS); // 1..10000 GeV
     TH1D* hP = new TH1D("hP","Fitted |p| (fit_ok, NDF>0);p [GeV/c];Tracks",NBINS,logBins);
     for (double v : pFit) hP->Fill(v);
     hP->Draw();
+    printPage();
 
     if (hasTruth) {
         // 4) p_fit vs p_truth 2D — log-log
-        c->cd(pad++);
-        gPad->SetLogx(); gPad->SetLogy();
+        c->SetLogx(); c->SetLogy();
         double logBins2[NBINS+1];
         for (int i = 0; i <= NBINS; ++i) logBins2[i] = std::pow(10.0, 0.0 + i * 4.0/NBINS);
         TH2D* h2P = new TH2D("h2P","p_{fit} vs p_{truth};p_{truth} [GeV/c];p_{fit} [GeV/c]",
@@ -542,49 +647,49 @@ void check_mdt_reco(const char* fname = "Batch-TPORecevent_6000_0_5210.root")
         h2P->Draw("COLZ");
         TLine* diag = new TLine(1,1,1e4,1e4);
         diag->SetLineColor(kRed); diag->SetLineWidth(2); diag->Draw();
+        printPage();
 
         // 5) GenFit (p_fit-p_truth)/p_truth — all vs good chi2
-        c->cd(pad++);
         TH1D* hDp  = new TH1D("hDp_gf_all","GenFit #Deltap/p (all);(p_{fit}-p_{truth})/p_{truth};Tracks",60,-3,3);
         TH1D* hDpG = new TH1D("hDp_gf_good",Form("#chi^{2}/NDF<%.0f",chi2Cut),60,-3,3);
         for (double v : dp_over_p_genfit)   hDp->Fill(v);
         for (double v : dp_over_p_genfit_g) hDpG->Fill(v);
         hDp->SetLineColor(kBlue-7);  hDp->Draw();
         hDpG->SetLineColor(kBlue+2); hDpG->SetLineWidth(2); hDpG->Draw("SAME");
-        gPad->BuildLegend(0.55,0.7,0.98,0.92);
+        c->BuildLegend(0.55,0.7,0.98,0.92);
+        printPage();
 
         // 6) Analytic (p_ana-p_truth)/p_truth — all vs good chi2
-        c->cd(pad++);
         TH1D* hDpA  = new TH1D("hDp_ana_all","Analytic #Deltap/p (all);(p_{ana}-p_{truth})/p_{truth};Tracks",60,-3,3);
         TH1D* hDpAG = new TH1D("hDp_ana_good",Form("#chi^{2}/NDF<%.0f",chi2Cut),60,-3,3);
         for (double v : dp_over_p_analytic)   hDpA->Fill(v);
         for (double v : dp_over_p_analytic_g) hDpAG->Fill(v);
         hDpA->SetLineColor(kGreen-7);  hDpA->Draw();
         hDpAG->SetLineColor(kGreen+3); hDpAG->SetLineWidth(2); hDpAG->Draw("SAME");
-        gPad->BuildLegend(0.55,0.7,0.98,0.92);
+        c->BuildLegend(0.55,0.7,0.98,0.92);
+        printPage();
 
         // 7) GenFit 1/p curvature resolution — all vs good chi2
-        c->cd(pad++);
         TH1D* hIp  = new TH1D("hInvP_gf_all","GenFit #Delta(1/p) (all);1/p_{fit}-1/p_{truth} [GeV^{-1}];Tracks",60,-0.1,0.1);
         TH1D* hIpG = new TH1D("hInvP_gf_good",Form("#chi^{2}/NDF<%.0f",chi2Cut),60,-0.1,0.1);
         for (double v : dinvp_genfit)   hIp->Fill(v);
         for (double v : dinvp_genfit_g) hIpG->Fill(v);
         hIp->SetLineColor(kBlue-7);  hIp->Draw();
         hIpG->SetLineColor(kBlue+2); hIpG->SetLineWidth(2); hIpG->Draw("SAME");
-        gPad->BuildLegend(0.55,0.7,0.98,0.92);
+        c->BuildLegend(0.55,0.7,0.98,0.92);
+        printPage();
 
         // 8) Analytic 1/p curvature resolution — all vs good chi2
-        c->cd(pad++);
         TH1D* hIpA  = new TH1D("hInvP_ana_all","Analytic #Delta(1/p) (all);1/p_{ana}-1/p_{truth} [GeV^{-1}];Tracks",60,-0.1,0.1);
         TH1D* hIpAG = new TH1D("hInvP_ana_good",Form("#chi^{2}/NDF<%.0f",chi2Cut),60,-0.1,0.1);
         for (double v : dinvp_analytic)   hIpA->Fill(v);
         for (double v : dinvp_analytic_g) hIpAG->Fill(v);
         hIpA->SetLineColor(kGreen-7);  hIpA->Draw();
         hIpAG->SetLineColor(kGreen+3); hIpAG->SetLineWidth(2); hIpAG->Draw("SAME");
-        gPad->BuildLegend(0.55,0.7,0.98,0.92);
+        c->BuildLegend(0.55,0.7,0.98,0.92);
+        printPage();
     } else {
         // fallback without truth: p_fit vs p_analytic scatter
-        c->cd(pad++);
         std::vector<double> pAnaFallback;
         for (Long64_t ev = 0; ev < nEntries; ++ev) {
             t->GetEntry(ev);
@@ -598,8 +703,61 @@ void check_mdt_reco(const char* fname = "Batch-TPORecevent_6000_0_5210.root")
         TH1D* hPA = new TH1D("hPA","Analytic |p|;p_{analytic} [GeV/c];Tracks",50,0,500);
         for (double v : pAnaFallback) hPA->Fill(v);
         hPA->Draw();
+        printPage();
     }
 
-    c->SaveAs("mdt_reco_check.pdf");
-    printf("  Plots saved to mdt_reco_check.pdf\n\n");
+    // --- Momentum resolution vs p_truth (its own page too) ---
+    // sigma(dp/p) = RMS of (p_fit-p_truth)/p_truth (GenFit) and (p_ana-p_truth)/p_truth
+    // (analytic), per log-spaced p_truth bin, chi2/NDF<chi2Cut subset only.
+    if (hasTruth) {
+        TGraphErrors* gResGF  = new TGraphErrors();
+        TGraphErrors* gResAna = new TGraphErrors();
+        int nGF = 0, nAna = 0;
+        for (int b = 0; b < NBINS_P; ++b) {
+            const double pc = std::sqrt(pEdges[b] * pEdges[b+1]); // geometric bin center
+            const auto& vGF  = dp_over_p_genfit_pbin[b];
+            const auto& vAna = dp_over_p_analytic_pbin[b];
+            if (vGF.size() >= 3) {
+                const double sig    = vecRMS(vGF);
+                const double sigErr = sig / std::sqrt(2.0 * (vGF.size() - 1)); // std error of an RMS estimate
+                gResGF->SetPoint(nGF, pc, sig);
+                gResGF->SetPointError(nGF, 0.0, sigErr);
+                ++nGF;
+            }
+            if (vAna.size() >= 3) {
+                const double sig    = vecRMS(vAna);
+                const double sigErr = sig / std::sqrt(2.0 * (vAna.size() - 1));
+                gResAna->SetPoint(nAna, pc, sig);
+                gResAna->SetPointError(nAna, 0.0, sigErr);
+                ++nAna;
+            }
+        }
+
+        c->SetGrid();
+        c->SetLogx();
+        c->SetLogy();
+
+        gResGF->SetTitle(Form("Momentum resolution vs truth momentum (#chi^{2}/NDF<%.0f);p_{truth} [GeV/c];#sigma(#Deltap/p)", chi2Cut));
+        gResGF->SetMarkerStyle(20); gResGF->SetMarkerColor(kAzure+2);
+        gResGF->SetLineColor(kAzure+2); gResGF->SetLineWidth(2);
+        gResAna->SetMarkerStyle(21); gResAna->SetMarkerColor(kGreen+3);
+        gResAna->SetLineColor(kGreen+3); gResAna->SetLineWidth(2);
+
+        gResGF->Draw("APL");
+        gResGF->GetXaxis()->SetLimits(pEdges[0], pEdges[NBINS_P]);
+        gResAna->Draw("PL SAME");
+
+        TLegend* legRes = new TLegend(0.68, 0.16, 0.88, 0.3);
+        legRes->AddEntry(gResGF,  "GenFit", "lp");
+        legRes->AddEntry(gResAna, "Analytic", "lp");
+        legRes->SetBorderSize(0);
+        legRes->Draw();
+
+        c->SaveAs("mdt_reco_resolution.png"); // also stand-alone, handy for quick viewing
+        printPage();
+    }
+
+    // Close the multi-page file. The "]" suffix closes without drawing a page.
+    c->Print(Form("%s]", pdfName));
+    printf("  Plots saved to %s (one plot per page)\n\n", pdfName);
 }
