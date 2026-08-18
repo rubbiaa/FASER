@@ -1,150 +1,310 @@
-# FASERCAL - electronic calorimeter for FASER Run4
+# FASER / FASERCAL — simulation and reconstruction
 
-FASERCAL code to simulate and analyse events in the FASERCAL detector
+Simulation, reconstruction and analysis code for the FASERCAL electromagnetic/hadronic
+calorimeter proposed for FASER Run 4, built on GEANT4 and ROOT.
 
-# Event data flow
+This repository also includes **MuonDIS**: an on-the-fly, Pythia8-driven simulation of
+muon-nucleon deep-inelastic scattering for the primary background muon, replacing the
+standard Geant4 muon-nuclear final state. See [MuonDIS](#muondis) below for a quick
+start, and [`FASERG4/README_MuonDIS.md`](FASERG4/README_MuonDIS.md) for full
+physics/configuration details.
 
-This project follows a structured workflow for simulating and processing neutrino interactions within the FASERCAL experiment using GEANT4. The process begins with the FASERMC official Monte Carlo (MC) simulation. These interactions are converted into the TPOEvent class format by **ConvertFASERMC**. Next, the **FASERG4** module uses GEANT4 to simulate events from the TPOEvent class, generating TcalEvent objects. These simulated events can be visualized using the **EvDisplay** module or processed through the **BatchReco** module for batch reconstruction, providing a comprehensive analysis pipeline for neutrino interaction events.
+## Contents
+
+- [Project layout](#project-layout)
+- [Event data flow](#event-data-flow)
+- [Prerequisites](#prerequisites)
+- [Building](#building)
+- [Running FASERG4 (`faserps`)](#running-faserg4-faserps)
+- [MuonDIS](#muondis)
+- [BatchReco](#batchreco)
+- [DumpHits](#dumphits)
+- [EvDisplay](#evdisplay)
+- [FASERTuple / ConvertFASERMC](#fasertuple--convertfasermc)
+- [TauSearch](#tausearch)
+- [Event masks](#event-masks)
+- [Run numbers](#run-numbers)
+- [Reading ROOT files with PyROOT](#reading-root-files-with-pyroot)
+- [Support](#support)
+- [License](#license)
+
+## Project layout
+
+| Directory | Purpose |
+|---|---|
+| `FASERG4` | GEANT4 simulation (`faserps`): propagates primaries through the FASERCAL geometry, including the `MuonDIS` physics extension |
+| `ConvertFASERMC` | Converts the official FASER Monte Carlo output into the `TPOEvent` truth format consumed by `FASERG4` |
+| `ConvertGENIE` | Converts GENIE neutrino generator output into `TPOEvent` |
+| `CoreUtils` | Shared data model (`TPOEvent`, `PO`, kinematics helpers) used across the whole chain |
+| `Batch` | Batch reconstruction (`BatchReco`) and hit-dumping (`DumpHits`) executables |
+| `EvDisplay` | Interactive ROOT/TGui event display |
+| `Display` | Lower-level display utilities |
+| `Analysis` | Analysis macros/scripts |
+| `TauSearch` | Generator-level tau search analysis chain |
+| `FASERCalProtoG4` | Earlier FASERCAL prototype GEANT4 model |
+| `FileMask` | Event-mask/file-selection helpers |
+| `GeomGDML` | Detector geometry in GDML format |
+| `Python_io` | Examples for reading the ROOT output with PyROOT |
+| `docs`, `images` | Documentation and figures used in this README |
+
+## Event data flow
+
+This project follows a structured workflow for simulating and processing neutrino (and
+background-muon) interactions in FASERCAL using GEANT4. The process
+begins with the FASERMC official Monte Carlo simulation, or with the on-the-fly MuonDIS
+generator described below. These interactions are converted into the `TPOEvent` truth
+format (by `ConvertFASERMC`, or produced directly by `FASERG4` for MuonDIS). `FASERG4`
+then runs GEANT4 on the `TPOEvent` truth, producing `TcalEvent` simulated-detector
+objects. These can be visualized with `EvDisplay` or processed in bulk with `BatchReco`.
 
 ![Diagram of the project](images/eventchainflow.png)
 
-# BatchReco (in Batch directory)
+## Prerequisites
 
-Basic code to read FASERCAL GEANT4 output and batch reconstruct events, filling histograms, ...
+Common tools:
 
-Usage: ./batchreco.exe <run> [maxevent] [mask]
-   <run>                     Run number
-   maxevent                  Maximum number of events to process (def=-1)
-   mask                      To process only specific events (def=none):   nueCC, numuCC, nutauCC, nuNC or nuES
+- `git`, `cmake`, `make`, a C++17 compiler (`g++` or `clang++`)
+- Boost
+- Autotools (Automake, Autoconf, Libtool, M4, Perl) — needed for RAVE
+- [ROOT](https://root.cern) 6.20+ (with GDML/Geom support)
+- [GEANT4](https://geant4.web.cern.ch) 11.x, built with UI/Vis drivers and GDML support
+- Pythia8 — required for MuonDIS (built automatically, see below)
 
-# EvDisplay
+On Ubuntu/Debian:
 
-EvDisplay - basic Interactive Event Display of FASERCAL GEANT4 output
+```bash
+sudo apt update
+sudo apt install build-essential git cmake automake autoconf libtool m4 perl \
+                  libboost-all-dev
+```
 
-Usage: ./evDisplay.exe <run> [mask]
-   <run>                     Run number
-   mask                      To process only specific events (def=none):   nueCC, numuCC, nutauCC, or nuNC
+On macOS (with Homebrew):
 
-- run the event display
+```bash
+brew install boost automake autoconf libtool cmake
+```
 
-   to display nueCC events
-   ```bash
-   $ ./evDisplay.exe 200026 nueCC
-   ````
+## Building
 
-   to display numuCC events
-   ```bash
-   $ ./evDisplay.exe 200025 numuCC
-   ````
-
-   to display nutauCC events
-   ```bash
-   $ ./evDisplay.exe 200035 nutauCC
-   ````
-
-![Diagram of the project](images/numuCC_ev1.jpg)
-
-# DumpHits (in BatchReco directory)
-
-Very simple app to read and dump all hits from events
-
-Usage: ./dumphits.exe <run> [maxevent] [mask]
-   <run>                     Run number
-   maxevent                  Maximum number of events to process (def=-1)
-   mask                      To process only specific events (def=none):   nueCC, numuCC, nutauCC, nuNC or nuES
-
-for example to get all the hits of nueCC events from the kaon decay flux:
+1. Get the source code:
 
    ```bash
-   $ ./dumphits.exe 200026 10 nueCC > dump.log
+   git clone https://github.com/rubbiaa/faser.git
+   cd faser
    ```
 
-# FASERTuple
-
-Convert official FASER MC files into FASERCAL PO files (generator level) 
-
-# TauSearch
-A generator level tau search analysis code
-
-- t.C : code to convert FASER ntuple into event summary tuples
-- s.C : analyse event summary tuples for each tau decay channel and create sig/background tuples
-- a.C : read sig/bkg tuples for each decay channel and perform BDT analysis
-
-# Installation preliminaries
-
-- Get the source code:
+2. Set up your ROOT and GEANT4 environment, e.g. in a local `setup.sh`:
 
    ```bash
-   $ git clone https://github.com/rubbiaa/FASER.git
-   ````
-
-- Set up ROOT and GEANT4 environment in the setup.sh file:
-
-setup.sh:
-    source <ROOTINSTAL>/bin/thisroot.sh
-    source <GEANT4INSTALL>/bin/geant4.sh
-
-$ source setup.sh
-
-- On lxplus use the following command instead:
+   source <ROOTINSTALL>/bin/thisroot.sh
+   source <GEANT4INSTALL>/bin/geant4.sh
+   ```
 
    ```bash
-   $ source lxplus_setup.csh
-   ````
+   source setup.sh
+   ```
 
-# Install event display
-
- - move to the evDisplay directory and compile with "make"
+   On lxplus, use the provided setup script instead:
 
    ```bash
-   $ cd evDiplay
-   $ make
-   ````
+   source lxplus_setup.csh
+   ```
 
- - if compilation and linking was successful, the executable is "evDisplay.eve"
-
- - make sure G4 FASERCAL simulated files are linked at the "input" subdirectory
- 
-   ```bash
-   $ ln -fs </path_to_g4_simulated_data> input
-   ````
-
- - on lxplus.cern.ch, there is data available
+3. Build the extra physics dependencies via the top-level `Makefile` (each target
+   downloads/clones its source on first use and installs into `<name>-install/`):
 
    ```bash
-    $ ln -fs /eos/home-r/rubbiaa/FASERCALDATA_v2.0 input
-   ````
+   make pythia8      # required for MuonDIS (installs into pythia8312/)
+   make clhep        # required for track fitting (GenFit/RAVE)
+   make rave
+   make googletest
+   make genfit
+   ```
 
-   For this to work, you need to be able to access my CERNBOX - please send me an email and I will give you access.
+   On macOS, `GenFit` needs its generated `.pcm` files copied next to the installed
+   library to avoid ROOT dictionary errors:
 
- # Event masks
+   ```bash
+   cp GenFit-build/bin/*.pcm GenFit-install/lib64/
+   ```
 
- - event masks are used to select only a type of events when running a job
+   Run `make clean` to remove all of the above and start over.
 
- - the currently available event masks are:
+4. Build `FASERG4` (the GEANT4 simulation, including MuonDIS):
 
-   nueCC - nue charged currents
- 
-   numuCC  - numu charged currents
- 
-   nutauCC - nutau charged currents
- 
-   nuNC - all neutrinos neutral currents
- 
-   nuES - elastic scattering off target electrons 
+   ```bash
+   cd FASERG4
+   mkdir -p build && cd build
+   cmake ..
+   make -j4
+   ```
 
+   This produces the `faserps` executable in `FASERG4/build/`. CMake looks for Pythia8 at
+   `<repo-root>/pythia8312` (built in step 3) or at `$PYTHIA8`/`-DPYTHIA8_DIR=...` if it
+   lives elsewhere; it warns (rather than failing) at configure time if the library isn't
+   found yet, but `faserps` won't link without it.
 
-# Run numbers
+5. Build `Batch` and `EvDisplay` the same way as any other subdirectory tool below (each
+   has its own `Makefile`).
 
- - run numbers are taken from the official FASER conventions
+## Running FASERG4 (`faserps`)
 
-    200025 flux from pion decay (i.e. basically numu)
- 
-    200026 flux from kaon decay (i.e. mainly numu and nue)
- 
-    200035 flux from charm decay (i.e. numu, nue and some nutau)
+`faserps` is configured entirely through a GEANT4 UI macro. Run it, from `FASERG4/build`,
+against one of the example macros in `FASERG4/` (e.g. `runFASER_muondis.mac`,
+`runFASER_muon.mac`, `runFASER_nuNC.mac`, ...):
 
-# Instructions for Reading ROOT Files using PyROOT
+```bash
+cd FASERG4/build
+./faserps ../runFASER_muondis.mac
+```
 
-Please check the directory `Python_io`
+Key run-time options common to the example macros: `/FASER/...` (detector geometry),
+`/generator/...` (primary generation — ROOT-file input, single-particle mode, or
+flux-sampled muon background), `/run/initialize`, and `/run/beamOn <N>`. See the macro
+files themselves for concrete examples of each mode.
 
+## MuonDIS
+
+MuonDIS replaces the standard GEANT4 muon-nuclear final state for the primary muon with
+an on-the-fly muon-nucleon deep-inelastic-scattering event, generated per interaction by
+Pythia8 using the muon's actual GEANT4 energy and direction. It is **disabled by
+default** — existing macros are unaffected unless they opt in.
+
+Minimal example (see `FASERG4/runFASER_muondis.mac` for a full working macro):
+
+```
+# before /run/initialize -- MuonDIS commands issued afterwards have no effect
+/physics/muondis/enable true
+/physics/muondis/crossSectionBias 150
+/physics/muondis/q2min 1.0
+/physics/muondis/interactionLog muondis_interactions.csv
+/run/initialize
+
+/generator/wantMuonBackground true
+/generator/singleMomentum 100
+/run/beamOn 10
+```
+
+Other `/physics/muondis/...` options (nucleon PDF selection, minimum Bjorken-x cut,
+verbose debug logging) and the full list of `/generator/...` primary-generation options
+(flux file, minimum-energy cutoff) are documented in
+[`FASERG4/README_MuonDIS.md`](FASERG4/README_MuonDIS.md), along with the physics
+assumptions (isoscalar nucleon target, no Fermi motion/EMC effect, process choice, etc.)
+and truth-level output added to `TPOEvent` (`nu`, `Q2`, `W2`, Bjorken `x`, `y`).
+
+## BatchReco
+
+Reads FASERCAL GEANT4 output and reconstructs events in batch, filling histograms.
+
+```bash
+cd Batch
+make
+./batchreco.exe <run> [maxevent] [mask]
+```
+
+| Argument | Meaning |
+|---|---|
+| `run` | Run number (see [Run numbers](#run-numbers)) |
+| `maxevent` | Maximum number of events to process (default: `-1`, all) |
+| `mask` | Restrict to one event type: `nueCC`, `numuCC`, `nutauCC`, `nuNC` or `nuES` (default: none) |
+
+`batchreco_detresp.exe` (built from the same `Makefile`, `BatchReco_DetResp.cc`) runs a
+variant reconstruction focused on detector response studies.
+
+## DumpHits
+
+A simple tool (also built from `Batch/`) that reads and dumps all hits from events.
+
+```bash
+cd Batch
+./dumphits.exe <run> [maxevent] [mask]
+```
+
+Example — dump the first 10 `nueCC` events from the kaon-decay flux run:
+
+```bash
+./dumphits.exe 200026 10 nueCC > dump.log
+```
+
+## EvDisplay
+
+Interactive ROOT-based event display for FASERCAL GEANT4 output.
+
+```bash
+cd EvDisplay
+make
+./evDisplay.exe <run> [mask]
+```
+
+Point it at your simulated data first:
+
+```bash
+ln -fs </path/to/g4_simulated_data> input
+```
+
+On `lxplus.cern.ch`, shared samples are available (request CERNBox access from André):
+
+```bash
+ln -fs /eos/home-r/rubbiaa/FASERCALDATA_v2.0 input
+```
+
+Examples:
+
+```bash
+./evDisplay.exe 200026 nueCC     # kaon-decay flux, nue CC events
+./evDisplay.exe 200025 numuCC    # pion-decay flux, numu CC events
+./evDisplay.exe 200035 nutauCC   # charm-decay flux, nutau CC events
+```
+
+![Example event display](images/numuCC_ev1.jpg)
+
+## FASERTuple / ConvertFASERMC
+
+`ConvertFASERMC` converts official FASER MC files into the FASERCAL `TPOEvent`
+(generator-level) format consumed by `FASERG4`.
+
+## TauSearch
+
+A generator-level tau search analysis chain:
+
+- `t.C` — converts a FASER ntuple into event-summary tuples
+- `s.C` — analyzes event-summary tuples per tau decay channel, producing signal/background tuples
+- `a.C` — reads the signal/background tuples per decay channel and runs a BDT analysis
+
+## Event masks
+
+Event masks restrict a job to one interaction type:
+
+| Mask | Meaning |
+|---|---|
+| `nueCC` | nu_e charged current |
+| `numuCC` | nu_mu charged current |
+| `nutauCC` | nu_tau charged current |
+| `nuNC` | any neutrino, neutral current |
+| `nuES` | elastic scattering off a target electron |
+
+## Run numbers
+
+Run numbers follow the official FASER conventions:
+
+| Run | Flux |
+|---|---|
+| 200025 | Pion decay (mostly nu_mu) |
+| 200026 | Kaon decay (mainly nu_mu and nu_e) |
+| 200035 | Charm decay (nu_mu, nu_e and some nu_tau) |
+
+## Reading ROOT files with PyROOT
+
+See the [`Python_io`](Python_io) directory for examples.
+
+## Support
+
+Questions or problems: open an issue at
+[github.com/rubbiaa/faser/issues](https://github.com/rubbiaa/faser/issues).
+
+## License
+
+This project is licensed under the [MIT License](LICENSE). Note that several bundled
+third-party dependencies (e.g. Pythia8 in `pythia8312/`, RAVE in `rave/`) are built from
+their own upstream sources under their own separate licenses — see each dependency's own
+`COPYING`/license file.
