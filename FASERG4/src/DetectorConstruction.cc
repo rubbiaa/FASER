@@ -716,7 +716,8 @@ G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, 
 
 	//G4double dz = position.Z()+fTotalLength/2.0-epsilon;
 	G4double zModule = position.Z() + fSandwichLength/2.0;
-    G4double zScint  = zModule - fAlPlateThickness - ftargetWSizeZ;
+    // position is in the scintillator's local frame (TrackerSD uses GetTopTransform), not the module frame
+    G4double zScint  = position.Z() + fScintillatorSizeZ/2.0;
 
 	// sanity check
 	if((dx < 0 || dx > fScintillatorSizeX) || (dy < 0 || dy > fScintillatorSizeY) || (zModule < 0 || zModule > fTotalLength)) {
