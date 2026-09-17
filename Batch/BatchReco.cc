@@ -287,7 +287,9 @@ int main(int argc, char** argv) {
         fPORecoEvent -> Reconstruct3DPS_2();
         fPORecoEvent -> ReconstructRearCals();
         //fPORecoEvent -> ReconstructMuonSpectrometer();
-        fPORecoEvent -> ReconstructMDT();
+        //fPORecoEvent -> ReconstructMDT();
+        fPORecoEvent -> ReconstructMDT_fin();  
+
         #if 0
         // poor's man fit of beta scan
         float betas[] = {3.5, 4.0, 4.5, 5.0, 5.5, 6.0};
@@ -455,6 +457,7 @@ int main(int argc, char** argv) {
         for(int i=0; i<ntracks; i++) {
             TMuTrack *aMuTrack = &fPORecoEvent->fMuTracks[i];
             fTMuonSpectrometer.features.charge[i] = aMuTrack->fcharge;
+            fTMuonSpectrometer.features.charge_mode[i] = aMuTrack->fchargeMode;
             fTMuonSpectrometer.features.npoints[i] = aMuTrack->fpos.size();
             fTMuonSpectrometer.features.px[i] = aMuTrack->fpx;
             fTMuonSpectrometer.features.py[i] = aMuTrack->fpy;

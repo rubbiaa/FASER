@@ -7,6 +7,7 @@ ClassImp(TMuonSpectrometer);
 void TMuonSpectrometer::Create_Sel_Tree(TTree *t) {
   t->Branch("ntracks", &features.ntracks);
   t->Branch("charge", &features.charge, "charge[ntracks]/F");
+  t->Branch("charge_mode", &features.charge_mode, "charge_mode[ntracks]/I");
   t->Branch("npoints", &features.npoints, "npoints[ntracks]/I");
   t->Branch("px", &features.px, "px[ntracks]/F");
   t->Branch("py", &features.py, "py[ntracks]/F");

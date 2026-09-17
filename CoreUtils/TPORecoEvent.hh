@@ -540,6 +540,29 @@ public:
     TH2D* Get2DViewYPS() { return yviewPS; };
 
     void ReconstructMDT();
+
+    /// @brief Improved independent MDT reconstruction (v2)
+    /// Uses better momentum and charge ID strategy with slope-based discrimination
+    void ReconstructMDT_2nd();
+
+    /// @brief Simplified MDT reconstruction (2026-08-14)
+    /// Only uses modes 1-3 (dual-hypothesis fitting)
+    /// Skips complex modes 4-5 (outlier rescue, slope tiebreaker)
+    /// Tests if simplified code achieves similar performance with corrected field
+    void ReconstructMDT_simplified();
+
+    /// @brief Clean MDT reconstruction (2026-08-15), built after finding the
+    /// actual cause of the chi2/NDF regression: an OR-based quality gate in
+    /// the Mode-5 rescue cascade let a numerically-divergent GenFit result
+    /// (isFitConverged()==true but chi2/NDF in the thousands) through as
+    /// "success". Reuses the exact same (verified-correct) L/R-resolution
+    /// and measurement-building pipeline as ReconstructMDT(), but fits via
+    /// GenFitMDTFit_fin() -- whose accept gate at every stage requires
+    /// isFitConverged() AND chi2/NDF < gate, never OR -- and deliberately
+    /// drops the Mode-5 rescue cascade entirely rather than re-gate it
+    /// blind. Covers Modes 0-4 only.
+    void ReconstructMDT_fin();
+
     std::vector<double> GetMDTMagnetCentersZ() const;
     std::vector<ROOT::Math::XYZVector> GetMDTMagnetCentersGlobal() const;
 
