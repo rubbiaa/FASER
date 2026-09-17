@@ -244,8 +244,12 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 
 	G4GeometryManager::GetInstance()->SetWorldMaximumExtent(maxDetectorSize);
 
+	// The assembly is tilted about Y and shifted along the line of sight, so its
+	// rotated corners reach |LOS_shiftX| + (WorldSizeX/3)*cos + (WorldSizeZ/2-50cm)*sin
+	// in x, which is beyond WorldSizeX/2 and protrudes from the world. Use the full
+	// sizes as half-lengths (as already done in z) to contain the tilted assembly.
 	auto worldSolid = new G4Box("world",					      // its name
-				    WorldSizeX / 2, WorldSizeY / 2, WorldSizeZ );  // its size
+				    WorldSizeX, WorldSizeY, WorldSizeZ );  // its half-sizes
 	auto worldLV = new G4LogicalVolume(worldSolid,				      // its solid
 					   fWorldMaterial,			      // its material
 					   "World");				      // its name
