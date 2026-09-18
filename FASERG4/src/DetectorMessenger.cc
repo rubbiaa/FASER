@@ -12,11 +12,14 @@ DetectorMessenger::DetectorMessenger(DetectorConstruction* det) : fDetectorConst
 	fDetDirectory = new G4UIdirectory("/FASER/scint/");
 	fDetDirectory->SetGuidance("Detector construction control");
 
-	fScintMatCmd = new G4UIcmdWithAString("/FASER/scint/material", this);
+/*	fScintMatCmd = new G4UIcmdWithAString("/FASER/scint/material", this);
 	fScintMatCmd->SetGuidance("Select Material of the Target.");
 	fScintMatCmd->SetParameterName("choice", false);
 	fScintMatCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
-
+	fScintMatCmd->SetGuidance("Select Material of the Target.");
+	fScintMatCmd->SetParameterName("choice", false);
+	fScintMatCmd->AvailableForStates(G4State_PreInit, G4State_Idle);
+*/
 	fLightYieldCmd = new G4UIcmdWithADouble("/FASER/scint/lightYield", this);
 	fLightYieldCmd->SetGuidance("Set scintillation light yield");
 	fLightYieldCmd->SetParameterName("lightYield", false);
@@ -148,10 +151,10 @@ DetectorMessenger::~DetectorMessenger()
 
 void DetectorMessenger::SetNewValue(G4UIcommand* command, G4String newValue)
 {
-	if (command == fScintMatCmd) {
+/*	if (command == fScintMatCmd) {
 		fDetectorConstruction->SetScintillatorMaterial(newValue);
 	}
-
+*/
 	if (command == fStepMaxCmd) {
 		fDetectorConstruction->SetMaxStep(fStepMaxCmd->GetNewDoubleValue(newValue));
 	}

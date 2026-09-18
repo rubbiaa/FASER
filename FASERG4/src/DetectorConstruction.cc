@@ -61,26 +61,21 @@ void DetectorConstruction::DefineMaterials()
 		fWorldMaterial->SetMaterialPropertiesTable(fAir_MPT);
 	}
 
-	// Build PVT
-	// check if the material is defined already, if not define it
-	// This check is necessary because this method is invoked in the messeneger call funciton to set the material
-	// If this check is not done, it will be invoked twice and the second time it will cause an error
-	if (fPolyvinyltoluene == nullptr) {
+	// Define Polystyrene (PVT) if not already defined
+	if (fPolystyrene == nullptr) {
 		// Build PVT (PolyVinylToluene) from C and H elements
 		fHydrogen = new G4Element("Hydrogen", "H", 1., 1.01 * g / mole);
 		fCarbon = new G4Element("Carbon", "C", 6., 12.01 * g / mole);
 
-		// PVT (PolyVinylToluene, C_9H_10)
-		double HAtomsPerVolume = 10;
-		double CAtomsPerVolume = 9;
+		// Polystyrene (C_8H_8)
+		G4int HAtomsPerVolume = 8;
+		G4int CAtomsPerVolume = 8;
 
-		double HPerCent = HAtomsPerVolume / (HAtomsPerVolume + CAtomsPerVolume);
-		double CPerCent = CAtomsPerVolume / (HAtomsPerVolume + CAtomsPerVolume);
-
-		fPolyvinyltoluene = new G4Material("PVT", 1.03 * g / cm3, 2);
-		fPolyvinyltoluene->AddElement(fHydrogen, HPerCent);
-		fPolyvinyltoluene->AddElement(fCarbon, CPerCent);
-
+		fPolystyrene = new G4Material("Polystyrene", 1.06 * g / cm3, 2);
+        fPolystyrene->AddElement(fCarbon, CAtomsPerVolume);
+        fPolystyrene->AddElement(fHydrogen, HAtomsPerVolume);
+ 
+#if 0
 		fPolyvinyltoluene_MPT = new G4MaterialPropertiesTable();
 		fPolyvinyltoluene_MPT->AddConstProperty("SCINTILLATIONYIELD", fLightYield / MeV);  // The light yield of the scintillator
 		fPolyvinyltoluene_MPT->AddConstProperty(
@@ -98,8 +93,9 @@ void DetectorConstruction::DefineMaterials()
 		fPolyvinyltoluene_MPT->AddProperty(
 		    "SCINTILLATIONCOMPONENT1", fPhotonEnergyPVT, fScintillation_PVT,
 		    nEntriesPVT);  // The scintillation spectrum of the scintillator, see in the header file for the valuesTODO
-		fPolyvinyltoluene->SetMaterialPropertiesTable(fPolyvinyltoluene_MPT);
-	
+		fPolystyrene->SetMaterialPropertiesTable(fPolyvinyltoluene_MPT);
+#endif
+
 	// 0.898e-2 g/cm^2/MeV
 	// M.Hirschberg et al., IEEE Trans. Nuc. Sci. 39 (1992) 511
     // SCSN-38: kB = (0.806 +/- 0.012)E-2 g/cm^2/MeV
@@ -124,9 +120,9 @@ void DetectorConstruction::DefineMaterials()
     // was used in their simulation.  I don't find any supporting
     // information in the paper.
 
-		// The Birks constant of the scintillator
-		double birks_constant = (0.898e-2 * g / cm / cm / MeV);
-		fPolyvinyltoluene->GetIonisation()->SetBirksConstant(8.718e-3 * cm / MeV);	
+	// The Birks constant of the scintillator
+	double birks_constant = (0.898e-2 * g / cm / cm / MeV);
+	fPolystyrene->GetIonisation()->SetBirksConstant(8.718e-3 * cm / MeV);
 	}
 	if (fPlasticSciHCALMat == nullptr) {
         fPlasticSciHCALMat = nistManager->BuildMaterialWithNewDensity("polystyrene", "G4_POLYSTYRENE", 1.032 * g / cm3);
@@ -293,9 +289,9 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 	G4double zLocation = 0*cm;
 	//CreateFaserCal(zLocation, fPolyvinyltoluene, G4_Target, G4ThreeVector(sizeScintillatorX, sizeScintillatorY, 
 	//sizeScintillatorZ),G4ThreeVector(sizetargetWX, sizetargetWY, sizetargetWZ),worldLV, NRep);
-	CreateFaserCal(zLocation, fPolyvinyltoluene, G4_Target, G4ThreeVector(sizeScintillatorX, sizeScintillatorY, 
+	CreateFaserCal(zLocation, fPolystyrene, G4_Target, G4ThreeVector(sizeScintillatorX, sizeScintillatorY, 
 	sizeScintillatorZ),G4ThreeVector(sizetargetWX, sizetargetWY, sizetargetWZ),detLV, NRep);
-	fParticleManager->setDetectorInformation(fPolyvinyltoluene->GetName(),
+	fParticleManager->setDetectorInformation(fPolystyrene->GetName(),
 	XYZVector(sizeScintillatorX, sizeScintillatorY, sizeScintillatorZ), G4_Target->GetName(),  
 	XYZVector(sizetargetWX, sizetargetWY, sizetargetWZ), NRep);
 
@@ -442,10 +438,8 @@ zLocation += fTotalLength;  // Move zLocation to the end of FASERCal
 	}
 	// Save the geometry of the detector
 	G4GDMLParser parser;
-	//UMUT: If a previous geometry file exists, remove it so G4GDML doesn't abort
-	// (parser.Write throws if the file already exists)
-	std::remove("FASERCAL_V9.gdml");
-	parser.Write("FASERCAL_V9.gdml", worldPV->GetLogicalVolume());
+	std::remove("FASERCAL_V10.gdml");
+	parser.Write("FASERCAL_V10.gdml", worldPV->GetLogicalVolume());
 
 	// Print the total mass of the detector
 	G4cout << "----------------------------------" << G4endl;
@@ -544,6 +538,7 @@ void DetectorConstruction::SetTiltAngleY(G4double angle)         // <<< tiltY
     fTiltAngleY = angle;                                        // <<< tiltY
 }
 
+#if 0
 void DetectorConstruction::SetScintillatorMaterial(G4String materialName)
 {
 	G4Material* pttoMaterial = nullptr;
@@ -570,6 +565,7 @@ void DetectorConstruction::SetScintillatorMaterial(G4String materialName)
 		}
 	}
 }
+#endif
 
 void DetectorConstruction::CreateFaserCal(G4double zLocation, G4Material* material1, G4Material* material2, G4ThreeVector size1, 
 		G4ThreeVector size2, G4LogicalVolume* parent, G4int NRep){

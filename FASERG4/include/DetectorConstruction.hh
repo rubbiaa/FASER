@@ -52,7 +52,7 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 	void ConstructSDandField() override;
 
 	// Set methods for scintillator
-	void SetScintillatorMaterial(G4String materialChoice);
+	// void SetScintillatorMaterial(G4String materialChoice);
 	void SetMaxStep(G4double);
 	void SetCheckOverlaps(G4bool);
 	void SetLightYield(G4double);
@@ -219,9 +219,9 @@ class DetectorConstruction : public G4VUserDetectorConstruction {
 
 	G4LogicalVolume* fLogicScintillator = nullptr;	///< Logical volume of the scintillator
 
-	G4Element* fCarbon = nullptr;		  ///< Element Carbon to build PVT
-	G4Element* fHydrogen = nullptr;		  ///< Element Hydrogen to build PVT
-	G4Material* fPolyvinyltoluene = nullptr;  ///< Material PVT
+	G4Element* fCarbon = nullptr;		  ///< Element Carbon to build scintillator
+	G4Element* fHydrogen = nullptr;		  ///< Element Hydrogen to build scintillator
+	G4Material* fPolystyrene = nullptr;  ///< Material polystyrene
 
 	G4Material* fScintillatorMaterial = nullptr;  ///< Material of the scintillator (Default PVT, can be set via macro)
 	G4Material* fWorldMaterial = nullptr;	      ///< Material of the world (Air)
