@@ -605,11 +605,18 @@ void DetectorConstruction::CreateFaserCal(G4double zLocation, G4Material* materi
 	fTotalWMass = sizeX*sizeY*size2.getZ()*density*1e-3*NRep*1e-3;
 	G4cout << "Total mass target (W, Cu, ...) " << fTotalWMass << " kg" << G4endl;
 
-	fTotalScintMass = sizeX*sizeY*size1.getZ()*1.03e-3*NRep*1e-3;
+	G4double densityScint = material1->GetDensity()/(g/cm3);  // was hardcoded 1.03
+	fTotalScintMass = sizeX*sizeY*size1.getZ()*densityScint*1e-3*NRep*1e-3;
 	G4cout << "Total mass scint " << fTotalScintMass << " kg" << G4endl;
 
-	fTotalMass = fTotalWMass + fTotalScintMass;
-	G4cout << "Total mass target+scint " << fTotalMass << " kg" << G4endl;
+	// FIX: each sandwich layer has TWO aluminum plates (front + back, see fSandwichLength
+	// above) that were being built/placed but never counted in the mass budget.
+	G4double densityAl = G4_Al->GetDensity()/(g/cm3);  // Density in g/cm^3
+	G4double fTotalAlMass = sizeX*sizeY*(2.0*fAlPlateThickness)*densityAl*1e-3*NRep*1e-3;
+	G4cout << "Total mass Al plates " << fTotalAlMass << " kg" << G4endl;
+
+	fTotalMass = fTotalWMass + fTotalScintMass + fTotalAlMass;
+	G4cout << "Total mass target+scint+Al " << fTotalMass << " kg" << G4endl;	
 
 	G4double radlen1 = material1->GetRadlen()/(mm);
 	G4double interlen1 = material1->GetNuclearInterLength()/(mm);
