@@ -240,8 +240,12 @@ G4VPhysicalVolume* DetectorConstruction::DefineVolumes()
 
 	G4GeometryManager::GetInstance()->SetWorldMaximumExtent(maxDetectorSize);
 
+	// The assembly is tilted about Y and shifted along the line of sight, so its
+	// rotated corners reach |LOS_shiftX| + (WorldSizeX/3)*cos + (WorldSizeZ/2-50cm)*sin
+	// in x, which is beyond WorldSizeX/2 and protrudes from the world. Use the full
+	// sizes as half-lengths (as already done in z) to contain the tilted assembly.
 	auto worldSolid = new G4Box("world",					      // its name
-				    WorldSizeX / 2, WorldSizeY / 2, WorldSizeZ );  // its size
+				    WorldSizeX, WorldSizeY, WorldSizeZ );  // its half-sizes
 	auto worldLV = new G4LogicalVolume(worldSolid,				      // its solid
 					   fWorldMaterial,			      // its material
 					   "World");				      // its name
@@ -712,7 +716,8 @@ G4long DetectorConstruction::getChannelIDfromXYZ(std::string const& VolumeName, 
 
 	//G4double dz = position.Z()+fTotalLength/2.0-epsilon;
 	G4double zModule = position.Z() + fSandwichLength/2.0;
-    G4double zScint  = zModule - fAlPlateThickness - ftargetWSizeZ;
+    // position is in the scintillator's local frame (TrackerSD uses GetTopTransform), not the module frame
+    G4double zScint  = position.Z() + fScintillatorSizeZ/2.0;
 
 	// sanity check
 	if((dx < 0 || dx > fScintillatorSizeX) || (dy < 0 || dy > fScintillatorSizeY) || (zModule < 0 || zModule > fTotalLength)) {
