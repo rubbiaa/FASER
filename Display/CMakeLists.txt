@@ -16,11 +16,13 @@ include_directories(${ROOT_INCLUDE_DIRS})
 add_definitions(-Wno-deprecated-declarations)
 
 # ======== GenFit Configuration ========
-set(GENFITINCDIR /eos/user/u/ukose/FASERCAL/sw/kits/FASER/GenFit-install/include)
-set(GENFITLIBDIR /eos/user/u/ukose/FASERCAL/sw/kits/FASER/GenFit-install/lib)
+# Previously hardcoded to one developer's /eos path; now comes from the
+# top-level superbuild (cmake/Externals.cmake), or from -DGENFIT_ROOT=...
+# when FASER_BUILD_GENFIT=OFF.
+set(GENFITINCDIR ${GENFIT_INSTALL_DIR}/include)
+set(GENFITLIBDIR ${GENFIT_INSTALL_DIR}/lib)
 
 include_directories(${GENFITINCDIR})
-link_directories(${GENFITLIBDIR})
 
 # ======== Sources ========
 set(SOURCES
@@ -47,38 +49,38 @@ target_include_directories(FaserCalDisplay PRIVATE
     ../CoreUtils
     ${GENFITINCDIR}
 )
-target_link_libraries(FaserCalDisplay ${ROOT_LIBRARIES} genfit2)
+target_link_libraries(FaserCalDisplay ${ROOT_LIBRARIES} GenFit::genfit2)
 
 # ======== Executables ========
 add_executable(FaserCalDisplayApp main.cxx)
 target_include_directories(FaserCalDisplayApp PRIVATE ${ROOT_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR} ../CoreUtils ${GENFITINCDIR})
-target_link_libraries(FaserCalDisplayApp FaserCalDisplay ${ROOT_LIBRARIES} genfit2)
+target_link_libraries(FaserCalDisplayApp FaserCalDisplay ${ROOT_LIBRARIES} GenFit::genfit2)
 
 add_executable(FaserCalAnalyzer FaserCalAnalyzer.cxx)
 target_include_directories(FaserCalAnalyzer PRIVATE ${ROOT_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR} ../CoreUtils ${GENFITINCDIR})
-target_link_libraries(FaserCalAnalyzer FaserCalDisplay ${ROOT_LIBRARIES} genfit2)
+target_link_libraries(FaserCalAnalyzer FaserCalDisplay ${ROOT_LIBRARIES} GenFit::genfit2)
 
 add_executable(FaserCalAnalyzer2nd FaserCalAnalyzer2nd.cxx)
 target_include_directories(FaserCalAnalyzer2nd PRIVATE ${ROOT_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR} ../CoreUtils ${GENFITINCDIR})
-target_link_libraries(FaserCalAnalyzer2nd FaserCalDisplay ${ROOT_LIBRARIES} genfit2)
+target_link_libraries(FaserCalAnalyzer2nd FaserCalDisplay ${ROOT_LIBRARIES} GenFit::genfit2)
 
 
 add_executable(DumpMuonHits DumpMuonHits.cxx)
 target_include_directories(DumpMuonHits PRIVATE ${ROOT_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR} ../CoreUtils ${GENFITINCDIR})
-target_link_libraries(DumpMuonHits FaserCalDisplay ${ROOT_LIBRARIES} genfit2)
+target_link_libraries(DumpMuonHits FaserCalDisplay ${ROOT_LIBRARIES} GenFit::genfit2)
 
 add_executable(DumpEventList DumpEventList.cxx)
 target_include_directories(DumpEventList PRIVATE ${ROOT_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR} ../CoreUtils ${GENFITINCDIR})
-target_link_libraries(DumpEventList FaserCalDisplay ${ROOT_LIBRARIES} genfit2)
+target_link_libraries(DumpEventList FaserCalDisplay ${ROOT_LIBRARIES} GenFit::genfit2)
 
 add_executable(FaserCalMuonSpectrometer FaserCalMuonSpectrometer.cxx)
 target_include_directories(FaserCalMuonSpectrometer PRIVATE ${ROOT_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR} ../CoreUtils ${GENFITINCDIR})
-target_link_libraries(FaserCalMuonSpectrometer FaserCalDisplay ${ROOT_LIBRARIES} genfit2)
+target_link_libraries(FaserCalMuonSpectrometer FaserCalDisplay ${ROOT_LIBRARIES} GenFit::genfit2)
 
 
 add_executable(DumpMuonSpectrometer DumpMuonSpectrometer.cxx)
 target_include_directories(DumpMuonSpectrometer PRIVATE ${ROOT_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR} ../CoreUtils ${GENFITINCDIR})
-target_link_libraries(DumpMuonSpectrometer FaserCalDisplay ${ROOT_LIBRARIES} genfit2)
+target_link_libraries(DumpMuonSpectrometer FaserCalDisplay ${ROOT_LIBRARIES} GenFit::genfit2)
 
 # ======== RPATH for macOS Runtime Discovery ========
 set(CMAKE_INSTALL_RPATH "@loader_path/../lib")
@@ -91,8 +93,5 @@ list(APPEND CMAKE_INSTALL_RPATH ${GENFITLIBDIR} $ENV{ROOTSYS}/lib)
 
 
 # Debug
-# Debug output
 message(STATUS "ROOT Library Directory: ${ROOT_LIBRARY_DIR}")
 message(STATUS "GenFit Library Directory: ${GENFITLIBDIR}")
-message(STATUS "GenFit Library: ${GENFIT_LIB}")
-
