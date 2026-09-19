@@ -77,6 +77,13 @@ if(TARGET clhep_external)
   add_dependencies(CLHEP::CLHEP clhep_external)
 endif()
 
+# Mark CLHEP as found so that Geant4's find_dependency(CLHEP) call (inside
+# Geant4Config.cmake) becomes a no-op.  Without this, find_package(CLHEP)
+# would reload the CLHEP cmake config from the system install, which tries
+# to define CLHEP::CLHEP again and fails with "Some (but not all) targets in
+# this export set were already defined."
+set(CLHEP_FOUND TRUE CACHE BOOL "CLHEP is managed by the FASER superbuild" FORCE)
+
 # -----------------------------------------------------------------------------
 # Rave (autotools; source already vendored in-tree under ./rave)
 # -----------------------------------------------------------------------------
