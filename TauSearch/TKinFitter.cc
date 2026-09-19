@@ -1185,19 +1185,19 @@ void TKinFitter::print() {
     Int_t nParP = particle->getNPar();
     const TMatrixD* par = particle->getParCurr();
     const TMatrixD* covP = particle->getCovMatrix();
-    std::cout << std::setw(3) << setiosflags(std::ios::right) << iP;
-    std::cout << std::setw(15) << setiosflags(std::ios::right) << particle->GetName();
+    std::cout << std::setw(3) << std::setiosflags(std::ios::right) << iP;
+    std::cout << std::setw(15) << std::setiosflags(std::ios::right) << particle->GetName();
     std::cout << std::setw(3) << " ";
     for (int iPar = 0; iPar < nParP; iPar++) {
       if (iPar > 0) {
-	std::cout << setiosflags(std::ios::right) << std::setw(21) << " ";
+	std::cout << std::setiosflags(std::ios::right) << std::setw(21) << " ";
       }
       TString colstr = "";
       colstr += parIndex;
       colstr += ":";
       std::cout << std::setw(4) << colstr;
       std::cout << std::setw(2) << " ";   
-      std::cout << setiosflags(std::ios::left) << setiosflags(std::ios::scientific) << std::setprecision(3);
+      std::cout << std::setiosflags(std::ios::left) << std::setiosflags(std::ios::scientific) << std::setprecision(3);
       std::cout << std::setw(15) << (*par)(iPar, 0);
       if(_nbIter > 0 && _status < 10) {
 	std::cout << std::setw(15) << TMath::Sqrt( _yaVFit(iPar, iPar) );
@@ -1217,19 +1217,19 @@ void TKinFitter::print() {
     TAbsFitParticle* particle = _unmeasParticles[iP];
     Int_t nParP = particle->getNPar();
     const TMatrixD* par = particle->getParCurr();
-    std::cout << std::setw(3) << setiosflags(std::ios::right) << iP;
+    std::cout << std::setw(3) << std::setiosflags(std::ios::right) << iP;
     std::cout << std::setw(15) << particle->GetName();
     std::cout << std::setw(3) << " ";
     for (int iPar = 0; iPar < nParP; iPar++) {
       if (iPar > 0) {
-	std::cout << setiosflags(std::ios::right) << std::setw(21) << " ";
+	std::cout << std::setiosflags(std::ios::right) << std::setw(21) << " ";
       }
       TString colstr = "";
       colstr += parIndex;
       colstr += ":";
       std::cout << std::setw(4) << colstr;
       std::cout << std::setw(2) << " ";
-      std::cout << setiosflags(std::ios::left) << setiosflags(std::ios::scientific) << std::setprecision(3);
+      std::cout << std::setiosflags(std::ios::left) << std::setiosflags(std::ios::scientific) << std::setprecision(3);
       std::cout << std::setw(15) << (*par)(iPar, 0);
       if(_nbIter > 0 && _status < 10) {
 	std::cout << std::setw(15) << TMath::Sqrt( _yaVFit(iPar+_nParB, iPar+_nParB) );

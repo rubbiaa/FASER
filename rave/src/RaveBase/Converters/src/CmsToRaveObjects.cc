@@ -41,7 +41,7 @@ namespace
   struct ltVertex
   {
     bool operator() ( const pair < float, rave::Vertex > & r1,
-                      const pair < float, rave::Vertex > & r2 )
+                      const pair < float, rave::Vertex > & r2 ) const
     {
       return ( r1.first > r2.first );
     }
