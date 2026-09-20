@@ -98,8 +98,9 @@ This takes a while - Geant4 is a large codebase.
 
 ## 5. Point FASER at it
 
-Update `GEANT4_INSTALL` in whichever setup script you use
-(`mac_setup.sh` / `lxplus_setup.sh`):
+Update `GEANT4_INSTALL` in the site branch of `setup.sh` that matches your
+machine (see the comments at the top of that script for how sites are
+detected and how to add a new one):
 
 ```bash
 export GEANT4_INSTALL=/path/to/geant4-install
@@ -133,7 +134,7 @@ confirming Geant4 was found, e.g.:
 ## Alternative: skip building Geant4 entirely
 
 - **CVMFS** (CERN/lxplus): source a pre-built Geant4 from `/cvmfs/geant4.cern.ch/...`
-  (see `lxplus_setup.sh`) - already has GDML/vis/data.
+  (see the lxplus branch of `setup.sh`) - already has GDML/vis/data.
 - **conda-forge**: `mamba install -c conda-forge geant4` gets you a
   working install (with GDML) with no manual build at all - this is what
   the project's GitHub Actions CI uses (`.github/workflows/build.yml`).

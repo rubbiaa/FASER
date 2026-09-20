@@ -5,7 +5,7 @@ FASERCAL code to simulate and analyse events in the FASERCAL detector
 ## Lxplus Installation
 
 ```bash
-source lxplus_setup_anna.sh # this sets up root, geant4, and the LD_LIBRARY_PATH
+source setup.sh # auto-detects lxplus and sets up root, geant4, and the LD_LIBRARY_PATH
 make pythia8
 make clhep
 make rave

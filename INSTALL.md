@@ -46,14 +46,16 @@ sudo apt install build-essential git cmake automake autoconf libtool m4 perl \
 ```
 
 Either way, source your usual environment setup first so `root-config`,
-`$ROOTSYS`, and Geant4's `geant4.sh` are on your PATH/environment - e.g.
-`source setup.sh` (edit it to point at your ROOT/Geant4 install first), or
-`source mac_setup.sh` / `source lxplus_setup.sh`. `mac_setup.sh` also
-exports `GEANT4_INSTALL` and adds it to `CMAKE_PREFIX_PATH`, so
-`find_package(Geant4)` can locate it without you having to pass
-`-DGeant4_DIR=...` by hand every time - edit the paths at the top of that
-script to match where your own ROOT/Geant4 actually live before sourcing
-it.
+`$ROOTSYS`, and Geant4's `geant4.sh` are on your PATH/environment - just
+run `source setup.sh`. It auto-detects which known site you're on (André's
+Mac, the Ubuntu/Ryzen box, or lxplus) and sets up ROOT/Geant4/Pythia8
+accordingly, exporting `GEANT4_INSTALL` and adding it to
+`CMAKE_PREFIX_PATH` so `find_package(Geant4)` can locate it without you
+having to pass `-DGeant4_DIR=...` by hand every time. On a new machine it
+won't recognize, it prints what to do: add an `elif` branch for your site
+near the top of the script (see the comments there), or just set
+`GEANT4_INSTALL`/`PYTHIA8`/ROOT yourself and source
+`common_setup.sh` directly.
 
 ---
 
@@ -62,7 +64,7 @@ it.
 ```bash
 git clone https://github.com/rubbiaa/FASER.git
 cd FASER
-source mac_setup.sh   # or setup.sh / lxplus_setup.sh - see Prerequisites
+source setup.sh   # auto-detects your site - see Prerequisites
 cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build build -j
 ```
@@ -134,7 +136,7 @@ your Geant4 install prefix, purely renamed so it never collides with a
 real system CLHEP.
 
 **This is automatic** - no flags needed. If `$GEANT4_INSTALL` is set (as
-`mac_setup.sh`/`lxplus_setup.sh` already do) and that install has a
+`setup.sh` already does for every known site) and that install has a
 bundled CLHEP, a plain `cmake -S . -B build` with no extra `-D` flags at
 all detects it and skips CLHEP's from-source build on its own. This only
 ever *shortens* the default build - if `$GEANT4_INSTALL` isn't set, or
@@ -190,8 +192,8 @@ if your first build fails, check here before opening an issue.
 
 **`Could not find a package configuration file ... ROOT` / `find_package(ROOT)` fails**
 ROOT's environment isn't sourced. Run `root-config --prefix` to find your
-install, then either source `mac_setup.sh`/`setup.sh` (recommended) or
-pass `-DROOT_DIR=<that prefix>/cmake` directly.
+install, then either source `setup.sh` (recommended) or pass
+`-DROOT_DIR=<that prefix>/cmake` directly.
 
 **`find_package(Geant4)` fails**
 Same idea: locate it with `geant4-config --prefix` or `brew --prefix

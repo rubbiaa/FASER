@@ -13,9 +13,11 @@
 # FASER_BUILD_<NAME> switches and *_ROOT overrides.
 #
 # ROOT and Geant4 are expected to already be installed on your machine
-# (Homebrew, a module system, CVMFS, ...) - source your usual setup.sh /
-# mac_setup.sh / lxplus_setup.sh (or just have ROOTSYS / thisroot.sh /
-# geant4.sh sourced) before running cmake so find_package() can locate them.
+# (Homebrew, a module system, CVMFS, ...) - source setup.sh (it
+# auto-detects which known site you're on - Mac, Ubuntu, lxplus - and
+# sets ROOT/Geant4/Pythia8 up accordingly; or just have ROOTSYS /
+# thisroot.sh / geant4.sh sourced yourself) before running cmake so
+# find_package() can locate them.
 # =============================================================================
 cmake_minimum_required(VERSION 3.20)
 project(FASER LANGUAGES CXX)
@@ -60,7 +62,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 # -----------------------------------------------------------------------------
 # Environment sanity check
 # -----------------------------------------------------------------------------
-# A missing or stale setup.sh/mac_setup.sh/lxplus_setup.sh environment has
+# A missing or stale setup.sh environment has
 # repeatedly caused confusing failures well downstream of here - a cryptic
 # Rave/CLHEP autotools error, or a plain find_package(Geant4) failure
 # inside FASERG4/CMakeLists.txt with no further context. Report what CMake
@@ -81,8 +83,7 @@ if(DEFINED ENV{GEANT4_INSTALL})
   else()
     message(WARNING "GEANT4_INSTALL is set to '$ENV{GEANT4_INSTALL}', but that "
       "path does not exist. This is very likely a stale environment - re-source "
-      "your setup script (setup.sh / mac_setup.sh / lxplus_setup.sh / "
-      "lxplus_setup_anna.sh) before running cmake.")
+      "your setup script (source setup.sh) before running cmake.")
   endif()
 else()
   message(STATUS "  GEANT4_INSTALL is not set - source your setup script first "

@@ -13,9 +13,9 @@
 # located with find_package() in the top-level CMakeLists.txt, exactly as
 # FASERG4/CMakeLists.txt and Display/CMakeLists.txt already did before this
 # modernization. Building ROOT itself from source is a multi-hour build
-# that nobody on the team actually relied on (setup.sh / mac_setup.sh /
-# lxplus_setup.sh all point at a pre-existing ROOT install) so it is out of
-# scope for this superbuild.
+# that nobody on the team actually relied on (setup.sh always points at a
+# pre-existing ROOT install, for every site it knows about) so it is out
+# of scope for this superbuild.
 #
 # Each dependency can be switched off individually (FASER_BUILD_<NAME>) to
 # point at an already-installed copy instead - set the matching *_ROOT /
@@ -86,8 +86,8 @@ endif()
 # -----------------------------------------------------------------------------
 # CLHEP
 # -----------------------------------------------------------------------------
-# Smart default: if $GEANT4_INSTALL is set (mac_setup.sh / lxplus_setup.sh
-# both export it, the latter via CVMFS's own geant4.sh) and that install
+# Smart default: if $GEANT4_INSTALL is set (every site branch in setup.sh
+# exports it, the lxplus one via CVMFS's own geant4.sh) and that install
 # has a bundled CLHEP *complete enough for FASER's own use* (see the
 # detection logic and explanation in the FASER_BUILD_CLHEP=OFF branch
 # below), default to reusing it instead of building CLHEP from source -
