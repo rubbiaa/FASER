@@ -4,10 +4,13 @@ source /Users/rubbiaa/Documents/GitHub/ROOT/root_install/bin/thisroot.sh
 
 export PYTHIA8=$HOMEFASER/pythia8312
 
-export CLHEPINSTALL=$HOMEFASER/CLHEP-install
-export RAVEINSTALL=$HOMEFASER/rave-install
-export GENFITINSTALL=$HOMEFASER/GenFit-install
-export LD_LIBRARY_PATH=$GENFITINSTALL/lib:$GENFITINSTALL/lib64:$RAVEINSTALL/lib:$CLHEPINSTALL/lib:$LD_LIBRARY_PATH
+# CLHEP/Rave/GenFit are built by FASER's own CMake superbuild
+# (cmake/Externals.cmake) into build/external-install/, not into
+# top-level *-install directories - point at the real thing.
+export CLHEPINSTALL=$HOMEFASER/build/external-install/CLHEP
+export RAVEINSTALL=$HOMEFASER/build/external-install/rave
+export GENFITINSTALL=$HOMEFASER/build/external-install/GenFit
+export LD_LIBRARY_PATH=$GENFITINSTALL/lib:$GENFITINSTALL/lib64:$RAVEINSTALL/lib:$CLHEPINSTALL/lib:$CLHEPINSTALL/lib64:$LD_LIBRARY_PATH
 
 export GEANT4_INSTALL=/Users/rubbiaa/Documents/GitHub/GEANT4/geant4-v11.4.2-install/
 source $GEANT4_INSTALL/bin/geant4.sh
