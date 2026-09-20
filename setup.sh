@@ -8,9 +8,9 @@
 #
 # HOMEFASER is derived from this script's own location (works in both
 # bash and zsh), not $PWD - so it works whether you source it from the
-# repo root or from somewhere else. That also removes the old need for a
-# hardcoded absolute HOMEFASER on Anna's lxplus/AFS checkout: it's
-# whatever directory this file actually lives in.
+# repo root or from somewhere else, including a checkout whose absolute
+# path is fixed (e.g. an AFS work area) rather than wherever you happen
+# to `cd` from.
 #
 # Adding a new site: add another `elif` branch below that recognizes your
 # machine (a distinctive path, hostname, or username works) and sets up
@@ -21,11 +21,9 @@ HOMEFASER="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 export HOMEFASER
 
 # Finds the newest ROOT 6.x release under CVMFS's LCG software area, for
-# lxplus accounts (like Anna's - this used to need a whole separate
-# lxplus_setup_anna.sh just to hardcode one specific version/platform
-# here) that don't keep their own ROOT build inside the checkout. Echoes
-# the resolved install directory (the one containing bin/thisroot.sh) on
-# success, or nothing if none can be found.
+# lxplus accounts that don't keep their own ROOT build inside the
+# checkout. Echoes the resolved install directory (the one containing
+# bin/thisroot.sh) on success, or nothing if none can be found.
 _faser_find_latest_cvmfs_root6() {
   releases_dir=/cvmfs/sft.cern.ch/lcg/app/releases/ROOT
   [ -d "$releases_dir" ] || return 0
@@ -73,10 +71,9 @@ elif [ -d /home/rubbiaa/geant4-install ]; then
 elif [ -d /cvmfs/geant4.cern.ch ]; then
   # lxplus: prefer a ROOT build local to the checkout (root-install/) if
   # one is there, since that's what building your own ROOT from source
-  # into the repo implies you want used. Otherwise (Anna's account is the
-  # motivating case, but this covers anyone without a local build) fall
-  # back to auto-discovering the latest ROOT 6 release CVMFS itself
-  # publishes, rather than requiring one to be built locally at all.
+  # into the repo implies you want used. Otherwise, fall back to
+  # auto-discovering the latest ROOT 6 release CVMFS itself publishes,
+  # rather than requiring one to be built locally at all.
   echo "FASER setup: detected site = lxplus"
   echo "Current working directory: $HOMEFASER"
 
