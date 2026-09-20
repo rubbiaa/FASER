@@ -40,24 +40,37 @@ endif()
 # -----------------------------------------------------------------------------
 # Smart default: if $GEANT4_INSTALL is set (mac_setup.sh / lxplus_setup.sh
 # both export it, the latter via CVMFS's own geant4.sh) and that install
-# actually has a bundled CLHEP (see the detection logic and explanation in
-# the FASER_BUILD_CLHEP=OFF branch below), default to reusing it instead
-# of building CLHEP from source - so a plain `cmake -S . -B build` with no
-# extra -D flags at all already skips CLHEP's own from-source build on a
-# normal dev machine. This only ever *shortens* the default build: if
-# GEANT4_INSTALL isn't set, or is set but doesn't have a bundled CLHEP
-# (e.g. lxplus's CVMFS Geant4, which links a shared LCG-stack CLHEP
-# instead), this is a no-op and FASER_BUILD_CLHEP still defaults to ON as
-# before. An explicit -DFASER_BUILD_CLHEP=ON/OFF or -DCLHEP_ROOT=... on
+# has a bundled CLHEP *complete enough for FASER's own use* (see the
+# detection logic and explanation in the FASER_BUILD_CLHEP=OFF branch
+# below), default to reusing it instead of building CLHEP from source -
+# so a plain `cmake -S . -B build` with no extra -D flags at all already
+# skips CLHEP's own from-source build on a normal dev machine. This only
+# ever *shortens* the default build: if GEANT4_INSTALL isn't set, or its
+# bundled CLHEP isn't complete enough (see below - this is actually the
+# common case), this is a no-op and FASER_BUILD_CLHEP still defaults to ON
+# as before. An explicit -DFASER_BUILD_CLHEP=ON/OFF or -DCLHEP_ROOT=... on
 # the command line always overrides this (ordinary CMake cache-variable
 # precedence: option()/set(... CACHE ...) never overwrites a cache entry
 # that's already defined, whether from the command line or a previous
 # configure of the same build directory).
+#
+# "Complete enough" specifically means it has CLHEP's Matrix module, not
+# just Vector: Geant4 only bundles the CLHEP modules *it* uses internally
+# (Vector, Random, Geometry, Evaluator, Units, Utility - confirmed against
+# an actual Geant4 11.4.2 install/source tree), which does NOT include
+# Matrix - and Rave's DataFormats/CLHEP/interface/AlgebraicObjects.h needs
+# CLHEP::HepMatrix/HepSymMatrix for track/vertex covariance algebra. A
+# first version of this auto-detection checked only for libG4clhep itself
+# and broke Rave's build with "'CLHEP/Matrix/Matrix.h' file not found";
+# checking for the Matrix module too means a plain Geant4-bundled CLHEP
+# (which never has it) safely falls through to building from source
+# instead of silently producing an incomplete CLHEP.
 set(_faser_clhep_default_build ON)
 set(_faser_clhep_default_root  "")
 if(DEFINED ENV{GEANT4_INSTALL})
   foreach(_faser_libdir lib lib64)
-    if(EXISTS "$ENV{GEANT4_INSTALL}/${_faser_libdir}/libG4clhep${_faser_shlib_suffix}")
+    if(EXISTS "$ENV{GEANT4_INSTALL}/${_faser_libdir}/libG4clhep${_faser_shlib_suffix}" AND
+       EXISTS "$ENV{GEANT4_INSTALL}/include/Geant4/CLHEP/Matrix")
       set(_faser_clhep_default_build OFF)
       set(_faser_clhep_default_root  "$ENV{GEANT4_INSTALL}")
       break()
@@ -116,7 +129,15 @@ else()
   #  directory of symlinks (under the build tree) presenting it with that
   #  same shape - everything past this point then just uses
   #  CLHEP_INSTALL_DIR uniformly, however CLHEP was actually obtained.
-  if(EXISTS "${CLHEP_ROOT}/${CMAKE_INSTALL_LIBDIR}/libG4clhep${_faser_shlib_suffix}")
+  #
+  #  Geant4 only bundles the CLHEP modules it uses internally (Vector,
+  #  Random, Geometry, Evaluator, Units, Utility) - never Matrix, which
+  #  Rave needs for CLHEP::HepMatrix/HepSymMatrix. Require Matrix to be
+  #  present too, not just libG4clhep itself, so an incomplete bundled
+  #  CLHEP is correctly rejected here rather than failing later with
+  #  "'CLHEP/Matrix/Matrix.h' file not found" partway through Rave's build.
+  if(EXISTS "${CLHEP_ROOT}/${CMAKE_INSTALL_LIBDIR}/libG4clhep${_faser_shlib_suffix}" AND
+     EXISTS "${CLHEP_ROOT}/include/Geant4/CLHEP/Matrix")
     set(CLHEP_INSTALL_DIR "${FASER_EXTERNAL_STAGE_DIR}/clhep-from-geant4")
     file(MAKE_DIRECTORY "${CLHEP_INSTALL_DIR}/include" "${CLHEP_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}")
     if(NOT EXISTS "${CLHEP_INSTALL_DIR}/include/CLHEP")
