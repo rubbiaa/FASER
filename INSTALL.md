@@ -133,19 +133,31 @@ installed as `lib/libG4clhep.*` plus `include/Geant4/CLHEP/...` under
 your Geant4 install prefix, purely renamed so it never collides with a
 real system CLHEP.
 
-Point `CLHEP_ROOT` at that same Geant4 install and FASER will detect the
-bundled layout automatically and reuse it - no separate CLHEP build at
-all:
+**This is automatic** - no flags needed. If `$GEANT4_INSTALL` is set (as
+`mac_setup.sh`/`lxplus_setup.sh` already do) and that install has a
+bundled CLHEP, a plain `cmake -S . -B build` with no extra `-D` flags at
+all detects it and skips CLHEP's from-source build on its own. This only
+ever *shortens* the default build - if `$GEANT4_INSTALL` isn't set, or
+points at a Geant4 that doesn't have a bundled CLHEP (e.g. lxplus's CVMFS
+Geant4, which links a shared LCG-stack CLHEP instead), nothing changes
+and `FASER_BUILD_CLHEP` still defaults to `ON` as before.
+
+To point at a *different* pre-installed CLHEP (its own standalone install,
+or a Geant4 install other than `$GEANT4_INSTALL`), or to force building
+CLHEP from source even when a bundled one would be auto-detected, pass
+the flags explicitly - an explicit `-D` on the command line always wins
+over the automatic default:
 
 ```bash
 cmake -S . -B build \
   -DFASER_BUILD_CLHEP=OFF \
-  -DCLHEP_ROOT=$GEANT4_INSTALL   # mac_setup.sh already exports this
+  -DCLHEP_ROOT=/path/to/some/other/CLHEP-or-Geant4-install
 ```
 
 (Everything else - `FASER_BUILD_RAVE`, `FASER_BUILD_GENFIT`,
 `FASER_BUILD_PYTHIA8` - is unaffected and still builds from source unless
-you turn those off too.) Configure prints which layout it found:
+you turn those off too.) Configure prints which layout it found (or that
+it's building from source):
 
 ```
 -- CLHEP: reusing the CLHEP bundled inside the Geant4 install at ... (via symlink shim ...)

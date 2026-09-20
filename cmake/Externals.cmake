@@ -38,10 +38,38 @@ endif()
 # -----------------------------------------------------------------------------
 # CLHEP
 # -----------------------------------------------------------------------------
-option(FASER_BUILD_CLHEP "Build CLHEP from source (gitlab.cern.ch/CLHEP/CLHEP)" ON)
-set(CLHEP_ROOT "" CACHE PATH "Pre-installed CLHEP prefix (used when FASER_BUILD_CLHEP=OFF)")
+# Smart default: if $GEANT4_INSTALL is set (mac_setup.sh / lxplus_setup.sh
+# both export it, the latter via CVMFS's own geant4.sh) and that install
+# actually has a bundled CLHEP (see the detection logic and explanation in
+# the FASER_BUILD_CLHEP=OFF branch below), default to reusing it instead
+# of building CLHEP from source - so a plain `cmake -S . -B build` with no
+# extra -D flags at all already skips CLHEP's own from-source build on a
+# normal dev machine. This only ever *shortens* the default build: if
+# GEANT4_INSTALL isn't set, or is set but doesn't have a bundled CLHEP
+# (e.g. lxplus's CVMFS Geant4, which links a shared LCG-stack CLHEP
+# instead), this is a no-op and FASER_BUILD_CLHEP still defaults to ON as
+# before. An explicit -DFASER_BUILD_CLHEP=ON/OFF or -DCLHEP_ROOT=... on
+# the command line always overrides this (ordinary CMake cache-variable
+# precedence: option()/set(... CACHE ...) never overwrites a cache entry
+# that's already defined, whether from the command line or a previous
+# configure of the same build directory).
+set(_faser_clhep_default_build ON)
+set(_faser_clhep_default_root  "")
+if(DEFINED ENV{GEANT4_INSTALL})
+  foreach(_faser_libdir lib lib64)
+    if(EXISTS "$ENV{GEANT4_INSTALL}/${_faser_libdir}/libG4clhep${_faser_shlib_suffix}")
+      set(_faser_clhep_default_build OFF)
+      set(_faser_clhep_default_root  "$ENV{GEANT4_INSTALL}")
+      break()
+    endif()
+  endforeach()
+endif()
+
+option(FASER_BUILD_CLHEP "Build CLHEP from source (gitlab.cern.ch/CLHEP/CLHEP)" ${_faser_clhep_default_build})
+set(CLHEP_ROOT "${_faser_clhep_default_root}" CACHE PATH "Pre-installed CLHEP prefix (used when FASER_BUILD_CLHEP=OFF)")
 
 if(FASER_BUILD_CLHEP)
+  message(STATUS "CLHEP: building from source (gitlab.cern.ch/CLHEP/CLHEP) - pass -DCLHEP_ROOT=... or set $GEANT4_INSTALL to a Geant4 install with a bundled CLHEP to skip this")
   set(CLHEP_INSTALL_DIR "${FASER_EXTERNAL_INSTALL_DIR}/CLHEP")
 
   ExternalProject_Add(clhep_external
