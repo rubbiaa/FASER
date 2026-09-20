@@ -3,6 +3,7 @@
 #include "TPORecoEvent.hh"
 #include "TTauSearch.hh"
 #include "TParticleGun.hh"
+#include "TMuonSpect.hh"
 #include "TPSCluster.hh"
 #include "TTKTrack.hh"
 #include "TPSTrack.hh"
@@ -25,6 +26,8 @@
 #pragma link C++ class TPOEvent+;
 #pragma link C++ class TcalEvent+;
 #pragma link C++ class DigitizedTrack+;
+#pragma link C++ class MuTagTrack+;
+#pragma link C++ class MDTTrack+;
 #pragma link C++ struct PO+;
 
 #pragma link C++ class TTauSearch;
@@ -32,6 +35,9 @@
 
 #pragma link C++ class TParticleGun;
 #pragma link C++ struct TParticleGun::FEATURES;
+
+#pragma link C++ class TMuonSpectrometer;
+#pragma link C++ struct TMuonSpectrometer::FEATURES;
 
 #pragma link C++ class TPSCluster;
 #pragma link C++ struct TPSCluster::PSCLUSTERLONGPROFILE;
