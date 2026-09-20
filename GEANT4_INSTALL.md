@@ -17,7 +17,9 @@ support, which will fail at FASER's `cmake` configure step (or, if a
 stale `CMakeCache.txt` masks it, later at compile time with something
 like `fatal error: 'G4GDMLParser.hh' file not found`).
 
-## 1. Prerequisites (macOS / Homebrew)
+## 1. Prerequisites
+
+### macOS (Homebrew)
 
 ```bash
 brew install cmake xerces-c qt
@@ -27,9 +29,30 @@ brew install cmake xerces-c qt
 - `qt` - gives Geant4 a real interactive UI shell and OpenGL visualization
   driver (the standard modern choice on macOS)
 
-On Linux, install the equivalent packages from your distro (or use
-`conda-forge`'s prebuilt `geant4` package instead of building from
-source at all - see the note at the bottom).
+### Linux (Ubuntu / Debian)
+
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+  build-essential cmake \
+  libxerces-c-dev \
+  qtbase5-dev qttools5-dev \
+  libx11-dev libxpm-dev libxft-dev libxext-dev libxmu-dev libxi-dev \
+  freeglut3-dev libglu1-mesa-dev
+```
+
+- `libxerces-c-dev` - required for GDML support (same role as `xerces-c`
+  above)
+- `qtbase5-dev` / `qttools5-dev` - Qt5 UI + OpenGL visualization driver.
+  On Ubuntu 24.04+, where apt defaults to Qt6, use `qt6-base-dev` instead
+  and add `-DGEANT4_USE_QT6=ON` to the configure step below.
+- the `libx*`/`freeglut3-dev`/`libglu1-mesa-dev` set - headers needed to
+  build Geant4's OpenGL/X11 visualization driver
+  (`-DGEANT4_USE_OPENGL_X11=ON` below). Already validated working in this
+  project's own CI (`.github/workflows/build.yml`, `ubuntu-22.04`).
+
+Or skip building Geant4 on Linux entirely - see the conda-forge note at
+the bottom, which is what CI actually uses.
 
 ## 2. Get the source
 
