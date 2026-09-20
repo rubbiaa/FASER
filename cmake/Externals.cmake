@@ -212,8 +212,13 @@ option(FASER_BUILD_RAVE "Build Rave from the vendored ./rave source tree" ON)
 set(RAVE_ROOT "" CACHE PATH "Pre-installed Rave prefix (used when FASER_BUILD_RAVE=OFF)")
 
 if(FASER_BUILD_RAVE)
-  set(RAVE_INSTALL_DIR "${FASER_EXTERNAL_INSTALL_DIR}/rave")
-  set(RAVE_SOURCE_DIR  "${CMAKE_SOURCE_DIR}/rave")
+  set(RAVE_INSTALL_DIR  "${FASER_EXTERNAL_INSTALL_DIR}/rave")
+  # The vendored, git-tracked copy - never built in place (see below).
+  set(RAVE_VENDORED_DIR "${CMAKE_SOURCE_DIR}/rave")
+  # A private copy of it under the build tree, staged fresh by the
+  # DOWNLOAD_COMMAND below. autoreconf/configure/make all run against
+  # *this* directory, not RAVE_VENDORED_DIR.
+  set(RAVE_SOURCE_DIR   "${FASER_EXTERNAL_STAGE_DIR}/rave-src")
 
   if(APPLE)
     # The vendored ./rave tree ships a checked-in `configure` script but no
@@ -232,9 +237,21 @@ if(FASER_BUILD_RAVE)
   endif()
 
   # Rave's autotools build is run in-source (as the old Makefile did: `cd
-  # rave && ./configure ...`), so it leaves build artifacts inside the
-  # tracked ./rave directory. Run `git clean -fdx rave/` if you ever need a
-  # pristine rebuild.
+  # rave && ./configure ...`) - but *in-source relative to the staged copy
+  # above*, not the tracked ./rave directory. `autoreconf -fi` regenerates
+  # configure/config.h.in/aclocal.m4/libtool's scaffolding using whatever
+  # autoconf/automake/libtool happen to be installed on the machine doing
+  # the build; running that against the tracked directory directly used to
+  # leave `git status` permanently dirty with toolchain-version churn in
+  # generated files (different autoconf/automake versions on different
+  # machines regenerating slightly different boilerplate). Staging a fresh
+  # copy under the build tree first means all of that noise lands there
+  # instead, and the tracked ./rave tree is never written to by the build.
+  #
+  # This copy is only made once (DOWNLOAD_COMMAND runs on the first
+  # configure and is not re-triggered automatically). If you edit files
+  # under the vendored ./rave source itself, do a clean rebuild
+  # (`rm -rf build`) to pick the changes up in a fresh staged copy.
   #
   # Only add a build-order dependency on clhep_external when it actually
   # exists - it doesn't when FASER_BUILD_CLHEP=OFF (e.g. reusing the CLHEP
@@ -248,6 +265,7 @@ if(FASER_BUILD_RAVE)
 
   ExternalProject_Add(rave_external
     DEPENDS           ${_rave_deps}
+    DOWNLOAD_COMMAND  sh -c "rm -rf ${RAVE_SOURCE_DIR} && ${CMAKE_COMMAND} -E copy_directory ${RAVE_VENDORED_DIR} ${RAVE_SOURCE_DIR}"
     SOURCE_DIR        ${RAVE_SOURCE_DIR}
     BUILD_IN_SOURCE   1
     CONFIGURE_COMMAND ${_rave_configure_cmd}
