@@ -15,3 +15,10 @@ export DYLD_LIBRARY_PATH=/opt/homebrew/opt/boost/lib:$DYLD_LIBRARY_PATH
 export DYLD_LIBRARY_PATH=$CLHEPINSTALL/lib:$DYLD_LIBRARY_PATH
 export LD_LIBRARY_PATH=$GENFITINSTALL/lib:$RAVEINSTALL/lib:$CLHEPINSTALL/lib:$LD_LIBRARY_PATH
 
+
+# Executables built by the top-level CMake build (build/bin -
+# CMAKE_RUNTIME_OUTPUT_DIRECTORY in CMakeLists.txt) - AnalyReco.exe,
+# batchreco.exe, evDisplay.exe, etc. This script doesn't define a
+# HOMEFASER-style repo-root variable like the other setup scripts, so
+# this assumes it's sourced from the repo root (as the others expect too).
+export PATH=$PWD/build/bin:$PATH

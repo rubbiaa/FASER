@@ -18,3 +18,8 @@ export CLHEPINSTALL=$HOMEFASER/CLHEP-install
 export RAVEINSTALL=$HOMEFASER/rave-install
 export GENFITINSTALL=$HOMEFASER/GenFit-install
 export LD_LIBRARY_PATH=$GENFITINSTALL/lib:$GENFITINSTALL/lib64:$RAVEINSTALL/lib:$CLHEPINSTALL/lib:$LD_LIBRARY_PATH
+
+# Executables built by the top-level CMake build (build/bin -
+# CMAKE_RUNTIME_OUTPUT_DIRECTORY in CMakeLists.txt) - AnalyReco.exe,
+# batchreco.exe, evDisplay.exe, etc.
+export PATH=$HOMEFASER/build/bin:$PATH
