@@ -63,39 +63,8 @@ void DetectorConstruction::DefineMaterials()
 
 	// Define Polystyrene (PVT) if not already defined
 	if (fPolystyrene == nullptr) {
-		// Build PVT (PolyVinylToluene) from C and H elements
-		fHydrogen = new G4Element("Hydrogen", "H", 1., 1.01 * g / mole);
-		fCarbon = new G4Element("Carbon", "C", 6., 12.01 * g / mole);
-
-		// Polystyrene (C_8H_8)
-		G4int HAtomsPerVolume = 8;
-		G4int CAtomsPerVolume = 8;
-
-		fPolystyrene = new G4Material("Polystyrene", 1.06 * g / cm3, 2);
-        fPolystyrene->AddElement(fCarbon, CAtomsPerVolume);
-        fPolystyrene->AddElement(fHydrogen, HAtomsPerVolume);
- 
-#if 0
-		fPolyvinyltoluene_MPT = new G4MaterialPropertiesTable();
-		fPolyvinyltoluene_MPT->AddConstProperty("SCINTILLATIONYIELD", fLightYield / MeV);  // The light yield of the scintillator
-		fPolyvinyltoluene_MPT->AddConstProperty(
-		    "RESOLUTIONSCALE",
-		    1.0);  // This determines the width of the distribution of number of photons produced. If the number is lower than 10,
-			   // it is sampled from a poission. If it is larger, a gaussian with a widht of 1/sqrt(N)*resScale is used
-		fPolyvinyltoluene_MPT->AddConstProperty("SCINTILLATIONTIMECONSTANT1", fScintillationDecayTime * ns);  // The decay time
-
-		fPolyvinyltoluene_MPT->AddProperty(
-		    "RINDEX", fPhotonEnergyPVT, fRefractiveIndex_PVT,
-		    nEntriesPVT);  // The refractive index of the scintillator, see in the header file for the valuesTODO
-		fPolyvinyltoluene_MPT->AddProperty(
-		    "ABSLENGTH", fPhotonEnergyPVT, fAbsorption_PVT,
-		    nEntriesPVT);  // The absorption length of the scintillator, see in the header file for the valuesTODO
-		fPolyvinyltoluene_MPT->AddProperty(
-		    "SCINTILLATIONCOMPONENT1", fPhotonEnergyPVT, fScintillation_PVT,
-		    nEntriesPVT);  // The scintillation spectrum of the scintillator, see in the header file for the valuesTODO
-		fPolystyrene->SetMaterialPropertiesTable(fPolyvinyltoluene_MPT);
-#endif
-
+		fPolystyrene = nistManager->FindOrBuildMaterial("G4_POLYSTYRENE");
+	// 	
 	// 0.898e-2 g/cm^2/MeV
 	// M.Hirschberg et al., IEEE Trans. Nuc. Sci. 39 (1992) 511
     // SCSN-38: kB = (0.806 +/- 0.012)E-2 g/cm^2/MeV
