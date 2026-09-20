@@ -2,14 +2,16 @@
 #
 # Sourced by setup.sh once it has auto-detected which site you're on and
 # handled the handful of things that genuinely differ per site (where
-# ROOT's thisroot.sh lives, GEANT4_INSTALL, PYTHIA8, HOMEFASER). Everything
-# past that point - where CLHEP/Rave/GenFit's own from-source builds
-# actually land, LD_LIBRARY_PATH, CMAKE_PREFIX_PATH, PATH, and the sanity
-# check below - is identical across every site, so it lives here once
-# instead of inside each of setup.sh's per-site branches.
+# ROOT's thisroot.sh lives, GEANT4_INSTALL, HOMEFASER). Everything past
+# that point - PYTHIA8's default, where CLHEP/Rave/GenFit's own
+# from-source builds actually land, LD_LIBRARY_PATH, CMAKE_PREFIX_PATH,
+# PATH, and the sanity check below - is identical across every site, so it
+# lives here once instead of inside each of setup.sh's per-site branches.
+# PYTHIA8 only needs to be set in a setup.sh site branch if that machine
+# keeps its own standalone Pythia8 build (see the default below).
 #
 # Adding a new site: see setup.sh - add an elif branch there that sets
-# ROOT/GEANT4_INSTALL/PYTHIA8, it already ends with
+# ROOT/GEANT4_INSTALL, it already ends with
 # `source $HOMEFASER/common_setup.sh`.
 
 : "${HOMEFASER:=$PWD}"
@@ -22,6 +24,16 @@ export CLHEPINSTALL=$HOMEFASER/build/external-install/CLHEP
 export RAVEINSTALL=$HOMEFASER/build/external-install/rave
 export GENFITINSTALL=$HOMEFASER/build/external-install/GenFit
 export LD_LIBRARY_PATH=$GENFITINSTALL/lib:$GENFITINSTALL/lib64:$RAVEINSTALL/lib:$CLHEPINSTALL/lib:$CLHEPINSTALL/lib64:$LD_LIBRARY_PATH
+
+# Pythia8 is built by the same CMake superbuild, but unlike CLHEP/Rave/
+# GenFit it's never `make install`-ed into build/external-install/ - its
+# own build places headers/libs directly under the extracted source tree,
+# which ExternalProject_Add stages under build/external/pythia8/src/. Point
+# PYTHIA8 there by default, but only if a per-site branch in setup.sh
+# hasn't already set it to something else (e.g. a standalone Pythia8 build
+# that predates the CMake superbuild, kept around on a specific machine).
+: "${PYTHIA8:=$HOMEFASER/build/external/pythia8/src/pythia8_external}"
+export PYTHIA8
 
 # Let `cmake` (find_package(Geant4) in FASERG4/FASERCalProtoG4) locate the
 # Geant4 install without needing -DGeant4_DIR=... by hand every time.

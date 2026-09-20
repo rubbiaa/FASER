@@ -14,8 +14,11 @@
 #
 # Adding a new site: add another `elif` branch below that recognizes your
 # machine (a distinctive path, hostname, or username works) and sets up
-# ROOT (source thisroot.sh) / GEANT4_INSTALL (export + source geant4.sh) /
-# PYTHIA8 for it, the same way the existing branches do.
+# ROOT (source thisroot.sh) / GEANT4_INSTALL (export + source geant4.sh) the
+# same way the existing branches do. PYTHIA8 doesn't need to be set here at
+# all unless your site keeps its own standalone Pythia8 build outside the
+# checkout (see common_setup.sh for the default) - the Ubuntu branch below
+# is the one example of that.
 
 HOMEFASER="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 export HOMEFASER
@@ -47,8 +50,6 @@ if [ -d /Users/rubbiaa/Documents/GitHub/GEANT4/geant4-v11.4.2-install ]; then
   # André's Mac (Apple Silicon)
   echo "FASER setup: detected site = André's Mac"
   source /Users/rubbiaa/Documents/GitHub/ROOT/root_install/bin/thisroot.sh
-
-  export PYTHIA8=$HOMEFASER/pythia8312
 
   export GEANT4_INSTALL=/Users/rubbiaa/Documents/GitHub/GEANT4/geant4-v11.4.2-install/
   source $GEANT4_INSTALL/bin/geant4.sh
@@ -102,16 +103,13 @@ elif [ -d /cvmfs/geant4.cern.ch ]; then
   popd > /dev/null
   echo "GEANT4 installed in $GEANT4_INSTALL"
 
-  export PYTHIA8=$HOMEFASER/pythia8312
-  echo "Pythia8 installed in $PYTHIA8"
-
 else
   echo "FASER setup: could not auto-detect a known site."
   echo "  Checked for: André's Mac, the Ubuntu (Ryzen) box, and lxplus (/cvmfs/geant4.cern.ch)."
   echo "  If this is a new machine, add an elif branch for it near the top of"
-  echo "  setup.sh (source thisroot.sh, export + source GEANT4_INSTALL,"
-  echo "  export PYTHIA8) - or set those by hand right now and just source"
-  echo "  common_setup.sh yourself:"
+  echo "  setup.sh (source thisroot.sh, export + source GEANT4_INSTALL) -"
+  echo "  or set those by hand right now and just source common_setup.sh"
+  echo "  yourself:"
   echo "    source $HOMEFASER/common_setup.sh"
   return 1 2>/dev/null || exit 1
 fi
