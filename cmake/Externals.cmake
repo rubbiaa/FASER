@@ -148,8 +148,31 @@ else()
     endif()
     message(STATUS "CLHEP: reusing the CLHEP bundled inside the Geant4 install at ${CLHEP_ROOT} (via symlink shim ${CLHEP_INSTALL_DIR})")
   elseif(EXISTS "${CLHEP_ROOT}/${CMAKE_INSTALL_LIBDIR}/libCLHEP${_faser_shlib_suffix}")
-    set(CLHEP_INSTALL_DIR "${CLHEP_ROOT}")
-    message(STATUS "CLHEP: using the pre-installed standalone CLHEP at ${CLHEP_ROOT}")
+    # A standalone CLHEP install - but don't hand CLHEP_ROOT to Rave/GenFit
+    # as-is even here: CLHEP_ROOT can be a *shared* environment prefix
+    # rather than a CLHEP-only one - e.g. CI passes -DCLHEP_ROOT=$CONDA_PREFIX,
+    # a conda env with both `clhep` and `root` installed side by side under
+    # the same include/ and lib/. Rave's own `./configure --with-clhep=...`
+    # then adds that whole prefix's include/ to its build, and Rave's
+    # vendored ROOT/smatrix headers fall through (via a generic #include
+    # that isn't satisfied within Rave's own vendored tree) to the *real*
+    # ROOT headers sitting in that same prefix - which are built for a much
+    # newer C++ standard than the -std=c++11 Rave itself is compiled with,
+    # producing errors like "'constexpr' constructor does not have empty
+    # body" deep inside ROOT's GenVector headers when Rave's own tests/
+    # get built. Isolating CLHEP behind a symlink shim, exactly like the
+    # Geant4-bundled branch above already does, means Rave/GenFit only
+    # ever see CLHEP's own headers, never whatever else happens to live in
+    # the same prefix.
+    set(CLHEP_INSTALL_DIR "${FASER_EXTERNAL_STAGE_DIR}/clhep-shim")
+    file(MAKE_DIRECTORY "${CLHEP_INSTALL_DIR}/include" "${CLHEP_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}")
+    if(NOT EXISTS "${CLHEP_INSTALL_DIR}/include/CLHEP")
+      file(CREATE_LINK "${CLHEP_ROOT}/include/CLHEP" "${CLHEP_INSTALL_DIR}/include/CLHEP" SYMBOLIC)
+    endif()
+    if(NOT EXISTS "${CLHEP_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libCLHEP${_faser_shlib_suffix}")
+      file(CREATE_LINK "${CLHEP_ROOT}/${CMAKE_INSTALL_LIBDIR}/libCLHEP${_faser_shlib_suffix}" "${CLHEP_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libCLHEP${_faser_shlib_suffix}" SYMBOLIC)
+    endif()
+    message(STATUS "CLHEP: using the pre-installed standalone CLHEP at ${CLHEP_ROOT} (via isolating symlink shim ${CLHEP_INSTALL_DIR}, so anything else sharing that prefix - e.g. a conda env's ROOT - can't leak into Rave/GenFit's own builds)")
   else()
     # CLHEP_ROOT matched neither known layout (no libG4clhep+Matrix, and
     # no standalone libCLHEP either) - most commonly a *stale cache*: this
