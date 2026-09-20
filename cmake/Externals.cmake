@@ -36,6 +36,54 @@ else()
 endif()
 
 # -----------------------------------------------------------------------------
+# GNU Make jobserver inheritance for nested external builds
+# -----------------------------------------------------------------------------
+# Rave and Pythia8 are both built with a raw, hand-invoked `make` inside
+# ExternalProject_Add's BUILD_COMMAND, rather than via `cmake --build`. When
+# the top-level generator is itself "Unix Makefiles", the outer
+# `cmake --build . --parallel N` / `make -jN` already runs as a GNU Make
+# jobserver (a shared pipe of N tokens that coordinates concurrency across
+# the whole build tree). Passing an explicit `-j${FASER_BUILD_PARALLEL_JOBS}`
+# to Rave/Pythia8's nested `make` - as this file used to do - ignores that
+# shared pool and starts a second, uncoordinated one instead, which is why
+# builds print:
+#     warning: -jN forced in submake: resetting jobserver mode.
+#     warning: jobserver unavailable: using -j1.  Add '+' to parent make rule.
+#
+# GNU Make only preserves the jobserver's file descriptors across fork/exec
+# for a recipe line whose *unexpanded* text contains the literal substring
+# "$(MAKE)" (its heuristic for "this line recursively invokes make"). CMake's
+# own variable syntax is ${...}, not $(...), so writing the literal token
+# $(MAKE) in a BUILD_COMMAND passes through CMake substitution untouched and
+# survives into the generated Makefile recipe for GNU Make to recognize -
+# letting Rave/Pythia8's nested make share the outer jobserver's token pool
+# instead of racing it with a fixed -jN of its own.
+#
+# This only makes sense for the "Unix Makefiles" generator (Ninja has no
+# jobserver concept), and only for BUILD_COMMANDs that invoke `make`
+# directly - CLHEP and GenFit both build via
+# `${CMAKE_COMMAND} --build <dir> --parallel N`, a different invocation
+# shape where the $(MAKE)-token trick doesn't apply, and neither has ever
+# been observed emitting this warning, so both are deliberately left alone
+# here rather than reworked speculatively.
+#
+# CI explicitly opts back out of this (-DFASER_EXTERNALS_USE_JOBSERVER=OFF
+# in .github/workflows/build.yml) to keep its already-tested, deliberately
+# serial -DFASER_BUILD_PARALLEL_JOBS=1 OOM-avoidance behavior byte-for-byte
+# unchanged rather than silently switching a constrained CI runner over to
+# jobserver-shared concurrency without being able to re-verify it there.
+option(FASER_EXTERNALS_USE_JOBSERVER
+       "Let Rave/Pythia8's nested `make` inherit the outer build's GNU Make jobserver instead of using a fixed -j" ON)
+
+if(FASER_EXTERNALS_USE_JOBSERVER AND CMAKE_GENERATOR STREQUAL "Unix Makefiles")
+  # Literal, unexpanded "$(MAKE)" - see explanation above. No explicit -j:
+  # the recursive make inherits concurrency from the outer jobserver.
+  set(_faser_external_make "$(MAKE)")
+else()
+  set(_faser_external_make make -j${FASER_BUILD_PARALLEL_JOBS})
+endif()
+
+# -----------------------------------------------------------------------------
 # CLHEP
 # -----------------------------------------------------------------------------
 # Smart default: if $GEANT4_INSTALL is set (mac_setup.sh / lxplus_setup.sh
@@ -298,7 +346,7 @@ if(FASER_BUILD_RAVE)
     # fully functional in this C++11 build, just deprecated in later
     # standards, so silencing them costs nothing and isn't worth patching
     # dozens of files in vendored code for.
-    BUILD_COMMAND     make CXXFLAGS=-g\ -std=c++11\ -Wno-deprecated-declarations LHEPINCPATH=. -j${FASER_BUILD_PARALLEL_JOBS}
+    BUILD_COMMAND     ${_faser_external_make} CXXFLAGS=-g\ -std=c++11\ -Wno-deprecated-declarations LHEPINCPATH=.
     INSTALL_COMMAND   make install
     BUILD_BYPRODUCTS  "${RAVE_INSTALL_DIR}/lib/libRaveBase${_faser_shlib_suffix}"
   )
@@ -455,7 +503,7 @@ if(FASER_BUILD_PYTHIA8)
     PREFIX                     "${FASER_EXTERNAL_STAGE_DIR}/pythia8"
     BUILD_IN_SOURCE   1
     CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<SOURCE_DIR>
-    BUILD_COMMAND     make -j${FASER_BUILD_PARALLEL_JOBS}
+    BUILD_COMMAND     ${_faser_external_make}
     INSTALL_COMMAND   ""
     BUILD_BYPRODUCTS  "<SOURCE_DIR>/lib/libpythia8.a"
   )

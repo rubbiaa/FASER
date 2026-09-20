@@ -109,6 +109,13 @@ jobs:
       # reports the job as "The operation was canceled.", which looks like
       # a manual cancellation but isn't). Pinning FASER_BUILD_PARALLEL_JOBS
       # to 1 keeps that bounded for whatever still does build from source.
+      # FASER_EXTERNALS_USE_JOBSERVER is explicitly turned off too: by
+      # default Rave/Pythia8's nested `make` now inherits the outer GNU
+      # Make jobserver instead of using a fixed -j (see cmake/Externals.cmake
+      # for the full explanation), which is the right thing on a real
+      # workstation but is untested on this constrained runner - so CI keeps
+      # today's known-safe, explicit -j1 behaviour byte-for-byte unchanged
+      # rather than silently switching to jobserver-shared concurrency here.
       - name: Configure
         shell: bash -l {0}
         run: |
@@ -117,6 +124,7 @@ jobs:
             -DEXPAT_LIBRARY="${CONDA_PREFIX}/lib/libexpat.so" \
             -DEXPAT_INCLUDE_DIR="${CONDA_PREFIX}/include" \
             -DFASER_BUILD_PARALLEL_JOBS=1 \
+            -DFASER_EXTERNALS_USE_JOBSERVER=OFF \
             -DFASER_BUILD_CLHEP=OFF \
             -DCLHEP_ROOT="${CONDA_PREFIX}"
 
