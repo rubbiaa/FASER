@@ -292,7 +292,13 @@ if(FASER_BUILD_RAVE)
     SOURCE_DIR        ${RAVE_SOURCE_DIR}
     BUILD_IN_SOURCE   1
     CONFIGURE_COMMAND ${_rave_configure_cmd}
-    BUILD_COMMAND     make CXXFLAGS=-g\ -std=c++11 LHEPINCPATH=. -j${FASER_BUILD_PARALLEL_JOBS}
+    # -Wno-deprecated-declarations: Rave's own vendored code (std::auto_ptr,
+    # std::unary_function throughout) is responsible for the overwhelming
+    # majority of this build's warning output otherwise - both are still
+    # fully functional in this C++11 build, just deprecated in later
+    # standards, so silencing them costs nothing and isn't worth patching
+    # dozens of files in vendored code for.
+    BUILD_COMMAND     make CXXFLAGS=-g\ -std=c++11\ -Wno-deprecated-declarations LHEPINCPATH=. -j${FASER_BUILD_PARALLEL_JOBS}
     INSTALL_COMMAND   make install
     BUILD_BYPRODUCTS  "${RAVE_INSTALL_DIR}/lib/libRaveBase${_faser_shlib_suffix}"
   )

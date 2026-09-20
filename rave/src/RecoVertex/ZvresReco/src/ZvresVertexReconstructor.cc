@@ -129,7 +129,7 @@ to_lcfi(const reco::TransientTrack &track, vertex_lcfi::Event *const lcfi_event)
 			   track.charge(),
 			   lcfi_cov,
 			   std::vector<int>(), // SubdetectorHitNumbers
-			   (void*) track.id() ); // private data
+			   (void*)(long) track.id() ); // private data - int widened via long (LP64) to silence -Wint-to-pointer-cast
 
   MemoryManager<vertex_lcfi::Track>::Event()->registerObject(MyTrack);
 
