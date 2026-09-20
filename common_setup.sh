@@ -1,24 +1,16 @@
 # FASER environment setup - shared logic
 #
-# Sourced by the site-specific setup scripts (setup.sh / mac_setup.sh /
-# lxplus_setup.sh / lxplus_setup_anna.sh) after they've handled the handful
-# of things that genuinely differ per site:
+# Sourced by setup.sh once it has auto-detected which site you're on and
+# handled the handful of things that genuinely differ per site (where
+# ROOT's thisroot.sh lives, GEANT4_INSTALL, PYTHIA8, HOMEFASER). Everything
+# past that point - where CLHEP/Rave/GenFit's own from-source builds
+# actually land, LD_LIBRARY_PATH, CMAKE_PREFIX_PATH, PATH, and the sanity
+# check below - is identical across every site, so it lives here once
+# instead of inside each of setup.sh's per-site branches.
 #
-#   - sourcing ROOT's thisroot.sh (where ROOT lives varies too much - a
-#     local build, CVMFS, a conda env, ... - to standardize here)
-#   - exporting GEANT4_INSTALL and sourcing that install's geant4.sh
-#   - exporting PYTHIA8
-#   - exporting HOMEFASER, if $PWD isn't the repo root (lxplus_setup_anna.sh
-#     is the one case of this today)
-#
-# Everything past that point - where CLHEP/Rave/GenFit's own from-source
-# builds actually land, LD_LIBRARY_PATH, CMAKE_PREFIX_PATH, PATH - is
-# identical across every site, so it lives here once instead of being
-# copy-pasted (and drifting) across N site scripts.
-#
-# Adding a new site: write a short script that sets the variables listed
-# above, then ends with `source $HOMEFASER/common_setup.sh` - see any of
-# the existing site scripts for the pattern.
+# Adding a new site: see setup.sh - add an elif branch there that sets
+# ROOT/GEANT4_INSTALL/PYTHIA8, it already ends with
+# `source $HOMEFASER/common_setup.sh`.
 
 : "${HOMEFASER:=$PWD}"
 export HOMEFASER
