@@ -431,11 +431,41 @@ if(FASER_BUILD_GENFIT)
       -DGTEST_MAIN_LIBRARY=${GOOGLETEST_INSTALL_DIR}/lib/libgtest_main.a
       "-DRave_LDFLAGS=-Wl,-rpath-link,${RAVE_INSTALL_DIR}/lib/ -L${RAVE_INSTALL_DIR}/lib/ -lRaveBase -L${CLHEP_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/ -lCLHEP")
     list(APPEND _genfit_deps googletest_external)
+
+    # GenFit's own CMakeLists.txt defaults BUILD_TESTING to ON on every
+    # non-Apple platform (it's already OFF on Darwin, in the APPLE branch
+    # above - matched here rather than left as an upstream default FASER
+    # never asked for). FASER only ever uses GenFit through the genfit2
+    # shared library (GenFit::genfit2 further down), never its bundled
+    # test/example binaries (fitterTests, minimalFittingExample(2),
+    # measurementFactoryExample, ...) - and on Linux those extra binaries
+    # additionally link ROOT::Geom (genfit2 itself only needs
+    # ROOT::Core/Physics/Eve), which on a conda-forge ROOT install pulls
+    # in libGeom.so/libGraf.so built against conda's own newer libstdc++
+    # (providing symbols like GLIBCXX_3.4.31/CXXABI_1.3.15). The system
+    # g++ doing the actual link still resolves its own implicit
+    # `-lstdc++` against Ubuntu's older system libstdc++.so.6 first, which
+    # doesn't have those symbols, so those extra binaries fail to link
+    # with e.g. "libCore.so.6.40.04: undefined reference to
+    # `__cxa_call_terminate@CXXABI_1.3.15'" - a build failure in code
+    # FASER was never going to use in the first place. GenFit's own
+    # ADD_GENFIT_TEST macro adds these targets EXCLUDE_FROM_ALL when
+    # BUILD_TESTING is OFF, so they simply aren't built at all - sidestepping
+    # the ABI mismatch entirely instead of trying to out-guess the linker.
+    list(APPEND _genfit_cmake_args -DBUILD_TESTING=OFF)
+
     # GenFit's own CMake build has a known issue linking its gtest binaries
     # on Linux; the old Makefile worked around it with:
     #   make CXXFLAGS="-g" -j; sh CMakeFiles/gtests.dir/link.txt; make -j
     # Reproduce that exact three-step dance as a single shell command
-    # (ExternalProject_Add's BUILD_COMMAND takes one command line).
+    # (ExternalProject_Add's BUILD_COMMAND takes one command line). With
+    # BUILD_TESTING=OFF above, the `gtests` target this targets doesn't
+    # even get defined any more (it lives inside GenFit's own
+    # IF(BUILD_TESTING) block, googletest deps and all), so the
+    # `sh CMakeFiles/gtests.dir/link.txt` step is now a guaranteed no-op -
+    # left in place (harmlessly, via the existing `|| true`) rather than
+    # ripped out along with the now-unused GOOGLETEST_INSTALL_DIR/GTEST_*
+    # args above, to keep this change scoped to the actual CI failure.
     set(_genfit_build_cmd sh -c
       "cd <BINARY_DIR> && (${CMAKE_COMMAND} --build . --parallel ${FASER_BUILD_PARALLEL_JOBS} || true) && (sh CMakeFiles/gtests.dir/link.txt || true) && ${CMAKE_COMMAND} --build . --parallel ${FASER_BUILD_PARALLEL_JOBS}")
   endif()
