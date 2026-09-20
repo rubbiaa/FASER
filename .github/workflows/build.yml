@@ -86,21 +86,29 @@ jobs:
       # unsuitable version 2.4.7, but required is at least 2.8.1". Seeding
       # EXPAT_LIBRARY/EXPAT_INCLUDE_DIR up front pins both lookups to the
       # conda environment's copy before either one runs.
-      # GitHub-hosted ubuntu-22.04 runners are 2 vCPU / 7 GB RAM. A
-      # from-scratch build compiles several independent ExternalProject
-      # targets (CLHEP, Pythia8 have no dependency on each other), so
-      # `cmake --build build -j$(nproc)` in the Build step below can run
-      # more than one of them at once - and each one, left to its own
-      # defaults, tries to use every core itself too. That nesting can
-      # multiply out to 4+ concurrent RelWithDebInfo (debug-symbol-heavy)
-      # C++ compiles on a machine with only 7 GB of RAM, which the kernel's
-      # OOM killer resolves by killing the build - GitHub Actions then just
+      # `mamba install ... geant4` above already pulled in a real,
+      # standalone `clhep` conda-forge package as one of Geant4's own
+      # dependencies (conda-forge's Geant4 is built with
+      # GEANT4_USE_SYSTEM_CLHEP=ON, unlike a from-source Geant4 build with
+      # its default of bundling CLHEP internally). So CLHEP is already
+      # sitting right there in this same conda environment - pointing
+      # CLHEP_ROOT at it skips FASER's own from-source CLHEP build (a
+      # fresh git clone plus a full separate CMake configure+build, by far
+      # the heaviest single external) entirely, rather than merely
+      # capping its parallelism.
+      #
+      # GitHub-hosted ubuntu-22.04 runners are still only 2 vCPU / 7 GB
+      # RAM though, and Rave and GenFit are still built from source here
+      # (no conda-forge packages for those). Independent ExternalProject
+      # targets can run concurrently under the outer `cmake --build build
+      # -j$(nproc)` in the Build step below, and each one, left to its own
+      # defaults, would try to use every core itself too - multiplying out
+      # to more concurrent RelWithDebInfo (debug-symbol-heavy) C++
+      # compiles than 7 GB comfortably holds, which the kernel's OOM
+      # killer resolves by killing the build (GitHub Actions then just
       # reports the job as "The operation was canceled.", which looks like
-      # a manual cancellation but isn't. Pinning FASER_BUILD_PARALLEL_JOBS
-      # (which cmake/Externals.cmake's CLHEP/Rave/GenFit/Pythia8 build
-      # steps all respect) to 1 caps each external's own internal
-      # parallelism, so total concurrent compiles stay bounded even when
-      # the outer build launches more than one external at a time.
+      # a manual cancellation but isn't). Pinning FASER_BUILD_PARALLEL_JOBS
+      # to 1 keeps that bounded for whatever still does build from source.
       - name: Configure
         shell: bash -l {0}
         run: |
@@ -108,7 +116,9 @@ jobs:
             -DCMAKE_PREFIX_PATH="${CONDA_PREFIX}" \
             -DEXPAT_LIBRARY="${CONDA_PREFIX}/lib/libexpat.so" \
             -DEXPAT_INCLUDE_DIR="${CONDA_PREFIX}/include" \
-            -DFASER_BUILD_PARALLEL_JOBS=1
+            -DFASER_BUILD_PARALLEL_JOBS=1 \
+            -DFASER_BUILD_CLHEP=OFF \
+            -DCLHEP_ROOT="${CONDA_PREFIX}"
 
       - name: Build
         shell: bash -l {0}

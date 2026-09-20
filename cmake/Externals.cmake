@@ -61,7 +61,47 @@ else()
   if(NOT CLHEP_ROOT)
     message(FATAL_ERROR "FASER_BUILD_CLHEP=OFF but CLHEP_ROOT was not set to a pre-installed CLHEP prefix")
   endif()
-  set(CLHEP_INSTALL_DIR "${CLHEP_ROOT}")
+
+  # CLHEP_ROOT can point at two different kinds of pre-installed CLHEP:
+  #
+  #  - a normal, standalone CLHEP install (lib/libCLHEP.*,
+  #    include/CLHEP/...) - a Homebrew `clhep` formula, a conda-forge
+  #    `clhep` package, or the CLHEP_INSTALL_DIR of another FASER build
+  #    that built CLHEP from source itself; or
+  #
+  #  - a Geant4 install. By default (GEANT4_USE_SYSTEM_CLHEP=OFF, which is
+  #    Geant4's own default and how this project's Geant4 installs are
+  #    built) Geant4 compiles its own bundled copy of CLHEP as an ordinary
+  #    part of its own build - source/externals/clhep in the Geant4 source
+  #    tree - and installs it renamed (lib/libG4clhep.*) under a nested
+  #    include path (include/Geant4/CLHEP/...) so it never collides with a
+  #    real system CLHEP install. Since FASER requires a Geant4 install
+  #    anyway (see the top of this file), that bundled CLHEP is already
+  #    sitting right there for anyone building FASER - reusing it skips
+  #    CLHEP's own from-source build (by far the heaviest single external:
+  #    a fresh git clone plus a full separate CMake configure+build)
+  #    entirely.
+  #
+  #  Rave's `--with-clhep=` autotools flag and GenFit's `-lCLHEP` link
+  #  flag (both further down in this file) assume the normal, standalone
+  #  layout, so a bundled Geant4 CLHEP is exposed through a small
+  #  directory of symlinks (under the build tree) presenting it with that
+  #  same shape - everything past this point then just uses
+  #  CLHEP_INSTALL_DIR uniformly, however CLHEP was actually obtained.
+  if(EXISTS "${CLHEP_ROOT}/${CMAKE_INSTALL_LIBDIR}/libG4clhep${_faser_shlib_suffix}")
+    set(CLHEP_INSTALL_DIR "${FASER_EXTERNAL_STAGE_DIR}/clhep-from-geant4")
+    file(MAKE_DIRECTORY "${CLHEP_INSTALL_DIR}/include" "${CLHEP_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}")
+    if(NOT EXISTS "${CLHEP_INSTALL_DIR}/include/CLHEP")
+      file(CREATE_LINK "${CLHEP_ROOT}/include/Geant4/CLHEP" "${CLHEP_INSTALL_DIR}/include/CLHEP" SYMBOLIC)
+    endif()
+    if(NOT EXISTS "${CLHEP_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libCLHEP${_faser_shlib_suffix}")
+      file(CREATE_LINK "${CLHEP_ROOT}/${CMAKE_INSTALL_LIBDIR}/libG4clhep${_faser_shlib_suffix}" "${CLHEP_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libCLHEP${_faser_shlib_suffix}" SYMBOLIC)
+    endif()
+    message(STATUS "CLHEP: reusing the CLHEP bundled inside the Geant4 install at ${CLHEP_ROOT} (via symlink shim ${CLHEP_INSTALL_DIR})")
+  else()
+    set(CLHEP_INSTALL_DIR "${CLHEP_ROOT}")
+    message(STATUS "CLHEP: using the pre-installed standalone CLHEP at ${CLHEP_ROOT}")
+  endif()
 endif()
 
 # The include dir must exist at CMake generate time (CMake validates
@@ -120,8 +160,19 @@ if(FASER_BUILD_RAVE)
   # rave && ./configure ...`), so it leaves build artifacts inside the
   # tracked ./rave directory. Run `git clean -fdx rave/` if you ever need a
   # pristine rebuild.
+  #
+  # Only add a build-order dependency on clhep_external when it actually
+  # exists - it doesn't when FASER_BUILD_CLHEP=OFF (e.g. reusing the CLHEP
+  # bundled in a Geant4 install, or a conda/Homebrew CLHEP), and
+  # ExternalProject_Add errors at configure time if DEPENDS names a
+  # nonexistent target.
+  set(_rave_deps "")
+  if(TARGET clhep_external)
+    list(APPEND _rave_deps clhep_external)
+  endif()
+
   ExternalProject_Add(rave_external
-    DEPENDS           clhep_external
+    DEPENDS           ${_rave_deps}
     SOURCE_DIR        ${RAVE_SOURCE_DIR}
     BUILD_IN_SOURCE   1
     CONFIGURE_COMMAND ${_rave_configure_cmd}
@@ -190,7 +241,12 @@ if(FASER_BUILD_GENFIT)
     -DRave_INCLUDE_DIRS=${RAVE_INSTALL_DIR}/include/
   )
 
-  set(_genfit_deps clhep_external rave_external)
+  # Same reasoning as Rave's DEPENDS above: only reference clhep_external
+  # when FASER actually built it.
+  set(_genfit_deps rave_external)
+  if(TARGET clhep_external)
+    list(APPEND _genfit_deps clhep_external)
+  endif()
 
   if(APPLE)
     list(APPEND _genfit_cmake_args

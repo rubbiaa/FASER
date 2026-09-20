@@ -121,6 +121,42 @@ cmake -S . -B build \
   -DPYTHIA8_ROOT=$PWD/pythia8312
 ```
 
+### Skip building CLHEP - reuse the copy bundled inside your Geant4 install
+
+CLHEP's own from-source build (a fresh git clone plus a full separate
+`cmake`+build of its own) is the heaviest single piece of
+`FASER_BUILD_EXTERNALS`. You very likely don't need it: unless your
+Geant4 was built with `-DGEANT4_USE_SYSTEM_CLHEP=ON`, Geant4 already
+compiled and installed its own bundled copy of CLHEP as an ordinary part
+of its own build (`source/externals/clhep` in the Geant4 source tree) -
+installed as `lib/libG4clhep.*` plus `include/Geant4/CLHEP/...` under
+your Geant4 install prefix, purely renamed so it never collides with a
+real system CLHEP.
+
+Point `CLHEP_ROOT` at that same Geant4 install and FASER will detect the
+bundled layout automatically and reuse it - no separate CLHEP build at
+all:
+
+```bash
+cmake -S . -B build \
+  -DFASER_BUILD_CLHEP=OFF \
+  -DCLHEP_ROOT=$GEANT4_INSTALL   # mac_setup.sh already exports this
+```
+
+(Everything else - `FASER_BUILD_RAVE`, `FASER_BUILD_GENFIT`,
+`FASER_BUILD_PYTHIA8` - is unaffected and still builds from source unless
+you turn those off too.) Configure prints which layout it found:
+
+```
+-- CLHEP: reusing the CLHEP bundled inside the Geant4 install at ... (via symlink shim ...)
+```
+
+If your Geant4 *was* built with `GEANT4_USE_SYSTEM_CLHEP=ON` (true of the
+conda-forge Geant4 package the Linux CI workflow uses, for example),
+`CLHEP_ROOT` can instead point straight at wherever that system/package
+CLHEP lives (e.g. `$CONDA_PREFIX`) - FASER detects that it's a normal,
+standalone CLHEP install (not a Geant4-bundled one) and uses it as-is.
+
 ### Clean rebuild
 
 ```bash
