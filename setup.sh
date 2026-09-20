@@ -23,16 +23,28 @@
 HOMEFASER="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 export HOMEFASER
 
-# Best-effort detection of this machine's OS platform tag, matching how
-# CVMFS release directories name their per-OS builds (e.g. "el9" on
-# RHEL/Alma/Rocky 9). Echoes nothing if it can't be determined - callers
-# treat that as "no OS preference", not as an error.
+# Best-effort detection of a regex fragment matching this machine's OS in
+# CVMFS release directory names. Echoes nothing if it can't be determined
+# - callers treat that as "no OS preference", not as an error.
+#
+# Different CVMFS/LCG release areas spell the same OS differently: Geant4's
+# own releases use the short "el9" form for RHEL/Alma/Rocky 9, but ROOT's
+# release area names it after the actual rebuild distro instead, e.g.
+# "almalinux9.8" (observed on lxplus9, an el9/RHEL9.8 machine) rather than
+# "el9" - so a single fixed spelling isn't enough. Match any of the common
+# spellings for this major version instead of guessing one.
 _faser_os_platform_tag() {
   if [ -f /etc/os-release ]; then
     ( . /etc/os-release
+      major="${VERSION_ID%%.*}"
       case "$ID" in
-        rhel|almalinux|rocky|centos) echo "el${VERSION_ID%%.*}" ;;
-        ubuntu) echo "ubuntu$(echo "$VERSION_ID" | tr -d '.')" ;;
+        rhel|almalinux|rocky|centos)
+          echo "(el${major}|almalinux${major}|rocky${major}|centos${major})"
+          ;;
+        ubuntu)
+          # Observed spelling keeps the dot, e.g. "ubuntu22.04" - not "ubuntu2204".
+          echo "ubuntu${VERSION_ID}"
+          ;;
       esac
     )
   fi
