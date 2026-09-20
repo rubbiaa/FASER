@@ -20,6 +20,31 @@
 HOMEFASER="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 export HOMEFASER
 
+# Finds the newest ROOT 6.x release under CVMFS's LCG software area, for
+# lxplus accounts (like Anna's - this used to need a whole separate
+# lxplus_setup_anna.sh just to hardcode one specific version/platform
+# here) that don't keep their own ROOT build inside the checkout. Echoes
+# the resolved install directory (the one containing bin/thisroot.sh) on
+# success, or nothing if none can be found.
+_faser_find_latest_cvmfs_root6() {
+  releases_dir=/cvmfs/sft.cern.ch/lcg/app/releases/ROOT
+  [ -d "$releases_dir" ] || return 0
+
+  version=$(ls "$releases_dir" 2>/dev/null | grep -E '^6\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+  [ -n "$version" ] || return 0
+
+  # Several platform builds usually exist per version - one per OS/
+  # compiler combination CERN builds for - and which one matches this
+  # machine can vary node to node. Any optimized (non-debug) x86_64 one
+  # works for our purposes; pick the last alphabetically for a stable,
+  # deterministic choice rather than whatever `ls` happens to return first.
+  platform=$(ls "$releases_dir/$version" 2>/dev/null | grep -E '^x86_64-.*-opt$' | sort | tail -1)
+  [ -n "$platform" ] || return 0
+
+  candidate="$releases_dir/$version/$platform"
+  [ -f "$candidate/bin/thisroot.sh" ] && echo "$candidate"
+}
+
 if [ -d /Users/rubbiaa/Documents/GitHub/GEANT4/geant4-v11.4.2-install ]; then
   # André's Mac (Apple Silicon)
   echo "FASER setup: detected site = André's Mac"
@@ -45,25 +70,33 @@ elif [ -d /home/rubbiaa/geant4-install ]; then
   export PYTHIA8=/home/rubbiaa/ROOT/pythia8312
   echo "Pythia8 installed in $PYTHIA8"
 
-elif [ "$(whoami)" = "amascell" ] && [ -d /cvmfs/geant4.cern.ch ]; then
-  # Anna's lxplus/AFS checkout - a CVMFS-provided ROOT release, rather
-  # than a ROOT built locally into the checkout like generic lxplus below.
-  echo "FASER setup: detected site = lxplus (Anna)"
-  source /cvmfs/sft.cern.ch/lcg/app/releases/ROOT/6.32.02/x86_64-almalinux9.4-gcc114-opt/bin/thisroot.sh
-
-  export GEANT4_INSTALL=/cvmfs/geant4.cern.ch/geant4/11.2.p01/x86_64-el9-gcc11-optdeb
-  source $GEANT4_INSTALL/bin/geant4.sh
-
-  export PYTHIA8=$HOMEFASER/pythia8312
-
 elif [ -d /cvmfs/geant4.cern.ch ]; then
-  # Generic lxplus: ROOT built locally into the checkout (root-install/),
-  # Geant4 from CVMFS.
+  # lxplus: prefer a ROOT build local to the checkout (root-install/) if
+  # one is there, since that's what building your own ROOT from source
+  # into the repo implies you want used. Otherwise (Anna's account is the
+  # motivating case, but this covers anyone without a local build) fall
+  # back to auto-discovering the latest ROOT 6 release CVMFS itself
+  # publishes, rather than requiring one to be built locally at all.
   echo "FASER setup: detected site = lxplus"
   echo "Current working directory: $HOMEFASER"
 
-  source $HOMEFASER/root-install/bin/thisroot.sh
-  echo "Root installed in $HOMEFASER/ROOT/root_install"
+  if [ -f "$HOMEFASER/root-install/bin/thisroot.sh" ]; then
+    echo "ROOT: using the local build at $HOMEFASER/root-install"
+    source $HOMEFASER/root-install/bin/thisroot.sh
+  else
+    _faser_cvmfs_root=$(_faser_find_latest_cvmfs_root6)
+    if [ -n "$_faser_cvmfs_root" ]; then
+      echo "ROOT: no local build at $HOMEFASER/root-install - using the latest CVMFS release, $_faser_cvmfs_root"
+      source "$_faser_cvmfs_root/bin/thisroot.sh"
+    else
+      echo "FASER setup: no ROOT found - neither a local build at"
+      echo "  $HOMEFASER/root-install nor a ROOT 6 release under"
+      echo "  /cvmfs/sft.cern.ch/lcg/app/releases/ROOT. Source ROOT yourself"
+      echo "  before this script, or build one into root-install/."
+      return 1 2>/dev/null || exit 1
+    fi
+    unset _faser_cvmfs_root
+  fi
 
   export GEANT4_INSTALL=/cvmfs/geant4.cern.ch/geant4/11.2.p01/x86_64-el9-gcc11-optdeb
   pushd . > /dev/null
