@@ -68,6 +68,30 @@ ROOT_GENERATE_DICTIONARY(G__PS ${EXTERNAL_SOURCE_DIR}/TPOEvent.hh ${EXTERNAL_SOU
 add_executable(faserps ${SOURCES} ${os_headers} G__PS.cxx)
 target_link_libraries(faserps ${Geant4_LIBRARIES} ${ROOT_LIBRARIES} EG ROOTDataFrame ROOTNTuple)
 
+# Geant4's own libraries (specifically the analysis-manager component
+# bundled into ${Geant4_LIBRARIES}) can be built against a completely
+# different ROOT install than the one FASER's own dictionaries are
+# compiled against. On lxplus, Geant4 11.2.p01 is built alongside (and
+# links its optional ROOT/HDF5/Xerces-C analysis output drivers against)
+# the LCG "geant4ext" view's own bundled ROOT, while FASER's own
+# find_package(ROOT) above resolves a separate, newer standalone ROOT
+# release for faserps's own TPOEvent/TcalEvent dictionaries. faserps never
+# calls into Geant4's built-in ROOT analysis-manager output driver, so
+# the two never need to agree with each other at runtime - but the GNU
+# linker still refuses to produce the executable unless it can fully
+# resolve every symbol referenced from within that unused ROOT library,
+# which fails here because the two ROOT versions' TGenericClassInfo
+# constructor signature differs (undefined reference to
+# ROOT::TGenericClassInfo::TGenericClassInfo(...) from libROOTHist.so).
+# --allow-shlib-undefined tells the linker that's fine: an unresolved
+# symbol inside a transitively-linked shared library only matters if
+# something we actually call needs it. Linux (GNU ld) only - ld64 on
+# macOS doesn't understand this flag and doesn't need it, since the Mac
+# build uses a single self-built ROOT/Geant4 pair with no such clash.
+if(UNIX AND NOT APPLE)
+  target_link_options(faserps PRIVATE -Wl,--allow-shlib-undefined)
+endif()
+
 #----------------------------------------------------------------------------
 # Build the shared library for the classes mentioned in the LinkDef.h file
 #
