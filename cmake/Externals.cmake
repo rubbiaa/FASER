@@ -147,9 +147,35 @@ else()
       file(CREATE_LINK "${CLHEP_ROOT}/${CMAKE_INSTALL_LIBDIR}/libG4clhep${_faser_shlib_suffix}" "${CLHEP_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libCLHEP${_faser_shlib_suffix}" SYMBOLIC)
     endif()
     message(STATUS "CLHEP: reusing the CLHEP bundled inside the Geant4 install at ${CLHEP_ROOT} (via symlink shim ${CLHEP_INSTALL_DIR})")
-  else()
+  elseif(EXISTS "${CLHEP_ROOT}/${CMAKE_INSTALL_LIBDIR}/libCLHEP${_faser_shlib_suffix}")
     set(CLHEP_INSTALL_DIR "${CLHEP_ROOT}")
     message(STATUS "CLHEP: using the pre-installed standalone CLHEP at ${CLHEP_ROOT}")
+  else()
+    # CLHEP_ROOT matched neither known layout (no libG4clhep+Matrix, and
+    # no standalone libCLHEP either) - most commonly a *stale cache*: this
+    # variable is a CACHE PATH, so once a build directory has been
+    # configured once, CMake will keep reusing whatever value is already
+    # in CMakeCache.txt on every subsequent reconfigure, even after the
+    # detection logic above (or GEANT4_INSTALL, or the Geant4 install
+    # itself) changes - it is never silently recomputed. Failing loudly
+    # here, instead of silently accepting a bad path (as a prior version
+    # of this file did), turns that into a clear, actionable CMake error
+    # instead of a confusing failure deep inside Rave's own `./configure`
+    # ("configure: error: required clhep not found").
+    message(FATAL_ERROR
+      "CLHEP_ROOT (${CLHEP_ROOT}) is neither a Geant4 install with a "
+      "Matrix-complete bundled CLHEP (missing "
+      "${CLHEP_ROOT}/${CMAKE_INSTALL_LIBDIR}/libG4clhep${_faser_shlib_suffix} "
+      "and/or ${CLHEP_ROOT}/include/Geant4/CLHEP/Matrix) nor a standalone "
+      "CLHEP install (missing "
+      "${CLHEP_ROOT}/${CMAKE_INSTALL_LIBDIR}/libCLHEP${_faser_shlib_suffix}). "
+      "If you recently rebuilt/moved your Geant4 install, or changed "
+      "GEANT4_INSTALL, this is very likely a STALE CACHED VALUE from an "
+      "earlier configure of this same build directory: CLHEP_ROOT/"
+      "FASER_BUILD_CLHEP are CACHE variables and are never recomputed on "
+      "their own. Fix: delete the build directory (or at least "
+      "CMakeCache.txt) and reconfigure from scratch, e.g. "
+      "`rm -rf build && cmake -S . -B build ...`.")
   endif()
 endif()
 
