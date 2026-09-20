@@ -24,6 +24,21 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Several modules (Analysis, Batch, ...) compile their CoreUtils sources
+# once into an OBJECT library that's then linked into BOTH a plain
+# executable AND a small SHARED library for interactive ROOT/PyROOT use
+# (e.g. AnalysisCore -> AnalyReco.exe + Analysis_TPORec/libTPORec.so).
+# OBJECT libraries don't get -fPIC by default, only SHARED ones do - so
+# without this, linking the .so half fails on Linux (GNU ld enforces
+# this strictly: "relocation ... can not be used when making a shared
+# object; recompile with -fPIC"), even though it happened to link fine
+# on macOS. Setting this globally means every target compiles as
+# position-independent from the start, so this whole class of bug can't
+# recur as new OBJECT-library-into-SHARED-library targets get added.
+# FASERG4/FASERCalProtoG4 already set this locally for themselves - this
+# just makes it universal.
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
 endif()
