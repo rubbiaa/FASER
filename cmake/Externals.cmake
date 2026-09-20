@@ -23,11 +23,25 @@
 # =============================================================================
 include(ExternalProject)
 include(GNUInstallDirs)
+include(ProcessorCount)
 
 set(FASER_EXTERNAL_INSTALL_DIR "${CMAKE_BINARY_DIR}/external-install" CACHE PATH
     "Install prefix for FASER's bundled third-party dependencies")
 set(FASER_EXTERNAL_STAGE_DIR "${CMAKE_BINARY_DIR}/external" CACHE PATH
     "Scratch/build directory for FASER's bundled third-party dependencies")
+
+# Number of parallel jobs to use when building each external sub-project.
+# Defaults to the detected CPU count (minimum 1).  Callers can override by
+# passing -DFASER_BUILD_PARALLEL_JOBS=N to cmake.  Explicit parallelism is
+# required to avoid passing bare `make -j` / `cmake --build --parallel`
+# (no job count), which lets make/ninja use an unlimited number of processes
+# and can cause an out-of-memory crash on memory-constrained CI runners.
+ProcessorCount(_faser_nproc)
+if(_faser_nproc EQUAL 0)
+  set(_faser_nproc 1)
+endif()
+set(FASER_BUILD_PARALLEL_JOBS "${_faser_nproc}" CACHE STRING
+    "Parallel jobs for external sub-project builds (default: CPU count)")
 
 if(APPLE)
   set(_faser_shlib_suffix ".dylib")
@@ -53,7 +67,7 @@ if(FASER_BUILD_CLHEP)
       -DCMAKE_INSTALL_PREFIX=${CLHEP_INSTALL_DIR}
       -DCLHEP_SINGLE_THREAD=ON
       -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-    BUILD_COMMAND     ${CMAKE_COMMAND} --build <BINARY_DIR> --parallel
+    BUILD_COMMAND     ${CMAKE_COMMAND} --build <BINARY_DIR> --parallel ${FASER_BUILD_PARALLEL_JOBS}
     INSTALL_COMMAND   ${CMAKE_COMMAND} --build <BINARY_DIR> --target install
     BUILD_BYPRODUCTS  "${CLHEP_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libCLHEP${_faser_shlib_suffix}"
   )
@@ -197,7 +211,7 @@ if(FASER_BUILD_GENFIT)
       "-DRave_LDFLAGS=-L${RAVE_INSTALL_DIR}/lib/ -lRaveBase -L${CLHEP_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/ -lCLHEP")
     # Plain parallel build; no gtest workaround needed on Darwin (matches
     # the old Makefile's Darwin branch).
-    set(_genfit_build_cmd ${CMAKE_COMMAND} --build <BINARY_DIR> --parallel)
+    set(_genfit_build_cmd ${CMAKE_COMMAND} --build <BINARY_DIR> --parallel ${FASER_BUILD_PARALLEL_JOBS})
   else()
     list(APPEND _genfit_cmake_args
       -DGTEST_LIBRARY=${GOOGLETEST_INSTALL_DIR}/lib/libgtest.a
@@ -211,7 +225,7 @@ if(FASER_BUILD_GENFIT)
     # Reproduce that exact three-step dance as a single shell command
     # (ExternalProject_Add's BUILD_COMMAND takes one command line).
     set(_genfit_build_cmd sh -c
-      "cd <BINARY_DIR> && (${CMAKE_COMMAND} --build . --parallel || true) && (sh CMakeFiles/gtests.dir/link.txt || true) && ${CMAKE_COMMAND} --build . --parallel")
+      "cd <BINARY_DIR> && (${CMAKE_COMMAND} --build . --parallel ${FASER_BUILD_PARALLEL_JOBS} || true) && (sh CMakeFiles/gtests.dir/link.txt || true) && ${CMAKE_COMMAND} --build . --parallel ${FASER_BUILD_PARALLEL_JOBS}")
   endif()
 
   ExternalProject_Add(genfit_external
