@@ -54,10 +54,25 @@ jobs:
       # every later step that touches cmake runs with `shell: bash -l {0}`
       # (a login shell, which is how setup-miniconda wires up `conda
       # activate`).
+      # `expat` (not just `libexpat`) is requested explicitly: root/geant4
+      # only pull in `libexpat` transitively, and conda-forge's `libexpat`
+      # package is runtime-only - just the versioned shared object plus its
+      # soname symlink (libexpat.so.1 -> libexpat.so.1.x.y), no unversioned
+      # libexpat.so and no headers. The Configure step below hands CMake
+      # $CONDA_PREFIX/lib/libexpat.so directly (see the EXPAT_LIBRARY
+      # comment further down) - find_package(EXPAT) happily accepts that
+      # path without verifying it (it's pre-seeded via -D, so CMake skips
+      # its own find_library() probe and never re-checks the file exists),
+      # so the mismatch stays invisible all the way through Configure and
+      # only surfaces once GNU Make - which does check - tries to actually
+      # link against it, deep into the build: "No rule to make target
+      # '.../lib/libexpat.so', needed by 'bin/faserps'." Installing the
+      # `expat` dev package up front guarantees that exact unversioned
+      # path (and the matching headers) genuinely exist.
       - name: Install ROOT and Geant4 from conda-forge
         shell: bash -l {0}
         run: |
-          mamba install -y root geant4 cmake ninja
+          mamba install -y root geant4 cmake ninja expat
 
       # Caches the ExternalProject build/install trees for CLHEP, Rave,
       # GenFit, googletest and Pythia8 so an unrelated FASER-source-only
