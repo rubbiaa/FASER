@@ -1,4 +1,4 @@
-HOMEFASER=/Users/rubbiaa/Documents/GitHub/FASER
+export HOMEFASER=$PWD
 
 source /Users/rubbiaa/Documents/GitHub/ROOT/root_install/bin/thisroot.sh
 
