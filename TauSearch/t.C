@@ -206,7 +206,7 @@ tree->SetBranchAddress("m_status", &m_status);
        if(event_count>1) {
 	 //	 smear_event();
 	 kinematics_event();
-	 if(event.istau && event.isCC & event.n_taudecay==0) {
+	 if(event.istau && event.isCC && event.n_taudecay==0) {
 	   std::cout << "Could not find tau decay product??" << std::endl;
 	   //	 exit(1);
 	   dump_event();

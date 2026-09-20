@@ -69,7 +69,7 @@ void TPOEvent::clear_event() {
   POs.clear();
   taudecay.clear();
   charmdecay.clear();
-  out_lepton = in_neutrino = {0,0,0,0,0,0,0,0,0,0,{0},0,0};
+  out_lepton = in_neutrino = {};  // zero-initializes every PO member, including m_trackid_in_particle[]
   tau_decaymode = -1;
   isCC = false;
   istau = false;

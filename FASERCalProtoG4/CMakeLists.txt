@@ -59,19 +59,27 @@ set(SOURCES
 file(GLOB headers ${PROJECT_SOURCE_DIR}/include/*.hh)
 
 # Generate ROOT dictionary
-ROOT_GENERATE_DICTIONARY(G__PS ${EXTERNAL_SOURCE_DIR}/TPOEvent.hh ${EXTERNAL_SOURCE_DIR}/TcalEvent.hh ${PROJECT_SOURCE_DIR}/include/Geant4Process.hh LINKDEF ${PROJECT_SOURCE_DIR}/include/LinkDef.h)
+# Renamed from G__PS to G__PSProto: ROOT_GENERATE_DICTIONARY's first
+# argument also creates a global CMake target (not just an output file), so
+# it collided with FASERG4's own G__PS dictionary once both packages are
+# configured from one top-level CMakeLists.txt.
+ROOT_GENERATE_DICTIONARY(G__PSProto ${EXTERNAL_SOURCE_DIR}/TPOEvent.hh ${EXTERNAL_SOURCE_DIR}/TcalEvent.hh ${PROJECT_SOURCE_DIR}/include/Geant4Process.hh LINKDEF ${PROJECT_SOURCE_DIR}/include/LinkDef.h)
 
 #----------------------------------------------------------------------------
 # Add the executable, and link it to the Geant4 libraries
 #
-add_executable(faserps ${SOURCES} ${os_headers} G__PS.cxx)
-target_link_libraries(faserps ${Geant4_LIBRARIES} ${ROOT_LIBRARIES} EG ROOTDataFrame ROOTNTuple)
+# Renamed from "faserps" to avoid a target-name clash with FASERG4's
+# executable now that both packages are built from one top-level
+# CMakeLists.txt (they used to be configured/built completely
+# independently, each with its own standalone `cmake` invocation).
+add_executable(faserps_proto ${SOURCES} ${os_headers} G__PSProto.cxx)
+target_link_libraries(faserps_proto ${Geant4_LIBRARIES} ${ROOT_LIBRARIES} EG ROOTDataFrame ROOTNTuple)
 
 #----------------------------------------------------------------------------
 # Build the shared library for the classes mentioned in the LinkDef.h file
 #
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-# add_library(FaserPS SHARED G__PS.cxx)
+# add_library(FaserPS SHARED G__PSProto.cxx)
 
 #----------------------------------------------------------------------------
 # Copy the stuff from the ./input directory to the build directory

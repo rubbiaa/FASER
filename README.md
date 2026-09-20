@@ -78,19 +78,20 @@ A generator level tau search analysis code
    $ git clone https://github.com/rubbiaa/FASER.git
    ````
 
-- Set up ROOT and GEANT4 environment in the setup.sh file:
-
-setup.sh:
-    source <ROOTINSTAL>/bin/thisroot.sh
-    source <GEANT4INSTALL>/bin/geant4.sh
-
-$ source setup.sh
-
-- On lxplus use the following command instead:
+- Set up ROOT and GEANT4 environment by sourcing `setup.sh` - it
+  auto-detects which known site you're on (including lxplus) and sets
+  ROOT/Geant4/Pythia8 up accordingly, so the same command works
+  everywhere:
 
    ```bash
-   $ source lxplus_setup.csh
+   $ source setup.sh
    ````
+
+  On a machine it doesn't recognize, it prints what to do - see the
+  comments at the top of `setup.sh` for how to add your own site.
+
+  (See also `INSTALL.md` for the current CMake-based build, which
+  supersedes the steps below for everything except the event display.)
 
 # Install event display
 

@@ -61,3 +61,8 @@ googletest-build/
 googletest-install/
 rave*/
 pythia*/
+
+# CMake superbuild
+/build/
+/build-*/
+CMakeUserPresets.json

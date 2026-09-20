@@ -26,7 +26,7 @@ Track::Track( int id, const Vector6D & s, const Covariance6D & e, Charge q,
 
 Track::Track( const Vector6D & s, const Covariance6D & e, Charge q,
    float chi2, float ndof, int p, string d ) : 
-  Base ( new BasicTrack ( s, e, q, chi2, ndof, (void *) (p), d ) )
+  Base ( new BasicTrack ( s, e, q, chi2, ndof, (void *)(long) (p), d ) ) // int widened via long (LP64) to silence -Wint-to-pointer-cast
 {}
 
 Track::Track ( const vector < pair < float, Track > > & c ) :

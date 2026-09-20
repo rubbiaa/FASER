@@ -66,7 +66,7 @@ class RaveDllExport KinematicParticle :
      * momentum and mass of the particle.
      * @return 4-dimensional state vector
      */
-    const rave::Vector4D & p4() const;
+    rave::Vector4D p4() const;
 
     /**
      * The fullerror represents the 7x7 error matrix for the state given by

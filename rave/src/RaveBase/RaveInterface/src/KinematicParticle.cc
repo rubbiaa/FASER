@@ -16,8 +16,11 @@ const rave::Vector7D & KinematicParticle::fullstate() const
   return data().fullstate();
 }
 
-const rave::Vector4D & KinematicParticle::p4() const
+rave::Vector4D KinematicParticle::p4() const
 {
+  // Vector7D::p4() returns a Vector4D by value; returning it by reference
+  // here (as this used to) bound a reference to a temporary that was
+  // already destroyed by the time the caller saw it (-Wreturn-local-addr).
   return data().fullstate().p4();
 }
 

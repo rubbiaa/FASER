@@ -1,3 +1,4 @@
+#pragma once
 #include <TGFrame.h>
 #include <TGWindow.h>
 #include <TGButton.h>

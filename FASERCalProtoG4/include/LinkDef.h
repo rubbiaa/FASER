@@ -18,6 +18,7 @@
 #pragma link C++ class map<int, int>+;
 #pragma link C++ class MagnetTrack+;
 #pragma link C++ class MuTagTrack+;
+#pragma link C++ class MDTTrack+;
 #pragma link C++ class DigitizedTrack+;
 #pragma link C++ class vector<DigitizedTrack*>+;
 #pragma link C++ class TcalEvent+;
