@@ -23,22 +23,62 @@
 HOMEFASER="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 export HOMEFASER
 
-# Finds the newest ROOT 6.x release under CVMFS's LCG software area, for
-# lxplus accounts that don't keep their own ROOT build inside the
-# checkout. Echoes the resolved install directory (the one containing
+# Best-effort detection of this machine's OS platform tag, matching how
+# CVMFS release directories name their per-OS builds (e.g. "el9" on
+# RHEL/Alma/Rocky 9). Echoes nothing if it can't be determined - callers
+# treat that as "no OS preference", not as an error.
+_faser_os_platform_tag() {
+  if [ -f /etc/os-release ]; then
+    ( . /etc/os-release
+      case "$ID" in
+        rhel|almalinux|rocky|centos) echo "el${VERSION_ID%%.*}" ;;
+        ubuntu) echo "ubuntu$(echo "$VERSION_ID" | tr -d '.')" ;;
+      esac
+    )
+  fi
+}
+
+# Finds a ROOT 6.x release under CVMFS's LCG software area, for lxplus
+# accounts that don't keep their own ROOT build inside the checkout.
+# Echoes the resolved install directory (the one containing
 # bin/thisroot.sh) on success, or nothing if none can be found.
 _faser_find_latest_cvmfs_root6() {
   releases_dir=/cvmfs/sft.cern.ch/lcg/app/releases/ROOT
   [ -d "$releases_dir" ] || return 0
 
-  version=$(ls "$releases_dir" 2>/dev/null | grep -E '^6\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
-  [ -n "$version" ] || return 0
+  # Newest-to-oldest, so the first match found below is also the newest.
+  versions=$(ls "$releases_dir" 2>/dev/null | grep -E '^6\.[0-9]+\.[0-9]+$' | sort -Vr)
+  [ -n "$versions" ] || return 0
 
   # Several platform builds usually exist per version - one per OS/
-  # compiler combination CERN builds for - and which one matches this
-  # machine can vary node to node. Any optimized (non-debug) x86_64 one
-  # works for our purposes; pick the last alphabetically for a stable,
-  # deterministic choice rather than whatever `ls` happens to return first.
+  # compiler combination CERN builds for. Picking whichever sorts last
+  # alphabetically (the old approach) is a trap: CVMFS also publishes
+  # builds for other OSes (e.g. Ubuntu), and their platform strings can
+  # sort AFTER "el9" (u > e) even on an actual el9 lxplus node - silently
+  # picking an ABI-incompatible ROOT that then fails to configure against
+  # system/CVMFS dependencies (VDT and friends) further down the line.
+  # Prefer a same-OS build instead, and fall back across older versions
+  # (not just the newest one) until one is found, since the newest
+  # version doesn't always have a build for every OS yet.
+  os_tag=$(_faser_os_platform_tag)
+  if [ -n "$os_tag" ]; then
+    for version in $versions; do
+      platform=$(ls "$releases_dir/$version" 2>/dev/null | grep -E "^x86_64-${os_tag}.*-opt$" | sort | tail -1)
+      if [ -n "$platform" ]; then
+        candidate="$releases_dir/$version/$platform"
+        if [ -f "$candidate/bin/thisroot.sh" ]; then
+          echo "$candidate"
+          return 0
+        fi
+      fi
+    done
+  fi
+
+  # No same-OS build found for any version (or the OS couldn't be
+  # detected) - fall back to the newest version's alphabetically-last
+  # optimized x86_64 build, same as the old behaviour. Better than
+  # failing outright, though it may still be for a different OS's ABI.
+  version=$(echo "$versions" | head -1)
   platform=$(ls "$releases_dir/$version" 2>/dev/null | grep -E '^x86_64-.*-opt$' | sort | tail -1)
   [ -n "$platform" ] || return 0
 
