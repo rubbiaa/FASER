@@ -1,3 +1,6 @@
+# Site setup: lxplus (CVMFS ROOT + Geant4). Sets the handful of things that
+# are genuinely specific to this site, then hands off to common_setup.sh
+# for everything shared across all sites.
 export HOMEFASER=$PWD
 
 echo "Setting up environment for FASER simulation"
@@ -6,23 +9,21 @@ echo "Current working directory: $HOMEFASER"
 source $HOMEFASER/root-install/bin/thisroot.sh
 echo "Root installed in $HOMEFASER/ROOT/root_install"
 
-pushd .
-cd /cvmfs/geant4.cern.ch/geant4/11.2.p01/x86_64-el9-gcc11-optdeb/bin/; source geant4.sh
-popd
+# Previously this cd'd into the CVMFS bin/ dir and sourced geant4.sh
+# without ever exporting GEANT4_INSTALL itself, so the echo below printed
+# an empty value and cmake/Externals.cmake's smart CLHEP-reuse-from-Geant4
+# default (which keys off $GEANT4_INSTALL) never triggered on lxplus,
+# unlike on the Mac/Ubuntu setups - CLHEP was always built from source
+# here instead of reusing CVMFS's own bundled copy. Exporting it properly
+# fixes both.
+export GEANT4_INSTALL=/cvmfs/geant4.cern.ch/geant4/11.2.p01/x86_64-el9-gcc11-optdeb
+pushd . > /dev/null
+cd $GEANT4_INSTALL/bin
+source geant4.sh
+popd > /dev/null
 echo "GEANT4 installed in $GEANT4_INSTALL"
 
 export PYTHIA8=$HOMEFASER/pythia8312
 echo "Pythia8 installed in $PYTHIA8"
 
-# CLHEP/Rave/GenFit are built by FASER's own CMake superbuild
-# (cmake/Externals.cmake) into build/external-install/, not into
-# top-level *-install directories - point at the real thing.
-export CLHEPINSTALL=$HOMEFASER/build/external-install/CLHEP
-export RAVEINSTALL=$HOMEFASER/build/external-install/rave
-export GENFITINSTALL=$HOMEFASER/build/external-install/GenFit
-export LD_LIBRARY_PATH=$GENFITINSTALL/lib:$GENFITINSTALL/lib64:$RAVEINSTALL/lib:$CLHEPINSTALL/lib:$CLHEPINSTALL/lib64:$LD_LIBRARY_PATH
-
-# Executables built by the top-level CMake build (build/bin -
-# CMAKE_RUNTIME_OUTPUT_DIRECTORY in CMakeLists.txt) - AnalyReco.exe,
-# batchreco.exe, evDisplay.exe, etc.
-export PATH=$HOMEFASER/build/bin:$PATH
+source $HOMEFASER/common_setup.sh

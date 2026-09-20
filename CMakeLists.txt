@@ -58,6 +58,42 @@ endif()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
 # -----------------------------------------------------------------------------
+# Environment sanity check
+# -----------------------------------------------------------------------------
+# A missing or stale setup.sh/mac_setup.sh/lxplus_setup.sh environment has
+# repeatedly caused confusing failures well downstream of here - a cryptic
+# Rave/CLHEP autotools error, or a plain find_package(Geant4) failure
+# inside FASERG4/CMakeLists.txt with no further context. Report what CMake
+# actually sees, up front, before anything else runs, rather than making
+# someone reconstruct it from a failure several minutes into the build.
+#
+# GEANT4_INSTALL itself is optional (see cmake/Externals.cmake's smart
+# CLHEP-reuse default) - CLHEP will just be built from source instead of
+# reusing Geant4's bundled copy if it's unset, which is slower but not
+# wrong - so this only warns, it never fails the configure. A genuinely
+# missing Geant4 install still fails loudly and separately, on its own,
+# the normal CMake way, via the find_package(Geant4 REQUIRED) calls in
+# FASERG4/FASERCalProtoG4.
+message(STATUS "FASER environment check:")
+if(DEFINED ENV{GEANT4_INSTALL})
+  if(EXISTS "$ENV{GEANT4_INSTALL}")
+    message(STATUS "  GEANT4_INSTALL = $ENV{GEANT4_INSTALL}")
+  else()
+    message(WARNING "GEANT4_INSTALL is set to '$ENV{GEANT4_INSTALL}', but that "
+      "path does not exist. This is very likely a stale environment - re-source "
+      "your setup script (setup.sh / mac_setup.sh / lxplus_setup.sh / "
+      "lxplus_setup_anna.sh) before running cmake.")
+  endif()
+else()
+  message(STATUS "  GEANT4_INSTALL is not set - source your setup script first "
+    "(or pass -DCLHEP_ROOT=... yourself); otherwise FASER will build CLHEP "
+    "from source unnecessarily instead of reusing Geant4's bundled copy")
+endif()
+if(CMAKE_PREFIX_PATH)
+  message(STATUS "  CMAKE_PREFIX_PATH = ${CMAKE_PREFIX_PATH}")
+endif()
+
+# -----------------------------------------------------------------------------
 # Top-level switches for which parts of the tree to build
 # -----------------------------------------------------------------------------
 option(FASER_BUILD_EXTERNALS         "Build bundled third-party deps (CLHEP/Rave/GenFit/googletest/Pythia8) from source" ON)
