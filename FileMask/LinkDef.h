@@ -6,6 +6,7 @@
 #include "TPSCluster.hh"
 #include "TTKTrack.hh"
 #include "TPSTrack.hh"
+#include "TMuTrack.hh"
 
 #ifdef __CLING__
 
@@ -37,6 +38,7 @@
 
 #pragma link C++ class TTKTrack;
 #pragma link C++ class TPSTrack;
+#pragma link C++ class TMuTrack;
 
 #pragma link C++ struct TPORecoEvent::REARCALS;
 

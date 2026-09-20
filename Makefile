@@ -1,3 +1,12 @@
+# NOTE: This Makefile is the legacy build system. FASER now also has a
+# CMake build (top-level CMakeLists.txt) which supersedes it - see
+# INSTALL.md. This file is kept working for now during the transition;
+# prefer:
+#
+#   cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+#   cmake --build build -j
+#
+
 TOPDIR = $(shell pwd)
 
 UNAME_S := $(shell uname -s)

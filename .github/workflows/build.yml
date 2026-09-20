@@ -1,0 +1,100 @@
+# FASER CMake superbuild - Linux (Ubuntu) validation
+#
+# The build was developed and hand-validated on macOS (Apple Silicon). This
+# workflow exercises the same cmake -S/-B configure+build sequence on Ubuntu
+# so regressions on the "other" platform (in particular the Linux-only
+# branches in cmake/Externals.cmake: FASER_BUILD_GOOGLETEST and GenFit's
+# gtest link workaround) get caught automatically on every push/PR, instead
+# of only being discovered the next time someone happens to build on Linux.
+#
+# ROOT and Geant4 are not part of the CMake superbuild (see the comment at
+# the top of cmake/Externals.cmake) - they're expected to be pre-installed
+# and located via find_package(). Ubuntu's own apt packages for these are
+# either missing (Geant4) or too old / missing components (ROOT), so both
+# are installed from conda-forge instead, which tracks recent releases and
+# builds with the UI/vis/GDML components FASERG4 and Display ask for.
+name: Build (Ubuntu)
+
+on:
+  push:
+    branches: [ main, modern_build ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    # A from-scratch run builds CLHEP, Rave, GenFit, googletest and Pythia8
+    # from source in addition to FASER itself - give it plenty of headroom.
+    timeout-minutes: 180
+
+    steps:
+      - name: Check out FASER
+        uses: actions/checkout@v4
+
+      - name: Install apt build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential gfortran git wget curl ca-certificates patch \
+            autoconf automake libtool pkg-config \
+            libboost-all-dev libeigen3-dev \
+            libx11-dev libxpm-dev libxft-dev libxext-dev \
+            libxmu-dev libxi-dev freeglut3-dev libglu1-mesa-dev
+
+      - name: Set up conda environment (for ROOT + Geant4)
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          channels: conda-forge
+          channel-priority: strict
+          activate-environment: faser
+
+      # root-config/geant4-config etc. all need the conda env active, so
+      # every later step that touches cmake runs with `shell: bash -l {0}`
+      # (a login shell, which is how setup-miniconda wires up `conda
+      # activate`).
+      - name: Install ROOT and Geant4 from conda-forge
+        shell: bash -l {0}
+        run: |
+          mamba install -y root geant4 cmake ninja
+
+      # Caches the ExternalProject build/install trees for CLHEP, Rave,
+      # GenFit, googletest and Pythia8 so an unrelated FASER-source-only
+      # change doesn't pay for a ~30-60 min from-scratch external build on
+      # every single push. Keyed on the files that actually change what
+      # gets built, so a real dependency bump (new CLHEP tag, patch edit,
+      # ...) still invalidates the cache automatically.
+      - name: Cache built externals (CLHEP / Rave / GenFit / googletest / Pythia8)
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/external
+            build/external-install
+          key: ${{ runner.os }}-faser-externals-${{ hashFiles('cmake/Externals.cmake', 'genfit.patch') }}
+
+      # Ubuntu 22.04's system libexpat.so (2.4.7) is older than what
+      # conda-forge's Geant4 requires (>= 2.8.1, needed for GDML parsing).
+      # mamba does install a suitable libexpat *into the conda env* as a
+      # Geant4 dependency, but plain find_package(EXPAT) still resolves to
+      # the system copy first (ROOT's own CMake config triggers the first
+      # EXPAT lookup while configuring find_package(ROOT ...) above, which
+      # then caches EXPAT_LIBRARY/EXPAT_INCLUDE_DIR; Geant4Config.cmake's
+      # later find_dependency(EXPAT 2.8.1) just re-checks that same cached,
+      # too-old path instead of searching again) - so it fails the version
+      # check inside Geant4Config.cmake with "Could NOT find EXPAT: Found
+      # unsuitable version 2.4.7, but required is at least 2.8.1". Seeding
+      # EXPAT_LIBRARY/EXPAT_INCLUDE_DIR up front pins both lookups to the
+      # conda environment's copy before either one runs.
+      - name: Configure
+        shell: bash -l {0}
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_PREFIX_PATH="${CONDA_PREFIX}" \
+            -DEXPAT_LIBRARY="${CONDA_PREFIX}/lib/libexpat.so" \
+            -DEXPAT_INCLUDE_DIR="${CONDA_PREFIX}/include"
+
+      - name: Build
+        shell: bash -l {0}
+        run: |
+          cmake --build build -j"$(nproc)"
