@@ -73,10 +73,26 @@ jobs:
             build/external-install
           key: ${{ runner.os }}-faser-externals-${{ hashFiles('cmake/Externals.cmake', 'genfit.patch') }}
 
+      # Ubuntu 22.04's system libexpat.so (2.4.7) is older than what
+      # conda-forge's Geant4 requires (>= 2.8.1, needed for GDML parsing).
+      # mamba does install a suitable libexpat *into the conda env* as a
+      # Geant4 dependency, but plain find_package(EXPAT) still resolves to
+      # the system copy first (ROOT's own CMake config triggers the first
+      # EXPAT lookup while configuring find_package(ROOT ...) above, which
+      # then caches EXPAT_LIBRARY/EXPAT_INCLUDE_DIR; Geant4Config.cmake's
+      # later find_dependency(EXPAT 2.8.1) just re-checks that same cached,
+      # too-old path instead of searching again) - so it fails the version
+      # check inside Geant4Config.cmake with "Could NOT find EXPAT: Found
+      # unsuitable version 2.4.7, but required is at least 2.8.1". Seeding
+      # EXPAT_LIBRARY/EXPAT_INCLUDE_DIR up front pins both lookups to the
+      # conda environment's copy before either one runs.
       - name: Configure
         shell: bash -l {0}
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_PREFIX_PATH="${CONDA_PREFIX}" \
+            -DEXPAT_LIBRARY="${CONDA_PREFIX}/lib/libexpat.so" \
+            -DEXPAT_INCLUDE_DIR="${CONDA_PREFIX}/include"
 
       - name: Build
         shell: bash -l {0}
