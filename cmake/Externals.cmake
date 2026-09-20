@@ -67,14 +67,27 @@ endif()
 # The include dir must exist at CMake generate time (CMake validates
 # INTERFACE_INCLUDE_DIRECTORIES on imported targets eagerly) even though
 # ExternalProject only populates it later, during the build step.
+#
+# Named FASER::CLHEP rather than the more natural CLHEP::CLHEP: on Linux,
+# find_package(Geant4 ...) below (in FASERG4/FASERCalProtoG4) transitively
+# calls find_dependency(CLHEP) because conda-forge's Geant4 is built
+# against system/conda CLHEP, not a bundled copy. That real find_package()
+# call defines its own genuine CLHEP::CLHEP imported target - if we had
+# already claimed that exact name for our own from-source CLHEP build,
+# CMake errors at configure time with "add_library cannot create imported
+# target CLHEP::CLHEP because another target with that name already
+# exists". Using our own namespaced target name sidesteps the collision
+# entirely (this never showed up on macOS because the Mac Geant4 install
+# here is built with its own internal CLHEP, so it never calls
+# find_dependency(CLHEP) in the first place).
 file(MAKE_DIRECTORY "${CLHEP_INSTALL_DIR}/include")
-add_library(CLHEP::CLHEP SHARED IMPORTED GLOBAL)
-set_target_properties(CLHEP::CLHEP PROPERTIES
+add_library(FASER::CLHEP SHARED IMPORTED GLOBAL)
+set_target_properties(FASER::CLHEP PROPERTIES
   IMPORTED_LOCATION             "${CLHEP_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libCLHEP${_faser_shlib_suffix}"
   INTERFACE_INCLUDE_DIRECTORIES "${CLHEP_INSTALL_DIR}/include"
 )
 if(TARGET clhep_external)
-  add_dependencies(CLHEP::CLHEP clhep_external)
+  add_dependencies(FASER::CLHEP clhep_external)
 endif()
 
 # -----------------------------------------------------------------------------
@@ -241,7 +254,7 @@ add_library(GenFit::genfit2 SHARED IMPORTED GLOBAL)
 set_target_properties(GenFit::genfit2 PROPERTIES
   IMPORTED_LOCATION             "${GENFIT_INSTALL_DIR}/lib/libgenfit2${_faser_shlib_suffix}"
   INTERFACE_INCLUDE_DIRECTORIES "${GENFIT_INSTALL_DIR}/include"
-  INTERFACE_LINK_LIBRARIES      "Rave::RaveBase;CLHEP::CLHEP"
+  INTERFACE_LINK_LIBRARIES      "Rave::RaveBase;FASER::CLHEP"
 )
 if(TARGET genfit_external)
   add_dependencies(GenFit::genfit2 genfit_external)
