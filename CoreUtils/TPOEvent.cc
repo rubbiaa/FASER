@@ -55,6 +55,13 @@ static void initialize_pythia() {
     fPythia8->ReadString("310:onMode = off");
     fPythia8->ReadString("130:onMode = off");
 
+    // same for Lambda0, Sigma+-, Xi0, Xi+-, Omega+-
+    fPythia8->ReadString("3222:onMode = off");
+    fPythia8->ReadString("3112:onMode = off");
+    fPythia8->ReadString("3122:onMode = off");
+    fPythia8->ReadString("3322:onMode = off");
+    fPythia8->ReadString("3312:onMode = off");
+    fPythia8->ReadString("3334:onMode = off");
   }
 }
 #endif
