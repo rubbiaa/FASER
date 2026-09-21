@@ -19,13 +19,19 @@
 #include "TFile.h"
 #include "TH2F.h"
 #include <cstring>
+#include <iostream>
+#include <string>
 
 
 int main(int argc, char** argv)
 {
 	// get the output file name as the first argument
 	if (argc != 2) {
-		G4cout << "Usage: " << argv[0] << " <macro|vis>" << G4endl;
+		G4cout << "Usage: " << argv[0] << " <macro|vis|->" << G4endl;
+		G4cout << "  <macro>  path to a macro file to /control/execute" << G4endl;
+		G4cout << "  vis      interactive Geant4 UI session" << G4endl;
+		G4cout << "  -        read macro commands from stdin, one G4 UI command" << G4endl;
+		G4cout << "           per line, instead of executing a file on disk" << G4endl;
 		return 1;
 	}
 
@@ -94,10 +100,29 @@ int main(int argc, char** argv)
 	// Process macro or start UI session
 	//
 	if (!ui) {
-		// batch mode
-		G4String command = "/control/execute ";
-		G4String fileName = argv[1];
-		UImanager->ApplyCommand(command + fileName);
+		if (strcmp(argv[1], "-") == 0) {
+			// Read macro commands directly from stdin, one G4 UI command
+			// per line, instead of /control/execute'ing a file on disk.
+			// This lets a caller (e.g. a Python wrapper) build the whole
+			// macro as an in-memory string and pipe it in, so no .mac
+			// file ever has to exist on disk - see FASERG4/run_faserps.py.
+			std::string line;
+			while (std::getline(std::cin, line)) {
+				// Strip a trailing '\r' in case of CRLF input.
+				if (!line.empty() && line.back() == '\r') line.pop_back();
+				// Skip blank lines and '#' comments, exactly like a
+				// regular G4 macro file would.
+				const std::size_t firstNonSpace = line.find_first_not_of(" \t");
+				if (firstNonSpace == std::string::npos || line[firstNonSpace] == '#')
+					continue;
+				UImanager->ApplyCommand(line);
+			}
+		} else {
+			// batch mode: execute a macro file on disk
+			G4String command = "/control/execute ";
+			G4String fileName = argv[1];
+			UImanager->ApplyCommand(command + fileName);
+		}
 	}
 	else {
 		// interactive mode

@@ -28,6 +28,8 @@ Python_io/lib/ClassesDict.cxx
 .DS_Store
 .vscode/
 *~
+__pycache__/
+*.log
 
 # Build directories
 */build/
@@ -61,6 +63,10 @@ googletest-build/
 googletest-install/
 rave*/
 pythia*/
+
+# Consolidated simulation/reconstruction outputs (run_faserps.py / run_batchreco.py write here; FASERG4/output and Batch/'s own dumped
+# .root files are symlinks/legacy paths into this tree - see run_faserps.md / run_batchreco.md)
+/data/
 
 # CMake superbuild
 /build/
