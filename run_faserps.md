@@ -31,30 +31,45 @@ keep in sync by hand.
   cmake --build build --target faserps
   ```
 
+- `FASERDATA` must be set - `source setup.sh` (or `common_setup.sh`) before
+  running this script; it defaults `FASERDATA` to `$HOMEFASER/data` (see
+  "Where the output goes" below and `common_setup.sh`). The script checks
+  this itself and exits with a clear message if it's missing, rather than
+  letting `faserps` fail partway through with a confusing ROOT/C++ error.
+
 - Run the script from the repo root (`python3 run_faserps.py`), or with a
   full/relative path to it from anywhere - it resolves its own location via
-  `__file__` and finds `FASERG4/` under it either way. Regardless of where
-  you invoke it *from*, the `faserps` subprocess itself always runs with
-  `FASERG4/` as its working directory, because the macro's
-  `/generator/rootinputfilename` and the `output/` directory it writes into
-  are relative paths that only resolve correctly from there - same as the
-  GDML file `faserps` writes out.
-
-- The script creates `FASERG4/output/` if it doesn't already exist. ROOT's
-  `TFile` does not create missing directories on its own, so without this a
-  run fails partway through with a confusing ROOT error instead of a clear
-  one up front. On a normal checkout `FASERG4/output` is a symlink to
-  `../data/faserG4` (see "Where the output goes" below), so this is a no-op
-  in practice - it only creates a real directory on a fresh checkout that
-  hasn't set that symlink up yet.
+  `__file__` and finds `FASERG4/` under it either way. The `faserps`
+  subprocess itself still always runs with `FASERG4/` as its working
+  directory, because the macro's `/generator/rootinputfilename` is a
+  relative path that only resolves correctly from there (same as the GDML
+  file `faserps` writes out) - but this no longer has anything to do with
+  where the *output* goes, since that's resolved from `$FASERDATA`
+  independent of cwd (see below).
 
 ## Where the output goes
 
-`faserps` itself always writes to the relative path `output/FASERG4-Tcalevent_<run>_<event>.root` (hardcoded in `CoreUtils/TcalEvent.cc`), which resolves to `FASERG4/output/` because that's the subprocess's working directory (see above).
+`faserps` writes its TcalEvent ROOT output under `$FASERDATA/faserG4/` -
+via `FASER::GetDataDir("faserG4")` (`CoreUtils/FaserDataDir.hh`), called
+from `CoreUtils/TcalEvent.cc` - instead of a hardcoded relative `output/`
+path. `GetDataDir()` creates `$FASERDATA/faserG4` itself if it doesn't
+exist yet, so nothing needs to `mkdir` it up front.
 
-`FASERG4/output` is a symlink to `../data/faserG4` - the repo keeps all simulation/reconstruction output consolidated under a top-level `data/` directory (`data/faserG4/` for this script, `data/batch/` for `run_batchreco.py` - see `run_batchreco.md`) instead of scattered inside `FASERG4/` and `Batch/` themselves. Existing consumers of the old path (`Batch/input`, `EvDisplay/input`, both symlinked to `../FASERG4/output`) keep working unchanged, since they resolve through this symlink transparently - nothing in the C++ needed to change.
+`FASERDATA` itself defaults to `$HOMEFASER/data` (set in
+`common_setup.sh`, only if not already exported - see `setup.sh` for how a
+site or a specific checkout can point it somewhere else, e.g. scratch/EOS
+space instead of inside the git checkout). This is the same consolidated
+top-level `data/` directory `run_batchreco.py` writes into
+(`$FASERDATA/batch/` - see `run_batchreco.md`); the two scripts, and every
+C++ executable that reads or writes FASERG4/batchreco data, all resolve
+through the same `FASER::GetDataDir()` helper, so there's exactly one
+place - `$FASERDATA` - that decides where the data actually lives. There
+are no longer any `input`/`output` symlinks between subdirectories for
+this (there used to be: `FASERG4/output`, `Batch/input`, `EvDisplay/input`,
+`data/batch/input` - all removed).
 
-Both `output/` and `data/` are gitignored; no `.root` file or these symlinks are ever tracked.
+`data/` (or wherever `FASERDATA` points, if overridden) is gitignored; no
+`.root` file under it is ever tracked.
 
 ## Basic usage
 

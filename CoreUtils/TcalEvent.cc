@@ -1,6 +1,7 @@
 #include <sstream>
 #include <cmath>
 #include "TcalEvent.hh"
+#include "FaserDataDir.hh"
 
 #include <TChain.h>
 #include <TGeoManager.h>
@@ -104,7 +105,7 @@ TcalEvent::TcalEvent() : TObject(), fTracks(), fMagnetTracks(), fMuTagTracks(), 
 TcalEvent::TcalEvent(int run_number, long event_number, int event_mask) : TcalEvent()
 {
     std::ostringstream fileNameStream;
-    fileNameStream << "output/FASERG4-Tcalevent_" << run_number << "_" << event_number ;
+    fileNameStream << FASER::GetDataDir("faserG4") << "/FASERG4-Tcalevent_" << run_number << "_" << event_number ;
     if(event_mask>0) {
         const char *mask = TPOEvent::DecodeEventMask(event_mask);
         fileNameStream << "_" << mask;

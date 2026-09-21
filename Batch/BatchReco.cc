@@ -20,6 +20,7 @@
 
 #include "TcalEvent.hh"
 #include "TPORecoEvent.hh"
+#include "FaserDataDir.hh"
 #include "TParticleGun.hh"
 #include "TMuonSpect.hh"
 
@@ -139,10 +140,10 @@ int main(int argc, char** argv) {
 
     load_geometry(geometryFile);
 
-    std::string base_path = "input/";
+    std::string base_path = FASER::GetDataDir("faserG4") + "/";
 
     std::ostringstream filename;
-    filename << "Batch-TPORecevent_" << run_number << "_" << min_event << "_" << max_event;
+    filename << FASER::GetDataDir("batch") << "/Batch-TPORecevent_" << run_number << "_" << min_event << "_" << max_event;
     if(event_mask>0) {
         const char *mask = TPOEvent::DecodeEventMask(event_mask);
         filename << "_" << mask;

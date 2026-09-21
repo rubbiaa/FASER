@@ -27,6 +27,7 @@ Usage:
     python3 run_faserps.py --build-dir PATH        # override the build/ location
 """
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -174,16 +175,19 @@ def main():
     if not (binary_path.stat().st_mode & 0o111):
         sys.exit(f"error: {binary_path} is not executable")
 
-    # faserps writes its TcalEvent ROOT output to a relative "output/..."
-    # path (see CoreUtils/TcalEvent.cc), which ROOT's TFile will NOT
-    # create for you -- if it's missing, the run fails partway through
-    # with a confusing ROOT error instead of a clear one up front.
-    # FASERG4/output is normally a symlink to ../data/faserG4 (see
-    # run_faserps.md's "Where the output goes" section) -- mkdir() below
-    # is then a no-op, since it follows the symlink to an existing dir;
-    # it only actually creates something on a fresh checkout where that
-    # symlink hasn't been set up yet.
-    (FASERG4_DIR / "output").mkdir(exist_ok=True)
+    # faserps writes its TcalEvent ROOT output under $FASERDATA/faserG4
+    # (see CoreUtils/FaserDataDir.hh / CoreUtils/TcalEvent.cc), not a
+    # relative "output/" path -- so FASERDATA must be set in the
+    # environment this subprocess inherits (source setup.sh first).
+    # The C++ side creates $FASERDATA/faserG4 itself if it's missing, but
+    # checking FASERDATA here too gives a clear error up front instead of
+    # a ROOT/C++ exception partway through the run.
+    if not os.environ.get("FASERDATA"):
+        sys.exit(
+            "error: FASERDATA is not set.\n"
+            "       Source setup.sh first (`source setup.sh`), or export FASERDATA\n"
+            "       yourself to point at FASER's consolidated data directory."
+        )
 
     command = [str(binary_path), "vis" if args.vis else "-"]
 
@@ -197,9 +201,10 @@ def main():
         print("[run_faserps] --dry-run: not executing.")
         return 0
 
-    # cwd=FASERG4_DIR because the macro's /generator/rootinputfilename and
-    # the output/ directory above are relative paths that only resolve
-    # correctly from here (same as the GDML faserps writes out).
+    # cwd=FASERG4_DIR because the macro's /generator/rootinputfilename
+    # is a relative path that only resolves correctly from here (same as
+    # the GDML faserps writes out). Output no longer depends on cwd at
+    # all -- see the FASERDATA check above.
     if args.vis:
         result = subprocess.run(command, cwd=FASERG4_DIR)
     else:

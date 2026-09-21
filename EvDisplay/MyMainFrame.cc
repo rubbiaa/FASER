@@ -17,6 +17,7 @@
 
 #include "MyMainFrame.h"
 #include "TPORecoEvent.hh"
+#include "FaserDataDir.hh"
 
 MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, bool pre, const TGWindow *p, UInt_t w, UInt_t h) : fTcalEvent(0) {
 
@@ -185,7 +186,7 @@ MyMainFrame::~MyMainFrame() {
 
 void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
 
-    std::string base_path = "input/";
+    std::string base_path = FASER::GetDataDir("faserG4") + "/";
 
     // Create an instance of TcalEvent and TPOEvent
     fTcalEvent = new TcalEvent();
@@ -230,7 +231,7 @@ void MyMainFrame::Load_event(int run_number, int ievent, int mask) {
 void MyMainFrame::Load_Recoevent(int run_number, int ievent) {
    if(!opened_reco_event){
        std::ostringstream inputfilename;
-       inputfilename << "../Batch/Batch-TPORecevent_" << run_number << "_*_*.root";
+       inputfilename << FASER::GetDataDir("batch") << "/Batch-TPORecevent_" << run_number << "_*_*.root";
 
        reco_event_tree = new TChain("RecoEvent", "READ");
        reco_event_tree->Add(inputfilename.str().c_str());

@@ -38,24 +38,13 @@ Usage:
     python3 run_batchreco.py --run 10000 --max-event 12000 --split 6 --dry-run
 """
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent
-BATCH_DIR = REPO_ROOT / "Batch"
 DEFAULT_BUILD_DIR = REPO_ROOT / "build"
-
-# batchreco.exe writes its output ROOT file straight into its current
-# directory (no subdirectory of its own, unlike faserps/FASERG4's
-# "output/"). We run it with this as cwd instead of BATCH_DIR so that
-# output lands in the consolidated data/ tree rather than inside the
-# Batch/ source directory. data/batch/input is a symlink to
-# ../faserG4 (i.e. the same files Batch/input already points at via
-# ../FASERG4/output), so batchreco.exe's own relative "input/" lookup
-# keeps working unchanged -- see the top-level data/ layout note in
-# run_batchreco.md.
-DATA_BATCH_DIR = REPO_ROOT / "data" / "batch"
 
 # BatchReco.cc's own hardcoded default ("../GeomGDML/geometry.gdml",
 # relative to Batch/) does not exist in this checkout -- see the module
@@ -141,22 +130,25 @@ def main():
     if not geometry_file.is_file():
         sys.exit(f"error: geometry file not found: {geometry_file}")
 
-    # batchreco.exe reads from a relative "input/" path and writes its
-    # output ROOT file into the current directory, so it runs with
-    # data/batch/ as its working directory instead of Batch/ (see
-    # DATA_BATCH_DIR above) -- this is where its output actually lands.
-    DATA_BATCH_DIR.mkdir(parents=True, exist_ok=True)
-    if not (DATA_BATCH_DIR / "input").exists():
-        print(f"[run_batchreco] warning: {DATA_BATCH_DIR / 'input'} does not exist "
-              f"(expected a symlink to ../faserG4) -- batchreco.exe will "
-              f"likely fail to find its input files.", file=sys.stderr)
+    # batchreco.exe reads and writes under $FASERDATA (see
+    # CoreUtils/FaserDataDir.hh / Batch/BatchReco.cc), not a relative
+    # "input/" path or its own cwd, so FASERDATA must be set in the
+    # environment this subprocess inherits (source setup.sh first).
+    faserdata = os.environ.get("FASERDATA")
+    if not faserdata:
+        sys.exit(
+            "error: FASERDATA is not set.\n"
+            "       Source setup.sh first (`source setup.sh`), or export FASERDATA\n"
+            "       yourself to point at FASER's consolidated data directory."
+        )
+    log_dir = Path(faserdata) / "batch" / "logs"
 
     if args.split < 1:
         sys.exit("error: --split must be >= 1")
 
     ranges = split_ranges(args.min_event, args.max_event, args.split)
 
-    print(f"[run_batchreco] working directory: {DATA_BATCH_DIR}")
+    print(f"[run_batchreco] FASERDATA: {faserdata}")
 
     if args.split == 1:
         command = build_command(
@@ -167,15 +159,14 @@ def main():
         if args.dry_run:
             print("[run_batchreco] --dry-run: not executing.")
             return 0
-        result = subprocess.run(command, cwd=DATA_BATCH_DIR)
+        result = subprocess.run(command)
         return result.returncode
 
     # --split > 1: launch each chunk as its own background job, logging to
     # its own file -- unlike Batch/go, which sent every job's output
     # straight to the same terminal with nothing to tell them apart.
-    log_dir = DATA_BATCH_DIR / "logs"
     if not args.dry_run:
-        log_dir.mkdir(exist_ok=True)
+        log_dir.mkdir(parents=True, exist_ok=True)
 
     jobs = []
     for i, (chunk_min, chunk_max) in enumerate(ranges):
@@ -187,7 +178,7 @@ def main():
         print(f"[run_batchreco] chunk {i}: {' '.join(command)}  (log: {log_path})")
         if not args.dry_run:
             log_file = open(log_path, "w")
-            proc = subprocess.Popen(command, cwd=DATA_BATCH_DIR, stdout=log_file, stderr=subprocess.STDOUT)
+            proc = subprocess.Popen(command, stdout=log_file, stderr=subprocess.STDOUT)
             jobs.append((proc, log_path))
 
     if args.dry_run:

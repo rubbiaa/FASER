@@ -17,6 +17,26 @@
 : "${HOMEFASER:=$PWD}"
 export HOMEFASER
 
+# Where FASERG4/batchreco/etc. read and write simulation/
+# reconstruction data - see CoreUtils/FaserDataDir.hh, which every
+# consumer (TcalEvent, BatchReco.cc, DumpHits.cc, BatchReco_DetResp.cc,
+# AnalyReco.cc, FileMask.cc, MyMainFrame.cc) resolves through instead of
+# a hardcoded relative "input/"/"output/" path or a symlink between
+# subdirectories. Defaults to a `data/` directory inside the checkout,
+# but - same pattern as PYTHIA8 below - only if a per-site branch in
+# setup.sh hasn't already exported it to something else first (e.g. a
+# site that wants large output on scratch/EOS instead of inside the git
+# checkout, or a checkout dedicated to a specific run/target that wants
+# its own data area). GetDataDir() creates missing subdirectories
+# itself, so nothing here needs to mkdir them.
+: "${FASERDATA:=$HOMEFASER/data}"
+export FASERDATA
+# Created eagerly (not left for the first executable that needs it) so
+# the sanity check below can treat FASERDATA as required, the same way
+# HOMEFASER is - CoreUtils/FaserDataDir.hh still creates faserG4/batch/
+# etc. subdirectories on demand.
+mkdir -p "$FASERDATA"
+
 # CLHEP/Rave/GenFit are built by FASER's own CMake superbuild
 # (cmake/Externals.cmake) into build/external-install/, not into
 # top-level *-install directories - point at the real thing.
@@ -80,6 +100,7 @@ faser_check() {
 
 echo "FASER environment check:"
 faser_check "HOMEFASER    " "$HOMEFASER"      required
+faser_check "FASERDATA    " "$FASERDATA"      required
 faser_check "GEANT4_INSTALL" "$GEANT4_INSTALL" optional
 faser_check "PYTHIA8      " "$PYTHIA8"        optional
 faser_check "CLHEPINSTALL " "$CLHEPINSTALL"   optional

@@ -12,6 +12,7 @@
 
 #include "TcalEvent.hh"
 #include "TPORecoEvent.hh"
+#include "FaserDataDir.hh"
 #include "TTauSearch.hh"
 
 void load_geometry()
@@ -88,7 +89,7 @@ int main(int argc, char **argv)
 
     load_geometry();
 
-    std::string base_path = "input/";
+    std::string base_path = FASER::GetDataDir("faserG4") + "/";
 
     std::ostringstream filename;
     filename << "Batch-TPORecevent_" << run_number;

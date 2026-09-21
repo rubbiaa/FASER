@@ -12,13 +12,18 @@ positional argument order or relying on a hand-copied shell script.
   cmake --build build --target batchreco.exe
   ```
 
+- `FASERDATA` must be set - `source setup.sh` (or `common_setup.sh`)
+  before running this script; it defaults `FASERDATA` to `$HOMEFASER/data`
+  (see "Where the output goes" below and `common_setup.sh`). The script
+  checks this itself and exits with a clear message if it's missing,
+  rather than letting `batchreco.exe` fail with a confusing C++ exception.
+
 - Run the script from anywhere - it resolves its own location via
-  `__file__`. The `batchreco.exe` subprocess itself always runs with
-  `data/batch/` as its working directory (not `Batch/`, where the source
-  and build files live), because it reads from a relative `input/` path
-  and writes its output ROOT file into the current directory - see
-  "Where the output goes" below. The script warns if `data/batch/input`
-  is missing.
+  `__file__`. Unlike the old `Batch/go` (or running `batchreco.exe`
+  directly from `Batch/`), this script does not depend on any particular
+  working directory for input/output: `batchreco.exe` reads and writes
+  under `$FASERDATA` directly (see "Where the output goes" below), so the
+  script no longer needs to set `cwd=` for the subprocess at all.
 
 ## Basic usage
 
@@ -78,20 +83,37 @@ PID and log path:
 
 ```
 [run_batchreco] launched 6 background job(s):
-  pid=12345  log=data/batch/logs/batchreco_run10000_0_2000.log
+  pid=12345  log=/path/to/data/batch/logs/batchreco_run10000_0_2000.log
   ...
 [run_batchreco] not waiting for them -- monitor with `tail -f <log>` or `ps`.
 ```
 
 ## Where the output goes
 
-`batchreco.exe` itself always writes its output ROOT file straight into its current working directory (no `output/` subdirectory of its own, unlike `faserps`/`FASERG4`). This script runs it with `data/batch/` as that working directory instead of `Batch/`, so the output lands in the same consolidated top-level `data/` tree as `run_faserps.py`'s output (`data/faserG4/` - see `run_faserps.md`).
+`batchreco.exe` reads its input and writes its output ROOT file under
+`$FASERDATA/faserG4/` and `$FASERDATA/batch/` respectively - via
+`FASER::GetDataDir("faserG4")` / `FASER::GetDataDir("batch")`
+(`CoreUtils/FaserDataDir.hh`), called from `Batch/BatchReco.cc` - instead
+of a relative `input/` path and cwd-dependent output. `GetDataDir()`
+creates these directories itself if they don't exist yet.
 
-`data/batch/input` is a symlink to `../faserG4` - the same underlying files `Batch/input` already points at via `../FASERG4/output` - so `batchreco.exe`'s own relative `input/` lookup keeps resolving to the right files with no change to `BatchReco.cc`.
+`FASERDATA` defaults to `$HOMEFASER/data` (set in `common_setup.sh`, only
+if not already exported - see `setup.sh` for how a site or a specific
+checkout can point it elsewhere, e.g. scratch/EOS space instead of inside
+the git checkout). This is the same consolidated top-level `data/`
+directory `run_faserps.py` writes into (`$FASERDATA/faserG4/` - see
+`run_faserps.md`); every C++ executable that reads or writes
+FASERG4/batchreco data - `BatchReco.cc`, `BatchReco_DetResp.cc`,
+`DumpHits.cc`, `AnalyReco.cc`, `FileMask.cc`, `MyMainFrame.cc` - resolves
+through the same `FASER::GetDataDir()` helper, so there's exactly one
+place, `$FASERDATA`, that decides where the data actually lives. There
+are no longer any `input`/`output` symlinks between subdirectories for
+this (there used to be: `FASERG4/output`, `Batch/input`, `EvDisplay/input`,
+`data/batch/input` - all removed), and no more cwd-dependent behaviour
+either.
 
-`Batch/input` itself is untouched and still works if you run `batchreco.exe` directly from `Batch/` (bypassing this script) - but its output would then land back in `Batch/` rather than `data/batch/`, so prefer this script for anything you want consolidated. One known rough edge: `EvDisplay/src/MyMainFrame.cc` has a hardcoded `../Batch/Batch-TPORecevent_*` lookup that assumes output still lands directly in `Batch/` - it won't see new output produced via this script until that one hardcoded path is updated too (not done as part of this change, to keep it scoped to the two wrapper scripts).
-
-`data/` is gitignored in its entirety; no `.root` file, log, or symlink under it is ever tracked.
+`data/` (or wherever `FASERDATA` points, if overridden) is gitignored; no
+`.root` file or log under it is ever tracked.
 
 ## Location
 

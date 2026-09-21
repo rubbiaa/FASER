@@ -19,6 +19,13 @@
 # all unless your site keeps its own standalone Pythia8 build outside the
 # checkout (see common_setup.sh for the default) - the Ubuntu branch below
 # is the one example of that.
+#
+# FASERDATA (where FASERG4/batchreco output lives - see
+# CoreUtils/FaserDataDir.hh) works the same way: common_setup.sh defaults
+# it to $HOMEFASER/data, but only if it isn't already set, so a site
+# branch here can `export FASERDATA=/some/other/path` before
+# common_setup.sh runs to point a specific machine - or a checkout
+# dedicated to a specific run/target - at its own data area instead.
 
 HOMEFASER="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 export HOMEFASER

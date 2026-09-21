@@ -13,6 +13,7 @@
 
 #include "TcalEvent.hh"
 #include "TPORecoEvent.hh"
+#include "FaserDataDir.hh"
 #include "TTauSearch.hh"
 #include "TParticleGun.hh"
 
@@ -108,8 +109,6 @@ int main(int argc, char** argv) {
         }
     }
 
-    std::string base_path = "input/";
-
     std::ostringstream filename;
     filename << "Analysis_" << run_number;
     if(event_mask>0) {
@@ -172,7 +171,7 @@ int main(int argc, char** argv) {
     TH1D h_charm_Enucharmed = TH1D("h_charm_Enucharmed", "Neutrino energy", 50, 0, 4000.0);
 
     std::ostringstream inputfilename;
-    inputfilename << "input/Batch-TPORecevent_" << run_number << "_*_*.root";
+    inputfilename << FASER::GetDataDir("batch") << "/Batch-TPORecevent_" << run_number << "_*_*.root";
 
 #if 0
     TFile *m_inrootFile = new TFile(inputfilename.str().c_str(), "READ"); 

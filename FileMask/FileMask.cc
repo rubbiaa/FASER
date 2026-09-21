@@ -10,6 +10,7 @@
 
 #include "TPORecoEvent.hh"
 #include "TFileMask.hh"
+#include "FaserDataDir.hh"
 
 int main(int argc, char** argv) {
 
@@ -34,7 +35,7 @@ int main(int argc, char** argv) {
     }
 
     std::ostringstream inputfilename;
-    inputfilename << "input/Batch-TPORecevent_" << run_number << "_*_*.root";
+    inputfilename << FASER::GetDataDir("batch") << "/Batch-TPORecevent_" << run_number << "_*_*.root";
 
     TChain *event_tree = new TChain("RecoEvent","READ");
     event_tree->Add(inputfilename.str().c_str());
