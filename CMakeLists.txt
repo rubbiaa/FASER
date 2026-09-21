@@ -123,6 +123,58 @@ else()
 endif()
 
 # -----------------------------------------------------------------------------
+# Some CVMFS/LCG-distributed ROOT releases (observed with ROOT 6.40.04's
+# x86_64-almalinux9.8-gcc115-opt build on lxplus) export their ROOT::EGPythia8
+# imported target with an INTERFACE_LINK_LIBRARIES entry that is a hardcoded
+# absolute path to whatever Pythia8 install happened to exist on the machine
+# that built that ROOT release (e.g. "/usr/lib64/libpythia8.so") - a system
+# RPM path that doesn't exist here. Because it's a plain absolute file path
+# rather than an imported target, CMake has no choice but to treat it as a
+# literal Makefile prerequisite, and the build fails with
+# "No rule to make target '/usr/lib64/libpythia8.so'" for anything that
+# links ROOT::EGPythia8 (ConvertFASERMC's Convert.exe, ConvertGENIE's
+# ConvertGENIE.exe/countinteractions_tpoevent.exe), even though our own
+# Pythia8 (Pythia8::pythia8, from this same superbuild) is perfectly capable
+# of satisfying whatever symbols ROOT::EGPythia8 actually needs. Scrub any
+# such stale absolute path from every ROOT component target we use, and swap
+# in Pythia8::pythia8 in its place so the dependency is still satisfied.
+foreach(_faser_root_pythia8_dep_target IN ITEMS
+    Core RIO Tree Hist Physics EG Geom EGPythia8 RooFit RooFitCore
+    Eve GenVector Gpad Graf RGL Rint Gui GuiHtml Thread Gdml Matrix)
+  if(TARGET ROOT::${_faser_root_pythia8_dep_target})
+    get_target_property(_faser_root_pythia8_dep_libs
+      ROOT::${_faser_root_pythia8_dep_target} INTERFACE_LINK_LIBRARIES)
+    if(_faser_root_pythia8_dep_libs)
+      set(_faser_root_pythia8_dep_changed FALSE)
+      set(_faser_root_pythia8_dep_new "")
+      foreach(_faser_root_pythia8_dep_lib IN LISTS _faser_root_pythia8_dep_libs)
+        if(_faser_root_pythia8_dep_lib MATCHES "/libpythia8\.(a|so)(\.[0-9.]+)?$"
+           AND NOT _faser_root_pythia8_dep_lib STREQUAL "Pythia8::pythia8"
+           AND NOT EXISTS "${_faser_root_pythia8_dep_lib}")
+          message(STATUS "FASER: dropping stale ${_faser_root_pythia8_dep_lib} "
+                         "from ROOT::${_faser_root_pythia8_dep_target}'s link "
+                         "interface (doesn't exist here) - using "
+                         "Pythia8::pythia8 instead")
+          list(APPEND _faser_root_pythia8_dep_new "Pythia8::pythia8")
+          set(_faser_root_pythia8_dep_changed TRUE)
+        else()
+          list(APPEND _faser_root_pythia8_dep_new "${_faser_root_pythia8_dep_lib}")
+        endif()
+      endforeach()
+      if(_faser_root_pythia8_dep_changed)
+        list(REMOVE_DUPLICATES _faser_root_pythia8_dep_new)
+        set_target_properties(ROOT::${_faser_root_pythia8_dep_target} PROPERTIES
+          INTERFACE_LINK_LIBRARIES "${_faser_root_pythia8_dep_new}")
+      endif()
+      unset(_faser_root_pythia8_dep_new)
+      unset(_faser_root_pythia8_dep_changed)
+    endif()
+    unset(_faser_root_pythia8_dep_libs)
+  endif()
+endforeach()
+unset(_faser_root_pythia8_dep_target)
+
+# -----------------------------------------------------------------------------
 # FASER packages
 # -----------------------------------------------------------------------------
 add_subdirectory(CoreUtils)
