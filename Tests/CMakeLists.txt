@@ -21,6 +21,7 @@ include(${Geant4_USE_FILE})
 add_executable(MuonSpectrometerFieldTest
   MuonSpectrometerFieldTest.cc
   ${FASER_COREUTILS_INCLUDE_DIR}/MuonSpectrometerField.cc
+  ${FASER_COREUTILS_INCLUDE_DIR}/GenMagneticField.cc
   ${CMAKE_SOURCE_DIR}/FASERG4/src/MuonDetMagneticField.cc
 )
 target_include_directories(MuonSpectrometerFieldTest PRIVATE
