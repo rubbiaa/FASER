@@ -6,6 +6,7 @@
 #include "TcalEvent.hh"
 #include "TPOEvent.hh"
 #include "GenMagneticField.hh"
+#include "MagnetGeometryProbe.hh"
 
 #include <TVectorD.h>
 #include <TMatrixDSym.h>
@@ -135,6 +136,12 @@ TPORecoEvent::TPORecoEvent(TcalEvent* c, TPOEvent* p) : TPORecoEvent() {
         fTcalEvent->geom_detector.rearMuSpectLocZ/10.0,
         tiltAngleDeg
     );
+    // print the magnetic field configuration with the corresponding geometry settings and tilt
+    std::cout << "Shifts (X, Y, Z) and tilt angle: "
+              << fTcalEvent->geom_detector.fRearMuSpect_LOS_shiftX/10.0 << ", "
+              << fTcalEvent->geom_detector.fRearMuSpect_LOS_shiftY/10.0 << ", "
+              << fTcalEvent->geom_detector.rearMuSpectLocZ/10.0 << ", "
+              << tiltAngleDeg << std::endl;
 
     // empty histogram pointers
 	for(int i =0; i < 50; i++){
@@ -3570,6 +3577,7 @@ static void SetupMDTMagneticField(GenMagneticField* gfield, TcalEvent* tcal)
     if (!gfield || !gGeoManager || !gGeoManager->GetTopVolume() || !tcal) return;
 
     std::vector<std::pair<double,double>> ranges_cm;
+    std::vector<FASER::MagnetSlitProbeResult> slitProbes;
     double sumX_cm = 0.0, sumY_cm = 0.0, sumZ_cm = 0.0;
     int nMagnets = 0;
     TGeoVolume* top = gGeoManager->GetTopVolume();
@@ -3602,6 +3610,28 @@ static void SetupMDTMagneticField(GenMagneticField* gfield, TcalEvent* tcal)
         std::cout << "[SetupMDTMagneticField] magnet=" << nodeName
                   << " pos(x,y,z)=(" << tr_cm[0] << ", " << tr_cm[1] << ", " << tr_cm[2]
                   << ") cm, z_range=(" << (tr_cm[2] - halfZ_cm) << ", " << (tr_cm[2] + halfZ_cm) << ")\n";
+        // Derive the field's slit-position parameter from THIS magnet's
+        // actual shape (the same shape GDML round-tripped from FASERG4's
+        // real DetectorConstruction), instead of trusting a hand-typed
+        // constant to still match whatever the geometry currently is.
+        // See CoreUtils/MagnetGeometryProbe.hh for the rationale and how
+        // the probe works.
+        if (shape) {
+            FASER::MagnetSlitProbeResult probe = FASER::ProbeMagnetSlit(shape);
+            if (probe.ok) {
+                slitProbes.push_back(probe);
+                std::cout << "[SetupMDTMagneticField] magnet=" << nodeName
+                          << " slit probe: slitPositionCm=" << probe.slitPositionCm
+                          << " blockHalfExtentYCm=" << probe.blockHalfExtentYCm
+                          << " slitHalfWidthCm=" << probe.slitHalfWidthCm
+                          << " asymmetryCm=" << probe.asymmetryCm << "\n";
+            } else {
+                std::cerr << "[SetupMDTMagneticField] WARNING: slit probe found no "
+                          << "solid-gap-solid pattern for magnet=" << nodeName
+                          << " - this magnet's shape doesn't look like the expected "
+                          << "block-with-two-slits solid.\n";
+            }
+        }
     }
     std::sort(ranges_cm.begin(), ranges_cm.end());
     std::vector<std::pair<double,double>> unique_ranges;
@@ -3610,7 +3640,65 @@ static void SetupMDTMagneticField(GenMagneticField* gfield, TcalEvent* tcal)
             unique_ranges.push_back(r);
     }
     gfield->SetMDTMagnetZRangesCm(unique_ranges);
-    gfield->SetSlitPosition(25.0);
+
+    // Decide the field's slit position from the geometry probes
+    // collected above, falling back to the historical hardcoded value
+    // (with a loud warning) if the probes didn't produce a clean,
+    // consistent answer - reconstruction must never silently break
+    // because a probe assumption didn't hold for some geometry variant.
+    constexpr double kFallbackSlitPositionCm = 25.0; // pre-refactor hardcoded value
+    constexpr double kProbeAgreementToleranceCm = 0.5;  // matches rampHalfWidthCm's own sense of "small"
+    constexpr double kEnvelopeMatchToleranceCm  = 0.5;
+    double slitPositionCm = kFallbackSlitPositionCm;
+    if (slitProbes.empty()) {
+        std::cerr << "[SetupMDTMagneticField] WARNING: no successful slit-geometry "
+                  << "probes among " << nMagnets << " MDT magnet(s) - falling back to "
+                  << "the hardcoded slit position (" << kFallbackSlitPositionCm
+                  << " cm). The field model may not match the actual geometry!\n";
+    } else {
+        double sumSlitPositionCm = 0.0, minSlitPositionCm = slitProbes.front().slitPositionCm,
+               maxSlitPositionCm = slitProbes.front().slitPositionCm;
+        for (const auto& p : slitProbes) {
+            sumSlitPositionCm += p.slitPositionCm;
+            minSlitPositionCm = std::min(minSlitPositionCm, p.slitPositionCm);
+            maxSlitPositionCm = std::max(maxSlitPositionCm, p.slitPositionCm);
+        }
+        const double avgSlitPositionCm = sumSlitPositionCm / slitProbes.size();
+        const double spreadCm = maxSlitPositionCm - minSlitPositionCm;
+        if (spreadCm > kProbeAgreementToleranceCm) {
+            std::cerr << "[SetupMDTMagneticField] WARNING: MDT magnets disagree on "
+                      << "slit position by " << spreadCm << " cm (probes ranged "
+                      << minSlitPositionCm << " to " << maxSlitPositionCm << " cm) - "
+                      << "falling back to the hardcoded value ("
+                      << kFallbackSlitPositionCm << " cm) rather than trusting an "
+                      << "inconsistent geometry probe.\n";
+        } else {
+            slitPositionCm = avgSlitPositionCm;
+            std::cout << "[SetupMDTMagneticField] slit position derived from geometry: "
+                      << slitPositionCm << " cm (from " << slitProbes.size()
+                      << " magnet probe(s), spread=" << spreadCm << " cm)\n";
+            // Full-paranoia check #2: the field model's own zero-cutoff
+            // envelope (2*slitPositionCm) is SUPPOSED to coincide with
+            // the block's real physical outer edge. If it doesn't, the
+            // field is either extending into open air beyond the iron,
+            // or going to zero while still inside solid iron - either
+            // way the field model no longer matches the geometry it's
+            // meant to describe, so this is surfaced loudly rather than
+            // silently accepted.
+            for (const auto& p : slitProbes) {
+                const double envelopeCm = 2.0 * p.slitPositionCm;
+                if (std::abs(envelopeCm - p.blockHalfExtentYCm) > kEnvelopeMatchToleranceCm) {
+                    std::cerr << "[SetupMDTMagneticField] WARNING: field envelope "
+                              << "(2*slitPositionCm=" << envelopeCm << " cm) does not "
+                              << "match this magnet's real half-extent ("
+                              << p.blockHalfExtentYCm << " cm) - the field model's "
+                              << "assumed outer boundary no longer lines up with the "
+                              << "actual iron block!\n";
+                }
+            }
+        }
+    }
+    gfield->SetSlitPosition(slitPositionCm);
     // Set the LOS shift so the slit Y-check uses local coordinates centered on the
     // MDT spectrometer axis. Without this, y_local = Y_global which puts all tracks
     // in the wrong field region (outer ±15 kG instead of inner ∓15 kG).

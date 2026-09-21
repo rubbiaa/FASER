@@ -1401,13 +1401,28 @@ void DetectorConstruction::CreateMuSpectWithMDT(G4double zLocation, G4LogicalVol
 		zPos += gapBeforeMagnet;
 		
 		// Place magnet with slits (same as before)
-		G4Box* solidMagnet = new G4Box("MDTMagnet", 500.*mm, 500.*mm, magnetThickness/2);
-		G4Box* slitBox = new G4Box("MDTSlit", 250.*mm, 10.*mm, magnetThickness/2);
+		// NOTE: these dimensions are the single source of truth for BOTH
+		// the actual solid geometry below AND field->SetSlitPosition()
+		// just below it - they must stay the SAME variable, not two
+		// independently-typed literals, or the field model's assumed
+		// slit position/envelope can silently drift out of sync with
+		// the real iron block. (GenFit's own copy of this value is no
+		// longer a hand-typed literal either - see
+		// CoreUtils/MagnetGeometryProbe.hh/.cc and
+		// GenMagneticField.cc's SetupMDTMagneticField, which now derive
+		// it by probing this exact shape after it round-trips through
+		// GDML, rather than trusting a second hardcoded number.)
+		const G4double magnetHalfExtentXY = 500.*mm;
+		const G4double slitHalfWidthX     = 250.*mm;
+		const G4double slitHalfHeightY    = 10.*mm;
+		const G4double slitPositionY      = 250.*mm;
+		G4Box* solidMagnet = new G4Box("MDTMagnet", magnetHalfExtentXY, magnetHalfExtentXY, magnetThickness/2);
+		G4Box* slitBox = new G4Box("MDTSlit", slitHalfWidthX, slitHalfHeightY, magnetThickness/2);
 
 		G4SubtractionSolid* magnetMinusSlit1 = new G4SubtractionSolid(
-			"MDTMagnetMinusSlit1", solidMagnet, slitBox, nullptr, G4ThreeVector(0, 250.*mm, 0));
+			"MDTMagnetMinusSlit1", solidMagnet, slitBox, nullptr, G4ThreeVector(0, slitPositionY, 0));
 		G4SubtractionSolid* magnetWithSlits = new G4SubtractionSolid(
-			"MDTMagnetWithSlits", magnetMinusSlit1, slitBox, nullptr, G4ThreeVector(0, -250.*mm, 0));
+			"MDTMagnetWithSlits", magnetMinusSlit1, slitBox, nullptr, G4ThreeVector(0, -slitPositionY, 0));
 
 		G4LogicalVolume* magnetLV = new G4LogicalVolume(magnetWithSlits, steel, "MDTMagnetLV");
 		G4double magnetZ = zPos + magnetThickness/2;
@@ -1415,7 +1430,7 @@ void DetectorConstruction::CreateMuSpectWithMDT(G4double zLocation, G4LogicalVol
 
 		// Magnetic field on the magnet volume
 		auto field = new MuonMagneticField();
-		field->SetSlitPosition(250.*mm);
+		field->SetSlitPosition(slitPositionY);
 		field->SetTiltAngleY(fTiltAngleY);
 		// BUG FIX (2026-08-14): Set the global y-offset of the magnet center!
 		// The detector can be shifted in Y, so field boundaries must be translated.

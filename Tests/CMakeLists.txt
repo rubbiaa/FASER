@@ -45,3 +45,29 @@ if(UNIX AND NOT APPLE)
 endif()
 
 add_test(NAME MuonSpectrometerFieldTest COMMAND MuonSpectrometerFieldTest)
+
+# Unit tests for FASER::ProbeMagnetSlit (CoreUtils/MagnetGeometryProbe.hh)
+# - the "full paranoia" geometry<->field cross-check: builds small ROOT
+# TGeo shapes by hand (no Geant4/GDML needed for this one) to prove the
+# probe both agrees with the real MDT magnet's numbers AND actually
+# detects a genuine mismatch when the block and slit are deliberately
+# built inconsistent, rather than just trusting matching literals like
+# GenMagneticField.cc's SetupMDTMagneticField used to.
+add_executable(MagnetGeometryProbeTest
+  MagnetGeometryProbeTest.cc
+  ${FASER_COREUTILS_INCLUDE_DIR}/MagnetGeometryProbe.cc
+)
+target_include_directories(MagnetGeometryProbeTest PRIVATE
+  ${FASER_COREUTILS_INCLUDE_DIR}
+  ${ROOT_INCLUDE_DIRS}
+)
+target_link_libraries(MagnetGeometryProbeTest PRIVATE
+  ROOT::Core ROOT::RIO ROOT::Geom
+  GTest::gtest GTest::gtest_main
+)
+
+if(UNIX AND NOT APPLE)
+  target_link_options(MagnetGeometryProbeTest PRIVATE -Wl,--allow-shlib-undefined)
+endif()
+
+add_test(NAME MagnetGeometryProbeTest COMMAND MagnetGeometryProbeTest)
