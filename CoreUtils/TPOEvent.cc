@@ -67,6 +67,8 @@ static void initialize_pythia() {
     // no FASER-side code changes are needed, and a discussion of where
     // Pythia8/Geant4 decay matrix elements do (tau, charm) and do not
     // (these hyperons) disagree.
+    // (Upstream PR #31 by simonthor added the same six onMode=off lines;
+    // this resolves the merge by keeping this fuller comment.)
     fPythia8->ReadString("3222:onMode = off");  // Sigma+
     fPythia8->ReadString("3112:onMode = off");  // Sigma-
     fPythia8->ReadString("3122:onMode = off");  // Lambda0
