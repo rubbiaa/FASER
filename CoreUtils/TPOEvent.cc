@@ -96,6 +96,8 @@ void TPOEvent::clear_event() {
   istau = false;
   spx=spy=spz=0;
   tauvis_px=tauvis_py=tauvis_pz=0;
+  nuE = Q2 = W2 = xBj = yInel = 0;
+  pythiaXbj = -1;
 };
 
 #ifdef _INCLUDE_PYTHIA_
@@ -255,14 +257,22 @@ size_t TPOEvent::n_charged() const {
 }
 
 void TPOEvent::kinematics_event() {
+  bool got_in_lepton = false;
   bool got_out_lepton = false;
   spx=spy=spz=0;
   tauvis_px=tauvis_py=tauvis_pz=0;
   for (size_t i=0; i<n_particles(); i++) {
     struct PO aPO = POs[i];
-    if(aPO.m_status == 4 && i==0) {
+    // Incoming beam particle (status==4, only ever at index 0): a GENIE-style incoming
+    // neutrino, or -- since PrimaryGeneratorAction now uses the same convention -- a
+    // MuonDIS-style incoming charged lepton primary. It must be excluded below, or it would
+    // get picked up as its own outgoing lepton and double-counted into the visible final-state
+    // momentum sum.
+    if(!got_in_lepton && i==0 && aPO.m_status == 4 && is_lepton(aPO.m_pdg_id)) {
       in_neutrino = aPO;
       istau = (abs(aPO.m_pdg_id) == 16);
+      got_in_lepton = true;
+      continue;
     }
     if(!got_out_lepton && aPO.m_status == 1 && is_lepton(aPO.m_pdg_id) ) {
       out_lepton = aPO;
@@ -275,7 +285,20 @@ void TPOEvent::kinematics_event() {
     }
   }
   isCC = !(in_neutrino.m_pdg_id == out_lepton.m_pdg_id);
-  if(isCC) {
+  // The jet (hadronic system) must exclude out_lepton's momentum whenever out_lepton actually
+  // carries momentum that was counted into spx/spy/spz above -- which the aggregation loop only
+  // does for non-neutrino particles (its "!is_neutrino(aPO.m_pdg_id)" condition). So the right
+  // test here is "is out_lepton a neutrino", not "isCC":
+  //  - Neutrino CC (e.g. numuCC -> mu-): out_lepton is the charged lepton, was summed into spx,
+  //    must be subtracted.
+  //  - Neutrino NC (e.g. numuNC -> numu): out_lepton is itself a neutrino, was never summed into
+  //    spx in the first place, and must NOT be subtracted again (that would double-remove it and
+  //    corrupt the hadronic jet for genuine NC events).
+  //  - MuonDIS "NC" (mu- -> mu- via WeakBosonExchange:ff2ff(t:gmZ)): isCC is false (same PDG in
+  //    and out) but out_lepton is still a real, momentum-carrying charged muon that *was* summed
+  //    into spx -- so it must be subtracted here too, even though isCC is false. This is the case
+  //    the old "isCC ? subtract : don't" logic got wrong.
+  if(!is_neutrino(out_lepton.m_pdg_id)) {
     jetpx = spx-out_lepton.m_px;
     jetpy = spy-out_lepton.m_py;
     jetpz = spz-out_lepton.m_pz;
@@ -323,6 +346,25 @@ void TPOEvent::kinematics_event() {
   }
   Evis = sqrt(vis_spx*vis_spx + vis_spy*vis_spy + vis_spz*vis_spz);
   ptmiss = sqrt(vis_spx*vis_spx + vis_spy*vis_spy);
+
+  // Standard deep inelastic scattering kinematics (lab frame, target nucleon at rest). The
+  // nucleon mass is approximated by the average of the proton/neutron mass -- consistent with
+  // the isoscalar-nucleon-mix approximation already used for the MuonDIS target -- rather than
+  // tracking the exact struck nucleon species here.
+  constexpr double kNucleonMassGeV = 0.93892; // average of m_p=0.938272, m_n=0.939565 GeV
+  nuE = Q2 = W2 = xBj = yInel = 0;
+  if(got_in_lepton && got_out_lepton && in_neutrino.m_energy > 0) {
+    nuE = in_neutrino.m_energy - out_lepton.m_energy;
+    const double dpx = in_neutrino.m_px - out_lepton.m_px;
+    const double dpy = in_neutrino.m_py - out_lepton.m_py;
+    const double dpz = in_neutrino.m_pz - out_lepton.m_pz;
+    Q2 = dpx*dpx + dpy*dpy + dpz*dpz - nuE*nuE;
+    W2 = kNucleonMassGeV*kNucleonMassGeV + 2*kNucleonMassGeV*nuE - Q2;
+    yInel = nuE / in_neutrino.m_energy;
+    if(nuE > 0) {
+      xBj = Q2 / (2*kNucleonMassGeV*nuE);
+    }
+  }
 }
 
 double TPOEvent::tauDecaylength() {
@@ -393,6 +435,23 @@ void TPOEvent::dump_header(std::ostream& out) const {
 }
  
 void TPOEvent::dump_event(std::ostream& out) const {
+  // Force a known, adequate floating-point format for this entire dump, and restore whatever
+  // was there before on return. Without this, whatever numeric format the LAST thing to touch
+  // `out` (typically std::cout, shared globally with Geant4/Pythia8) left behind silently
+  // carries over here -- and Pythia8's own debug-mode diagnostics (Settings/Particle Data
+  // Table listings, active whenever /physics/muondis/debug true) are known to leave `std::cout`
+  // switched to std::fixed with as little as 1 digit after the decimal point, and never restore
+  // it. That does not affect the underlying physics (nuE/Q2/xBj etc. below are computed to full
+  // double precision regardless), but it silently rounds every printed value below ~0.05 down to
+  // "0.0" -- most visibly Bjorken x, which is legitimately small (often 0.01-0.1) for these DIS
+  // events, making it LOOK like x is always zero when it is not (confirmed: the very first two
+  // events of a debug run, printed before Pythia8's diagnostics first pollute the format, show
+  // the real nonzero values, e.g. x=0.036/0.070, matching Pythia8's own independently-tracked
+  // x2 cross-check to 1-2%).
+  const std::ios::fmtflags savedFlags = out.flags();
+  const std::streamsize savedPrecision = out.precision();
+  out << std::defaultfloat << std::setprecision(6);
+
   TDatabasePDG *pdgDB = TDatabasePDG::Instance();
   dump_header(out);
   out << " Primary vtx = " << prim_vx.x() << " " << prim_vx.y() << " " << prim_vx.z() << " mm ";
@@ -427,6 +486,12 @@ void TPOEvent::dump_event(std::ostream& out) const {
   out << std::setw(10) << "Sum final state particles: " << spx << " " << spy << " " << spz << std::endl;
   out << std::setw(10) << "Sum final state particles (VIS): " << vis_spx << " " << vis_spy << " " << vis_spz << std::endl;
   out << std::setw(10) << "Ptmiss = " << ptmiss << "  Evis = " << Evis << std::endl;
+  out << std::setw(10) << "DIS kinematics: " << "nu=" << nuE << " GeV  Q2=" << Q2 << " GeV^2  W2=" << W2
+      << " GeV^2  x=" << xBj << "  y=" << yInel;
+  if (pythiaXbj >= 0) {
+    out << "   (Pythia8 x2=" << pythiaXbj << ")";
+  }
+  out << std::endl;
   out << "--------------------------------------------------------------------------------------------" << std::endl;
   if(n_taudecay()>0) {
     out << "Tau decay mode : " << tau_decaymode << std::endl;
@@ -446,6 +511,11 @@ void TPOEvent::dump_event(std::ostream& out) const {
     }
     out << "--------------------------------------------------------------------------------------------" << std::endl;
   }
+
+  // Restore whatever format state `out` had on entry -- don't leak our own formatting choice
+  // into whatever prints next, the same way we don't want to inherit Pythia8's (see above).
+  out.flags(savedFlags);
+  out.precision(savedPrecision);
 }
 
 int TPOEvent::findFromGEANT4TrackID(int trackID) {

@@ -86,11 +86,18 @@ read starting from event 0 of `FASERMC-PO-Run10000-0_53954_3DCAL.root`.
 | Flag | Default | Meaning |
 |---|---|---|
 | `--build-dir PATH` | `../build` | CMake build directory containing `bin/faserps`. |
-| `--input-file NAME` | `FASERMC-PO-Run10000-0_53954_3DCAL.root` | Value for `/generator/rootinputfilename` (relative to `FASERG4/`). Ignored if `--muons` is given. |
-| `--start-event N` | `0` | Value for `/generator/startevent`. Ignored if `--muons` is given. |
+| `--input-file NAME` | `FASERMC-PO-Run10000-0_53954_3DCAL.root` | Value for `/generator/rootinputfilename` (relative to `FASERG4/`). Ignored if `--muons` or `--muondis` is given. |
+| `--start-event N` | `0` | Value for `/generator/startevent`. Ignored if `--muons` or `--muondis` is given. |
 | `--n-events N` | `100` | Value for `/run/beamOn`. |
 | `--muons` | off | Generate single fixed-momentum muons instead of reading neutrino-interaction events (see below). |
-| `--muon-momentum-gev X` | `100` | Muon momentum in GeV. Only used with `--muons`. |
+| `--muon-momentum-gev X` | `100` | Muon momentum in GeV. Only used with `--muons`/`--muondis`. |
+| `--muondis` | off | Enable MuonDIS (see below). Implies `--muons`. |
+| `--muondis-cross-section-bias X` | `150` | Value for `/physics/muondis/crossSectionBias`. Only used with `--muondis`; use `1` for an unbiased cross section. |
+| `--muondis-q2min X` | `1.0` | Value for `/physics/muondis/q2min` (GeV²). Only used with `--muondis`. |
+| `--muondis-interaction-log PATH` | off | Value for `/physics/muondis/interactionLog`. Only used with `--muondis`. |
+| `--muondis-pdf-set PATH` | off | Value for `/physics/muondis/pdfSet`. Only used with `--muondis`. |
+| `--muondis-xbjmin X` | `0` | Value for `/physics/muondis/xbjmin`. Only used with `--muondis`. |
+| `--muondis-debug` | off | Add `/physics/muondis/debug true`. Only used with `--muondis`. |
 | `--tilt-deg X` | `-4.5` | Value for `/FASER/tiltY`. |
 | `--shift-x-cm X` | `45` | Value for `/FASER/LOS/shiftX`. |
 | `--shift-y-cm X` | `24` | Value for `/FASER/LOS/shiftY`. |
@@ -121,6 +128,33 @@ false, so `--input-file`/`--start-event` are simply unused once `--muons` is
 given - the script leaves those two lines out of the generated macro
 entirely rather than printing them alongside the muon lines misleadingly.
 
+## MuonDIS mode
+
+`--muondis` additionally enables **MuonDIS**: the primary muon's nuclear
+interaction is replaced by an on-the-fly Pythia8 deep-inelastic-scattering
+event, generated per interaction from the muon's actual Geant4 energy and
+direction, instead of Geant4's standard muon-nuclear final state. It implies
+`--muons` (MuonDIS only applies to muon-background primaries) and adds these
+lines to the macro, before `/run/initialize` (MuonDIS's own UI commands only
+take effect if set before then):
+
+```
+/physics/muondis/enable true
+/physics/muondis/crossSectionBias 150
+/physics/muondis/q2min 1
+```
+
+`crossSectionBias`/`q2min` default to the same values
+`FASERG4/include/MuonDISPhysics.hh` itself defaults to (150, biasing the
+interaction cross section up so DIS events are frequent enough to study
+without huge statistics; and 1 GeV², respectively), so the printed macro
+stays self-documenting even when you don't override them -- pass
+`--muondis-cross-section-bias 1` for an unbiased cross section.
+`--muondis-interaction-log`/`--muondis-pdf-set`/`--muondis-xbjmin`/`--muondis-debug`
+are all off unless given explicitly. See `FASERG4/README_MuonDIS.md` for the
+full physics (target treatment, PDF choice, truth-level output added to
+`TPOEvent`, ...) and the complete list of `/physics/muondis/...` options.
+
 ## Examples
 
 ```
@@ -138,6 +172,13 @@ python3 run_faserps.py --muons --n-events 1000
 
 # Single muons at 250 GeV
 python3 run_faserps.py --muons --muon-momentum-gev 250
+
+# MuonDIS: 1000 muon-background events with the DIS interaction enabled
+python3 run_faserps.py --muondis --n-events 1000
+
+# MuonDIS with an unbiased cross section and a non-default nucleon PDF
+python3 run_faserps.py --muondis --muondis-cross-section-bias 1 \
+    --muondis-pdf-set input/NNPDF40_nnlo_as_01180_charmasy_0000.dat
 
 # See the macro without running anything
 python3 run_faserps.py --muons --print-macro

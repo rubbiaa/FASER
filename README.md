@@ -57,7 +57,23 @@ python3 run_faserps.py --muons --n-events 1000 --muon-momentum-gev 250
 straight to `faserps`' stdin - there's no `.mac` file to keep in sync by
 hand. See `run_faserps.md` for every option (custom geometry parameters,
 `--vis` for the interactive Geant4 UI, `--print-macro`/`--dry-run`, muon
-mode, ...).
+mode, MuonDIS, ...).
+
+## MuonDIS
+
+MuonDIS replaces the primary background muon's Geant4 nuclear interaction
+with an on-the-fly, Pythia8-driven muon-nucleon deep-inelastic-scattering
+event, generated per interaction from the muon's actual energy and
+direction. It's disabled by default; enable it with:
+
+```bash
+python3 run_faserps.py --muondis --n-events 1000
+```
+
+See `run_faserps.md` (MuonDIS mode) for the `--muondis-*` options, and
+[`FASERG4/README_MuonDIS.md`](FASERG4/README_MuonDIS.md) for the physics
+details (target treatment, PDF choice, truth-level output added to
+`TPOEvent`, every `/physics/muondis/...` command).
 
 ## Run batchreco (reconstruction)
 

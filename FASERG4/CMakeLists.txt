@@ -46,12 +46,19 @@ set(SOURCES
     src/EventAction.cc
     src/ParticleManager.cc
     src/PrimaryGeneratorAction.cc
+    src/MuonFluxSampler.cc
     src/PrimaryGeneratorMessenger.cc
     src/RunAction.cc
     src/TrackerSD.cc
     src/MDTSD.cc
     src/TauDecayPhysics.cc
     src/CustomTauDecay.cc
+    src/MuonDISPhysics.cc
+    src/MuonDISMessenger.cc
+    src/MuonDISMuonNuclearModel.cc
+    src/MuonDISNuclearWrapperProcess.cc
+    src/MuonDISInteractionRecorder.cc
+    src/MuonDISPythiaGenerator.cc
     ${EXTERNAL_SOURCE_DIR}/TcalEvent.cc
     ${EXTERNAL_SOURCE_DIR}/TPOEvent.cc
     ${EXTERNAL_SOURCE_DIR}/MuonSpectrometerField.cc
@@ -67,7 +74,7 @@ ROOT_GENERATE_DICTIONARY(G__PS ${EXTERNAL_SOURCE_DIR}/TPOEvent.hh ${EXTERNAL_SOU
 # Add the executable, and link it to the Geant4 libraries
 #
 add_executable(faserps ${SOURCES} ${os_headers} G__PS.cxx)
-target_link_libraries(faserps ${Geant4_LIBRARIES} ${ROOT_LIBRARIES} EG ROOTDataFrame ROOTNTuple)
+target_link_libraries(faserps ${Geant4_LIBRARIES} ${ROOT_LIBRARIES} EG ROOTDataFrame ROOTNTuple Pythia8::pythia8)
 
 # Geant4's own libraries (specifically the analysis-manager component
 # bundled into ${Geant4_LIBRARIES}) can be built against a completely
