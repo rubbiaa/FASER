@@ -66,6 +66,22 @@ fi
 # batchreco.exe, evDisplay.exe, etc.
 export PATH=$HOMEFASER/build/bin:$PATH
 
+# Quick rebuild from anywhere: `fb` = "faser build". A function rather than
+# a plain alias so it can print a clearly visible banner first (easy to
+# spot in a long terminal scrollback) before running the actual build -
+# $HOMEFASER is captured now, so this works regardless of your current
+# directory at invocation time.
+fb() {
+  local build_dir="$HOMEFASER/build"
+  echo ""
+  echo "=================================================="
+  echo "   FASER BUILD"
+  echo "   cmake --build \"$build_dir\" -j"
+  echo "=================================================="
+  echo ""
+  cmake --build "$build_dir" -j
+}
+
 # -----------------------------------------------------------------------------
 # Sanity check
 # -----------------------------------------------------------------------------
@@ -116,6 +132,8 @@ fi
 
 if [ "$faser_setup_ok" = "1" ]; then
   echo "FASER environment OK."
+  echo ""
+  echo "  Tip: run 'fb' from anywhere to rebuild (cmake --build \$HOMEFASER/build -j)."
 else
   echo "FASER environment INCOMPLETE - see [MISSING] lines above."
 fi

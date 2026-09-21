@@ -19,7 +19,7 @@ MDTSD::MDTSD(const G4String& name)
 MDTSD::~MDTSD()
 {}
 
-int MDTSD::fVerbose = 1;
+int MDTSD::fVerbose = 0; // default silent; override with /mdt/verbose <level> (see DetectorMessenger)
 
 void MDTSD::Initialize(G4HCofThisEvent*)
 {

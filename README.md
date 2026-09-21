@@ -1,54 +1,145 @@
 # FASERCAL - electronic calorimeter for FASER Run4
 
-FASERCAL code to simulate and analyse events in the FASERCAL detector
+FASERCAL code to simulate and analyse events in the FASERCAL detector.
 
 # Event data flow
 
-This project follows a structured workflow for simulating and processing neutrino interactions within the FASERCAL experiment using GEANT4. The process begins with the FASERMC official Monte Carlo (MC) simulation. These interactions are converted into the TPOEvent class format by **ConvertFASERMC**. Next, the **FASERG4** module uses GEANT4 to simulate events from the TPOEvent class, generating TcalEvent objects. These simulated events can be visualized using the **EvDisplay** module or processed through the **BatchReco** module for batch reconstruction, providing a comprehensive analysis pipeline for neutrino interaction events.
+This project follows a structured workflow for simulating and processing neutrino interactions within the FASERCAL experiment using GEANT4. The process begins with GENIE-generated neutrino-interaction samples, converted into the TPOEvent class format by **ConvertGENIE** (official FASERMC Monte Carlo files can be converted the same way with **ConvertFASERMC** instead). Next, the **FASERG4** module uses GEANT4 to simulate events from the TPOEvent class, generating TcalEvent objects. These simulated events can be visualized using the **EvDisplay** module or processed through the **Batch** module for batch reconstruction, providing a comprehensive analysis pipeline for neutrino interaction events.
 
 ![Diagram of the project](images/eventchainflow.png)
 
-# BatchReco (in Batch directory)
+# Quick start
 
-Basic code to read FASERCAL GEANT4 output and batch reconstruct events, filling histograms, ...
+The full build is CMake-based; see `INSTALL.md` for prerequisites, build
+options and troubleshooting. This section just covers the everyday
+build/run/test loop once your machine is already set up.
 
-Usage: ./batchreco.exe <run> [maxevent] [mask]
-   <run>                     Run number
-   maxevent                  Maximum number of events to process (def=-1)
-   mask                      To process only specific events (def=none):   nueCC, numuCC, nutauCC, nuNC or nuES
+## Build
+
+```bash
+git clone https://github.com/rubbiaa/FASER.git
+cd FASER
+source setup.sh                                      # sets up ROOT/Geant4/Pythia8 for known sites
+cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build build -j
+```
+
+The first build also fetches and compiles CLHEP, Rave, GenFit, googletest
+and Pythia8 (see `INSTALL.md`), so it can take a while; later builds are
+incremental. `source setup.sh` also defines a shortcut, `fb`, that reruns
+`cmake --build $HOMEFASER/build -j` from anywhere - useful after a quick
+source edit.
+
+All executables land in `build/bin/` (`faserps`, `batchreco.exe`,
+`evDisplay.exe`, `ConvertGENIE.exe`, `Convert.exe`, ...).
+
+## Where simulation/reconstruction data lives
+
+Every executable that reads or writes FASERG4/batchreco data resolves the
+location through `$FASERDATA` (`FASER::GetDataDir()`,
+`CoreUtils/FaserDataDir.hh`) rather than a hardcoded path or symlink.
+`setup.sh`/`common_setup.sh` default `FASERDATA` to `$HOMEFASER/data`
+(gitignored) and create it automatically; a specific site or checkout can
+point it elsewhere (scratch, EOS, ...) by exporting it before
+`common_setup.sh` runs - see the comments in `setup.sh`. `FASERG4` writes
+under `$FASERDATA/faserG4/`, `Batch` reads that and writes under
+`$FASERDATA/batch/`.
+
+## Run faserps (the GEANT4 simulation)
+
+```bash
+python3 run_faserps.py                       # 100 events, V10 geometry, the current default sample
+python3 run_faserps.py --n-events 500 --input-file some_other_sample.root
+python3 run_faserps.py --muons --n-events 1000 --muon-momentum-gev 250
+```
+
+`run_faserps.py` builds the V10-geometry macro in memory and pipes it
+straight to `faserps`' stdin - there's no `.mac` file to keep in sync by
+hand. See `run_faserps.md` for every option (custom geometry parameters,
+`--vis` for the interactive Geant4 UI, `--print-macro`/`--dry-run`, muon
+mode, ...).
+
+## Run batchreco (reconstruction)
+
+```bash
+python3 run_batchreco.py --run 10000                          # reconstruct all of run 10000
+python3 run_batchreco.py --run 10000 --mask numuCC             # only numuCC events
+python3 run_batchreco.py --run 10000 --max-event 12000 --split 6   # split into 6 background jobs
+```
+
+`run_batchreco.py` wraps `Batch/batchreco.exe` with named, validated
+flags instead of positional arguments. See `run_batchreco.md` for the full
+option list (event ranges, `--multi-thread`, a non-default `--geometry-file`,
+splitting a run into parallel background jobs, ...).
+
+## Run the tests (gtests)
+
+FASER has its own small C++ regression test suite under `Tests/`, built on
+Google Test (fetched automatically as part of the superbuild, see
+`INSTALL.md`) and registered with CTest:
+
+- **MuonSpectrometerFieldTest** - cross-checks that the GEANT4
+  simulation's muon-spectrometer magnetic field
+  (`FASERG4/src/MuonDetMagneticField.cc`) and GenFit reconstruction's
+  field (`CoreUtils/GenMagneticField.hh`) actually agree. Both are thin
+  adapters around the one shared field model in
+  `CoreUtils/MuonSpectrometerField.hh`; this test is what proves the two
+  adapters wire it up identically, rather than just trusting that by
+  inspection.
+- **MagnetGeometryProbeTest** - unit tests for `FASER::ProbeMagnetSlit`
+  (`CoreUtils/MagnetGeometryProbe.hh`), the geometry/field consistency
+  probe: builds small ROOT `TGeo` shapes by hand to prove the probe both
+  agrees with the real MDT magnet's numbers and actually detects a
+  genuine mismatch when block and slit are deliberately built
+  inconsistent.
+
+They're built automatically whenever `FASER_BUILD_TESTS` and
+`FASER_BUILD_GEANT4_PACKAGES` are both `ON` (the default for both). Run
+them with:
+
+```bash
+ctest --test-dir build --output-on-failure
+```
+
+or build/run one directly, e.g. `build/bin/MuonSpectrometerFieldTest`.
+Run these after touching either magnetic-field adapter, the shared field
+model, or the magnet geometry probe.
 
 # EvDisplay
 
-EvDisplay - basic Interactive Event Display of FASERCAL GEANT4 output
+Interactive event display of FASERG4 output.
 
-Usage: ./evDisplay.exe <run> [mask]
+Usage: `evDisplay.exe [-g <geometryfile>] [-r] <run> [mask]`
    <run>                     Run number
    mask                      To process only specific events (def=none):   nueCC, numuCC, nutauCC, or nuNC
+
+It reads from `$FASERDATA/faserG4/` like every other tool above - no
+`input` symlink to set up first.
 
 - run the event display
 
    to display nueCC events
    ```bash
-   $ ./evDisplay.exe 200026 nueCC
+   $ build/bin/evDisplay.exe 200026 nueCC
    ````
 
    to display numuCC events
    ```bash
-   $ ./evDisplay.exe 200025 numuCC
+   $ build/bin/evDisplay.exe 200025 numuCC
    ````
 
    to display nutauCC events
    ```bash
-   $ ./evDisplay.exe 200035 nutauCC
+   $ build/bin/evDisplay.exe 200035 nutauCC
    ````
 
 ![Diagram of the project](images/numuCC_ev1.jpg)
 
-# DumpHits (in BatchReco directory)
+# DumpHits (in Batch directory)
 
-Very simple app to read and dump all hits from events
+Very simple app to read and dump all hits from events.
 
-Usage: ./dumphits.exe <run> [maxevent] [mask]
+Usage: `dumphits.exe <run> [maxevent] [mask]`
    <run>                     Run number
    maxevent                  Maximum number of events to process (def=-1)
    mask                      To process only specific events (def=none):   nueCC, numuCC, nutauCC, nuNC or nuES
@@ -56,12 +147,21 @@ Usage: ./dumphits.exe <run> [maxevent] [mask]
 for example to get all the hits of nueCC events from the kaon decay flux:
 
    ```bash
-   $ ./dumphits.exe 200026 10 nueCC > dump.log
+   $ build/bin/dumphits.exe 200026 10 nueCC > dump.log
    ```
 
-# FASERTuple
+# ConvertFASERMC
 
-Convert official FASER MC files into FASERCAL PO files (generator level) 
+Converts official FASER MC files into FASERCAL PO files (generator level),
+producing the TPOEvent-format input `faserps`/FASERG4 consumes. Built as
+`Convert.exe`.
+
+# ConvertGENIE
+
+Converts GENIE-generated event files into the same TPOEvent format, as an
+alternative to ConvertFASERMC for GENIE-based samples. Built as
+`ConvertGENIE.exe`; `CombineFluxes.exe` (same directory) combines flux
+files upstream of it.
 
 # TauSearch
 A generator level tau search analysis code
@@ -70,53 +170,24 @@ A generator level tau search analysis code
 - s.C : analyse event summary tuples for each tau decay channel and create sig/background tuples
 - a.C : read sig/bkg tuples for each decay channel and perform BDT analysis
 
-# Installation preliminaries
+# Installation
 
-- Get the source code:
+See `INSTALL.md` for the full CMake build: prerequisites, build options,
+and troubleshooting a clean build. In short:
 
-   ```bash
-   $ git clone https://github.com/rubbiaa/FASER.git
-   ````
+```bash
+git clone https://github.com/rubbiaa/FASER.git
+cd FASER
+source setup.sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build build -j
+```
 
-- Set up ROOT and GEANT4 environment by sourcing `setup.sh` - it
-  auto-detects which known site you're on (including lxplus) and sets
-  ROOT/Geant4/Pythia8 up accordingly, so the same command works
-  everywhere:
-
-   ```bash
-   $ source setup.sh
-   ````
-
-  On a machine it doesn't recognize, it prints what to do - see the
-  comments at the top of `setup.sh` for how to add your own site.
-
-  (See also `INSTALL.md` for the current CMake-based build, which
-  supersedes the steps below for everything except the event display.)
-
-# Install event display
-
- - move to the evDisplay directory and compile with "make"
-
-   ```bash
-   $ cd evDiplay
-   $ make
-   ````
-
- - if compilation and linking was successful, the executable is "evDisplay.eve"
-
- - make sure G4 FASERCAL simulated files are linked at the "input" subdirectory
- 
-   ```bash
-   $ ln -fs </path_to_g4_simulated_data> input
-   ````
-
- - on lxplus.cern.ch, there is data available
-
-   ```bash
-    $ ln -fs /eos/home-r/rubbiaa/FASERCALDATA_v2.0 input
-   ````
-
-   For this to work, you need to be able to access my CERNBOX - please send me an email and I will give you access.
+`setup.sh` auto-detects which known site you're on (including lxplus) and
+sets up ROOT/Geant4/Pythia8 accordingly, so the same command works
+everywhere; on a machine it doesn't recognize, it prints what to do (add
+an `elif` branch for your site - see the comments at the top of the
+script).
 
  # Event masks
 
@@ -148,4 +219,3 @@ A generator level tau search analysis code
 # Instructions for Reading ROOT Files using PyROOT
 
 Please check the directory `Python_io`
-
