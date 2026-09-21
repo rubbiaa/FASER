@@ -55,6 +55,25 @@ static void initialize_pythia() {
     fPythia8->ReadString("310:onMode = off");
     fPythia8->ReadString("130:onMode = off");
 
+    // Same reasoning for the long-lived (cm-scale ctau) hyperons: Lambda0,
+    // Sigma+-, Xi0, Xi+-, Omega-. These can appear as secondaries in
+    // charm-baryon decays (Lambda_c+ -> Lambda pi+, etc.) handled by this
+    // Pythia8 "decayer" instance; if left on, Pythia8 would decay them
+    // immediately at the production vertex instead of letting Geant4
+    // propagate and decay them in-flight at the correct displaced position,
+    // as FTFP_BERT/G4DecayPhysics already does for these particles.
+    // See hyperon_decay_review.md (repo root) for the full physics review:
+    // ctau cross-check against Geant4's hardcoded values, confirmation that
+    // no FASER-side code changes are needed, and a discussion of where
+    // Pythia8/Geant4 decay matrix elements do (tau, charm) and do not
+    // (these hyperons) disagree.
+    fPythia8->ReadString("3222:onMode = off");  // Sigma+
+    fPythia8->ReadString("3112:onMode = off");  // Sigma-
+    fPythia8->ReadString("3122:onMode = off");  // Lambda0
+    fPythia8->ReadString("3322:onMode = off");  // Xi0
+    fPythia8->ReadString("3312:onMode = off");  // Xi-
+    fPythia8->ReadString("3334:onMode = off");  // Omega-
+
   }
 }
 #endif
