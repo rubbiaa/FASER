@@ -166,6 +166,12 @@ private:
             double Bx_kG, By_kG, Bz_kG;
             if (FASER::ComputeMuonSpectrometerField(y_local_cm, params, Bx_kG, By_kG, Bz_kG))
                 return TVector3(Bx_kG, By_kG, Bz_kG);
+            // z is inside this magnet's "on" envelope but y_local falls
+            // outside the modelled field region: a true zero, exactly
+            // like the MDT branch above - not the "no magnet info at
+            // all" fallback below, which is a deliberate GenFit-only
+            // nonzero floor and must stay confined to that other case.
+            return TVector3(0.0, 0.0, 0.0);
         }
         // No field at stations or outside magnet regions
         return TVector3(0, 1e-3, 0);
