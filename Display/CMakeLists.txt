@@ -36,6 +36,7 @@ set(SOURCES
     ../CoreUtils/TPSTrack.cc
     ../CoreUtils/GenMagneticField.cc
     ../CoreUtils/MuonSpectrometerField.cc
+    ../CoreUtils/MagnetGeometryProbe.cc
     ../CoreUtils/TMuTrack.cc
     )
 
