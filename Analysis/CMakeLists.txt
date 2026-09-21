@@ -23,6 +23,7 @@ target_link_libraries(AnalysisCore PUBLIC
 
 add_executable(AnalyReco.exe AnalyReco.cc)
 target_link_libraries(AnalyReco.exe PRIVATE AnalysisCore)
+faser_copy_dict_pcm(AnalyReco.exe AnalysisDict)
 
 # The old Makefile also produced a small shared library, from the same
 # dictionary + CoreUtils objects, alongside AnalyReco.exe (for interactive

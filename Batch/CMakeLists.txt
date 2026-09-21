@@ -25,6 +25,7 @@ target_compile_options(BatchCore PUBLIC -O3)
 function(faser_batch_executable name source)
   add_executable(${name} ${source})
   target_link_libraries(${name} PRIVATE BatchCore)
+  faser_copy_dict_pcm(${name} BatchDict)
 endfunction()
 
 faser_batch_executable(batchreco.exe          BatchReco.cc)

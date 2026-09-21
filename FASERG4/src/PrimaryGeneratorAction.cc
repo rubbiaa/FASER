@@ -27,14 +27,6 @@ PrimaryGeneratorAction::PrimaryGeneratorAction(ParticleManager* f_particleManage
   	// add by Umut
 	// print initial single particle momentum (GeV)
 	G4cout << "PrimaryGeneratorAction constructed: initial fSingleParticleMomentum = " << fSingleParticleMomentum << " GeV" << G4endl;
-  	// adding for muon background dump
-  	// open muon dump file (append mode)
- 	m_muonDumpFile.open("faserps_muons.csv", std::ios::out | std::ios::app);
-  	if (m_muonDumpFile.tellp() == 0) 
-  	{
-		// write header if file is empty/new
-		m_muonDumpFile << "run,event,x,y,z,slope_x,slope_y,px,py,pz,p,pdg" << std::endl;
-	}
 }
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 //adding for single particle momentum command
@@ -123,17 +115,6 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 	if(m_POEventTree != nullptr) m_POEventTree -> GetEntry(tree_ientry++);
 
 	G4ParticleTable* particleTable = G4ParticleTable::GetParticleTable();
-
-	// Umut::adding for muon background dump
-	auto dump_muon = [&](int runnum, int evtid, double x, double y, double z,
-				 double slope_x, double slope_y,
-				 double px, double py, double pz, double p, int pdg){
-		std::lock_guard<std::mutex> lk(m_muonDumpMutex);
-		if (m_muonDumpFile.is_open()) {
-			m_muonDumpFile << runnum << "," << evtid << "," << x << "," << y << "," << z << ","
-				<< slope_x << "," << slope_y << "," << px << "," << py << "," << pz << "," << p << "," << pdg << std::endl;
-		}
-	};
 
 	const DetectorConstruction* detector = static_cast<const DetectorConstruction*>(G4RunManager::GetRunManager()->GetUserDetectorConstruction());
 
@@ -397,23 +378,26 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 			StartMomentum = StartMomentum.unit() * (momentumMagnitude * GeV); // Normalize and scale
 			particleGun->SetParticleMomentum(StartMomentum);
 			fParticleGuns.push_back(particleGun);
-			// added by Umut: dump muon info to file
 			// Extract generated momentum in GeV (StartMomentum is in CLHEP units)
 			double px_bg = StartMomentum.x() / GeV;
 			double py_bg = StartMomentum.y() / GeV;
 			double pz_bg = StartMomentum.z() / GeV;
-			double p_bg = sqrt(px_bg*px_bg + py_bg*py_bg + pz_bg*pz_bg);
-			double slope_x_bg = (pz_bg != 0.0) ? px_bg / pz_bg : 0.0;
-			double slope_y_bg = (pz_bg != 0.0) ? py_bg / pz_bg : 0.0;
 			// Determine PDG explicitly from the chosen particle (handles mu- vs mu+ correctly)
 			int pdg_mu = muon->GetPDGEncoding();
-			dump_muon(fTPOEvent.run_number, fTPOEvent.event_id, vtxpos.x(), vtxpos.y(), vtxpos.z(),
-					 slope_x_bg, slope_y_bg, px_bg, py_bg, pz_bg, p_bg, pdg_mu);
+			// valid_event was already incremented (unconditionally, for every
+			// event type) a few lines above, before this muon-background
+			// branch runs - so at this point it holds the *count* of events
+			// processed so far (1 on the first event), not this event's
+			// 0-based index. Using it directly here made the muon-background
+			// event_id start at 1 instead of 0 (off by one vs. every other
+			// generator mode, which assign event_id before that increment).
+			// valid_event - 1 is this event's correct 0-based index.
+			int this_event_id = valid_event - 1;
 			/// fill TPOEvent information
 			fTPOEvent.clear_event();
 			fTPOEvent.POs.clear();
 			fTPOEvent.run_number = 999;
-			fTPOEvent.event_id = valid_event;
+			fTPOEvent.event_id = this_event_id;
 			fTPOEvent.setPrimaryVtx(vtxpos.x(), vtxpos.y(), vtxpos.z());
 			struct PO aPO;
 			aPO.m_pdg_id = pdg_mu;

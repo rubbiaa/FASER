@@ -51,6 +51,39 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
+# Several packages (Batch, Analysis, FileMask, EvDisplay, ConvertGENIE,
+# ConvertFASERMC) compile a root_generate_dictionary()-generated
+# dictionary's object code directly into an executable, instead of loading
+# it from a separate shared library. root_generate_dictionary() always
+# writes the dictionary's <module>_rdict.pcm/.rootmap next to
+# CMAKE_LIBRARY_OUTPUT_DIRECTORY (build/lib) - but at runtime, ROOT's
+# TCling::LoadPCM locates a module's pcm by looking *next to the binary
+# image that registered it* (found via dladdr on the registration call),
+# which for these executables is CMAKE_RUNTIME_OUTPUT_DIRECTORY (build/bin),
+# not build/lib. Without a copy there, ROOT prints (and, depending on
+# version, can hard-fail on) "Error in <TCling::LoadPCM>: ROOT PCM
+# .../bin/lib<Module>Dict_rdict.pcm file does not exist" the first time the
+# dictionary's classes are touched.
+#
+# Call this once per executable, right after its add_executable(), for
+# every <module> name it was built with MODULE <module> in
+# root_generate_dictionary(). A target that only *loads* such a dictionary
+# from an already-built shared library (e.g. CoreUtilsDict, which is a real
+# SHARED library living in build/lib) does not need this - dladdr resolves
+# to the .so itself, right where the pcm already is.
+function(faser_copy_dict_pcm target)
+  foreach(module ${ARGN})
+    add_custom_command(TARGET ${target} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/lib${module}_rdict.pcm
+        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/lib${module}.rootmap
+        $<TARGET_FILE_DIR:${target}>
+      COMMENT "Copying ${module} PCM/rootmap next to ${target} (TCling::LoadPCM looks alongside the executable)"
+      VERBATIM
+    )
+  endforeach()
+endfunction()
+
 include(ProcessorCount)
 ProcessorCount(FASER_BUILD_PARALLEL_JOBS)
 if(FASER_BUILD_PARALLEL_JOBS EQUAL 0)

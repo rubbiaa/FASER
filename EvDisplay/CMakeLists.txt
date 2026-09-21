@@ -15,3 +15,4 @@ target_link_libraries(evDisplay.exe PRIVATE
   ROOT::Gui ROOT::GuiHtml
   GenFit::genfit2
 )
+faser_copy_dict_pcm(evDisplay.exe EvDisplayDict)

@@ -14,3 +14,4 @@ target_link_libraries(FileMask.exe PRIVATE
   ROOT::Core ROOT::RIO ROOT::Tree ROOT::Hist ROOT::Physics ROOT::EG ROOT::Geom
   GenFit::genfit2
 )
+faser_copy_dict_pcm(FileMask.exe FileMaskDict)

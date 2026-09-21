@@ -14,9 +14,6 @@
 #include "typedef.h"
 
 #include "TPOEvent.hh"
-// Added by Umut
-#include <fstream>
-#include <mutex>
 
 class G4ParticleGun;
 class G4Event;
@@ -74,10 +71,7 @@ private:
   size_t tree_ientry = 0;
   TPOEvent fTPOEvent;
   
-// added by Umut: file to dump generated muons (CSV)
-  std::ofstream m_muonDumpFile;
-  std::mutex m_muonDumpMutex;
-  // runtime control flags (can be set via PrimaryGeneratorMessenger)
+// runtime control flags (can be set via PrimaryGeneratorMessenger)
   bool fWantMuonBackground = false;
   bool fWantSingleParticle = false;
   // single particle mode momentum (in GeV)

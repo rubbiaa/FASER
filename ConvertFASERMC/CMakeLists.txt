@@ -17,3 +17,4 @@ target_link_libraries(Convert.exe PRIVATE
   ROOT::Core ROOT::RIO ROOT::Tree ROOT::Hist ROOT::Physics ROOT::EG ROOT::EGPythia8 ROOT::Geom
   Pythia8::pythia8
 )
+faser_copy_dict_pcm(Convert.exe ConvertFASERMCDict)

@@ -27,6 +27,7 @@ target_link_libraries(ConvertGENIEDictObj PUBLIC
 
 add_executable(ConvertGENIE.exe ConvertGENIE.cc)
 target_link_libraries(ConvertGENIE.exe PRIVATE ConvertGENIEDictObj)
+faser_copy_dict_pcm(ConvertGENIE.exe ConvertGENIEDict)
 
 # CombineFluxes only needs ROOT, no Pythia8 (it is a plain .C file, as the
 # old Makefile compiled it: `g++ ... CombineFluxes.C -o CombineFluxes.exe`).
@@ -51,3 +52,4 @@ target_link_libraries(etaCoverage_geometry PRIVATE ROOT::Core ROOT::RIO ROOT::Tr
 
 add_executable(countinteractions_tpoevent.exe countinteractions_tpoevent.cc)
 target_link_libraries(countinteractions_tpoevent.exe PRIVATE ConvertGENIEDictObj)
+faser_copy_dict_pcm(countinteractions_tpoevent.exe ConvertGENIEDict)
