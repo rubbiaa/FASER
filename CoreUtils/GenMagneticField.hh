@@ -10,6 +10,8 @@
 #include <TGeoNode.h>
 #include <string>
 
+#include "MuonSpectrometerField.hh"
+
 //////////(o^o)///////////
 #include <vector>
 #include <utility>
@@ -110,6 +112,18 @@ private:
             if (IsNearStation(z_cm, station_dead_half_thickness_cm_)) fieldOnHere = false;
         }
         /////////////////////////////////////////
+        // Both branches below describe the SAME physical field model -
+        // FASER::ComputeMuonSpectrometerField (CoreUtils/
+        // MuonSpectrometerField.hh), also used by FASERG4's
+        // MuonMagneticField::GetFieldValue - just at two different
+        // magnet placements ("Magnet" here vs "MDTMagnet" just below),
+        // exactly like FASERG4's DetectorConstruction places the same
+        // MuonMagneticField class at both. rearMuSpec_tilt_deg is set to
+        // -fTiltAngleY (deg) (see TPORecoEvent.cc), so recover the
+        // detector-frame tilt in radians once, matching FASERG4's own
+        // convention.
+        const double tiltAngleRad = -rearMuSpec_tilt_deg * M_PI / 180.0;
+
         // Dedicated MDT magnet field.
         // Uses precomputed global z-ranges (set once per event via
         // SetMDTMagnetZRangesCm) instead of a live gGeoManager->FindNode()
@@ -117,69 +131,41 @@ private:
         // lookup here is unsafe during GenFit propagation.
         for (const auto& rng : mdt_magnet_z_ranges_cm_) {
             if (z_cm > rng.first && z_cm < rng.second) {
-                // Convert to local-like transverse coordinate.
-                // position.Y() is cm, slitposition is cm.
-                // Rotation around Y leaves Y unchanged, so global Y already
-                // equals the tilted assembly's local Y -- no correction needed.
-                double y_local_cm = position.Y() - rearMuSpec_LOS_shiftY;
-                const double y_abs = std::abs(y_local_cm);
-                // Smooth the central/outer field boundary with a 1 cm linear ramp
-                // to avoid a step-function discontinuity that can destabilise the
-                // Runge-Kutta integrator for tracks near |y_local|=slitposition.
-                const double ramp_half = 0.5; // ±0.5 cm = 1 cm total transition
-                const double lo = slitposition - ramp_half;
-                const double hi = slitposition + ramp_half;
-                double Blocal = 0.0;
-                if (y_abs < lo) {
-                    Blocal = -15.0; // central: -1.5 T
-                } else if (y_abs < hi) {
-                    // Linear ramp from -15 kG to +15 kG
-                    double t = (y_abs - lo) / (2.0 * ramp_half);
-                    Blocal = -15.0 + 30.0 * t;
-                } else if (y_abs <= 2.0 * slitposition) {
-                    Blocal = +15.0; // outer: +1.5 T
-                } else {
-                    return TVector3(0.0, 0.0, 0.0);
-                }
-                // The field points along the Fe slab's local +x axis. rearMuSpec_tilt_deg
-                // is set to -fTiltAngleY (deg) (see TPORecoEvent.cc), so recover the
-                // detector-frame tilt (rad) and rotate the local field vector (Blocal,0,0)
-                // into global coordinates the same way TcalEvent::DetToWorld rotates
-                // local positions into the world frame, keeping B aligned with the iron.
-                const double tiltY_rad = -rearMuSpec_tilt_deg * M_PI / 180.0;
-                return TVector3(Blocal * std::cos(tiltY_rad), 0.0, Blocal * std::sin(tiltY_rad));
+                // Rotation around Y leaves Y unchanged, so global Y
+                // already equals the tilted assembly's local Y -- no
+                // correction needed beyond the shift.
+                const double y_local_cm = position.Y() - rearMuSpec_LOS_shiftY;
+                FASER::MuonSpectrometerFieldParams params;
+                params.slitPositionCm = slitposition;
+                params.tiltAngleRad = tiltAngleRad;
+                // Smooth the central/outer field boundary with a 1 cm linear
+                // ramp (+/-0.5 cm) to avoid a step-function discontinuity
+                // that can destabilise the Runge-Kutta integrator for
+                // tracks near |y_local|=slitposition. Numerical
+                // accommodation only - see rampHalfWidthCm's doc comment.
+                params.rampHalfWidthCm = 0.5;
+                double Bx_kG, By_kG, Bz_kG;
+                if (FASER::ComputeMuonSpectrometerField(y_local_cm, params, Bx_kG, By_kG, Bz_kG))
+                    return TVector3(Bx_kG, By_kG, Bz_kG);
+                return TVector3(0.0, 0.0, 0.0);
             }
         }
 
         if (fieldOnHere) {
-            //////////(o^o)///////////
-            // Transform from global to local coordinates: translate then rotate
-            TVector3 translated = position;
-            translated.SetX(position.X() - rearMuSpec_LOS_shiftX);
-            translated.SetY(position.Y() - rearMuSpec_LOS_shiftY);
-            translated.SetZ(position.Z() - rearMuSpec_LOS_shiftZ);
-            
-            // Apply inverse rotation (+tilt_deg around y-axis) to get local coordinates
-            TVector3 localPos = translated;
-            if (rearMuSpec_tilt_deg != 0.0) {
-                double angle_rad = rearMuSpec_tilt_deg * M_PI / 180.0;
-                double cos_a = std::cos(angle_rad);
-                double sin_a = std::sin(angle_rad);
-                // Rotation around y: x' = x*cos + z*sin, y' = y, z' = -x*sin + z*cos
-                localPos.SetX(translated.X() * cos_a + translated.Z() * sin_a);
-                localPos.SetZ(-translated.X() * sin_a + translated.Z() * cos_a);
-            }
-            
-            if (std::abs(localPos.Y()) >= slitposition && std::abs(localPos.Y()) <= 2 * slitposition)
-            {
-                // Top or Bottom: +1.5 T
-                return TVector3(+15.0, 0, 0); // 15 kGauss
-            }
-            else if (std::abs(localPos.Y()) < slitposition)
-            {
-                // Middle: -1.5 T
-                return TVector3(-15.0, 0, 0); // -15 kGauss
-            }
+            // Rotation around Y leaves Y unchanged, so global Y already
+            // equals the tilted assembly's local Y -- no correction
+            // needed beyond the shift (see the MDT branch above, and
+            // FASERG4::MuonMagneticField::GetFieldValue, for the same
+            // simplification).
+            const double y_local_cm = position.Y() - rearMuSpec_LOS_shiftY;
+            FASER::MuonSpectrometerFieldParams params;
+            params.slitPositionCm = slitposition;
+            params.tiltAngleRad = tiltAngleRad;
+            // rampHalfWidthCm left at its default (0): matches FASERG4's
+            // exact hard step at the slit boundary for this magnet type.
+            double Bx_kG, By_kG, Bz_kG;
+            if (FASER::ComputeMuonSpectrometerField(y_local_cm, params, Bx_kG, By_kG, Bz_kG))
+                return TVector3(Bx_kG, By_kG, Bz_kG);
         }
         // No field at stations or outside magnet regions
         return TVector3(0, 1e-3, 0);

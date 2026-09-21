@@ -368,31 +368,68 @@ if(TARGET rave_external)
 endif()
 
 # -----------------------------------------------------------------------------
-# googletest (Linux-only build-time dependency of GenFit's CMake build)
+# googletest
+#
+# Originally a Linux-only build-time dependency of GenFit's own CMake
+# build (still true - see the GenFit section below, which only wires
+# googletest into GenFit's CMAKE_ARGS on non-Apple platforms, unchanged).
+# Now also built on every platform because FASER's OWN regression tests
+# (Tests/, e.g. MuonSpectrometerFieldTest.cc) use it directly to
+# cross-check the Geant4 and GenFit field adapters - see GTest::gtest /
+# GTest::gtest_main just below.
 # -----------------------------------------------------------------------------
-if(NOT APPLE)
-  option(FASER_BUILD_GOOGLETEST "Build googletest from source (needed by GenFit on Linux)" ON)
-  set(GOOGLETEST_ROOT "" CACHE PATH "Pre-installed googletest prefix (used when FASER_BUILD_GOOGLETEST=OFF)")
+option(FASER_BUILD_GOOGLETEST "Build googletest from source (needed by GenFit on Linux, and by FASER's own tests everywhere)" ON)
+set(GOOGLETEST_ROOT "" CACHE PATH "Pre-installed googletest prefix (used when FASER_BUILD_GOOGLETEST=OFF)")
 
-  if(FASER_BUILD_GOOGLETEST)
-    set(GOOGLETEST_INSTALL_DIR "${FASER_EXTERNAL_INSTALL_DIR}/googletest")
+if(FASER_BUILD_GOOGLETEST)
+  set(GOOGLETEST_INSTALL_DIR "${FASER_EXTERNAL_INSTALL_DIR}/googletest")
 
-    ExternalProject_Add(googletest_external
-      GIT_REPOSITORY   https://github.com/google/googletest.git
-      GIT_TAG          main  # googletest's default branch
-      GIT_SHALLOW      TRUE
-      PREFIX           "${FASER_EXTERNAL_STAGE_DIR}/googletest"
-      CMAKE_ARGS
-        -DCMAKE_INSTALL_PREFIX=${GOOGLETEST_INSTALL_DIR}
-      BUILD_BYPRODUCTS "${GOOGLETEST_INSTALL_DIR}/lib/libgtest.a"
-                        "${GOOGLETEST_INSTALL_DIR}/lib/libgtest_main.a"
-    )
-  else()
-    if(NOT GOOGLETEST_ROOT)
-      message(FATAL_ERROR "FASER_BUILD_GOOGLETEST=OFF but GOOGLETEST_ROOT was not set")
-    endif()
-    set(GOOGLETEST_INSTALL_DIR "${GOOGLETEST_ROOT}")
+  ExternalProject_Add(googletest_external
+    GIT_REPOSITORY   https://github.com/google/googletest.git
+    GIT_TAG          main  # googletest's default branch
+    GIT_SHALLOW      TRUE
+    PREFIX           "${FASER_EXTERNAL_STAGE_DIR}/googletest"
+    CMAKE_ARGS
+      -DCMAKE_INSTALL_PREFIX=${GOOGLETEST_INSTALL_DIR}
+      # Force "lib" rather than let GNUInstallDirs pick "lib64" (its
+      # default on RHEL-family x86_64, e.g. lxplus) - both GenFit's own
+      # -DGTEST_LIBRARY=... below and GTest::gtest's IMPORTED_LOCATION
+      # further down hardcode .../lib/libgtest*.a, so this keeps that
+      # assumption true everywhere instead of only on platforms where
+      # GNUInstallDirs happens to default to "lib".
+      -DCMAKE_INSTALL_LIBDIR=lib
+    BUILD_BYPRODUCTS "${GOOGLETEST_INSTALL_DIR}/lib/libgtest.a"
+                      "${GOOGLETEST_INSTALL_DIR}/lib/libgtest_main.a"
+  )
+else()
+  if(NOT GOOGLETEST_ROOT)
+    message(FATAL_ERROR "FASER_BUILD_GOOGLETEST=OFF but GOOGLETEST_ROOT was not set")
   endif()
+  set(GOOGLETEST_INSTALL_DIR "${GOOGLETEST_ROOT}")
+endif()
+
+# Imported targets FASER's own test executables link against (see
+# Tests/CMakeLists.txt). Hand-declared with a hardcoded IMPORTED_LOCATION
+# - like Pythia8::pythia8 and GenFit::genfit2 elsewhere in this file -
+# rather than found via find_package(GTest CONFIG), because the real
+# GTestConfig.cmake this would resolve to doesn't exist until
+# googletest_external has actually been built, which happens at build
+# time, after CMake's own configure step already needs these targets to
+# exist.
+file(MAKE_DIRECTORY "${GOOGLETEST_INSTALL_DIR}/include")
+add_library(GTest::gtest STATIC IMPORTED GLOBAL)
+set_target_properties(GTest::gtest PROPERTIES
+  IMPORTED_LOCATION             "${GOOGLETEST_INSTALL_DIR}/lib/libgtest.a"
+  INTERFACE_INCLUDE_DIRECTORIES "${GOOGLETEST_INSTALL_DIR}/include"
+)
+add_library(GTest::gtest_main STATIC IMPORTED GLOBAL)
+set_target_properties(GTest::gtest_main PROPERTIES
+  IMPORTED_LOCATION        "${GOOGLETEST_INSTALL_DIR}/lib/libgtest_main.a"
+  INTERFACE_LINK_LIBRARIES GTest::gtest
+)
+if(TARGET googletest_external)
+  add_dependencies(GTest::gtest googletest_external)
+  add_dependencies(GTest::gtest_main googletest_external)
 endif()
 
 # -----------------------------------------------------------------------------

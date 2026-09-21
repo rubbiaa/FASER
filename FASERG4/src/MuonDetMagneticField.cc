@@ -1,103 +1,39 @@
 #include "MuonDetMagneticField.hh"
+#include "MuonSpectrometerField.hh"
 #include "G4SystemOfUnits.hh"
 #include <cmath>
 
-#include "G4TransportationManager.hh"
-#include "G4TouchableHistory.hh"
-#include "G4VPhysicalVolume.hh"
-#include "G4LogicalVolume.hh"
-
 void MuonMagneticField::GetFieldValue(const G4double point[4], G4double* Bfield) const {
     // point[0] = x, point[1] = y, point[2] = z
+    const G4double y = point[1];
 
-    // Assume magnet box extends: x ∈ [-500, 500] mm, y ∈ [-500, 500] mm, z ∈ [–25, +25] mm (centered)
-    G4double x = point[0];
-    G4double y = point[1];
-    G4double z = point[2];
-
-    // return logical volume position for debugging
-    // Use G4Navigator to find the volume at the given global point.
-    // This is the correct approach for magnetic field calculation,
-    // as it doesn't rely on the current track's G4TouchableHistory.
-    G4String volumeName = "Unknown";
-    G4ThreeVector globalPoint(x, y, z);
-
-    #if 0
-    // Get the navigator for the current world (assuming standard geometry)
-    G4Navigator *navigator = G4TransportationManager::GetTransportationManager()
-                                 ->GetNavigatorForTracking();
-
-    if (navigator)
-    {
-      // Locate the volume at the global point
-      G4VPhysicalVolume *physVol = navigator->LocateGlobalPointAndSetup(globalPoint);
-
-      if (physVol)
-      {
-        volumeName = physVol->GetLogicalVolume()->GetName();
-      }
-    }
-
-    // For debugging: print or log volumeName if needed
-    // This debug output is now correct for a magnetic field calculation context.
-    G4cout << "MagneticField calucation in volume: " << volumeName
-           << " x = " << x / CLHEP::mm
-           << " y = " << y / CLHEP::mm
-           << " z = " << z / CLHEP::mm
-           << G4endl;
-#endif
     Bfield[0] = Bfield[1] = Bfield[2] = 0.0;
 
-    // BUG FIX (2026-08-14): Translate y to be relative to magnet center!
-    // The detector assembly can be shifted in Y (global coordinates).
-    // The field boundaries (slit position, ±1.5 T regions) are defined
-    // in the assembly's LOCAL frame, not global frame.
-    // Without this translation, field signs are WRONG in shifted regions.
-    G4double y_local = y - centreY;  // Translate to local y (relative to magnet center)
+    // Translate to the assembly's local y (relative to magnet center):
+    // the field boundaries (slit position, +/-1.5T regions) are defined
+    // in the assembly's LOCAL frame, not the global frame, and the
+    // detector can be shifted in Y in global coordinates.
+    const double y_local_cm = (y - centreY) / cm;
 
-   // Assume ±1.5 Tesla in steel, depending on local y (top/bottom vs center).
-    // Field regions:
-    //   |y_local| < slitposition:  middle region → –1.5 T (B along Fe slab axis)
-    //   slit <= |y_local| <= 2*slit: top/bottom → +1.5 T
-    G4double Blocal = 0.0;
-    if (std::abs(y_local) >= slitposition * mm && std::abs(y_local) <= 2 * slitposition * mm) {
-      // Top or Bottom: +1.5 T
-      Blocal = +1.5 * tesla;
-    } else if (std::abs(y_local) < slitposition * mm) {
-      // Middle: –1.5 T
-      Blocal = -1.5 * tesla;
-    }
+    // See CoreUtils/MuonSpectrometerField.hh for what this shared
+    // function computes and why: this is the SAME field model GenFit's
+    // reconstruction uses (CoreUtils/GenMagneticField.hh), so simulation
+    // and reconstruction can no longer silently disagree about it.
+    FASER::MuonSpectrometerFieldParams params;
+    params.slitPositionCm = slitposition / cm;
+    params.tiltAngleRad = tiltAngleY;
+    params.fieldMagnitudeKG = 15.0; // 1.5 T, matching GenFit's field model
+    // rampHalfWidthCm left at its default (0): G4 reproduces the exact
+    // hard step at the slit boundary. GenFit's own field additionally
+    // ramps this over a small window purely for its Runge-Kutta
+    // stepper's numerical stability - see rampHalfWidthCm's doc comment
+    // in CoreUtils/MuonSpectrometerField.hh.
 
-    // The field points along the Fe slab's local +x axis, which is tilted
-    // by tiltAngleY (rad) around Y with respect to the global frame (same
-    // rotation as new G4RotationMatrix()->rotateY(fTiltAngleY) used to place
-    // the detector assembly). Rotate the local field vector into global
-    // coordinates so it stays aligned with the iron even when tilted.
-    Bfield[0] = Blocal * std::cos(tiltAngleY);
-    Bfield[2] = Blocal * std::sin(tiltAngleY);
+    double Bx_kG = 0.0, By_kG = 0.0, Bz_kG = 0.0;
+    FASER::ComputeMuonSpectrometerField(y_local_cm, params, Bx_kG, By_kG, Bz_kG);
+
+    // kGauss (GenFit's native unit) -> G4 internal field units: 1 T = 10 kG.
+    Bfield[0] = (Bx_kG / 10.0) * tesla;
+    Bfield[1] = (By_kG / 10.0) * tesla;
+    Bfield[2] = (Bz_kG / 10.0) * tesla;
 }
-/*
-// previously used code
-void MagneticField::GetFieldValue(const G4double point[4], G4double* Bfield) const {
-    // point[0] = x, point[1] = y, point[2] = z
-
-    // Assume magnet box extends: x ∈ [-500, 500] mm, y ∈ [-500, 500] mm, z ∈ [–25, +25] mm (centered)
-    G4double x = point[0];
-    G4double y = point[1];
-    G4double z = point[2];
-
-    // Default: no field
-    Bfield[0] = Bfield[1] = Bfield[2] = 0.0;
-
-    // Assume ±1.5 Tesla in steel, depending on y (top/bottom vs center)
-    if (std::abs(y) >= 250. * mm && std::abs(y) <= 500. * mm) {
-      // Top or Bottom: +1.5 T
-      Bfield[0] = +1.5 * tesla;
-    } else if (std::abs(y) < 250. * mm) {
-      // Middle: –1.5 T
-      Bfield[0] = -1.5 * tesla;
-    }
-
-    
-}
-*/

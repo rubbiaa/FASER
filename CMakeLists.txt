@@ -101,6 +101,7 @@ option(FASER_BUILD_EXTERNALS         "Build bundled third-party deps (CLHEP/Rave
 option(FASER_BUILD_GEANT4_PACKAGES   "Build the Geant4 simulation packages (FASERG4, FASERCalProtoG4)" ON)
 option(FASER_BUILD_DISPLAY           "Build the GenFit-based event display / muon spectrometer package (Display)" ON)
 option(FASER_BUILD_TAUSEARCH         "Build the generator-level tau search package (TauSearch)" ON)
+option(FASER_BUILD_TESTS             "Build FASER's own regression tests (Tests/, e.g. the muon-spectrometer field consistency check)" ON)
 
 find_package(ROOT REQUIRED COMPONENTS
   Core RIO Tree Hist Physics EG Geom EGPythia8 RooFit RooFitCore
@@ -198,6 +199,14 @@ if(FASER_BUILD_DISPLAY)
   add_subdirectory(Display)
 endif()
 
+if(FASER_BUILD_TESTS AND FASER_BUILD_GEANT4_PACKAGES)
+  # The only FASER-authored test right now (MuonSpectrometerFieldTest)
+  # cross-checks FASERG4's field against GenFit's, so it needs the
+  # Geant4 packages built too - see Tests/CMakeLists.txt.
+  enable_testing()
+  add_subdirectory(Tests)
+endif()
+
 message(STATUS "")
 message(STATUS "FASER configuration summary")
 message(STATUS "  Build type              : ${CMAKE_BUILD_TYPE}")
@@ -205,5 +214,6 @@ message(STATUS "  Build externals         : ${FASER_BUILD_EXTERNALS}")
 message(STATUS "  Build Geant4 packages    : ${FASER_BUILD_GEANT4_PACKAGES}")
 message(STATUS "  Build Display            : ${FASER_BUILD_DISPLAY}")
 message(STATUS "  Build TauSearch          : ${FASER_BUILD_TAUSEARCH}")
+message(STATUS "  Build tests              : ${FASER_BUILD_TESTS}")
 message(STATUS "  Binaries will be in      : ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 message(STATUS "")

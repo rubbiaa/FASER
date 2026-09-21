@@ -35,6 +35,7 @@ set(SOURCES
     ../CoreUtils/DBScan.cc
     ../CoreUtils/TPSTrack.cc
     ../CoreUtils/GenMagneticField.cc
+    ../CoreUtils/MuonSpectrometerField.cc
     ../CoreUtils/TMuTrack.cc
     )
 
