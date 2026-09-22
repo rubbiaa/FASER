@@ -48,6 +48,7 @@ import base64
 import hashlib
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -138,9 +139,25 @@ def download_one(entry: dict, *, force: bool, dry_run: bool) -> bool:
                     f"REMOTE_FILES is wrong. Response came from: {url}"
                 )
             total = 0
+            expected = entry.get("size_bytes")
+            last_progress_print = time.monotonic()
             while chunk := response.read(1 << 20):
                 out.write(chunk)
                 total += len(chunk)
+                # Throttled by time, not by chunk count, so this stays
+                # readable regardless of file size -- a future GB-scale
+                # entry in REMOTE_FILES shouldn't spam one line per
+                # megabyte, but a slow connection on a small file still
+                # shows it's actually progressing rather than sitting
+                # there looking hung.
+                now = time.monotonic()
+                if now - last_progress_print >= 2.0:
+                    if expected:
+                        pct = 100.0 * total / expected
+                        print(f"[fetch_data] {label}: {total / 1e6:.1f} / {expected / 1e6:.1f} MB ({pct:.0f}%)")
+                    else:
+                        print(f"[fetch_data] {label}: {total / 1e6:.1f} MB")
+                    last_progress_print = now
     except urllib.error.HTTPError as e:
         tmp_dest.unlink(missing_ok=True)
         sys.exit(f"error: {label}: HTTP {e.code} fetching {url} -- {e.reason}")

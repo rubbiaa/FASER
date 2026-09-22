@@ -85,12 +85,29 @@ def all_golden_names():
     return [rc["golden_name"] for group in SIMULATION_GROUPS for rc in group["reco_cases"]]
 
 
-def run(cmd, *, env, label):
+def run(cmd, *, env, label, capture=True):
+    """capture=True (the default) buffers stdout/stderr so the caller can
+    read result.stdout -- needed for the summarize_output.py step, whose
+    JSON output we parse. capture=False lets the child inherit this
+    process's own stdout/stderr instead, so its output streams live as it
+    happens -- use this for faserps/batchreco, which can each run for a
+    while (Geant4 init, up to --n-events events, and now also a first-time
+    CERNBox fetch of the GENIE sample -- see fetch_data.py) and would
+    otherwise look hung: capture_output=True doesn't just delay *our*
+    printing, the child's own Python stdout also silently switches from
+    line-buffered to block-buffered the moment it isn't a real terminal,
+    so nothing appears until the whole subprocess exits or its buffer
+    fills. Inheriting a real terminal fd (capture=False) avoids both at
+    once."""
     print(f"[run_regression_tests] {label}: {' '.join(str(c) for c in cmd)}")
-    result = subprocess.run(cmd, cwd=REPO_ROOT, env=env, capture_output=True, text=True)
+    if capture:
+        result = subprocess.run(cmd, cwd=REPO_ROOT, env=env, capture_output=True, text=True)
+    else:
+        result = subprocess.run(cmd, cwd=REPO_ROOT, env=env, text=True)
     if result.returncode != 0:
-        print(result.stdout)
-        print(result.stderr, file=sys.stderr)
+        if capture:
+            print(result.stdout)
+            print(result.stderr, file=sys.stderr)
         sys.exit(f"error: {label} failed (exit {result.returncode})")
     return result
 
@@ -109,7 +126,7 @@ def run_group(group, *, build_dir, python_exe):
         *group["faserps_args"],
         "--n-events", str(group["n_events"]),
         "--build-dir", str(build_dir),
-    ], env=env, label=f"{key}: faserps")
+    ], env=env, label=f"{key}: faserps", capture=False)
 
     results = {}
     for reco_case in group["reco_cases"]:
@@ -121,7 +138,7 @@ def run_group(group, *, build_dir, python_exe):
             "--max-event", str(n_events),
             *reco_case["batchreco_args"],
             "--build-dir", str(build_dir),
-        ], env=env, label=f"{reco_case['golden_name']}: batchreco")
+        ], env=env, label=f"{reco_case['golden_name']}: batchreco", capture=False)
 
         mask = None
         if "--mask" in reco_case["batchreco_args"]:
