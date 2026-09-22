@@ -6,6 +6,7 @@
 #include "G4LogicalVolumeStore.hh"
 #include "G4ParticleDefinition.hh"
 #include "G4ParticleGun.hh"
+#include "G4RotationMatrix.hh"
 #include "G4ParticleTable.hh"
 #include "G4SystemOfUnits.hh"
 #include "Randomize.hh"
@@ -17,6 +18,7 @@
 #include "TPOEvent.hh"
 #include "TVector3.h"
 #include "TRotation.h"
+#include "MuonFluxSampler.hh"
 
 PrimaryGeneratorAction::PrimaryGeneratorAction(ParticleManager* f_particleManager) : G4VUserPrimaryGeneratorAction()
 {
@@ -344,37 +346,90 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 	{
 		// generate muon background
 		fTPOEvent.run_number = 999;
-		G4ParticleDefinition *muon = particleTable->FindParticle("mu-");
+
+		// Sample the incoming muon's charge and energy from the real FASERnu Run 3 FLUKA
+		// muon flux (see MuonFluxSampler) instead of a fixed species/momentum. The grid is
+		// loaded once (loadFromFile() is a no-op on later calls with the same path) and is
+		// expected next to the executable -- FASERG4/CMakeLists.txt copies everything under
+		// FASERG4/input/ into the run/build directory at configure time.
+		if (!MuonFluxSampler::instance().isLoaded()) {
+			MuonFluxSampler::instance().loadFromFile(fMuonFluxFileName);
+		}
+		int fluxPdgId = 13;
+		double fluxEnergyGeV = fSingleParticleMomentum;
+		if (!MuonFluxSampler::instance().sample(fluxPdgId, fluxEnergyGeV, fMuonFluxMinEnergyGeV)) {
+			G4cout << "PrimaryGeneratorAction: muon flux sampler returned no muon (grid not loaded "
+			          "from '" << fMuonFluxFileName << "', or no flux survives the "
+			       << fMuonFluxMinEnergyGeV << " GeV minimum-energy cutoff); falling back to a "
+			          "fixed mu- at " << fSingleParticleMomentum << " GeV." << G4endl;
+			fluxPdgId = 13;
+			fluxEnergyGeV = fSingleParticleMomentum;
+		}
+
+		G4ParticleDefinition *muon = particleTable->FindParticle(fluxPdgId);
 		if (muon != nullptr)
 		{
 			G4ParticleGun *particleGun = new G4ParticleGun(1);
 			particleGun->SetParticleDefinition(muon);
-			// Set muon starting position to cover detector face uniformly
-			// X: 48 cm detector → ±240 mm
-			// Y: 48 cm detector → ±240 mm
-			vtxpos.SetX(400); // in mm
-			vtxpos.SetY(280); // in mm
-			vtxpos.SetZ(-100); // in mm, in front of the detector
+			// Set muon starting position uniformly across the 48x48 cm entrance face of the
+			// 3D calorimeter/tracker (3DCAL), expressed in the DETECTOR-ASSEMBLY's LOCAL frame:
+			// X,Y uniform over the face, Z = 1 mm upstream of the local front face (Z=0 in that
+			// frame -- confirmed by DetectorConstruction::Construct()'s own "In world frame front
+			// face" diagnostic print).
+			//
+			// G4ParticleGun::SetParticlePosition() needs WORLD (absolute) coordinates, and the
+			// muondis run macro (runFASER_muondis.mac) does NOT place the detector assembly at the
+			// world origin: it sets /FASER/LOS/shiftX 45 cm, /FASER/LOS/shiftY 24 cm and
+			// /FASER/tiltY -4.5 deg. The previous fix computed a correct LOCAL front-face Z but
+			// then used it as if it were already a WORLD coordinate, so the sampled X/Y stayed
+			// centered on the WORLD origin while the actual (shifted) detector sits ~45/24 cm away
+			// -- nearly every muon still missed the detector's physical footprint, so events stayed
+			// empty. Build the point (and the launch direction) in local coordinates and transform
+			// to world coordinates the same way Construct() places the assembly:
+			// world = tiltRot.inverse() * local + (LOS_shiftX, LOS_shiftY, 0) -- see
+			// DetectorConstruction.cc's own front-face diagnostic, which uses this exact transform.
+			const G4double zFront3DCAL_local = -1.0; // in mm, 1 mm upstream of the local front face (Z=0)
+			G4double xLocal = (G4UniformRand() - 0.5) * 480.0; // in mm, uniform over ±240 mm (48 cm face)
+			G4double yLocal = (G4UniformRand() - 0.5) * 480.0; // in mm, uniform over ±240 mm (48 cm face)
+
+			G4RotationMatrix tiltRot;
+			tiltRot.rotateY(detector->GetTiltAngleY()); // identity when tiltY==0
+
+			G4ThreeVector localVtx(xLocal, yLocal, zFront3DCAL_local);
+			G4ThreeVector worldVtx = tiltRot.inverse() * localVtx;
+			worldVtx += G4ThreeVector(detector->fFASERCal_LOS_shiftX, detector->fFASERCal_LOS_shiftY, 0.0);
+
+			vtxpos.SetX(worldVtx.x());
+			vtxpos.SetY(worldVtx.y());
+			vtxpos.SetZ(worldVtx.z());
 			particleGun->SetParticlePosition(G4ThreeVector(vtxpos.x() * mm, vtxpos.y() * mm, vtxpos.z() * mm));
-			// Define angular spread (in radians)
-			double sigmaTheta = -0.08; // 4.5 degrees in radians
+			// Define angular spread (in radians) of the incoming cosmic-ray-like muon flux,
+			// around the WORLD +Z axis. The flux direction is a property of the beam/cosmic
+			// source, NOT of the detector: only the detector (and hence the physical entrance
+			// face sampled above) is tilted by /FASER/tiltY, the flux itself is not. So, unlike
+			// the vertex position (which must be transformed local->world to land on the tilted
+			// physical face), the direction must NOT be rotated by tiltRot -- it is generated
+			// directly in world coordinates.
+			double sigmaTheta = 1.0 * CLHEP::pi / 180.0; // 1 degree, in radians
 			// Sample θ from Gaussian centered at 0 with std dev 0.1
 			double theta = G4RandGauss::shoot(0.0, sigmaTheta);
 			// Sample φ uniformly from 0 to 2π
 			double phi = G4UniformRand() * 2.0 * CLHEP::pi;
-			// Convert (θ, φ) to Cartesian direction vector
+			// Convert (θ, φ) to a Cartesian direction vector directly in world coordinates --
+			// no rotation by the detector tilt.
 			double px = std::sin(theta) * std::cos(phi);
 			double py = std::sin(theta) * std::sin(phi);
 			double pz = std::cos(theta);
 
-			// Set direction vector with given momentum magnitude
-			//double momentumMagnitude = 500.0; // in GeV
-			// added by Umut: use fSingleParticleMomentum
-			double momentumMagnitude = fSingleParticleMomentum; // in GeV (can be set via /generator/singleMomentum)
+			// Momentum magnitude from the flux-sampled energy and this particle's actual mass
+			// (previously a fixed fSingleParticleMomentum for every event, regardless of species).
+			double massGeV = muon->GetPDGMass() / GeV;
+			double momentumMagnitude = std::sqrt(std::max(fluxEnergyGeV * fluxEnergyGeV - massGeV * massGeV, 0.0)); // in GeV
 
 			G4ThreeVector StartMomentum(px, py, pz);
-			// Diagnostic: print the configured momentum magnitude (GeV) used for scaling the direction
-			G4cout << "Using momentumMagnitude = " << momentumMagnitude << " GeV for background muon generation." << G4endl;
+			// Diagnostic: print the flux-sampled energy/momentum used for this background muon
+			G4cout << "Using flux-sampled E=" << fluxEnergyGeV << " GeV (p=" << momentumMagnitude
+			       << " GeV) for background " << muon->GetParticleName() << " generation." << G4endl;
 			StartMomentum = StartMomentum.unit() * (momentumMagnitude * GeV); // Normalize and scale
 			particleGun->SetParticleMomentum(StartMomentum);
 			fParticleGuns.push_back(particleGun);
@@ -392,7 +447,11 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 			// event_id start at 1 instead of 0 (off by one vs. every other
 			// generator mode, which assign event_id before that increment).
 			// valid_event - 1 is this event's correct 0-based index.
-			int this_event_id = valid_event - 1;
+			// (Independently found and fixed the same way on the muondis
+			// branch; that side also still called a dump_muon() CSV logger
+			// here, which main removed entirely - see PrimaryGeneratorAction
+			// history - so it's intentionally not restored below.)
+			const int this_event_id = valid_event - 1;
 			/// fill TPOEvent information
 			fTPOEvent.clear_event();
 			fTPOEvent.POs.clear();
@@ -404,7 +463,12 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 			G4ParticleDefinition *particle = particleTable->FindParticle(aPO.m_pdg_id);
 			double mass = particle->GetPDGMass()/GeV;
 			aPO.m_track_id = 1;
-			aPO.m_status = 1;
+			// Status 4 marks this as the incoming beam particle (matching the convention already
+			// used for the incoming neutrino in GENIE-derived events), not a final-state particle --
+			// TPOEvent::kinematics_event() relies on this to exclude it from out_lepton/jet/Evis
+			// accounting. It has no bearing on G4 simulation: the muon is still injected into G4
+			// directly via the particleGun object above, independently of this PO's status field.
+			aPO.m_status = 4;
 			// Store PO momentum in GeV
 			aPO.m_px = px_bg;
 			aPO.m_py = py_bg;

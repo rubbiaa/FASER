@@ -12,6 +12,7 @@
 #include <TGButton.h>
 #include <TChain.h>
 #include <TGListTree.h>
+#include <TGTextView.h>
 
 #include <TcalEvent.hh>
 #include "TPORecoEvent.hh"
@@ -52,6 +53,8 @@ public:
     void MoveDown();
     void MoveLeft();
     void MoveRight();
+    void SaveEventImage();
+    void UpdateTruthDumpView(); // refresh the "Truth Dump" tab's PO-level truth listing
 
     ClassDef(MyMainFrame,1)
 
@@ -75,8 +78,11 @@ private:
     TText *runText = nullptr;
     TText *eventypeText = nullptr;
     TText *energyText = nullptr;
+    TText *kinematicsText = nullptr;
     TText *rearcalenergyText = nullptr;
     TText *rearmucalenergyText = nullptr;
+
+    TGTextView *fTruthDumpView = nullptr; // "Truth Dump" tab: full PO-level truth listing
 
     std::vector<TPolyLine3D*> polylineTracks;
 

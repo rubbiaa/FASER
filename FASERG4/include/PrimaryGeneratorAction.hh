@@ -56,6 +56,15 @@ public:
   // set single-particle momentum (GeV) from messenger
   void SetSingleParticleMomentum(double gev);
 
+  // set the path to the muon flux grid (lhagrid1-format .dat file) used to sample the
+  // incoming muon's charge (mu-/mu+) and energy in muon-background mode; see MuonFluxSampler.
+  void SetMuonFluxFileName(const G4String& name) { fMuonFluxFileName = name; }
+
+  // set a minimum energy cutoff (GeV) applied when sampling the incoming muon's energy from
+  // the flux grid in muon-background mode (e.g. 100 GeV keeps only muons above 100 GeV);
+  // default 0 = no cutoff, the full flux. See MuonFluxSampler::sample().
+  void SetMuonFluxMinEnergy(double gev) { fMuonFluxMinEnergyGeV = gev; }
+
 private:
   ParticleManager *fParticleManager = nullptr; ///< Particle manager, which is used to generate the primary particles
   
@@ -76,6 +85,14 @@ private:
   bool fWantSingleParticle = false;
   // single particle mode momentum (in GeV)
   double fSingleParticleMomentum = 100.0; // default 100 GeV
+
+  // path to the muon flux grid used in muon-background mode (see MuonFluxSampler); copied
+  // into the build/run directory alongside the executable by FASERG4/CMakeLists.txt's
+  // input/-directory copy rule, so the default here is relative to that run directory.
+  G4String fMuonFluxFileName = "muon_flux_FASERv_Run3_var2_0000.dat";
+
+  // minimum muon energy (GeV) to keep when sampling from the flux grid; 0 = no cutoff.
+  double fMuonFluxMinEnergyGeV = 0.0;
 };
 
 #endif

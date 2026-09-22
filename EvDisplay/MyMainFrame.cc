@@ -14,6 +14,7 @@
 #include <TGTab.h>
 #include <TGListTree.h>
 #include <TGClient.h>
+#include <TGTextView.h>
 
 #include "MyMainFrame.h"
 #include "TPORecoEvent.hh"
@@ -109,6 +110,9 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, bool pre, const TGW
     fButton = new TGTextButton(hFrame2, "Move right");
     fButton->Connect("Clicked()", "MyMainFrame", this, "MoveRight()");
     hFrame2->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
+    fButton = new TGTextButton(hFrame2, "Save Image");
+    fButton->Connect("Clicked()", "MyMainFrame", this, "SaveEventImage()");
+    hFrame2->AddFrame(fButton, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
 
     // Add the horizontal frame to the main frame
     tab1->AddFrame(hFrame, new TGLayoutHints(kLHintsCenterX | kLHintsBottom, 5, 5, 3, 4));
@@ -127,6 +131,10 @@ MyMainFrame::MyMainFrame(int run_number, int ieve, int mask, bool pre, const TGW
 
     fCanvas_eldepo = new TRootEmbeddedCanvas("EmbeddedCanvas4", tab4, 1200, 600);;
     tab4->AddFrame(fCanvas_eldepo, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY));
+
+    TGCompositeFrame *tab5 = tab->AddTab("Truth Dump");
+    fTruthDumpView = new TGTextView(tab5, 1200, 600);
+    tab5->AddFrame(fTruthDumpView, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY));
 
     // Create a horizontal frame to contain the next and goto event buttons
     TGHorizontalFrame *hFrame3 = new TGHorizontalFrame(fMain);
@@ -491,8 +499,13 @@ void MyMainFrame::Draw_event() {
     {
         ROOT::Math::XYZVector position = fTcalEvent->getChannelXYZRearCal(it.moduleID);
         double zBox = it.energyDeposit / 1e2; // 1cm is 1 GeV
-        TGeoShape *box = new TGeoBBox("rearcalbox", fTcalEvent->geom_detector.rearCalSizeX / 20.0,
-                                      fTcalEvent->geom_detector.rearCalSizeY / 20.0, zBox / 20.0);
+        // Use the per-module cell size (rearCalVoxelSize), not the full ECAL face size
+        // (rearCalSizeX/Y) -- using the full size here drew every hit module's box spanning
+        // the entire ECAL footprint, all overlapping at full width/height and differing only
+        // in Z thickness, which is what produced the oversized/overlapping blue rectangles.
+        // Mirrors the rearHCal box below, which already uses rearHCalVoxelSize correctly.
+        TGeoShape *box = new TGeoBBox("rearcalbox", fTcalEvent->geom_detector.rearCalVoxelSize / 20.0,
+                                      fTcalEvent->geom_detector.rearCalVoxelSize / 20.0, zBox / 20.0);
         TGeoVolume *hitVolume = new TGeoVolume("RearCalVolume", box, air);
         hitVolume->SetLineColor(kBlue);
         TGeoTranslation *trans = new TGeoTranslation(position.X() / 10.0,
@@ -646,6 +659,23 @@ void MyMainFrame::Draw_event() {
     energyText->SetNDC();
     energyText->SetTextSize(0.03);
     energyText->Draw();
+
+    delete kinematicsText;
+    std::ostringstream kinematics;
+    kinematics << Form("DIS kinematics:  nu=%6.2f GeV   Q2=%6.3f GeV^2   W2=%6.2f GeV^2   x=%6.4f   y=%6.4f",
+        POevent->nuE, POevent->Q2, POevent->W2, POevent->xBj, POevent->yInel);
+    // pythiaXbj is only set (>=0) for events where a MuonDIS interaction actually fired --
+    // append it so the truth-level recomputation above (x=...) can be cross-checked directly
+    // against the generator-level Info::x2() Pythia8 actually used to accept the event.
+    if (POevent->pythiaXbj >= 0) {
+        kinematics << Form("   [Pythia8 x2=%6.4f]", POevent->pythiaXbj);
+    }
+    kinematicsText = new TText(0.05, 0.8, kinematics.str().c_str());
+    kinematicsText->SetNDC();
+    kinematicsText->SetTextSize(0.03);
+    kinematicsText->Draw();
+
+    UpdateTruthDumpView();
 
     if (fPORecoEvent != nullptr)
     {
@@ -1160,6 +1190,24 @@ void MyMainFrame::MoveRight() {
     view->MoveWindow('h');
     canvas->Modified();
     canvas->Update();
+}
+void MyMainFrame::SaveEventImage() {
+    TCanvas *canvas = fCanvas->GetCanvas();
+    TString base = Form("event_display_run%d_evt%d", frun_number, ievent);
+    canvas->SaveAs(base + ".png");
+    canvas->SaveAs(base + ".pdf");
+    std::cout << "Saved event display image to " << base << ".png and " << base << ".pdf" << std::endl;
+}
+
+void MyMainFrame::UpdateTruthDumpView() {
+    // Populate the "Truth Dump" tab with the same generator-level (truth) PO listing that
+    // dump_event() prints to std::cout, so it's visible directly in the GUI instead of only
+    // in the terminal log.
+    if (fTruthDumpView == nullptr || POevent == nullptr) return;
+    std::ostringstream oss;
+    POevent->dump_event(oss);
+    fTruthDumpView->Clear();
+    fTruthDumpView->LoadBuffer(oss.str().c_str());
 }
 void MyMainFrame::on_fullreco_toggle(Bool_t state)
 {
