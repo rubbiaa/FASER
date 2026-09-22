@@ -79,14 +79,14 @@ python3 run_faserps.py
 
 This runs `faserps` in batch mode with the same settings as the old
 `runFASER_V10.mac`: the tilted V10 geometry, 100 neutrino-interaction events
-read starting from event 0 of `FASERMC-PO-Run10000-0_53954_3DCAL.root`.
+read starting from event 0 of `$FASERDATA/GENIE/FASERMC-PO-Run10000-0_53954_3DCAL.root`.
 
 ## Options
 
 | Flag | Default | Meaning |
 |---|---|---|
 | `--build-dir PATH` | `../build` | CMake build directory containing `bin/faserps`. |
-| `--input-file NAME` | `FASERMC-PO-Run10000-0_53954_3DCAL.root` | Value for `/generator/rootinputfilename` (relative to `FASERG4/`). Ignored if `--muons` or `--muondis` is given. |
+| `--input-file NAME` | `$FASERDATA/GENIE/FASERMC-PO-Run10000-0_53954_3DCAL.root` | Value for `/generator/rootinputfilename`. The default is an absolute path (the sample lives under `$FASERDATA/GENIE/`, not `FASERG4/`); a custom value that isn't already absolute is still resolved relative to `FASERG4/`, since that's faserps' cwd. Ignored if `--muons` or `--muondis` is given. |
 | `--start-event N` | `0` | Value for `/generator/startevent`. Ignored if `--muons` or `--muondis` is given. |
 | `--n-events N` | `100` | Value for `/run/beamOn`. |
 | `--muons` | off | Generate single fixed-momentum muons instead of reading neutrino-interaction events (see below). |

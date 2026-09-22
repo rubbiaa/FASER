@@ -42,6 +42,19 @@ REPO_ROOT = Path(__file__).resolve().parent
 FASERG4_DIR = REPO_ROOT / "FASERG4"
 DEFAULT_BUILD_DIR = REPO_ROOT / "build"
 
+# FASERMC-PO-Run10000-0_53954_3DCAL.root (the default --input-file sample)
+# lives under $FASERDATA/GENIE/, not next to faserps in FASERG4/ anymore --
+# it's an input data file, not a source file, so it belongs alongside
+# faserps' own faserG4/batch output rather than checked out with the code.
+# This mirrors common_setup.sh's own FASERDATA fallback
+# (`${FASERDATA:=$HOMEFASER/data}`) so the default resolves correctly
+# whether or not setup.sh has been sourced yet -- unlike the faserG4/batch
+# output dirs, we can't rely on FASER::GetDataDir() (C++-only) to create
+# this one, since it's an input we ship, not output faserps generates.
+def _default_genie_input_file():
+    faserdata = Path(os.environ.get("FASERDATA", str(REPO_ROOT / "data")))
+    return str(faserdata / "GENIE" / "FASERMC-PO-Run10000-0_53954_3DCAL.root")
+
 
 def build_v10_macro(
     *,
@@ -60,7 +73,7 @@ def build_v10_macro(
     run_verbose: int = 0,
     control_verbose: int = 0,
     n_threads: int = 1,
-    input_root_file: str = "FASERMC-PO-Run10000-0_53954_3DCAL.root",
+    input_root_file: str = None,  # resolved below -- see _default_genie_input_file()
     start_event: int = 0,
     n_events: int = 100,
     muon_mode: bool = False,
@@ -99,6 +112,8 @@ def build_v10_macro(
     string / 0.0 / false) and are only emitted when explicitly given, since
     unlike crossSectionBias/q2min they have no meaningful non-empty
     default on the C++ side either."""
+    if input_root_file is None:
+        input_root_file = _default_genie_input_file()
     if muon_mode:
         generator_lines = "\n".join([
             "/generator/wantMuonBackground true",
@@ -176,8 +191,12 @@ def parse_args():
     # rest of build_v10_macro()'s keyword arguments cover the geometry
     # constants and are left at their V10 defaults unless you call the
     # function yourself from a custom script.
-    parser.add_argument("--input-file", default="FASERMC-PO-Run10000-0_53954_3DCAL.root",
-                         help="Value for /generator/rootinputfilename (relative to FASERG4/). "
+    parser.add_argument("--input-file", default=_default_genie_input_file(),
+                         help="Value for /generator/rootinputfilename. Defaults to "
+                              "$FASERDATA/GENIE/FASERMC-PO-Run10000-0_53954_3DCAL.root (an absolute "
+                              "path, so it resolves regardless of cwd). A custom value that isn't "
+                              "already absolute is still resolved relative to FASERG4/, since that's "
+                              "faserps' cwd when run_faserps.py invokes it. "
                               "Ignored if --muons or --muondis is given.")
     parser.add_argument("--start-event", type=int, default=0,
                          help="Value for /generator/startevent. Ignored if --muons or --muondis is given.")

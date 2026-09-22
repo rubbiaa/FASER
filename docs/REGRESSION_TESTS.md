@@ -70,7 +70,7 @@ been verified for this codebase and shouldn't be assumed.
 - Default (file-input) mode: `run_number` comes straight from the input
   file's own stored `TPOEvent.run_number` (`PrimaryGeneratorAction.cc`
   reads each input entry directly into `fTPOEvent`). For the default
-  sample (`FASERMC-PO-Run10000-0_53954_3DCAL.root`), this is expected to be
+  sample (`$FASERDATA/GENIE/FASERMC-PO-Run10000-0_53954_3DCAL.root`), this is expected to be
   `10000` — matching the filename and the run number `run_batchreco.py`'s
   own docstring already uses as its basic example (`--run 10000`). **Not
   independently verified against the file's actual contents** (I can't
@@ -188,16 +188,19 @@ python3 run_regression_tests.py --case muondis --record
 
 1. **CI needs an input sample it doesn't have -- decided: host it externally.**
    The default neutrino case's input file,
-   `FASERG4/FASERMC-PO-Run10000-0_53954_3DCAL.root` (4.6 MB, currently on
-   your Mac only), is `*.root`-gitignored and was never committed, so a
-   fresh CI checkout has no input for the `nueCC`/`numuCC`/`nutauCC`/`nuNC`
-   cases. You chose to keep it out of git and have CI fetch it from an
-   external location instead of committing a fixture. Still needed before
-   this is wired into `.github/workflows/build.yml`: an actual URL/host for
-   the file (and a `curl`/`wget` step added to the workflow to fetch it
-   before the neutrino case runs). `--muons`/`--muondis` don't need this
-   (they generate primaries directly) and could be wired into CI without
-   waiting on it.
+   `$FASERDATA/GENIE/FASERMC-PO-Run10000-0_53954_3DCAL.root` (4.6 MB,
+   moved out of `FASERG4/` into its own `GENIE/` subdirectory of the data
+   dir since it's an input sample, not source code), is still
+   `*.root`-gitignored (via the existing blanket `/data/` rule) and was
+   never committed, so a fresh CI checkout has no input for the
+   `nueCC`/`numuCC`/`nutauCC`/`nuNC` cases. You chose to keep it out of
+   git and have CI fetch it from an external location instead of
+   committing a fixture. Still needed before this is wired into
+   `.github/workflows/build.yml`: an actual URL/host for the file (and a
+   `curl`/`wget` step added to the workflow that downloads it to
+   `$FASERDATA/GENIE/` before the neutrino case runs). `--muons`/
+   `--muondis` don't need this (they generate primaries directly) and
+   could be wired into CI without waiting on it.
 2. **CI doesn't run `ctest` at all yet**, let alone this suite --
    `.github/workflows/build.yml` only configures and builds. Wiring in
    even the cheap gtests is a separate, smaller first step worth doing
