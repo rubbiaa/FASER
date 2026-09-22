@@ -240,17 +240,32 @@ int main(int argc, char** argv) {
         TPOEvent *POevent = new TPOEvent();
 
         if(!dump_event_cout) fTcalEvent->SetVerbose(0);
-	int retry = 5;
+	// With a mask, event_mask is assigned per-event at simulation time
+	// based on the actual interaction type (see TcalEvent.cc's constructor
+	// / FASERG4's ParticleManager.cc), so only a fraction of event indices
+	// will ever have a truth file matching a given mask -- that's routine,
+	// not an error, and retrying/waiting for it to "appear" is pointless
+	// since it never will. Only retry-with-wait for the unmasked case,
+	// where every index is expected to eventually have a file (e.g. a
+	// concurrently-running simulation still writing them).
+	int retry = (event_mask > 0) ? 1 : 5;
 	error = -1;
 	while(retry-- > 0 && error != 0) {
 	  error = fTcalEvent -> Load_event(base_path, run_number, ievent, event_mask, POevent);
 	  if(error == 0 || error == 2) break;
-	  std::cerr << "Waiting for a few seconds before trying to open file again..." << std::endl;
-	  std::this_thread::sleep_for(std::chrono::seconds(10));
+	  if(event_mask == 0) {
+	    std::cerr << "Waiting for a few seconds before trying to open file again..." << std::endl;
+	    std::this_thread::sleep_for(std::chrono::seconds(10));
+	  }
 	}
 	// empty event ... skip
 	if(error==2){ error = 0; ievent++; continue; }
-	// error seems unrecoverable
+	// File not found while reconstructing with a mask just means this
+	// event index isn't of the requested flavor/interaction type -- skip
+	// ahead to the next index instead of aborting the whole run.
+	if(error != 0 && event_mask > 0){ error = 0; ievent++; continue; }
+	// error seems unrecoverable (no mask: every index is expected to have
+	// a truth file, so a persistent miss here is a real problem)
 	if(error != 0) break;	
 
 	ievent++;
