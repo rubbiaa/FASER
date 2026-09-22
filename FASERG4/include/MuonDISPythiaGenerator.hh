@@ -57,7 +57,7 @@
 // of CT18FC). Bundled under FASERG4/input/:
 //   NNPDF40_nnlo_as_01180_charmasy_0000.dat   (NNPDF4.0 charm-asymmetry, central)
 //   CT18FC_0003.dat / _0004.dat / _0005.dat   (CT18 MBMC, Delta-chi2=0/10/30)
-// See README_MuonDIS.md for example macro lines selecting each.
+// See docs/README_MuonDIS.md for example macro lines selecting each.
 
 #include "G4ThreeVector.hh"
 
@@ -125,7 +125,7 @@ private:
                          const G4ThreeVector& muonDirection);
   int chooseNucleon(int targetZ, int targetA) const;
 
-  // *** Charge-asymmetry fix (see git history / README_MuonDIS.md) ***
+  // *** Charge-asymmetry fix (see git history / docs/README_MuonDIS.md) ***
   // Pythia8 does NOT support flipping the beam-A particle species (here: muon charge,
   // Beams:idA between 13 and -13) across successive init() calls on the same Pythia
   // object -- confirmed by an isolated, standalone Pythia8 reproduction outside of

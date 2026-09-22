@@ -28,8 +28,8 @@
 /// Instead Geant4/FTFP_BERT propagates and decays them in flight, at their
 /// correct cm-scale displaced position, so a TPORec built from such a
 /// particle's GEANT track(s) reflects that displaced decay topology rather
-/// than a prompt decay at the vertex. See hyperon_decay_review.md (repo
-/// root) for the full physics review: PDG-vs-Geant4 ctau cross-check,
+/// than a prompt decay at the vertex. See docs/HYPERON_DECAY_REVIEW.md
+/// for the full physics review: PDG-vs-Geant4 ctau cross-check,
 /// confirmation that FASER's PDG-generic track/hit handling already covers
 /// these particles correctly, and where Pythia8/Geant4 decay matrix
 /// elements do (tau, charm hadrons) and do not (these hyperons) disagree.

@@ -151,7 +151,7 @@ without huge statistics; and 1 GeV², respectively), so the printed macro
 stays self-documenting even when you don't override them -- pass
 `--muondis-cross-section-bias 1` for an unbiased cross section.
 `--muondis-interaction-log`/`--muondis-pdf-set`/`--muondis-xbjmin`/`--muondis-debug`
-are all off unless given explicitly. See `FASERG4/README_MuonDIS.md` for the
+are all off unless given explicitly. See `docs/README_MuonDIS.md` for the
 full physics (target treatment, PDF choice, truth-level output added to
 `TPOEvent`, ...) and the complete list of `/physics/muondis/...` options.
 

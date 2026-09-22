@@ -62,7 +62,7 @@ static void initialize_pythia() {
     // immediately at the production vertex instead of letting Geant4
     // propagate and decay them in-flight at the correct displaced position,
     // as FTFP_BERT/G4DecayPhysics already does for these particles.
-    // See hyperon_decay_review.md (repo root) for the full physics review:
+    // See docs/HYPERON_DECAY_REVIEW.md for the full physics review:
     // ctau cross-check against Geant4's hardcoded values, confirmation that
     // no FASER-side code changes are needed, and a discussion of where
     // Pythia8/Geant4 decay matrix elements do (tau, charm) and do not

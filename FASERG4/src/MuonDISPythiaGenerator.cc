@@ -165,7 +165,7 @@ void MuonDISPythiaGenerator::ensureInitialized(int muonPdgId, int nucleonPdgId,
 
     // Optional non-default PDF for the struck nucleon (beam B), e.g. one of the grids bundled
     // for the muDIS charm-asymmetry study (see MuonDISPythiaGenerator.hh and
-    // README_MuonDIS.md). Loaded natively via Pythia8's built-in LHAGrid1 reader -- no
+    // docs/README_MuonDIS.md). Loaded natively via Pythia8's built-in LHAGrid1 reader -- no
     // external LHAPDF6 install needed. Left at Pythia8's own built-in proton PDF if empty
     // (the default, set via /physics/muondis/pdfSet if you want to change it).
     if (!m_pdfSetPath.empty()) {

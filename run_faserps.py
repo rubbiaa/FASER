@@ -86,7 +86,7 @@ def build_v10_macro(
     out of the generated macro rather than printed misleadingly).
 
     muondis_mode=True additionally enables MuonDIS (see
-    FASERG4/README_MuonDIS.md): the primary muon's nuclear interaction is
+    docs/README_MuonDIS.md): the primary muon's nuclear interaction is
     replaced by an on-the-fly Pythia8 deep-inelastic-scattering event
     instead of Geant4's standard muon-nuclear final state. This only makes
     sense for muon-background primaries, so callers should also set
@@ -127,7 +127,7 @@ def build_v10_macro(
         muondis_block = (
             "#\n"
             "# MuonDIS: replace the primary muon's nuclear interaction with an\n"
-            "# on-the-fly Pythia8 DIS event (see FASERG4/README_MuonDIS.md).\n"
+            "# on-the-fly Pythia8 DIS event (see docs/README_MuonDIS.md).\n"
             "# Must be set before /run/initialize.\n"
             + "\n".join(muondis_cmds) + "\n"
         )
@@ -194,7 +194,7 @@ def parse_args():
                               "an on-the-fly Pythia8 deep-inelastic-scattering event, generated per "
                               "interaction from the muon's actual Geant4 energy/direction. Implies "
                               "--muons (MuonDIS only applies to muon-background primaries). See "
-                              "FASERG4/README_MuonDIS.md for the physics and every /physics/muondis/... "
+                              "docs/README_MuonDIS.md for the physics and every /physics/muondis/... "
                               "option.")
     parser.add_argument("--muondis-cross-section-bias", type=float, default=150.0,
                          help="Value for /physics/muondis/crossSectionBias, only used with --muondis "

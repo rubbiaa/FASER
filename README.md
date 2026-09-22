@@ -10,7 +10,7 @@ This project follows a structured workflow for simulating and processing neutrin
 
 # Quick start
 
-The full build is CMake-based; see `INSTALL.md` for prerequisites, build
+The full build is CMake-based; see `docs/INSTALL.md` for prerequisites, build
 options and troubleshooting. This section just covers the everyday
 build/run/test loop once your machine is already set up.
 
@@ -25,7 +25,7 @@ cmake --build build -j
 ```
 
 The first build also fetches and compiles CLHEP, Rave, GenFit, googletest
-and Pythia8 (see `INSTALL.md`), so it can take a while; later builds are
+and Pythia8 (see `docs/INSTALL.md`), so it can take a while; later builds are
 incremental. `source setup.sh` also defines a shortcut, `fb`, that reruns
 `cmake --build $HOMEFASER/build -j` from anywhere - useful after a quick
 source edit.
@@ -71,7 +71,7 @@ python3 run_faserps.py --muondis --n-events 1000
 ```
 
 See `run_faserps.md` (MuonDIS mode) for the `--muondis-*` options, and
-[`FASERG4/README_MuonDIS.md`](FASERG4/README_MuonDIS.md) for the physics
+[`docs/README_MuonDIS.md`](docs/README_MuonDIS.md) for the physics
 details (target treatment, PDF choice, truth-level output added to
 `TPOEvent`, every `/physics/muondis/...` command).
 
@@ -92,7 +92,7 @@ splitting a run into parallel background jobs, ...).
 
 FASER has its own small C++ regression test suite under `Tests/`, built on
 Google Test (fetched automatically as part of the superbuild, see
-`INSTALL.md`) and registered with CTest:
+`docs/INSTALL.md`) and registered with CTest:
 
 - **MuonSpectrometerFieldTest** - cross-checks that the GEANT4
   simulation's muon-spectrometer magnetic field
@@ -188,7 +188,7 @@ A generator level tau search analysis code
 
 # Installation
 
-See `INSTALL.md` for the full CMake build: prerequisites, build options,
+See `docs/INSTALL.md` for the full CMake build: prerequisites, build options,
 and troubleshooting a clean build. In short:
 
 ```bash
@@ -204,6 +204,23 @@ sets up ROOT/Geant4/Pythia8 accordingly, so the same command works
 everywhere; on a machine it doesn't recognize, it prints what to do (add
 an `elif` branch for your site - see the comments at the top of the
 script).
+
+## Further documentation
+
+Longer, topic-specific write-ups (build/installation details, physics
+reviews, one-off studies, ...) live under [`docs/`](docs/) rather than
+cluttering the repo root or the subdirectory they're about:
+
+- [`docs/INSTALL.md`](docs/INSTALL.md) - the full CMake build: prerequisites, options, troubleshooting.
+- [`docs/GEANT4_INSTALL.md`](docs/GEANT4_INSTALL.md) - building/installing Geant4 itself.
+- [`docs/README_MuonDIS.md`](docs/README_MuonDIS.md) - MuonDIS physics and every `/physics/muondis/...` option (see "MuonDIS" above for the quick start).
+- [`docs/HYPERON_DECAY_REVIEW.md`](docs/HYPERON_DECAY_REVIEW.md) - why long-lived hyperons have their Pythia8 decay switched off (see `CoreUtils/TPOEvent.cc`'s `initialize_pythia()`).
+- [`docs/NEUTRON_SPECTRUM_RUN.md`](docs/NEUTRON_SPECTRUM_RUN.md) - notes on a neutron-spectrum run with `FASERCalProtoG4`.
+- [`docs/MuonSpectrometerReport.md`](docs/MuonSpectrometerReport.md) - the muon-spectrometer magnetic field consistency work (shared Geant4/GenFit field model, geometry probe, gtests).
+
+`run_faserps.md` and `run_batchreco.md` stay at the repo root, next to the
+scripts they document, so script and doc can't drift out of sync with each
+other.
 
  # Event masks
 
