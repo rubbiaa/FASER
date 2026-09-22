@@ -43,7 +43,13 @@ location through `$FASERDATA` (`FASER::GetDataDir()`,
 point it elsewhere (scratch, EOS, ...) by exporting it before
 `common_setup.sh` runs - see the comments in `setup.sh`. `FASERG4` writes
 under `$FASERDATA/faserG4/`, `Batch` reads that and writes under
-`$FASERDATA/batch/`.
+`$FASERDATA/batch/`. Two more subdirectories hold input/derived data too
+large or too generated-on-the-fly to check into git: `$FASERDATA/GENIE/`
+(the default GENIE-generated input sample) and `$FASERDATA/GDML/` (the
+detector geometry FASERG4 exports every run, via `FASER::GetDataDir("GDML")`
+- read back by `run_batchreco.py`). The GENIE sample is fetched
+automatically from a public CERNBox link the first time it's needed - see
+`fetch_data.py` and "Run faserps" below.
 
 ## Run faserps (the GEANT4 simulation)
 
@@ -58,6 +64,14 @@ straight to `faserps`' stdin - there's no `.mac` file to keep in sync by
 hand. See `run_faserps.md` for every option (custom geometry parameters,
 `--vis` for the interactive Geant4 UI, `--print-macro`/`--dry-run`, muon
 mode, MuonDIS, ...).
+
+The default input sample is too large to commit to git; if it's missing
+under `$FASERDATA/GENIE/`, `run_faserps.py` fetches it automatically from
+a public CERNBox link before running (sha256-verified - see
+`fetch_data.py`), so the commands above work right after a fresh
+`git clone` with no separate download step. Run `python3 fetch_data.py`
+directly to fetch it (or anything else in its manifest) ahead of time
+instead, e.g. before going offline.
 
 ## MuonDIS
 
@@ -120,6 +134,26 @@ ctest --test-dir build --output-on-failure
 or build/run one directly, e.g. `build/bin/MuonSpectrometerFieldTest`.
 Run these after touching either magnetic-field adapter, the shared field
 model, or the magnet geometry probe.
+
+## Run the regression tests (simulate -> reconstruct -> compare)
+
+A second, heavier kind of test alongside the gtests above: `run_regression_tests.py`
+runs the *real* pipeline end to end (`faserps` then `batchreco.exe`) for a
+handful of event types - the default neutrino sample reconstructed four
+ways (`nueCC`/`numuCC`/`nutauCC`/`nuNC`), plus `--muons` and `--muondis` -
+and compares aggregate output statistics against a committed golden JSON
+baseline (`Tests/regression/golden/*.json`), relying on `faserps.cc`'s
+hardcoded random seed for exact reproducibility rather than a statistical
+tolerance.
+
+```bash
+python3 run_regression_tests.py --record   # first time, or after a deliberate behavior change
+python3 run_regression_tests.py            # every other time: compare against golden/
+```
+
+See [`docs/REGRESSION_TESTS.md`](docs/REGRESSION_TESTS.md) for the full
+design, what's verified from source vs. not yet exercised against a real
+build, and open items (CI isn't wired up to run this yet).
 
 # EvDisplay
 
@@ -217,6 +251,7 @@ cluttering the repo root or the subdirectory they're about:
 - [`docs/HYPERON_DECAY_REVIEW.md`](docs/HYPERON_DECAY_REVIEW.md) - why long-lived hyperons have their Pythia8 decay switched off (see `CoreUtils/TPOEvent.cc`'s `initialize_pythia()`).
 - [`docs/NEUTRON_SPECTRUM_RUN.md`](docs/NEUTRON_SPECTRUM_RUN.md) - notes on a neutron-spectrum run with `FASERCalProtoG4`.
 - [`docs/MuonSpectrometerReport.md`](docs/MuonSpectrometerReport.md) - the muon-spectrometer magnetic field consistency work (shared Geant4/GenFit field model, geometry probe, gtests).
+- [`docs/REGRESSION_TESTS.md`](docs/REGRESSION_TESTS.md) - the simulate->reconstruct->compare regression suite (see "Run the regression tests" above).
 
 `run_faserps.md` and `run_batchreco.md` stay at the repo root, next to the
 scripts they document, so script and doc can't drift out of sync with each
