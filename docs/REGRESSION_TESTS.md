@@ -77,6 +77,15 @@ been verified for this codebase and shouldn't be assumed.
   open a ROOT file from here) — the first `--record` run will either
   confirm this or fail loudly with "0 events matched", which is the
   signal to fix this constant.
+
+  (Historical note: before commit `32d4358`, `BatchReco.cc`'s per-event retry
+  loop couldn't tell "this event isn't of the requested mask" apart from
+  "truth file not written yet", and aborted the whole run the first time a
+  masked truth file was missing -- typically at event 0, with `Total elapsed
+  time: 0 ms`. That's now fixed: a missing masked truth file is treated as
+  "not this event's type, move on", so a masked reco run correctly scans every
+  event and only reports a real "0 events matched" when the sample genuinely
+  has none of that type.)
 - `--muons` and `--muondis`: both take the `wantMuonBackground` branch in
   `PrimaryGeneratorAction.cc`, which hardcodes `run_number = 999` — **the
   same number for both.** They must not share `$FASERDATA`, or one
