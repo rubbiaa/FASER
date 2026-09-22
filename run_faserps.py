@@ -35,6 +35,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import fetch_data
+
 # This script lives at the repo root (moved out of FASERG4/ so the
 # runner and its doc, run_faserps.md, stay together) - FASERG4_DIR is
 # therefore an explicit subdirectory, not Path(__file__).parent.
@@ -291,6 +293,27 @@ def main():
             "       Source setup.sh first (`source setup.sh`), or export FASERDATA\n"
             "       yourself to point at FASER's consolidated data directory."
         )
+
+    # Auto-fetch the default GENIE input sample from CERNBox if it's
+    # missing and this run actually needs it (not --muons/--muondis, and
+    # only when --input-file was left at its default -- a custom
+    # --input-file is the user's own file, not something to fetch for
+    # them). See fetch_data.py for the download mechanics; this only ever
+    # touches the one manifest entry that matches the resolved input path.
+    if not (args.muons or args.muondis) and str(Path(args.input_file)) == _default_genie_input_file():
+        if not Path(args.input_file).is_file():
+            print(f"[run_faserps] default input sample not found locally, fetching it "
+                  f"(see fetch_data.py): {args.input_file}")
+            for entry in fetch_data.REMOTE_FILES:
+                if str(fetch_data.faserdata_dir() / entry["local_relpath"]) == str(Path(args.input_file)):
+                    fetch_data.download_one(entry, force=False, dry_run=False)
+                    break
+            else:
+                sys.exit(
+                    f"error: {args.input_file} is missing and isn't in fetch_data.py's "
+                    f"REMOTE_FILES manifest -- nothing to auto-fetch. Place the file there "
+                    f"yourself, or pass --input-file to point at wherever it actually is."
+                )
 
     command = [str(binary_path), "vis" if args.vis else "-"]
 

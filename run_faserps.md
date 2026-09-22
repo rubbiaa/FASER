@@ -41,11 +41,27 @@ keep in sync by hand.
   full/relative path to it from anywhere - it resolves its own location via
   `__file__` and finds `FASERG4/` under it either way. The `faserps`
   subprocess itself still always runs with `FASERG4/` as its working
-  directory, because the macro's `/generator/rootinputfilename` is a
-  relative path that only resolves correctly from there (same as the GDML
-  file `faserps` writes out) - but this no longer has anything to do with
-  where the *output* goes, since that's resolved from `$FASERDATA`
-  independent of cwd (see below).
+  directory, but this no longer matters for the default `--input-file`
+  (an absolute `$FASERDATA/GENIE/...` path - see "Where the input sample
+  comes from" below) or the GDML geometry `faserps` writes out (also an
+  absolute `$FASERDATA/GDML/...` path now, via `FASER::GetDataDir("GDML")`
+  - see `run_batchreco.md`). It only still matters for a custom
+  `--input-file` value that isn't already absolute, which is resolved
+  relative to `FASERG4/` the same way it always was.
+
+## Where the input sample comes from
+
+The default `--input-file`, `FASERMC-PO-Run10000-0_53954_3DCAL.root`, is
+too large to commit to git and lives under `$FASERDATA/GENIE/` (gitignored,
+same as the rest of `$FASERDATA`). If it's missing there, `run_faserps.py`
+fetches it automatically - before invoking `faserps` - from a public
+CERNBox link (`fetch_data.py`'s `REMOTE_FILES` manifest), verifying its
+sha256 after download. This only happens when `--input-file` is left at
+its default; a custom `--input-file` is your own file, and is never
+auto-fetched. You can also run `python3 fetch_data.py` directly (see its
+own docstring) to fetch everything in the manifest up front, e.g. before
+going offline, or `--force` to re-fetch regardless of what's already
+there.
 
 ## Where the output goes
 

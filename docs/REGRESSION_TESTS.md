@@ -186,21 +186,31 @@ python3 run_regression_tests.py --case muondis --record
 
 ## Open items (need your input, not something to silently decide)
 
-1. **CI needs an input sample it doesn't have -- decided: host it externally.**
-   The default neutrino case's input file,
+1. **CI needs an input sample it doesn't have -- mechanism now exists,
+   CI itself not wired up yet.** The default neutrino case's input file,
    `$FASERDATA/GENIE/FASERMC-PO-Run10000-0_53954_3DCAL.root` (4.6 MB,
    moved out of `FASERG4/` into its own `GENIE/` subdirectory of the data
    dir since it's an input sample, not source code), is still
    `*.root`-gitignored (via the existing blanket `/data/` rule) and was
-   never committed, so a fresh CI checkout has no input for the
-   `nueCC`/`numuCC`/`nutauCC`/`nuNC` cases. You chose to keep it out of
-   git and have CI fetch it from an external location instead of
-   committing a fixture. Still needed before this is wired into
-   `.github/workflows/build.yml`: an actual URL/host for the file (and a
-   `curl`/`wget` step added to the workflow that downloads it to
-   `$FASERDATA/GENIE/` before the neutrino case runs). `--muons`/
-   `--muondis` don't need this (they generate primaries directly) and
-   could be wired into CI without waiting on it.
+   never committed. It's now fetched from a public CERNBox link
+   automatically instead: `fetch_data.py`'s `REMOTE_FILES` manifest (a
+   public link, not a personal EOS token -- see that file's own docstring
+   for why, and the commit that introduced it) has an entry for it, with a
+   known sha256 checked after every download so a bad/expired link fails
+   loudly instead of writing garbage into `data/GENIE/`. `run_faserps.py`
+   calls this automatically when its default `--input-file` is missing, so
+   a fresh `git clone` + `python3 run_faserps.py` now just works without a
+   manual fetch step. **Still unverified**: cernbox.cern.ch wasn't
+   reachable from either sandbox this was written in (proxy
+   allowlist, not a CERNBox problem -- confirmed github.com worked fine
+   from the same shells), so the actual download has only been logic-tested
+   against a local HTTP server standing in for CERNBox, not the real URL --
+   see `fetch_data.py`'s own docstring. Still open: wiring an explicit
+   `python3 fetch_data.py` (or just letting `run_faserps.py`'s
+   auto-fetch handle it) into `.github/workflows/build.yml` -- not done
+   yet, and blocked on item 2 below anyway (CI doesn't run anything past
+   Configure/Build yet). `--muons`/`--muondis` never needed this (they
+   generate primaries directly).
 2. **CI doesn't run `ctest` at all yet**, let alone this suite --
    `.github/workflows/build.yml` only configures and builds. Wiring in
    even the cheap gtests is a separate, smaller first step worth doing
