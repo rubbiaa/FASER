@@ -23,9 +23,11 @@ geometry_15_noshiftLOS.gdml, geometry_tilted_5degree.gdml and
 FaserNu3.gdml, but no plain geometry.gdml), so relying on it is itself a
 silent-wrong-geometry footgun (the same class of bug this whole
 run_faserps.py/run_batchreco.py effort is about). This script's own
-default instead points at FASERG4/FASERCAL_V10.gdml, the geometry FASERG4
-currently actually exports - override with --geometry-file if you need a
-different one.
+default instead points at $FASERDATA/GDML/FASERCAL_V10.gdml, the geometry
+FASERG4 currently actually exports (DetectorConstruction.cc writes it
+there via FASER::GetDataDir("GDML") every time faserps runs, so it's
+regenerated output, not a file worth tracking in git) - override with
+--geometry-file if you need a different one.
 
 Usage:
     python3 run_batchreco.py --run 10000
@@ -49,7 +51,21 @@ DEFAULT_BUILD_DIR = REPO_ROOT / "build"
 # BatchReco.cc's own hardcoded default ("../GeomGDML/geometry.gdml",
 # relative to Batch/) does not exist in this checkout -- see the module
 # docstring. Always pass an explicit -g instead of relying on it.
-DEFAULT_GEOMETRY_FILE = REPO_ROOT / "FASERG4" / "FASERCAL_V10.gdml"
+#
+# FASERCAL_V10.gdml itself is faserps' own exported-geometry output (see
+# DetectorConstruction.cc, FASER::GetDataDir("GDML")), not source -- it
+# lives under $FASERDATA/GDML/, not FASERG4/, for the same reason the
+# GENIE input sample lives under $FASERDATA/GENIE/ and not FASERG4/ (see
+# run_faserps.py's _default_genie_input_file()). Falls back to
+# REPO_ROOT/data/GDML, mirroring common_setup.sh's own FASERDATA default
+# (`${FASERDATA:=$HOMEFASER/data}`), so this resolves whether or not
+# setup.sh has been sourced yet.
+def _default_geometry_file():
+    faserdata = Path(os.environ.get("FASERDATA", str(REPO_ROOT / "data")))
+    return faserdata / "GDML" / "FASERCAL_V10.gdml"
+
+
+DEFAULT_GEOMETRY_FILE = _default_geometry_file()
 
 VALID_MASKS = ("nueCC", "numuCC", "nutauCC", "nuNC", "nuES")
 

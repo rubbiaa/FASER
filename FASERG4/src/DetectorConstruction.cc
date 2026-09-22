@@ -3,6 +3,8 @@
 #include "G4GDMLParser.hh"
 #include <cstdio> // added by UMUT
 
+#include "FaserDataDir.hh" // FASERCAL_V10.gdml now lives under $FASERDATA/GDML/, not cwd -- see below
+
 #include "G4MagneticField.hh"
 #include "G4UniformMagField.hh"
 #include "G4FieldManager.hh"
@@ -409,10 +411,15 @@ zLocation += fTotalLength;  // Move zLocation to the end of FASERCal
 	{
 		G4cout << "WARNING: Could not find ContainerPlacement or DetectorAssemblyPV!" << G4endl;
 	}
-	// Save the geometry of the detector
+	// Save the geometry of the detector. Written under $FASERDATA/GDML/
+	// (via FASER::GetDataDir("GDML")) instead of a bare relative filename
+	// in cwd -- this is regenerated output every faserps run, not source,
+	// so it doesn't belong checked into FASERG4/ (see run_batchreco.py's
+	// _default_geometry_file(), which reads it from the same place).
 	G4GDMLParser parser;
-	std::remove("FASERCAL_V10.gdml");
-	parser.Write("FASERCAL_V10.gdml", worldPV->GetLogicalVolume());
+	std::string gdmlPath = FASER::GetDataDir("GDML") + "/FASERCAL_V10.gdml";
+	std::remove(gdmlPath.c_str());
+	parser.Write(gdmlPath.c_str(), worldPV->GetLogicalVolume());
 
 	// Print the total mass of the detector
 	G4cout << "----------------------------------" << G4endl;

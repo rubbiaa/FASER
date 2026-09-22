@@ -32,7 +32,7 @@ python3 run_batchreco.py --run 10000
 ```
 
 Reconstructs every event of run 10000 using the default geometry
-(`FASERG4/FASERCAL_V10.gdml`), writing
+(`$FASERDATA/GDML/FASERCAL_V10.gdml`), writing
 `data/batch/Batch-TPORecevent_10000_0_99999999.root`.
 
 ## Options
@@ -44,7 +44,7 @@ Reconstructs every event of run 10000 using the default geometry
 | `--max-event N` | `99999999` | Event index to stop before (**exclusive**), matching `BatchReco.cc`'s own `ievent < max_event` loop. |
 | `--mask {nueCC,numuCC,nutauCC,nuNC,nuES}` | none | Process only events of this interaction type. |
 | `--multi-thread` | off | Passes `-mt` to `batchreco.exe`. |
-| `--geometry-file PATH` | `FASERG4/FASERCAL_V10.gdml` | GDML geometry to load (`-g`). |
+| `--geometry-file PATH` | `$FASERDATA/GDML/FASERCAL_V10.gdml` | GDML geometry to load (`-g`). |
 | `--build-dir PATH` | `./build` | CMake build directory containing `bin/batchreco.exe`. |
 | `--split N` | `1` | Split `[min-event, max-event)` into `N` contiguous, gap-free chunks and launch them as background jobs, each with its own log file under `data/batch/logs/`. `1` means a single synchronous run whose output you see directly. |
 | `--dry-run` | off | Print the command(s) that would run, but don't execute them. |

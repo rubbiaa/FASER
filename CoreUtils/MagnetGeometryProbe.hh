@@ -5,8 +5,9 @@ class TGeoShape;
 
 // Probes a magnet solid's ACTUAL shape - as loaded into ROOT, normally
 // from the very same GDML file FASERG4 exports (see
-// DetectorConstruction::Construct()'s parser.Write("FASERCAL_V10.gdml",
-// ...) and Batch/BatchReco.cc's TGeoManager::Import(...) of it) - to find
+// DetectorConstruction::Construct()'s parser.Write(...) to
+// $FASERDATA/GDML/FASERCAL_V10.gdml via FASER::GetDataDir("GDML"), and
+// Batch/BatchReco.cc's TGeoManager::Import(...) of it) - to find
 // where it physically transitions from solid iron to the horizontal slit
 // gap that splits the muon spectrometer's field into two
 // oppositely-magnetized halves, and how far the block itself extends in
