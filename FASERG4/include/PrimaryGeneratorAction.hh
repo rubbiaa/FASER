@@ -86,10 +86,18 @@ private:
   // single particle mode momentum (in GeV)
   double fSingleParticleMomentum = 100.0; // default 100 GeV
 
-  // path to the muon flux grid used in muon-background mode (see MuonFluxSampler); copied
-  // into the build/run directory alongside the executable by FASERG4/CMakeLists.txt's
-  // input/-directory copy rule, so the default here is relative to that run directory.
-  G4String fMuonFluxFileName = "muon_flux_FASERv_Run3_var2_0000.dat";
+  // Path to the muon flux grid used in muon-background mode (see
+  // MuonFluxSampler), relative to FASERG4_DIR (FASERG4/) -- that's
+  // run_faserps.py's cwd for the actual G4 executable (see its FASERG4_DIR
+  // and subprocess.run(..., cwd=FASERG4_DIR)), and the file lives at
+  // FASERG4/input/ in the source tree, hence the "input/" prefix here --
+  // same convention as --muondis-pdf-set's own default/example
+  // (input/NNPDF40_nnlo_as_01180_charmasy_0000.dat). CMake's input/-directory
+  // copy rule also puts a copy directly under the build directory, but that's
+  // not what actually gets opened at runtime through run_faserps.py; without
+  // the "input/" prefix here, MuonFluxSampler::loadFromFile() looked for a
+  // nonexistent FASERG4/muon_flux_... and threw MuonFluxSamplerNoFile.
+  G4String fMuonFluxFileName = "input/muon_flux_FASERv_Run3_var2_0000.dat";
 
   // minimum muon energy (GeV) to keep when sampling from the flux grid; 0 = no cutoff.
   double fMuonFluxMinEnergyGeV = 0.0;
