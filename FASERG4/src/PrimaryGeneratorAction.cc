@@ -329,6 +329,19 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 
 				//			if(aPO.m_pdg_id != 15) continue;  // TODO/FIXME debug to process only taus
 				G4ParticleGun *particleGun = new G4ParticleGun(1);
+				// G4ParticleGun's own constructor builds a G4ParticleGunMessenger,
+				// whose constructor unconditionally does
+				// fParticleGun->SetParticleEnergy(1.0*GeV) on the gun it's attached
+				// to -- so every freshly-constructed gun already has a nonzero
+				// particle_energy before we've touched it. SetParticleMomentum()
+				// below unconditionally prints a "was defined in terms of
+				// KineticEnergy / is now defined in terms Momentum" trace whenever
+				// it sees particle_energy > 0.0, so without resetting it to 0 here
+				// first, every single primary particle -- there can be hundreds per
+				// event -- floods stdout with this. See G4ParticleGunMessenger.cc's
+				// constructor and G4ParticleGun::SetParticleMomentum() for both
+				// halves of why this happens.
+				particleGun->SetParticleEnergy(0.);
 
 				//			ParticlePDGCode.push_back(aPO.m_pdg_id);
 
@@ -370,6 +383,12 @@ void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 		if (muon != nullptr)
 		{
 			G4ParticleGun *particleGun = new G4ParticleGun(1);
+			// See the identical comment at the other new G4ParticleGun(1) call
+			// site above: resets the constructor's implicit default 1 GeV
+			// kinetic energy so SetParticleMomentum() below doesn't print its
+			// "was defined in terms of KineticEnergy / is now defined in terms
+			// Momentum" trace for every generated background muon.
+			particleGun->SetParticleEnergy(0.);
 			particleGun->SetParticleDefinition(muon);
 			// Set muon starting position uniformly across the 48x48 cm entrance face of the
 			// 3D calorimeter/tracker (3DCAL), expressed in the DETECTOR-ASSEMBLY's LOCAL frame:
