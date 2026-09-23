@@ -284,6 +284,8 @@ other.
  
     200035 flux from charm decay (i.e. numu, nue and some nutau)
 
-# Instructions for Reading ROOT Files using PyROOT
+# ROOT to NPZ conversion
 
-Please check the directory `Python_io`
+See [ConvertNPZ](ConvertNPZ/README.md) to convert existing RECO and TCAL files
+(neutrino or single-particle) to NPZ, one file per event. It replaces the former
+`Python_io` folder.

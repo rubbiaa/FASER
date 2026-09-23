@@ -1,0 +1,11 @@
+/build/
+/build-*/
+/work/
+__pycache__/
+*.pyc
+*.so
+*.dylib
+*.pcm
+*.rootmap
+*.npz
+*.root
