@@ -27,6 +27,7 @@ Usage:
     python3 run_faserps.py --n-events 500 --start-event 100
     python3 run_faserps.py --input-file some_other_sample.root
     python3 run_faserps.py --run 10000 --detector ECAL  # pick a CVGENIE run/detector explicitly
+    python3 run_faserps.py --seed 42            # reproduce a run with a different random seed
     python3 run_faserps.py --muons --n-events 1000 # single 100 GeV muons instead of neutrino events
     python3 run_faserps.py --muons --muon-momentum-gev 250
     python3 run_faserps.py --muondis --n-events 1000  # muons with MuonDIS (Pythia8 DIS) enabled
@@ -207,6 +208,7 @@ def build_v10_macro(
     run_verbose: int = 0,
     control_verbose: int = 0,
     n_threads: int = 1,
+    seed: int = 123456789,  # faserps.cc's own hardcoded default -- see the /random/setSeeds line below
     input_root_file: str = None,  # required unless muon_mode=True -- see resolve_input_file()
     start_event: int = 0,
     n_events: int = 100,
@@ -245,7 +247,17 @@ def build_v10_macro(
     overridden; interactionLog/pdfSet/xbjmin/debug default to "off" (empty
     string / 0.0 / false) and are only emitted when explicitly given, since
     unlike crossSectionBias/q2min they have no meaningful non-empty
-    default on the C++ side either."""
+    default on the C++ side either.
+
+    seed overrides faserps.cc's own hardcoded `G4Random::setTheSeed(123456789)`
+    via Geant4's built-in `/random/setSeeds <seed> 0` UI command (the command
+    requires at least two tokens; CLHEP's MTwistEngine -- see
+    FASERG4/faserps.cc -- only ever consumes the first one, so the second is
+    always a placeholder 0). The default (123456789) reproduces exactly what
+    faserps.cc already does on its own when nothing overrides it -- setting
+    it here instead of leaving it hardcoded in C++ is what lets a caller
+    change it without a rebuild, consistent with every other run parameter
+    this function exposes."""
     if not muon_mode and input_root_file is None:
         raise ValueError(
             "build_v10_macro: input_root_file is required unless muon_mode=True -- "
@@ -304,6 +316,8 @@ def build_v10_macro(
 /run/verbose {run_verbose}
 /control/verbose {control_verbose}
 /run/numberOfThreads {n_threads}
+#
+/random/setSeeds {seed} 0
 {muondis_block}/run/initialize
 {generator_lines}
 /run/beamOn {n_events}
@@ -384,6 +398,12 @@ def parse_args():
                               "Leave at 0 to disable the cut (default).")
     parser.add_argument("--muondis-debug", action="store_true",
                          help="Add /physics/muondis/debug true, only used with --muondis.")
+    parser.add_argument("--seed", type=int, default=123456789,
+                         help="Random seed for the Geant4 engine (CLHEP MTwistEngine), via "
+                              "the built-in /random/setSeeds UI command. Default (123456789) "
+                              "matches faserps.cc's own hardcoded default exactly, so leaving "
+                              "this unset reproduces today's behavior. Applies in every mode, "
+                              "including --muons/--muondis.")
     parser.add_argument("--tilt-deg", type=float, default=-4.5,
                          help="Value for /FASER/tiltY (degrees).")
     parser.add_argument("--shift-x-cm", type=float, default=45.0,
@@ -409,6 +429,7 @@ def print_run_summary(args):
     print(f"[run_faserps] mode:                      {mode}")
     print(f"[run_faserps] build dir:                 {args.build_dir}")
     print(f"[run_faserps] n-events:                  {args.n_events}")
+    print(f"[run_faserps] seed:                      {args.seed}")
     if args.muons or args.muondis:
         print(f"[run_faserps] muon momentum:             {args.muon_momentum_gev:g} GeV")
     else:
@@ -460,6 +481,7 @@ def main():
         input_root_file=args.input_file,
         start_event=args.start_event,
         n_events=args.n_events,
+        seed=args.seed,
         tilt_deg=args.tilt_deg,
         los_shift_x_cm=args.shift_x_cm,
         los_shift_y_cm=args.shift_y_cm,

@@ -123,6 +123,7 @@ sample comes from" below), or the one `--input-file` you gave directly.
 | `--muondis-pdf-set PATH` | off | Value for `/physics/muondis/pdfSet`. Only used with `--muondis`. |
 | `--muondis-xbjmin X` | `0` | Value for `/physics/muondis/xbjmin`. Only used with `--muondis`. |
 | `--muondis-debug` | off | Add `/physics/muondis/debug true`. Only used with `--muondis`. |
+| `--seed N` | `123456789` | Random seed for the Geant4 engine, via the built-in `/random/setSeeds N 0` UI command. The default matches `faserps.cc`'s own hardcoded default exactly (see "Random seed" below), so leaving this unset reproduces today's behavior; applies in every mode, including `--muons`/`--muondis`. |
 | `--tilt-deg X` | `-4.5` | Value for `/FASER/tiltY`. |
 | `--shift-x-cm X` | `45` | Value for `/FASER/LOS/shiftX`. |
 | `--shift-y-cm X` | `24` | Value for `/FASER/LOS/shiftY`. |
@@ -152,6 +153,25 @@ ROOT input file when both `wantMuonBackground` and `wantSingleParticle` are
 false, so `--input-file`/`--start-event` are simply unused once `--muons` is
 given - the script leaves those two lines out of the generated macro
 entirely rather than printing them alongside the muon lines misleadingly.
+
+## Random seed
+
+`faserps.cc` hardcodes `G4Random::setTheEngine(new CLHEP::MTwistEngine)` and
+a default seed (`123456789`) before it ever reads a macro - that's what made
+every run deterministic and reproducible by default (see
+`docs/REGRESSION_TESTS.md`'s "Determinism this relies on"). `--seed` lets you
+change it without a rebuild: `run_faserps.py` emits Geant4's own built-in
+`/random/setSeeds <seed> 0` command into the generated macro (the command
+needs at least two tokens; MTwistEngine only ever consumes the first one, so
+the second is always a placeholder `0`). This is applied before
+`/run/initialize`, the same as every other setting in the macro, and
+overrides `faserps.cc`'s hardcoded default exactly - the default `--seed`
+value (`123456789`) produces bit-for-bit the same stream as leaving `--seed`
+off entirely.
+
+```
+python3 run_faserps.py --seed 42
+```
 
 ## MuonDIS mode
 
@@ -191,6 +211,9 @@ python3 run_faserps.py --n-events 500 --start-event 100
 
 # A different input file
 python3 run_faserps.py --input-file some_other_sample.root
+
+# A different random seed (see "Random seed" above)
+python3 run_faserps.py --seed 42
 
 # 1000 single 100 GeV muons instead of neutrino events
 python3 run_faserps.py --muons --n-events 1000

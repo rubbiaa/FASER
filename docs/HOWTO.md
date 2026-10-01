@@ -194,6 +194,7 @@ is in `run_faserps.md`; every flag:
 | `--muondis-pdf-set` | `""` (Pythia8's built-in proton PDF) | `/physics/muondis/pdfSet`, a path under `FASERG4/input/`, e.g. `input/NNPDF40_nnlo_as_01180_charmasy_0000.dat` (`--muondis` only) |
 | `--muondis-xbjmin` | `0.0` (no cut) | `/physics/muondis/xbjmin` (`--muondis` only) |
 | `--muondis-debug` | off | Add `/physics/muondis/debug true` (`--muondis` only) |
+| `--seed` | `123456789` | Random seed for the Geant4 engine, via the built-in `/random/setSeeds` UI command. Matches `faserps.cc`'s own hardcoded default exactly; applies in every mode including `--muons`/`--muondis` |
 | `--tilt-deg` | `-4.5` | `/FASER/tiltY` (degrees) |
 | `--shift-x-cm` | `45.0` | `/FASER/LOS/shiftX` (cm) |
 | `--shift-y-cm` | `24.0` | `/FASER/LOS/shiftY` (cm) |

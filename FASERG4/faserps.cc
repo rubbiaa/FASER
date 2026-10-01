@@ -49,6 +49,12 @@ int main(int argc, char** argv)
 	// Optionally: choose a different Random engine...
 	G4Random::setTheEngine(new CLHEP::MTwistEngine);
 	//G4long seed = time(NULL);
+	// This default only applies if nothing overrides it later: a caller
+	// can set a different seed with no rebuild via the standard
+	// "/random/setSeeds <seed> 0" G4 UI command (MTwistEngine only
+	// consumes the first value), applied further down in main() once the
+	// macro/stdin commands run -- run_faserps.py's --seed flag does
+	// exactly that, see build_v10_macro() there.
 	G4long seed = 123456789;
 	G4Random::setTheSeed(seed);
 
