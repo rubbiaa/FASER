@@ -23,7 +23,7 @@
 }
 \lstset{style=shell}
 
-\title{FASER V10}
+\title{FASERCAL V10}
 \subtitle{Install, Build, Run --- a consolidated reference}
 \author{Andr\'e Rubbia}
 \institute{IPA Rubbia Group, ETH Z\"urich}
@@ -122,32 +122,6 @@
   \end{itemize}
 \end{frame}
 
-\section{Git workflow: sandboxed commit locks}
-
-\begin{frame}[fragile]{Git workflow: sandboxed commit locks}
-  \footnotesize
-  \begin{itemize}
-    \item working from a sandboxed shell connected to the Mac, a
-      \texttt{git commit} can leave stale
-      \texttt{.git/index.lock} / \texttt{.git/HEAD.lock} /
-      \texttt{.git/objects/maintenance.lock} files behind --- the sandbox
-      can create them but sometimes can't \texttt{unlink} them afterward
-      (\texttt{Operation not permitted})
-    \item symptom: the \emph{next} \texttt{git commit} fails outright with
-\begin{lstlisting}[language=bash]
-fatal: cannot lock ref 'HEAD': Unable to create
-  '.../.git/HEAD.lock': File exists.
-\end{lstlisting}
-    \item previously required manually running \texttt{rm -f} on the lock
-      files from a real Terminal window on the Mac before the next commit
-      could proceed
-    \item \textbf{fixed}: a one-time delete-permission grant for the
-      connected repo folder now lets stale locks be cleared directly from
-      the same session --- no manual Terminal step needed before any
-      future commit
-  \end{itemize}
-\end{frame}
-
 \section{Install from scratch}
 
 \begin{frame}[fragile]{1. Install from scratch}
@@ -206,7 +180,7 @@ cmake --build build -j
     \texttt{FASER\_BUILD\_DISPLAY} & ON & Build the GenFit-based event
       display / muon spectrometer package \\
     \texttt{FASER\_BUILD\_TAUSEARCH} & ON & Build TauSearch \\
-    \texttt{FASER\_BUILD\_TESTS} & ON & Build FASER's own gtest suite,
+    \texttt{FASER\_BUILD\_TESTS} & ON & Build FASERCAL's own gtest suite,
       registered with CTest \\
     \bottomrule
   \end{tabular}
@@ -215,9 +189,56 @@ cmake --build build -j
   \texttt{docs/INSTALL.md}
 \end{frame}
 
+\section{Repository layout}
+
+\begin{frame}[fragile]{3. Repository layout}
+  \scriptsize \texttt{FASER/} is the git repo (FASERCAL is this project's own
+  name --- see \texttt{README.md}); top level also holds
+  \texttt{CMakeLists.txt} and \texttt{setup.sh}/\texttt{common\_setup.sh}.
+  \vspace{0.2cm}
+  \begin{columns}[T]
+    \begin{column}{0.52\textwidth}
+      \tiny
+      \begin{itemize}
+        \setlength{\itemsep}{0pt}
+        \item \texttt{CoreUtils/} --- core library
+        \item \texttt{ConvertGENIE/} --- GENIE\,$\to$\,TPOEvent
+        \item \texttt{ConvertFASERMC/} --- FASERMC\,$\to$\,TPOEvent
+        \item \texttt{ConvertNPZ/} --- NPZ conversion
+        \item \texttt{FASERG4/} --- \texttt{faserps} (Geant4 sim)
+        \item \texttt{FASERCalProtoG4/} --- proto calo G4
+        \item \texttt{Batch/} --- \texttt{batchreco.exe}
+        \item \texttt{Display/} --- event display / muon spec
+        \item \texttt{EvDisplay/} --- \texttt{evDisplay.exe}
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \tiny
+      \begin{itemize}
+        \setlength{\itemsep}{0pt}
+        \item \texttt{Analysis/} --- post-reco analysis
+        \item \texttt{TauSearch/} --- tau-neutrino search
+        \item \texttt{FileMask/} --- interaction-type masks
+        \item \texttt{GeomGDML/} --- GDML geometry I/O
+        \item \texttt{Tests/} --- FASERCAL's gtest suite
+        \item \texttt{cmake/} --- CMake helper modules
+        \item \texttt{docs/} --- this deck + docs
+        \item \texttt{data/} --- default \texttt{\$FASERDATA}
+        \item \texttt{build/} --- CMake build dir
+        \item \texttt{run\_*.py}, \texttt{fetch\_data.py} --- wrappers
+      \end{itemize}
+    \end{column}
+  \end{columns}
+  \vspace{0.15cm}
+  \scriptsize All gitignored except source; \texttt{data/}, \texttt{build/}
+  are generated. \texttt{Analysis/}, \texttt{Display/}, \texttt{EvDisplay/},
+  \texttt{TauSearch/}, \texttt{FASERCalProtoG4/} each gate on their own
+  \texttt{FASER\_BUILD\_*} CMake option.
+\end{frame}
+
 \section{Where the data lives}
 
-\begin{frame}{3. \texttt{\$FASERDATA}}
+\begin{frame}{4. \texttt{\$FASERDATA}}
   \begin{itemize}
     \item every FASERG4/Batch executable resolves its data location through
       \texttt{\$FASERDATA} (\texttt{FASER::GetDataDir()}, in
@@ -249,13 +270,88 @@ cmake --build build -j
     \texttt{GDML/} & Detector geometry, exported every run &
       \texttt{faserps} / \texttt{run\_batchreco.py}'s default
       \texttt{-{}-geometry-file} \\
+    \texttt{CVGENIE/\allowbreak Run<run>/} & Per-run ConvertGENIE.exe
+      output: PO ROOT files, logs, overlay PNGs &
+      \texttt{ConvertGENIE.exe} (via \texttt{run\_convertgenie.py});
+      then \texttt{run\_faserps.py}'s \texttt{-{}-input-file} \\
     \bottomrule
   \end{tabular}
 \end{frame}
 
 \section{Python wrapper scripts}
 
-\begin{frame}{4. \texttt{run\_faserps.py} --- runs the Geant4 simulation}
+\begin{frame}{4. \texttt{run\_convertgenie.py} --- runs ConvertGENIE.exe per detector}
+  \begin{itemize}
+    \item drives \texttt{ConvertGENIE.exe} (\texttt{-r <run> -g <gdmlfile>
+      [-l <luminosity\_fb>] <genieroot...> [detector]}), auto-discovering
+      its GENIE input files (\texttt{\$FASERDATA/GENIE/}) and GDML geometry
+      (\texttt{\$FASERDATA/GDML/}) so normally only \texttt{-{}-run} needs
+      to be given by hand
+    \item by default runs \textbf{three times} --- \texttt{3DCAL},
+      \texttt{ECAL}, \texttt{AHCAL} --- so all three detectors' PO-format
+      output exists side by side instead of the last run clobbering the
+      others
+    \item output goes to \texttt{\$FASERDATA/CVGENIE/Run<run>/}: one PO
+      ROOT file per detector, a per-detector log plus a summary log with
+      event counts by interaction category (\texttt{nueCC}, \texttt{numuCC},
+      \texttt{nutauCC}, \texttt{NC}, \texttt{ES})
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{\texttt{run\_convertgenie.py} flags}
+  \centering
+  \tiny
+  \begin{tabular}{@{}p{3.1cm}p{2.6cm}p{5.3cm}@{}}
+    \toprule
+    \textbf{Flag} & \textbf{Default} & \textbf{Meaning} \\
+    \midrule
+    \texttt{-{}-run} & \emph{required} & Run number, passed as
+      \texttt{ConvertGENIE.exe -r} \\
+    \texttt{-{}-detectors} & \texttt{3DCAL ECAL AHCAL} & Which detector(s)
+      to run; also accepts \texttt{MuonSpec}, \texttt{ALL} \\
+    \texttt{-{}-input-files} & auto-discovered & GENIE
+      \texttt{*.gfaser.root} file(s)/patterns \\
+    \texttt{-{}-genie-dir} & \texttt{\$FASERDATA/\allowbreak GENIE} & Where
+      to auto-discover \texttt{-{}-input-files} from \\
+    \texttt{-{}-geometry-file} & auto-discovered & GDML geometry passed as
+      \texttt{ConvertGENIE.exe -g} \\
+    \texttt{-{}-charmonly} / \texttt{-{}-taucconly} & off & Passed through
+      as \texttt{-charmonly} / \texttt{-tauCConly} \\
+    \texttt{-{}-build-dir} & \texttt{build/} & CMake build dir containing
+      \texttt{bin/ConvertGENIE.exe} \\
+    \texttt{-{}-output-dir} & \texttt{\$FASERDATA/\allowbreak
+      CVGENIE/\allowbreak Run<run>} & Where PO files, logs, plots are
+      written \\
+    \texttt{-{}-dry-run} & off & Print the command(s), don't execute \\
+    \texttt{-{}-force} / \texttt{-f} & off & Skip the confirmation prompt,
+      delete+regenerate \\
+    \texttt{-{}-no-overlay} & off & Skip the cross-detector overlay-PNG step \\
+    \bottomrule
+  \end{tabular}
+\end{frame}
+
+\begin{frame}{\texttt{run\_convertgenie.py} behavior}
+  \footnotesize
+  \begin{itemize}
+    \item \textbf{luminosity}: auto-detected by scanning the GENIE
+      production's own \texttt{run*.sh} script(s) for the
+      \texttt{gevgen\_faser -l <value>} it was generated with; recorded in
+      the summary log (sets the scale the event counts should be read
+      against) and passed to \texttt{ConvertGENIE.exe -l}, which also puts
+      it in the reference-plot titles
+    \item \textbf{re-running}: if \texttt{-{}-output-dir} already has files
+      in it, asks for confirmation before wiping it and regenerating from
+      scratch (\texttt{-{}-force}/\texttt{-f} skips the prompt); either way
+      the directory is removed completely first, so no stale files linger
+    \item \textbf{overlay step}: after all detectors finish, runs
+      \texttt{ConvertGENIE/make\_overlay\_plots.C} (skippable with
+      \texttt{-{}-no-overlay}; skipped with a warning, not a failure, if
+      \texttt{root} isn't on \texttt{PATH}) to produce one overlay PNG per
+      quantity with every run detector superimposed
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{\texttt{run\_faserps.py} --- runs the Geant4 simulation}
   \begin{itemize}
     \item builds the V10-geometry macro in memory and pipes it straight to
       \texttt{faserps}' stdin --- no \texttt{.mac} file to keep in sync
@@ -423,7 +519,7 @@ python3 run_regression_tests.py            # every other time: compare
 
 \section{Running it}
 
-\begin{frame}[fragile]{5. A typical end-to-end run}
+\begin{frame}[fragile]{6. A typical end-to-end run}
 \begin{lstlisting}[language=bash]
 source setup.sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo && cmake --build build -j
@@ -439,12 +535,13 @@ python3 run_regression_tests.py
 \end{lstlisting}
 \end{frame}
 
-\begin{frame}[fragile]{6. Tests}
+\begin{frame}[fragile]{7. Tests}
 \begin{lstlisting}[language=bash]
 ctest --test-dir build --output-on-failure
+ctest --test-dir build -R Magnet --output-on-failure   # run a subset by name
 \end{lstlisting}
   \begin{itemize}
-    \item FASER's own gtest suite (\texttt{MuonSpectrometerFieldTest},
+    \item FASERCAL's own gtest suite (\texttt{MuonSpectrometerFieldTest},
       \texttt{MagnetGeometryProbeTest}, \ldots) builds automatically
       whenever \texttt{FASER\_BUILD\_TESTS} and
       \texttt{FASER\_BUILD\_GEANT4\_PACKAGES} are both \texttt{ON} (the
@@ -453,6 +550,32 @@ ctest --test-dir build --output-on-failure
       \texttt{run\_regression\_tests.py}, described above and in
       \texttt{docs/REGRESSION\_TESTS.md}
   \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Adding a new test}
+  \footnotesize
+  \begin{enumerate}
+    \item write \texttt{Tests/MyNewTest.cc}:
+\begin{lstlisting}[language=C++,basicstyle=\ttfamily\scriptsize]
+#include <gtest/gtest.h>
+TEST(MySuite, MyCase) { EXPECT_EQ(2 + 2, 4); }
+\end{lstlisting}
+    \item add a matching \texttt{add\_executable()} /
+      \texttt{target\_link\_libraries()} / \texttt{add\_test()} block to
+      \texttt{Tests/CMakeLists.txt}, modeled on
+      \texttt{MuonSpectrometerFieldTest} / \texttt{MagnetGeometryProbeTest}
+      --- there's no automatic \texttt{*Test.cc} discovery, each test needs
+      its own block
+    \item if it links Geant4, it also needs the
+      \texttt{find\_package(Geant4 ...)} already at the top of that file,
+      plus the same \texttt{-Wl,-{}-allow-shlib-undefined} Linux workaround
+      the existing Geant4-linking tests use
+    \item reconfigure once (\texttt{cmake -S . -B build \&\& cmake --build
+      build -j}, or \texttt{fb}) so CMake picks up the new target ---
+      \texttt{ctest} then finds it automatically
+  \end{enumerate}
+  \vspace{0.2cm}
+  \footnotesize Full walkthrough: \texttt{docs/HOWTO.md}, \S7.
 \end{frame}
 
 \section{Further reading}
