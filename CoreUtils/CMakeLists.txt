@@ -43,3 +43,5 @@ target_link_libraries(CoreUtilsDict PRIVATE
 set_target_properties(CoreUtilsDict PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
+# PyROOT finds dictionary metadata next to the loaded library.
+faser_copy_dict_pcm(CoreUtilsDict CoreUtilsDict)

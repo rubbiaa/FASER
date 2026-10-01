@@ -50,6 +50,9 @@ endif()
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+# ROOT writes PCM/rootmap files here during dictionary generation, before
+# the linker has had a chance to create the output directory on a fresh build.
+file(MAKE_DIRECTORY "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 
 # Several packages (Batch, Analysis, FileMask, EvDisplay, ConvertGENIE,
 # ConvertFASERMC) compile a root_generate_dictionary()-generated
