@@ -113,6 +113,9 @@ if [ -d /Users/rubbiaa/Documents/GitHub/GEANT4/geant4-v11.4.2-install ]; then
   export GEANT4_INSTALL=/Users/rubbiaa/Documents/GitHub/GEANT4/geant4-v11.4.2-install/
   source $GEANT4_INSTALL/bin/geant4.sh
 
+  export PYTHIA8=/Users/rubbiaa/Documents/GitHub/ROOT/pythia8312
+  echo "Pythia8 installed in $PYTHIA8"
+
 elif [ -d /home/rubbiaa/geant4-install ]; then
   # Ubuntu box (rubbiaa, Ryzen)
   echo "FASER setup: detected site = Ubuntu (Ryzen)"

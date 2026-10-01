@@ -9,6 +9,9 @@
 #include <fstream>
 #include <cmath>
 #include <map>
+#include <vector>
+#include <set>
+#include <cstring>
 
 #include <TTree.h>
 #include <TChain.h>
@@ -310,29 +313,36 @@ void convert_FASERMC(int run_number, TTree *tree, int min_event, int max_event,
 
 int main(int argc, char **argv)
 {
-  // get the output file name as the first argument
-  if (argc < 3)
-  {
-    std::cout << "Usage: " << argv[0] << " [options] <genieroot> <run> [detector]" << std::endl;
+  std::set<std::string> known_detectors = {"3DCAL", "ECAL", "AHCAL", "MuonSpec", "ALL"};
+
+  auto print_usage = [&](const char *prog) {
+    std::cout << "Usage: " << prog << " [options] <genieroot> [<genieroot> ...] [detector]" << std::endl;
     std::cout << std::endl;
-    std::cout << "  <genieroot>                The input FASER GENIE root files" << std::endl;
-    std::cout << "  <run>                      The output run number" << std::endl;
-    std::cout << "  [detector]                 Detector selection: 3DCAL, ECAL, AHCAL, or ALL (default: ALL)" << std::endl;
+    std::cout << "  <genieroot>                One or more input FASER GENIE root files (or glob patterns)" << std::endl;
+    std::cout << "  [detector]                 Detector selection: 3DCAL, ECAL, AHCAL, MuonSpec, or ALL (default: ALL)" << std::endl;
     std::cout << "Options:" << std::endl;
+    std::cout << "  -r <run>                   The output run number (required)" << std::endl;
     std::cout << "  -g <gdmlfile>              GDML geometry file (extracts detector boundaries and tilt)" << std::endl;
     std::cout << "  -charmonly                 Process only charm events " << std::endl;
     std::cout << "  -tauCConly                 Process only tau CC events " << std::endl;
     std::cout << std::endl;
+  };
+
+  if (argc < 2)
+  {
+    print_usage(argv[0]);
     return 1;
   }
 
   int iarg = 1;
-  
+
   // Parse options
   std::string gdmlFile = "";
+  std::string runString = "";
+  bool have_run = false;
   charm_only = false;
   tauCC_only = false;
-  
+
   while (iarg < argc && argv[iarg][0] == '-') {
     if (strcmp(argv[iarg], "-g") == 0) {
       iarg++;
@@ -341,6 +351,14 @@ int main(int argc, char **argv)
         return 1;
       }
       gdmlFile = argv[iarg++];
+    } else if (strcmp(argv[iarg], "-r") == 0) {
+      iarg++;
+      if (iarg >= argc) {
+        std::cerr << "Error: -r requires a run number" << std::endl;
+        return 1;
+      }
+      runString = argv[iarg++];
+      have_run = true;
     } else if (strcmp(argv[iarg], "-charmonly") == 0) {
       charm_only = true;
       iarg++;
@@ -349,24 +367,42 @@ int main(int argc, char **argv)
       iarg++;
     } else {
       std::cerr << "Unknown option: " << argv[iarg] << std::endl;
+      print_usage(argv[0]);
       return 1;
     }
   }
-  
-  if(argc - iarg < 2) {
-    std::cerr << "Error: Missing required arguments" << std::endl;
+
+  if (!have_run) {
+    std::cerr << "Error: -r <run> is required" << std::endl;
+    print_usage(argv[0]);
     return 1;
   }
-  
-  std::string rootinputString = argv[iarg++];
-  std::string runString = argv[iarg++];
-  
-  // Optional detector selection (default: ALL)
-  std::string detector = "ALL";
-  if(iarg < argc) {
-    detector = argv[iarg++];
+
+  if (iarg >= argc) {
+    std::cerr << "Error: Missing required <genieroot> argument(s)" << std::endl;
+    print_usage(argv[0]);
+    return 1;
   }
-  
+
+  // Remaining positional arguments are genieroot file patterns, with an
+  // optional trailing detector keyword.
+  std::string detector = "ALL";
+  std::vector<std::string> genieFiles;
+  for (int i = iarg; i < argc; i++) {
+    std::string a = argv[i];
+    if (i == argc - 1 && known_detectors.count(a) > 0) {
+      detector = a;
+    } else {
+      genieFiles.push_back(a);
+    }
+  }
+
+  if (genieFiles.empty()) {
+    std::cerr << "Error: Missing required <genieroot> argument(s)" << std::endl;
+    print_usage(argv[0]);
+    return 1;
+  }
+
   load_geometry(gdmlFile);
 
   int run_number;
@@ -389,25 +425,29 @@ int main(int argc, char **argv)
   int max_event = -1;
   int event_mask = 0;
 
-  std::ostringstream inputDirFiles;
-  inputDirFiles << rootinputString;
-
   TChain *tree = new TChain("gFaser");
-  int nfiles = tree->Add(inputDirFiles.str().c_str());
+  int nfiles = 0;
+  for (const auto &pattern : genieFiles) {
+    int added = tree->Add(pattern.c_str());
+    if (added == 0) {
+      std::cerr << "Warning: No files found matching pattern: " << pattern << std::endl;
+    }
+    nfiles += added;
+  }
   if (nfiles == 0) {
-    std::cerr << "Error: No files found matching pattern: " << inputDirFiles.str() << std::endl;
-    std::cerr << "Please check the file path and try again." << std::endl;
+    std::cerr << "Error: No files found matching any of the given patterns" << std::endl;
+    std::cerr << "Please check the file path(s) and try again." << std::endl;
     return 1;
   }
-  
+
   size_t n_entries = tree->GetEntries();
   std::cout << "Found " << nfiles << " file(s) with " << n_entries << " total entries" << std::endl;
-  
+
   if (n_entries == 0) {
     std::cerr << "Error: No entries found in input file(s)" << std::endl;
     return 1;
   }
-  
+
   if (max_event == -1)
   {
     max_event = n_entries;
@@ -425,7 +465,12 @@ int main(int argc, char **argv)
   }
   ROOTOutputFile << ".root";
 
-  std::cout << "Converting FASERMC from " << inputDirFiles.str() << std::endl;
+  std::ostringstream inputsDesc;
+  for (size_t i = 0; i < genieFiles.size(); i++) {
+    if (i > 0) inputsDesc << ", ";
+    inputsDesc << genieFiles[i];
+  }
+  std::cout << "Converting FASERMC from " << inputsDesc.str() << std::endl;
   std::cout << "The output file is " << ROOTOutputFile.str() << std::endl;
 
   convert_FASERMC(run_number, tree, min_event, max_event,

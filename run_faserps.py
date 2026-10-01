@@ -246,8 +246,48 @@ def parse_args():
     return parser.parse_args()
 
 
+def print_run_summary(args):
+    """Prints a human-readable summary of every parameter this run will use,
+    before anything is built or executed -- so a run can be sanity-checked
+    (or grepped out of a log) without having to re-derive it from the
+    resolved macro text printed further down."""
+    if args.muondis:
+        mode = "muon background + MuonDIS (on-the-fly Pythia8 DIS)"
+    elif args.muons:
+        mode = "muon background (single fixed-momentum muons)"
+    else:
+        mode = "neutrino-interaction sample (GENIE-derived ROOT input)"
+
+    print("[run_faserps] ==================== run summary ====================")
+    print(f"[run_faserps] mode:                      {mode}")
+    print(f"[run_faserps] build dir:                 {args.build_dir}")
+    print(f"[run_faserps] n-events:                  {args.n_events}")
+    if args.muons or args.muondis:
+        print(f"[run_faserps] muon momentum:             {args.muon_momentum_gev:g} GeV")
+    else:
+        print(f"[run_faserps] input file:                {args.input_file}")
+        print(f"[run_faserps] start event:               {args.start_event}")
+    if args.muondis:
+        print(f"[run_faserps] muondis cross-section bias: {args.muondis_cross_section_bias:g}")
+        print(f"[run_faserps] muondis q2min:              {args.muondis_q2min:g} GeV^2")
+        print(f"[run_faserps] muondis xbjmin:             {args.muondis_xbjmin:g}")
+        print(f"[run_faserps] muondis pdf set:            "
+              f"{args.muondis_pdf_set or '(Pythia8 built-in proton PDF)'}")
+        print(f"[run_faserps] muondis interaction log:    "
+              f"{args.muondis_interaction_log or '(disabled)'}")
+        print(f"[run_faserps] muondis debug:              {args.muondis_debug}")
+    print(f"[run_faserps] tilt-deg:                  {args.tilt_deg:g}")
+    print(f"[run_faserps] shift-x-cm:                {args.shift_x_cm:g}")
+    print(f"[run_faserps] shift-y-cm:                {args.shift_y_cm:g}")
+    print(f"[run_faserps] vis:                       {args.vis}")
+    print(f"[run_faserps] print-macro:               {args.print_macro}")
+    print(f"[run_faserps] dry-run:                   {args.dry_run}")
+    print("[run_faserps] ======================================================")
+
+
 def main():
     args = parse_args()
+    print_run_summary(args)
 
     macro_text = build_v10_macro(
         input_root_file=args.input_file,

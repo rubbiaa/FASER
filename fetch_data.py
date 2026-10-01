@@ -3,7 +3,7 @@
 fetch_data.py -- download named input-data files from a public CERNBox
 share into $FASERDATA, skipping any that are already present.
 
-Why: input samples like FASERMC-PO-Run10000-0_53954_3DCAL.root are too
+Why: input samples like fasercal.Aki2024.v10.charm.0.gfaser.root are too
 big to commit to git (they used to live in FASERG4/ before being moved to
 $FASERDATA/GENIE/ -- see docs/REGRESSION_TESTS.md and the run_faserps.py
 docstring) and are *.root-gitignored, so a fresh `git clone` of this repo
@@ -70,12 +70,41 @@ CERNBOX_DAV_BASE = "https://cernbox.cern.ch/remote.php/dav/public-files"
 # nothing else in this script needs to change. That's the point of having
 # this be a small data table instead of one-off code per file.
 REMOTE_FILES = [
+    # Raw GENIE output, split by physics channel (charm / light), from the
+    # V10 geometry (Aki2024 production). These are the inputs to
+    # CombineFluxes.exe + ConvertGENIE.exe, NOT yet the converted
+    # FASERMC-PO-*.root format run_faserps.py's --input-file expects --
+    # that conversion step is a separate, manual step for now (not wired
+    # into this script or into run_faserps.py's auto-fetch). Replaces the
+    # single already-converted FASERMC-PO-Run10000-0_53954_3DCAL.root
+    # entry this manifest used to have.
+    #
+    # sha256/size_bytes are intentionally left unset below: unlike the
+    # entry they replace, these haven't been verified against a real
+    # download yet (see the module docstring's STATUS note). Run
+    # `python3 fetch_data.py --force` for real once these are added and
+    # report back the resulting file sizes/sha256 sums so they can be
+    # pinned here the same way the old entry was.
     {
         "share_token": "xlFcHS50ZsH2Vmb",
-        "remote_path": "FASERMC-PO-Run10000-0_53954_3DCAL.root",
-        "local_relpath": "GENIE/FASERMC-PO-Run10000-0_53954_3DCAL.root",
-        "size_bytes": 4598075,
-        "sha256": "5b0a67941fd267371a877005a50b15e3ac373346acdd82d4a03683d6ec4923ab",
+        "remote_path": "fasercal.Aki2024.v10.charm.0.gfaser.root",
+        "local_relpath": "GENIE/fasercal.Aki2024.v10.charm.0.gfaser.root",
+    },
+    {
+        "share_token": "xlFcHS50ZsH2Vmb",
+        "remote_path": "fasercal.Aki2024.v10.light.0.gfaser.root",
+        "local_relpath": "GENIE/fasercal.Aki2024.v10.light.0.gfaser.root",
+    },
+    # The GENIE run script that actually produced the two entries above --
+    # not input data FASERG4/Batch read at runtime, but kept alongside them
+    # under $FASERDATA/GENIE/ for provenance (so it's obvious how to
+    # regenerate/extend this sample later), rather than committed to git
+    # like a normal repo script, since it's CernBox-hosted alongside its
+    # own output rather than tracked source.
+    {
+        "share_token": "xlFcHS50ZsH2Vmb",
+        "remote_path": "runFASERCAL_v10_Aki2024.sh",
+        "local_relpath": "GENIE/runFASERCAL_v10_Aki2024.sh",
     },
 ]
 
