@@ -69,14 +69,22 @@ been verified for this codebase and shouldn't be assumed.
 
 - Default (file-input) mode: `run_number` comes straight from the input
   file's own stored `TPOEvent.run_number` (`PrimaryGeneratorAction.cc`
-  reads each input entry directly into `fTPOEvent`). For the default
-  sample (`$FASERDATA/GENIE/FASERMC-PO-Run10000-0_53954_3DCAL.root`), this is expected to be
-  `10000` — matching the filename and the run number `run_batchreco.py`'s
-  own docstring already uses as its basic example (`--run 10000`). **Not
-  independently verified against the file's actual contents** (I can't
-  open a ROOT file from here) — the first `--record` run will either
-  confirm this or fail loudly with "0 events matched", which is the
-  signal to fix this constant.
+  reads each input entry directly into `fTPOEvent`). The neutrino case's
+  sample is resolved by `run_regression_tests.py`'s own
+  `resolve_neutrino_input_file()`, which reuses `run_faserps.py`'s CVGENIE
+  discovery helper (`resolve_cvgenie_po_file()`) to find
+  `$FASERDATA/CVGENIE/Run10000/FASERMC-PO-Run10000-..._3DCAL.root` —
+  before `run_group()` isolates `$FASERDATA` to that case's own scratch
+  directory — and passes it to `run_faserps.py` explicitly via
+  `--input-file`, since there's no implicit "default sample" any more
+  (see `run_faserps.py`'s CVGENIE auto-discovery/`--input-file` in
+  `docs/HOWTO.md`). `run_number: 10000`/`cvgenie_detector: "3DCAL"` are
+  the `SIMULATION_GROUPS` entry's own fields, matching the run number
+  `run_batchreco.py`'s own docstring already uses as its basic example
+  (`--run 10000`). **Not independently verified against the file's actual
+  contents** (I can't open a ROOT file from here) — the first `--record`
+  run will either confirm this or fail loudly with "0 events matched",
+  which is the signal to fix this constant.
 
   (Historical note: before commit `32d4358`, `BatchReco.cc`'s per-event retry
   loop couldn't tell "this event isn't of the requested mask" apart from
@@ -195,31 +203,33 @@ python3 run_regression_tests.py --case muondis --record
 
 ## Open items (need your input, not something to silently decide)
 
-1. **CI needs an input sample it doesn't have -- mechanism now exists,
-   CI itself not wired up yet.** The default neutrino case's input file,
-   `$FASERDATA/GENIE/FASERMC-PO-Run10000-0_53954_3DCAL.root` (4.6 MB,
-   moved out of `FASERG4/` into its own `GENIE/` subdirectory of the data
-   dir since it's an input sample, not source code), is still
-   `*.root`-gitignored (via the existing blanket `/data/` rule) and was
-   never committed. It's now fetched from a public CERNBox link
-   automatically instead: `fetch_data.py`'s `REMOTE_FILES` manifest (a
-   public link, not a personal EOS token -- see that file's own docstring
-   for why, and the commit that introduced it) has an entry for it, with a
-   known sha256 checked after every download so a bad/expired link fails
-   loudly instead of writing garbage into `data/GENIE/`. `run_faserps.py`
-   calls this automatically when its default `--input-file` is missing, so
-   a fresh `git clone` + `python3 run_faserps.py` now just works without a
-   manual fetch step. **Still unverified**: cernbox.cern.ch wasn't
-   reachable from either sandbox this was written in (proxy
-   allowlist, not a CERNBox problem -- confirmed github.com worked fine
-   from the same shells), so the actual download has only been logic-tested
-   against a local HTTP server standing in for CERNBox, not the real URL --
-   see `fetch_data.py`'s own docstring. Still open: wiring an explicit
-   `python3 fetch_data.py` (or just letting `run_faserps.py`'s
-   auto-fetch handle it) into `.github/workflows/build.yml` -- not done
-   yet, and blocked on item 2 below anyway (CI doesn't run anything past
-   Configure/Build yet). `--muons`/`--muondis` never needed this (they
-   generate primaries directly).
+1. **CI needs an input sample it doesn't have, and there's no auto-fetch
+   any more.** The neutrino case needs a real, already-converted CVGENIE
+   sample on disk at `$FASERDATA/CVGENIE/Run10000/FASERMC-PO-Run10000-..._3DCAL.root`
+   (see `docs/HOWTO.md`'s `run_convertgenie.py` section for how that's
+   produced from raw GENIE output). The old CERNBox auto-fetch path
+   described here previously (a `fetch_data.py` `REMOTE_FILES` entry for
+   the final converted PO file, called automatically by `run_faserps.py`
+   when its old hardcoded default `--input-file` was missing) no longer
+   exists — it was removed when `GENIE/` was reorganized into `CVGENIE/`
+   and `run_faserps.py` switched to auto-discovering
+   `$FASERDATA/CVGENIE/Run<run>/` directories instead of pointing at one
+   fixed default path (see `run_faserps.py`'s own docstring/CLI help).
+   `fetch_data.py`'s manifest now only covers the *raw* GENIE output
+   (`GENIE/fasercal.Aki2024.v10.{charm,light}.0.gfaser.root`) and the
+   script that produced it — not the converted PO file itself, since
+   converting is a build-and-run step (`ConvertGENIE.exe` via
+   `run_convertgenie.py`), not something to auto-fetch. So: on a machine
+   that doesn't already have `$FASERDATA/CVGENIE/Run10000/.../..._3DCAL.root`
+   on disk, `run_regression_tests.py`'s neutrino case fails fast with a
+   clear "run `python3 run_convertgenie.py --run 10000` first" error
+   (`resolve_neutrino_input_file()`) rather than silently fetching
+   anything. Wiring this into CI needs either committing a small
+   converted sample (still `*.root`-gitignored, same blanket `/data/`
+   rule as before) or running `fetch_data.py` + `run_convertgenie.py` as a
+   CI step — not done yet, and blocked on item 2 below anyway (CI
+   doesn't run anything past Configure/Build yet). `--muons`/`--muondis`
+   never needed this (they generate primaries directly).
 2. **CI doesn't run `ctest` at all yet**, let alone this suite --
    `.github/workflows/build.yml` only configures and builds. Wiring in
    even the cheap gtests is a separate, smaller first step worth doing

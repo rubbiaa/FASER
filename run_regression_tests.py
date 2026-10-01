@@ -32,6 +32,12 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent
+
+# Sibling script, same repo root as this one -- reused below so the
+# neutrino case's input-file resolution (CVGENIE/Run<run>/ discovery)
+# can't drift out of sync with run_faserps.py's own logic.
+sys.path.insert(0, str(REPO_ROOT))
+import run_faserps  # noqa: E402
 REGRESSION_DIR = REPO_ROOT / "Tests" / "regression"
 GOLDEN_DIR = REGRESSION_DIR / "golden"
 WORK_DIR = REGRESSION_DIR / "work"
@@ -54,7 +60,9 @@ DEFAULT_REL_TOL = 1e-9
 SIMULATION_GROUPS = [
     {
         "key": "neutrino",
-        "faserps_args": [],  # default mode: reads the default input sample
+        "faserps_args": [],  # --input-file is appended at run time -- see
+                             # run_group()'s cvgenie_detector handling below
+        "cvgenie_detector": "3DCAL",  # which $FASERDATA/CVGENIE/Run10000/ variant to use
         "run_number": 10000,  # from the input file's own stored TPOEvent.run_number -- see docs/REGRESSION_TESTS.md
         "n_events": 100,
         "reco_cases": [
@@ -112,10 +120,42 @@ def run(cmd, *, env, label, capture=True):
     return result
 
 
+def resolve_neutrino_input_file(group):
+    """Finds the real, already-converted CVGENIE PO file for the neutrino
+    case (group["run_number"]/group["cvgenie_detector"]) under the REAL
+    $FASERDATA -- i.e. before run_group() below isolates FASERDATA to a
+    scratch directory for this case's own simulation/reco output. Reuses
+    run_faserps.py's own discovery helper rather than reimplementing the
+    CVGENIE/Run<run>/ layout a second time, so the two can't drift apart.
+    Exits with a clear, actionable error (same style run_faserps.py itself
+    uses) if the sample isn't there -- this needs a real converted sample
+    on disk, not something run_regression_tests.py can generate itself."""
+    faserdata_dir = run_faserps._faserdata_dir()
+    run_number = group["run_number"]
+    detector = group["cvgenie_detector"]
+    po_file = run_faserps.resolve_cvgenie_po_file(faserdata_dir, run_number, detector)
+    if po_file is None:
+        sys.exit(
+            f"error: run_regression_tests.py's neutrino case needs a converted "
+            f"GENIE sample at {faserdata_dir}/CVGENIE/Run{run_number}/ for detector "
+            f"{detector}, but none was found.\n"
+            f"       Run `python3 run_convertgenie.py --run {run_number}` first (see "
+            f"docs/HOWTO.md, \"run_convertgenie.py\") to produce it."
+        )
+    return po_file
+
+
 def run_group(group, *, build_dir, python_exe):
     """Runs one faserps simulation and every batchreco/summarize pass that
     reads it, isolated in its own $FASERDATA. Returns {golden_name: summary_dict}."""
     key = group["key"]
+    faserps_args = list(group["faserps_args"])
+    if "cvgenie_detector" in group:
+        # File-input mode (not --muons/--muondis): resolve the real sample
+        # now, from the real $FASERDATA, before the isolation below hides
+        # it -- see resolve_neutrino_input_file()'s docstring.
+        faserps_args += ["--input-file", str(resolve_neutrino_input_file(group))]
+
     faserdata = WORK_DIR / key / "data"
     faserdata.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ)
@@ -123,7 +163,7 @@ def run_group(group, *, build_dir, python_exe):
 
     run([
         python_exe, "run_faserps.py",
-        *group["faserps_args"],
+        *faserps_args,
         "--n-events", str(group["n_events"]),
         "--build-dir", str(build_dir),
     ], env=env, label=f"{key}: faserps", capture=False)
