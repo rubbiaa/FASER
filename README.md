@@ -11,7 +11,9 @@ This project follows a structured workflow for simulating and processing neutrin
 # Quick start
 
 The full build is CMake-based; see `docs/INSTALL.md` for prerequisites, build
-options and troubleshooting. This section just covers the everyday
+options and troubleshooting, or [`docs/HOWTO.md`](docs/HOWTO.md) for a single
+consolidated reference covering install, build, data layout, and every Python
+wrapper script's full option list. This section just covers the everyday
 build/run/test loop once your machine is already set up.
 
 ## Build
@@ -245,6 +247,7 @@ Longer, topic-specific write-ups (build/installation details, physics
 reviews, one-off studies, ...) live under [`docs/`](docs/) rather than
 cluttering the repo root or the subdirectory they're about:
 
+- [`docs/HOWTO.md`](docs/HOWTO.md) - a single consolidated reference: install from scratch, build, where `$FASERDATA` lives, and every option of every Python wrapper script.
 - [`docs/INSTALL.md`](docs/INSTALL.md) - the full CMake build: prerequisites, options, troubleshooting.
 - [`docs/GEANT4_INSTALL.md`](docs/GEANT4_INSTALL.md) - building/installing Geant4 itself.
 - [`docs/README_MuonDIS.md`](docs/README_MuonDIS.md) - MuonDIS physics and every `/physics/muondis/...` option (see "MuonDIS" above for the quick start).
