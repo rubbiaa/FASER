@@ -1,0 +1,475 @@
+\documentclass[aspectratio=169]{beamer}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{textcomp}
+
+\usetheme{Madrid}
+\usecolortheme{whale}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+
+\definecolor{codebg}{RGB}{245,245,245}
+\lstdefinestyle{shell}{
+  basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color{codebg},
+  breaklines=true,
+  columns=fullflexible,
+  frame=single,
+  rulecolor=\color{gray!40},
+  showstringspaces=false,
+}
+\lstset{style=shell}
+
+\title{FASER V10}
+\subtitle{Install, Build, Run --- a consolidated reference}
+\author{Andr\'e Rubbia}
+\institute{IPA Rubbia Group, ETH Z\"urich}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{Outline}
+  \tableofcontents
+\end{frame}
+
+\section{Pipeline overview}
+
+\begin{frame}{Pipeline overview}
+  \begin{itemize}
+    \item \textbf{ConvertGENIE} / \textbf{ConvertFASERMC}: convert a GENIE or
+      official FASERMC neutrino-interaction sample into the common
+      \texttt{TPOEvent} format
+    \item \textbf{FASERG4} (\texttt{faserps}): runs that through Geant4,
+      writes per-event \texttt{TcalEvent} truth files
+    \item \textbf{Batch} (\texttt{batchreco.exe}): reconstructs truth files
+      into \texttt{TPORecoEvent} files
+    \item \textbf{EvDisplay} / analysis / TauSearch: consumes the
+      reconstructed output
+    \item \texttt{run\_regression\_tests.py}: wraps the whole chain end to
+      end for an automated simulate~$\to$~reconstruct~$\to$~compare check
+  \end{itemize}
+\end{frame}
+
+\section{Known issue: proton-fraction bug}
+
+\begin{frame}{Known issue: FASERG4 scintillator proton fraction (V9
+    $\to$ V10)}
+  \footnotesize
+  \begin{itemize}
+    \item FASERG4's scintillator material definition (3DCal tracker
+      layers) had the wrong free-proton (H) vs.\ carbon-12 (C) content ---
+      fixed between production versions \textbf{V9} and \textbf{V10}
+    \item \textbf{Root cause}: \texttt{G4Material::AddElement()} is
+      overloaded --- one variant takes an atom count (\texttt{G4int}),
+      another a mass fraction (\texttt{G4double}). Declaring the
+      stoichiometry counters as \texttt{G4double} silently selected the
+      mass-fraction overload, so atom counts were read as mass fractions
+    \item \textbf{Symptom}: free-proton and carbon-12 targets interacted at
+      almost the same rate in V9 ($\approx$1:1) instead of the physically
+      expected $\approx$1:12 ($\propto$ mass number $A$); V10 correctly
+      gives $\approx$12:1
+    \item \textbf{Effect}: neutrino-induced CC/NC rates rise
+      $\sim$15--18\% (a more isoscalar target supplies more neutrons for
+      the neutrino-preferred $d$-quark coupling), antineutrino rates stay
+      roughly flat; overall 3DCal fiducial total $+4.4\%$
+    \item also shifts scintillator density ($1.03\to1.06\;\mathrm{g/cm^3}$),
+      hadronic interaction length, and dE/dx ($Z/A$ change); Birks' constant
+      has \emph{not} yet been re-checked against the new composition
+    \item full analysis: \texttt{FASERflux/faserg4\_proton\_fraction\_bug.tex}
+      (Fabio Cufino, Andr\'e Rubbia)
+  \end{itemize}
+\end{frame}
+
+\section{Known issue: muon-spectrometer field consistency}
+
+\begin{frame}{Known issue: muon-spectrometer field consistency}
+  \footnotesize
+  \begin{itemize}
+    \item \textbf{Motivation}: the muon spectrometer's magnetic field was
+      implemented \emph{twice} --- once in Geant4 simulation
+      (\texttt{MuonMagneticField}) and once in GenFit reconstruction
+      (\texttt{GenMagneticField}) --- two independent hand-written
+      implementations kept in sync only by hand, with no test proving they
+      agreed and no check that either matched the real detector geometry
+    \item \textbf{Fix}: extracted one shared, framework-independent
+      function, \texttt{FASER::ComputeMuonSpectrometerField()}; both G4 and
+      GenFit now call it as thin unit-converting adapters, so the two field
+      \emph{formulas} can no longer silently diverge ---
+      \texttt{MuonSpectrometerFieldTest} (gtest) checks G4 and GenFit agree
+    \item \textbf{Real bug caught by the test}: outside the field's
+      modelled envelope, GenFit's plain ``Magnet'' branch fell through to a
+      stray non-zero fallback ($0.001$\,kG in $Y$) where G4 returned an
+      exact zero --- a genuine, if tiny, pre-existing sim/reco divergence
+    \item \textbf{Second problem}: the slit position deciding where the
+      field flips sign / cuts to zero was a bare hardcoded literal
+      duplicated in \textbf{four} places, agreeing only by convention, not
+      construction --- a future geometry change could silently
+      desynchronize the field model from the geometry
+    \item \textbf{Fix}: \texttt{MagnetGeometryProbe} samples the
+      \emph{actual} \texttt{TGeoShape} loaded from the real GDML to find
+      where the iron truly ends and the slit truly begins, so
+      reconstruction derives the slit position live instead of trusting a
+      literal; \texttt{MagnetGeometryProbeTest} unit-tests the probe
+      itself, including a case that deliberately mismatches the geometry
+      to prove a future drift would actually be caught
+  \end{itemize}
+\end{frame}
+
+\section{Git workflow: sandboxed commit locks}
+
+\begin{frame}[fragile]{Git workflow: sandboxed commit locks}
+  \footnotesize
+  \begin{itemize}
+    \item working from a sandboxed shell connected to the Mac, a
+      \texttt{git commit} can leave stale
+      \texttt{.git/index.lock} / \texttt{.git/HEAD.lock} /
+      \texttt{.git/objects/maintenance.lock} files behind --- the sandbox
+      can create them but sometimes can't \texttt{unlink} them afterward
+      (\texttt{Operation not permitted})
+    \item symptom: the \emph{next} \texttt{git commit} fails outright with
+\begin{lstlisting}[language=bash]
+fatal: cannot lock ref 'HEAD': Unable to create
+  '.../.git/HEAD.lock': File exists.
+\end{lstlisting}
+    \item previously required manually running \texttt{rm -f} on the lock
+      files from a real Terminal window on the Mac before the next commit
+      could proceed
+    \item \textbf{fixed}: a one-time delete-permission grant for the
+      connected repo folder now lets stale locks be cleared directly from
+      the same session --- no manual Terminal step needed before any
+      future commit
+  \end{itemize}
+\end{frame}
+
+\section{Install from scratch}
+
+\begin{frame}[fragile]{1. Install from scratch}
+\begin{lstlisting}[language=bash]
+git clone https://github.com/rubbiaa/FASER.git
+cd FASER
+source setup.sh
+\end{lstlisting}
+  \begin{itemize}
+    \item \texttt{setup.sh} auto-detects the site (Andr\'e's Mac, the Ubuntu
+      \texttt{ryzen01} box, or lxplus) and sources the matching
+      \texttt{thisroot.sh} / \texttt{geant4.sh}
+    \item hands off to \texttt{common\_setup.sh}: CLHEP/Rave/GenFit paths,
+      \texttt{LD\_LIBRARY\_PATH}, \texttt{CMAKE\_PREFIX\_PATH}, \texttt{PATH},
+      and a sanity check for missing/stale variables
+    \item defines \texttt{fb} (``faser build''): reruns
+      \texttt{cmake --build \$HOMEFASER/build -j} from anywhere
+    \item unrecognized machine? it prints exactly which \texttt{elif} branch
+      to add
+    \item full from-scratch ROOT/Geant4 install: \texttt{docs/INSTALL.md},
+      \texttt{docs/GEANT4\_INSTALL.md}
+  \end{itemize}
+\end{frame}
+
+\section{Build}
+
+\begin{frame}[fragile]{2. Build}
+\begin{lstlisting}[language=bash]
+cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build build -j
+\end{lstlisting}
+  \begin{itemize}
+    \item first build also compiles CLHEP, Rave, GenFit, googletest, and
+      Pythia8 (CMake superbuild) --- slow once, incremental afterward
+    \item after \texttt{source setup.sh}, \texttt{fb} reruns the build step
+      from anywhere
+    \item executables land in \texttt{build/bin/}: \texttt{faserps},
+      \texttt{batchreco.exe}, \texttt{batchreco\_detresp.exe},
+      \texttt{dumphits.exe}, \texttt{evDisplay.exe},
+      \texttt{ConvertGENIE.exe}, \texttt{Convert.exe},
+      \texttt{CombineFluxes.exe}, the gtest binaries, \ldots
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{CMake build options}
+  \centering
+  \scriptsize
+  \begin{tabular}{@{}p{3.6cm}p{1.1cm}p{6.3cm}@{}}
+    \toprule
+    \textbf{Option} & \textbf{Default} & \textbf{Meaning} \\
+    \midrule
+    \texttt{FASER\_BUILD\_EXTERNALS} & ON & Build CLHEP/Rave/GenFit/
+      googletest/Pythia8 from source \\
+    \texttt{FASER\_BUILD\_GEANT4\_PACKAGES} & ON & Build FASERG4 and
+      FASERCalProtoG4 (needs Geant4) \\
+    \texttt{FASER\_BUILD\_DISPLAY} & ON & Build the GenFit-based event
+      display / muon spectrometer package \\
+    \texttt{FASER\_BUILD\_TAUSEARCH} & ON & Build TauSearch \\
+    \texttt{FASER\_BUILD\_TESTS} & ON & Build FASER's own gtest suite,
+      registered with CTest \\
+    \bottomrule
+  \end{tabular}
+  \par\medskip
+  \footnotesize Full list and reuse-an-existing-dependency examples:
+  \texttt{docs/INSTALL.md}
+\end{frame}
+
+\section{Where the data lives}
+
+\begin{frame}{3. \texttt{\$FASERDATA}}
+  \begin{itemize}
+    \item every FASERG4/Batch executable resolves its data location through
+      \texttt{\$FASERDATA} (\texttt{FASER::GetDataDir()}, in
+      \texttt{CoreUtils/FaserDataDir.hh}) --- not a hardcoded relative path
+      or an inter-directory symlink
+    \item \texttt{GetDataDir()} creates a requested subdirectory on demand
+      if it doesn't already exist
+    \item \texttt{common\_setup.sh} defaults \texttt{FASERDATA} to
+      \texttt{\$HOMEFASER/data} (gitignored) unless a per-site branch in
+      \texttt{setup.sh} already exported it elsewhere (scratch, EOS, a
+      dedicated checkout, \ldots)
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{\texttt{\$FASERDATA} subdirectories}
+  \centering
+  \scriptsize
+  \begin{tabular}{@{}p{2.3cm}p{4.9cm}p{4.0cm}@{}}
+    \toprule
+    \textbf{Subdirectory} & \textbf{Contents} & \textbf{Written by / Read by} \\
+    \midrule
+    \texttt{faserG4/} & Per-event \texttt{TcalEvent} truth files &
+      \texttt{faserps} / \texttt{batchreco.exe}, \texttt{dumphits.exe},
+      \texttt{evDisplay.exe} \\
+    \texttt{batch/} & Reconstructed \texttt{TPORecoEvent} files &
+      \texttt{batchreco.exe} / analysis code, \texttt{summarize\_output.py} \\
+    \texttt{GENIE/} & GENIE input samples (too large for git) &
+      \texttt{fetch\_data.py} / \texttt{faserps} (\texttt{-{}-input-file}) \\
+    \texttt{GDML/} & Detector geometry, exported every run &
+      \texttt{faserps} / \texttt{run\_batchreco.py}'s default
+      \texttt{-{}-geometry-file} \\
+    \bottomrule
+  \end{tabular}
+\end{frame}
+
+\section{Python wrapper scripts}
+
+\begin{frame}{4. \texttt{run\_faserps.py} --- runs the Geant4 simulation}
+  \begin{itemize}
+    \item builds the V10-geometry macro in memory and pipes it straight to
+      \texttt{faserps}' stdin --- no \texttt{.mac} file to keep in sync
+    \item full prose docs (custom geometry, interactive UI, MuonDIS
+      physics): \texttt{run\_faserps.md}
+    \item default input sample is fetched automatically from a public
+      CERNBox link the first time it's needed (sha256-verified)
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{\texttt{run\_faserps.py} flags (1/2)}
+  \centering
+  \tiny
+  \begin{tabular}{@{}p{3.1cm}p{2.1cm}p{5.8cm}@{}}
+    \toprule
+    \textbf{Flag} & \textbf{Default} & \textbf{Meaning} \\
+    \midrule
+    \texttt{-{}-build-dir} & \texttt{build/} & CMake build dir containing
+      \texttt{bin/faserps} \\
+    \texttt{-{}-vis} & off & Launch the interactive Geant4 UI (no macro used) \\
+    \texttt{-{}-print-macro} & off & Print the resolved macro text, exit \\
+    \texttt{-{}-dry-run} & off & Print the command, don't execute \\
+    \texttt{-{}-input-file} & default GENIE sample & ROOT input file; a
+      relative custom value resolves against \texttt{FASERG4/} \\
+    \texttt{-{}-start-event} & 0 & First event index to read \\
+    \texttt{-{}-n-events} & 100 & Number of events (\texttt{/run/beamOn}) \\
+    \texttt{-{}-muons} & off & Generate fixed-momentum muons instead of
+      reading \texttt{-{}-input-file} \\
+    \texttt{-{}-muon-momentum-gev} & 100.0 & Muon momentum [GeV] \\
+    \bottomrule
+  \end{tabular}
+\end{frame}
+
+\begin{frame}{\texttt{run\_faserps.py} flags (2/2)}
+  \centering
+  \tiny
+  \begin{tabular}{@{}p{3.1cm}p{2.1cm}p{5.8cm}@{}}
+    \toprule
+    \textbf{Flag} & \textbf{Default} & \textbf{Meaning} \\
+    \midrule
+    \texttt{-{}-muondis} & off & Enable on-the-fly Pythia8 DIS per muon
+      interaction (implies \texttt{-{}-muons}) \\
+    \texttt{-{}-muondis-cross-section-bias} & 150.0 & Cross-section bias
+      (\texttt{1} = unbiased) \\
+    \texttt{-{}-muondis-q2min} & 1.0 & Minimum $Q^2$ [GeV$^2$] \\
+    \texttt{-{}-muondis-interaction-log} & disabled & CSV path logging each
+      interaction \\
+    \texttt{-{}-muondis-pdf-set} & built-in proton PDF & Path under
+      \texttt{FASERG4/input/} \\
+    \texttt{-{}-muondis-xbjmin} & 0.0 & Minimum Bjorken-$x$ cut \\
+    \texttt{-{}-muondis-debug} & off & Verbose MuonDIS debug output \\
+    \texttt{-{}-tilt-deg} & $-4.5$ & Detector tilt about Y [deg] \\
+    \texttt{-{}-shift-x-cm} / \texttt{-{}-shift-y-cm} & 45.0 / 24.0 & LOS shift
+      [cm] \\
+    \bottomrule
+  \end{tabular}
+\end{frame}
+
+\begin{frame}{\texttt{run\_batchreco.py} --- runs the reconstruction}
+  \begin{itemize}
+    \item wraps \texttt{Batch/batchreco.exe} with named, validated flags
+      instead of positional arguments
+    \item full prose docs: \texttt{run\_batchreco.md}
+  \end{itemize}
+  \vspace{0.3cm}
+  \centering
+  \tiny
+  \begin{tabular}{@{}p{3.1cm}p{3.0cm}p{4.9cm}@{}}
+    \toprule
+    \textbf{Flag} & \textbf{Default} & \textbf{Meaning} \\
+    \midrule
+    \texttt{-{}-run} & \emph{required} & Run number --- deliberately no
+      default \\
+    \texttt{-{}-min-event} / \texttt{-{}-max-event} & 0 / 99999999 & Event
+      index range $[\mathrm{min},\mathrm{max})$ \\
+    \texttt{-{}-mask} & none (all events) & \texttt{nueCC}, \texttt{numuCC},
+      \texttt{nutauCC}, \texttt{nuNC}, or \texttt{nuES} \\
+    \texttt{-{}-multi-thread} & off & Pass \texttt{-mt} to
+      \texttt{batchreco.exe} \\
+    \texttt{-{}-geometry-file} & \texttt{\$FASERDATA/\allowbreak
+      GDML/\allowbreak FASERCAL\_V10.gdml} & GDML geometry to load \\
+    \texttt{-{}-build-dir} & \texttt{build/} & CMake build dir containing
+      \texttt{bin/batchreco.exe} \\
+    \texttt{-{}-split} & 1 & Split the range into N parallel background jobs \\
+    \texttt{-{}-dry-run} & off & Print the command(s), don't execute \\
+    \bottomrule
+  \end{tabular}
+\end{frame}
+
+\begin{frame}[fragile]{\texttt{run\_regression\_tests.py} --- simulate
+    $\to$ reconstruct $\to$ compare}
+  \begin{itemize}
+    \item runs the real pipeline end to end for several cases
+      (\texttt{nueCC}/\texttt{numuCC}/\texttt{nutauCC}/\texttt{nuNC}, plus
+      \texttt{-{}-muons} and \texttt{-{}-muondis})
+    \item compares aggregate output statistics against a committed golden
+      JSON baseline
+  \end{itemize}
+\begin{lstlisting}[language=bash]
+python3 run_regression_tests.py --record   # first time / deliberate change
+python3 run_regression_tests.py            # every other time: compare
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}{\texttt{run\_regression\_tests.py} flags}
+  \centering
+  \scriptsize
+  \begin{tabular}{@{}p{2.6cm}p{1.6cm}p{6.6cm}@{}}
+    \toprule
+    \textbf{Flag} & \textbf{Default} & \textbf{Meaning} \\
+    \midrule
+    \texttt{-{}-case} & all cases & Restrict to a golden case name
+      (repeatable); see \texttt{-{}-list} \\
+    \texttt{-{}-record} & off & Write the golden file(s) instead of comparing \\
+    \texttt{-{}-rel-tol} & $10^{-9}$ & Relative tolerance for floating-point
+      comparisons \\
+    \texttt{-{}-build-dir} & \texttt{build/} & CMake build directory \\
+    \texttt{-{}-python} & current interpreter & Interpreter used for the
+      subprocess calls (point at a PyROOT-enabled one if needed) \\
+    \texttt{-{}-list} & --- & List available case names, exit \\
+    \bottomrule
+  \end{tabular}
+\end{frame}
+
+\begin{frame}{\texttt{fetch\_data.py} \quad \& \quad
+    \texttt{summarize\_output.py}}
+  \scriptsize
+  \textbf{\texttt{fetch\_data.py}} --- public-CERNBox-link downloads into
+  \texttt{\$FASERDATA}, sha256-verified, used automatically by
+  \texttt{run\_faserps.py}.
+
+  \vspace{0.45cm}
+  \centering
+  \begin{tabular}{@{}p{2.3cm}p{1.6cm}p{6.6cm}@{}}
+    \toprule
+    \textbf{Flag} & \textbf{Default} & \textbf{Meaning} \\
+    \midrule
+    \texttt{-{}-force} & off & Re-download even if already present \\
+    \texttt{-{}-dry-run} & off & Show what would be fetched, don't fetch \\
+    \texttt{-{}-list} & --- & List manifest entries, exit \\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{0.4cm}
+  \raggedright
+  \textbf{\texttt{Tests/regression/summarize\_output.py}} --- PyROOT
+  summarizer used internally by \texttt{run\_regression\_tests.py}
+  (requires \texttt{-{}-truth-dir} and/or \texttt{-{}-reco-file}).
+
+  \vspace{0.45cm}
+  \centering
+  \begin{tabular}{@{}p{2.3cm}p{2.6cm}p{5.6cm}@{}}
+    \toprule
+    \textbf{Flag} & \textbf{Default} & \textbf{Meaning} \\
+    \midrule
+    \texttt{-{}-dict-path} & CoreUtils' built dict & Path to the built ROOT
+      dictionary \\
+    \texttt{-{}-truth-dir} & none (skip) & Dir of truth files; needs
+      \texttt{-{}-run}, \texttt{-{}-n-events} \\
+    \texttt{-{}-reco-file} & none (skip) & Path to one
+      \texttt{Batch-TPORecevent\_*.root} file \\
+    \bottomrule
+  \end{tabular}
+\end{frame}
+
+\section{Running it}
+
+\begin{frame}[fragile]{5. A typical end-to-end run}
+\begin{lstlisting}[language=bash]
+source setup.sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo && cmake --build build -j
+
+python3 run_faserps.py --n-events 500               # simulate (auto-fetch)
+python3 run_batchreco.py --run 10000 --mask numuCC   # reconstruct numuCC
+build/bin/evDisplay.exe 10000 numuCC                 # look at the result
+\end{lstlisting}
+  or, to exercise the whole pipeline and check it against the committed
+  baseline:
+\begin{lstlisting}[language=bash]
+python3 run_regression_tests.py
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]{6. Tests}
+\begin{lstlisting}[language=bash]
+ctest --test-dir build --output-on-failure
+\end{lstlisting}
+  \begin{itemize}
+    \item FASER's own gtest suite (\texttt{MuonSpectrometerFieldTest},
+      \texttt{MagnetGeometryProbeTest}, \ldots) builds automatically
+      whenever \texttt{FASER\_BUILD\_TESTS} and
+      \texttt{FASER\_BUILD\_GEANT4\_PACKAGES} are both \texttt{ON} (the
+      default)
+    \item the heavier simulate-reconstruct-compare regression suite is
+      \texttt{run\_regression\_tests.py}, described above and in
+      \texttt{docs/REGRESSION\_TESTS.md}
+  \end{itemize}
+\end{frame}
+
+\section{Further reading}
+
+\begin{frame}{Further reading}
+  \begin{itemize}
+    \item \texttt{docs/INSTALL.md} --- the full CMake build: prerequisites,
+      every option, troubleshooting a clean build
+    \item \texttt{docs/GEANT4\_INSTALL.md} --- building/installing Geant4
+      itself
+    \item \texttt{run\_faserps.md} / \texttt{run\_batchreco.md} --- prose
+      documentation for those two wrappers
+    \item \texttt{docs/README\_MuonDIS.md} --- MuonDIS physics and every
+      \texttt{/physics/muondis/...} option
+    \item \texttt{docs/REGRESSION\_TESTS.md} --- the regression suite's
+      full design, what's verified vs.\ not, and open items
+  \end{itemize}
+\end{frame}
+
+\end{document}
