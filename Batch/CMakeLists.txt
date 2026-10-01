@@ -1,6 +1,35 @@
 # =============================================================================
 # Batch: batchreco.exe, batchreco_detresp.exe, dumphits.exe (+ libTPORec.so)
 # =============================================================================
+
+# ======== RPATH for macOS runtime discovery ========
+# GenFit::genfit2/Rave::RaveBase/CLHEP (hand-rolled IMPORTED targets from
+# the superbuild in cmake/Externals.cmake, not a proper find_package()
+# Config) don't give CMake's automatic RPATH computation enough to go on,
+# so without this, every Batch executable links fine but fails at
+# runtime with dyld errors like:
+#   Library not loaded: @rpath/libgenfit2.2.3.dylib
+# one per external dependency, each only surfacing once the previous one
+# is fixed. Display/CMakeLists.txt hit the exact same GenFit issue first
+# and fixed it the same way (see its own "RPATH for macOS Runtime
+# Discovery" section) -- this mirrors that, plus Rave/CLHEP, which
+# batchreco.exe also links against transitively via GenFit::genfit2 and
+# BatchCore.
+# CMAKE_BUILD_WITH_INSTALL_RPATH TRUE means CMAKE_INSTALL_RPATH below
+# REPLACES CMake's automatic per-target RPATH computation for the
+# build-tree binaries, not add to it -- so ROOT_LIBRARY_DIR has to be
+# listed explicitly too, even though ROOT::Core's own rpath currently
+# gets added automatically without this (found via find_package(ROOT)'s
+# proper exported Config, unlike GenFit/Rave/CLHEP below) -- otherwise
+# turning this on for GenFit/Rave/CLHEP would silently break that.
+set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+list(APPEND CMAKE_INSTALL_RPATH
+  "${ROOT_LIBRARY_DIR}"
+  "${GENFIT_INSTALL_DIR}/lib"
+  "${RAVE_INSTALL_DIR}/lib"
+  "${CLHEP_INSTALL_DIR}/lib"
+)
+
 root_generate_dictionary(G__BatchDict
   ${FASER_COREUTILS_INCLUDE_DIR}/TPORecoEvent.hh ${FASER_COREUTILS_INCLUDE_DIR}/TTauSearch.hh ${FASER_COREUTILS_INCLUDE_DIR}/TParticleGun.hh ${FASER_COREUTILS_INCLUDE_DIR}/TPSCluster.hh ${FASER_COREUTILS_INCLUDE_DIR}/TTKTrack.hh ${FASER_COREUTILS_INCLUDE_DIR}/TMuonSpect.hh
   LINKDEF LinkDef.h

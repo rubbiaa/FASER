@@ -40,7 +40,13 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-DEFAULT_DICT_PATH = REPO_ROOT / "CoreUtils" / "libCoreUtilsDict.so"
+# CMake names the shared library by platform (.dylib on macOS, .so
+# elsewhere -- see cmake/Externals.cmake's _faser_shlib_suffix), so a
+# hardcoded ".so" here silently never matches on a Mac. Same convention
+# ConvertNPZ/root_io.py's dictionary_path() already uses for the same
+# file, kept in sync with it rather than reinventing it independently.
+_DICT_SUFFIX = ".dylib" if sys.platform == "darwin" else ".so"
+DEFAULT_DICT_PATH = REPO_ROOT / "CoreUtils" / f"libCoreUtilsDict{_DICT_SUFFIX}"
 
 
 def load_dictionary(dict_path: Path):

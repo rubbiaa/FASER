@@ -12,8 +12,27 @@
 #
 # It also builds libCoreUtilsDict, a standalone dictionary library covering
 # every CoreUtils class (as `make dict` used to, from the top-level
-# Makefile) - CoreUtils/dumpReco.C loads it with gSystem->Load(...).
+# Makefile) - CoreUtils/dumpReco.C loads it with gSystem->Load(...), and
+# so does Tests/regression/summarize_output.py via PyROOT.
 # =============================================================================
+
+# ======== RPATH for macOS runtime discovery ========
+# Same issue (and same fix) as Batch/CMakeLists.txt's "RPATH for macOS
+# runtime discovery" section, which has the full explanation: GenFit's
+# IMPORTED target doesn't give CMake's automatic RPATH computation enough
+# to go on, so without this, libCoreUtilsDict.so links fine but fails to
+# load at runtime (dyld: "Library not loaded: @rpath/libgenfit2...") --
+# whether loaded by a FASER executable or, as here, by `python3` itself
+# via PyROOT's gSystem.Load(), which has no FASER-aware RPATH of its own
+# to fall back on, so this dylib must carry a correct one itself.
+set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+list(APPEND CMAKE_INSTALL_RPATH
+  "${ROOT_LIBRARY_DIR}"
+  "${GENFIT_INSTALL_DIR}/lib"
+  "${RAVE_INSTALL_DIR}/lib"
+  "${CLHEP_INSTALL_DIR}/lib"
+)
+
 file(GLOB FASER_COREUTILS_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cc")
 set(FASER_COREUTILS_SOURCES ${FASER_COREUTILS_SOURCES} PARENT_SCOPE)
 set(FASER_COREUTILS_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR} PARENT_SCOPE)
