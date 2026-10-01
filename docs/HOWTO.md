@@ -115,7 +115,7 @@ one run/target, ...) before `common_setup.sh` runs.
 |---|---|---|---|
 | `$FASERDATA/faserG4/` | Per-event `TcalEvent` truth files, `FASERG4-Tcalevent_<run>_<event>[_<mask>].root` | `faserps` (via `run_faserps.py`) | `batchreco.exe`, `dumphits.exe`, `evDisplay.exe` |
 | `$FASERDATA/batch/` | Reconstructed `TPORecoEvent` files, `Batch-TPORecevent_<run>_<min>_<max>[_<mask>].root` | `batchreco.exe` (via `run_batchreco.py`) | Analysis code, `summarize_output.py` |
-| `$FASERDATA/GENIE/` | GENIE-generated input samples (too large for git) | Fetched automatically — see §5, `fetch_data.py` | `faserps` (via `run_faserps.py`'s `--input-file`) |
+| `$FASERDATA/GENIE/` | GENIE-generated input samples (too large for git) | Fetched automatically — see §5, `fetch_data.py` | `ConvertGENIE.exe` (via `run_convertgenie.py`'s `--input-files`/`--genie-dir`) |
 | `$FASERDATA/GDML/` | The detector geometry FASERG4 exports on every run | `faserps` | `run_batchreco.py`'s default `--geometry-file` |
 | `$FASERDATA/CVGENIE/Run<run>/` | Per-run `ConvertGENIE.exe` output: PO-format `TPOEvent` ROOT files (one per detector), per-detector + summary logs, and reference/overlay PNGs | `ConvertGENIE.exe` (via `run_convertgenie.py`) | `run_faserps.py`'s `--input-file` (the PO files); physicists directly (logs/plots) |
 
@@ -180,7 +180,9 @@ is in `run_faserps.md`; every flag:
 | `--vis` | off | Launch `faserps`' interactive Geant4 UI instead of piping a macro (no macro used) |
 | `--print-macro` | off | Print the resolved macro text and exit, without running `faserps` |
 | `--dry-run` | off | Print the command (and macro) but don't execute it |
-| `--input-file` | `$FASERDATA/GENIE/FASERMC-PO-Run10000-0_53954_3DCAL.root` | Value for `/generator/rootinputfilename`. A relative custom value resolves against `FASERG4/` (faserps' cwd). Ignored with `--muons`/`--muondis` |
+| `--input-file` | auto-discovered from `$FASERDATA/CVGENIE/Run<run>/` | Value for `/generator/rootinputfilename`. A relative custom value resolves against `FASERG4/` (faserps' cwd). Ignored with `--muons`/`--muondis` |
+| `--run` | auto-discovered | Which `$FASERDATA/CVGENIE/Run<run>/` to read from; only used when `--input-file` isn't given. Ignored with `--muons`/`--muondis` |
+| `--detector` | auto-discovered | `3DCAL`/`AHCAL`/`ECAL` — which detector's PO file to use from the selected run; only used when `--input-file` isn't given. Ignored with `--muons`/`--muondis` |
 | `--start-event` | `0` | Value for `/generator/startevent`. Ignored with `--muons`/`--muondis` |
 | `--n-events` | `100` | Value for `/run/beamOn` |
 | `--muons` | off | Generate single fixed-momentum muons instead of reading `--input-file` |
@@ -196,9 +198,13 @@ is in `run_faserps.md`; every flag:
 | `--shift-x-cm` | `45.0` | `/FASER/LOS/shiftX` (cm) |
 | `--shift-y-cm` | `24.0` | `/FASER/LOS/shiftY` (cm) |
 
-The default `--input-file` is fetched automatically from a public CERNBox
-link the first time it's needed (sha256-verified), so a fresh `git clone`
-works with no separate download step.
+If `--input-file`/`--run`/`--detector` are all left unset,
+`run_faserps.py` auto-discovers converted PO samples under
+`$FASERDATA/CVGENIE/Run<run>/` (written by `run_convertgenie.py`, above),
+prompting interactively for the run and/or detector when more than one is
+available (or erroring out, rather than hanging, if stdin isn't
+interactive and the choice is ambiguous). If `$FASERDATA/CVGENIE/` is
+empty, run `run_convertgenie.py` first — see its own section above.
 
 ### `run_batchreco.py` — runs the reconstruction
 

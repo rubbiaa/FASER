@@ -266,7 +266,8 @@ cmake --build build -j
     \texttt{batch/} & Reconstructed \texttt{TPORecoEvent} files &
       \texttt{batchreco.exe} / analysis code, \texttt{summarize\_output.py} \\
     \texttt{GENIE/} & GENIE input samples (too large for git) &
-      \texttt{fetch\_data.py} / \texttt{faserps} (\texttt{-{}-input-file}) \\
+      \texttt{fetch\_data.py} / \texttt{ConvertGENIE.exe} (via
+      \texttt{run\_convertgenie.py}) \\
     \texttt{GDML/} & Detector geometry, exported every run &
       \texttt{faserps} / \texttt{run\_batchreco.py}'s default
       \texttt{-{}-geometry-file} \\
@@ -357,8 +358,10 @@ cmake --build build -j
       \texttt{faserps}' stdin --- no \texttt{.mac} file to keep in sync
     \item full prose docs (custom geometry, interactive UI, MuonDIS
       physics): \texttt{run\_faserps.md}
-    \item default input sample is fetched automatically from a public
-      CERNBox link the first time it's needed (sha256-verified)
+    \item default input sample is auto-discovered from
+      \texttt{\$FASERDATA/CVGENIE/Run<run>/} (written by
+      \texttt{run\_convertgenie.py}), prompting for run/detector if more
+      than one is available
   \end{itemize}
 \end{frame}
 
@@ -374,13 +377,16 @@ cmake --build build -j
     \texttt{-{}-vis} & off & Launch the interactive Geant4 UI (no macro used) \\
     \texttt{-{}-print-macro} & off & Print the resolved macro text, exit \\
     \texttt{-{}-dry-run} & off & Print the command, don't execute \\
-    \texttt{-{}-input-file} & default GENIE sample & ROOT input file; a
-      relative custom value resolves against \texttt{FASERG4/} \\
+    \texttt{-{}-input-file} & auto-discovered & ROOT input file; a relative
+      custom value resolves against \texttt{FASERG4/} \\
+    \texttt{-{}-run} & auto-discovered & Which \texttt{CVGENIE/Run<run>/} to
+      read from (skips the run prompt) \\
+    \texttt{-{}-detector} & auto-discovered & \texttt{3DCAL}/\texttt{AHCAL}/
+      \texttt{ECAL} (skips the detector prompt) \\
     \texttt{-{}-start-event} & 0 & First event index to read \\
     \texttt{-{}-n-events} & 100 & Number of events (\texttt{/run/beamOn}) \\
     \texttt{-{}-muons} & off & Generate fixed-momentum muons instead of
       reading \texttt{-{}-input-file} \\
-    \texttt{-{}-muon-momentum-gev} & 100.0 & Muon momentum [GeV] \\
     \bottomrule
   \end{tabular}
 \end{frame}
@@ -392,6 +398,7 @@ cmake --build build -j
     \toprule
     \textbf{Flag} & \textbf{Default} & \textbf{Meaning} \\
     \midrule
+    \texttt{-{}-muon-momentum-gev} & 100.0 & Muon momentum [GeV] \\
     \texttt{-{}-muondis} & off & Enable on-the-fly Pythia8 DIS per muon
       interaction (implies \texttt{-{}-muons}) \\
     \texttt{-{}-muondis-cross-section-bias} & 150.0 & Cross-section bias

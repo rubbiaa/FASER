@@ -42,7 +42,7 @@ keep in sync by hand.
   `__file__` and finds `FASERG4/` under it either way. The `faserps`
   subprocess itself still always runs with `FASERG4/` as its working
   directory, but this no longer matters for the default `--input-file`
-  (an absolute `$FASERDATA/GENIE/...` path - see "Where the input sample
+  (an absolute `$FASERDATA/CVGENIE/...` path - see "Where the input sample
   comes from" below) or the GDML geometry `faserps` writes out (also an
   absolute `$FASERDATA/GDML/...` path now, via `FASER::GetDataDir("GDML")`
   - see `run_batchreco.md`). It only still matters for a custom
@@ -51,17 +51,22 @@ keep in sync by hand.
 
 ## Where the input sample comes from
 
-The default `--input-file`, `FASERMC-PO-Run10000-0_53954_3DCAL.root`, is
-too large to commit to git and lives under `$FASERDATA/GENIE/` (gitignored,
-same as the rest of `$FASERDATA`). If it's missing there, `run_faserps.py`
-fetches it automatically - before invoking `faserps` - from a public
-CERNBox link (`fetch_data.py`'s `REMOTE_FILES` manifest), verifying its
-sha256 after download. This only happens when `--input-file` is left at
-its default; a custom `--input-file` is your own file, and is never
-auto-fetched. You can also run `python3 fetch_data.py` directly (see its
-own docstring) to fetch everything in the manifest up front, e.g. before
-going offline, or `--force` to re-fetch regardless of what's already
-there.
+By default (no `--input-file`), `run_faserps.py` auto-discovers converted
+neutrino-interaction samples under `$FASERDATA/CVGENIE/Run<run>/` -
+`FASERMC-PO-Run<run>-..._<detector>.root` files written by
+`run_convertgenie.py` (see `docs/HOWTO.md`), not checked into git. If more
+than one `Run<run>/` has usable files, it asks which one (most recently
+generated first); if that run has more than one of `3DCAL`/`AHCAL`/`ECAL`,
+it asks which detector. Pass `--run`/`--detector` to skip either prompt
+(handy for scripts or CI, where it exits with a clear error instead of
+hanging if stdin isn't interactive and the choice is ambiguous), or
+`--input-file` to bypass discovery entirely and point at any PO ROOT file
+directly.
+
+If `$FASERDATA/CVGENIE/` has nothing in it yet, run
+`python3 run_convertgenie.py --run <N>` first - it auto-discovers raw
+GENIE samples under `$FASERDATA/GENIE/` (fetched by `fetch_data.py`; see
+its own docstring) and converts them into the PO files this script reads.
 
 ## Where the output goes
 
@@ -93,16 +98,20 @@ this (there used to be: `FASERG4/output`, `Batch/input`, `EvDisplay/input`,
 python3 run_faserps.py
 ```
 
-This runs `faserps` in batch mode with the same settings as the old
-`runFASER_V10.mac`: the tilted V10 geometry, 100 neutrino-interaction events
-read starting from event 0 of `$FASERDATA/GENIE/FASERMC-PO-Run10000-0_53954_3DCAL.root`.
+This runs `faserps` in batch mode with the same geometry settings as the
+old `runFASER_V10.mac` (the tilted V10 geometry), reading 100
+neutrino-interaction events starting from event 0 - of whichever
+`$FASERDATA/CVGENIE/Run<run>/` PO file you pick (see "Where the input
+sample comes from" below), or the one `--input-file` you gave directly.
 
 ## Options
 
 | Flag | Default | Meaning |
 |---|---|---|
 | `--build-dir PATH` | `../build` | CMake build directory containing `bin/faserps`. |
-| `--input-file NAME` | `$FASERDATA/GENIE/FASERMC-PO-Run10000-0_53954_3DCAL.root` | Value for `/generator/rootinputfilename`. The default is an absolute path (the sample lives under `$FASERDATA/GENIE/`, not `FASERG4/`); a custom value that isn't already absolute is still resolved relative to `FASERG4/`, since that's faserps' cwd. Ignored if `--muons` or `--muondis` is given. |
+| `--input-file NAME` | auto-discovered | Value for `/generator/rootinputfilename`. If not given, auto-discovered from `$FASERDATA/CVGENIE/Run<run>/` (see below); a custom value that isn't already absolute is resolved relative to `FASERG4/`, since that's faserps' cwd. Ignored if `--muons` or `--muondis` is given. |
+| `--run N` | auto-discovered | Which `$FASERDATA/CVGENIE/Run<run>/` to read from. Only used when `--input-file` isn't given; skips the run-selection prompt. Ignored if `--muons` or `--muondis` is given. |
+| `--detector {3DCAL,AHCAL,ECAL}` | auto-discovered | Which detector's PO file to use from the selected run. Only used when `--input-file` isn't given; skips the detector prompt. Ignored if `--muons` or `--muondis` is given. |
 | `--start-event N` | `0` | Value for `/generator/startevent`. Ignored if `--muons` or `--muondis` is given. |
 | `--n-events N` | `100` | Value for `/run/beamOn`. |
 | `--muons` | off | Generate single fixed-momentum muons instead of reading neutrino-interaction events (see below). |
