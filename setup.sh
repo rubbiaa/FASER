@@ -105,12 +105,12 @@ _faser_find_latest_cvmfs_root6() {
   [ -f "$candidate/bin/thisroot.sh" ] && echo "$candidate"
 }
 
-if [ -d /Users/rubbiaa/Documents/GitHub/GEANT4/geant4-v11.4.2-install ]; then
+if [ -d /Users/rubbiaa/Documents/GitHub/GEANT4/geant4-v11.4.3-install ]; then
   # André's Mac (Apple Silicon)
   echo "FASER setup: detected site = André's Mac"
   source /Users/rubbiaa/Documents/GitHub/ROOT/root_install/bin/thisroot.sh
 
-  export GEANT4_INSTALL=/Users/rubbiaa/Documents/GitHub/GEANT4/geant4-v11.4.2-install/
+  export GEANT4_INSTALL=/Users/rubbiaa/Documents/GitHub/GEANT4/geant4-v11.4.3-install/
   source $GEANT4_INSTALL/bin/geant4.sh
 
   export PYTHIA8=/Users/rubbiaa/Documents/GitHub/ROOT/pythia8312
