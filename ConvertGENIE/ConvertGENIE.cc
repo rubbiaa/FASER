@@ -19,6 +19,7 @@
 #include <TGeoManager.h>
 #include <TH1D.h>
 #include <TH2D.h>
+#include <TCanvas.h>
 
 #include "TPOEvent.hh"
 
@@ -43,7 +44,7 @@ void load_geometry(std::string geometryFile){
 
 void convert_FASERMC(int run_number, TTree *tree, int min_event, int max_event,
                      std::string ROOTOutputFile, int mask, 
-                     std::string detector)
+                     std::string detector, double luminosity_fb)
 {
   std::cout << "Converting events ..." << std::endl;
   std::cout << "Detector selection: " << detector << std::endl;
@@ -52,7 +53,13 @@ void convert_FASERMC(int run_number, TTree *tree, int min_event, int max_event,
   bool want_ecal = (detector == "ECAL" || detector == "ALL");
   bool want_ahcal = (detector == "AHCAL" || detector == "ALL");
   bool want_magnet = (detector == "MuonSpec" || detector == "ALL");
-  
+
+  // Used both for interaction_plots.root's own filename below and for the
+  // PNG filenames further down -- computed once here so run_convertgenie.py's
+  // three per-detector invocations each keep their own set of everything
+  // instead of overwriting each other's.
+  std::string plot_suffix = (detector == "ALL") ? "" : ("_" + detector);
+
   TFile *m_rootFile = new TFile(ROOTOutputFile.c_str(), "RECREATE", "", 505); // last is the compression level
   if (!m_rootFile || !m_rootFile->IsOpen())
   {
@@ -60,16 +67,38 @@ void convert_FASERMC(int run_number, TTree *tree, int min_event, int max_event,
   }
   
     // Create output file
-  TFile *outfile = new TFile("interaction_plots.root", "RECREATE");
+  TFile *outfile = new TFile(("interaction_plots" + plot_suffix + ".root").c_str(), "RECREATE");
   outfile->cd();
 
-  // Create histograms
-  TH1D *h_z_all = new TH1D("h_z_all", "All Interactions;Z [mm];Events", 400, 0, 8000);
-  TH1D *h_x_all = new TH1D("h_x_all", "All Interactions;X [mm];Events", 200, -1000, 1000);
-  TH1D *h_y_all = new TH1D("h_y_all", "All Interactions;Y [mm];Events", 200, -1000, 1000);
-  TH2D *h_xy_all = new TH2D("h_xy_all", "All Interactions;X [mm];Y [mm]", 100, -1000, 1000, 100, -1000, 1000);
-  TH2D *h_xz_all = new TH2D("h_xz_all", "All Interactions;Z [mm];X [mm]", 200, 0, 8000, 100, -1000, 1000);
-  TH2D *h_yz_all = new TH2D("h_yz_all", "All Interactions;Z [mm];Y [mm]", 200, 0, 8000, 100, -1000, 1000);
+  // Histogram titles identify which detector selection and which
+  // luminosity (fb^-1) the sample was generated at -- "All Interactions"
+  // said neither, which matters once run_convertgenie.py's three
+  // per-detector runs each produce their own set of these (see
+  // interaction_plots_<detector>.root above) and especially once they get
+  // overlaid together by ConvertGENIE/make_overlay_plots.C.
+  std::string detector_label = (detector == "ALL") ? "All Detectors" : detector;
+  std::string lumi_label;
+  if (luminosity_fb >= 0) {
+    std::ostringstream lumi_oss;
+    lumi_oss << luminosity_fb;
+    lumi_label = "L=" + lumi_oss.str() + " fb^-1";
+  } else {
+    lumi_label = "L=unknown";
+  }
+  std::string title_prefix = detector_label + " (" + lumi_label + ")";
+
+  // The vertex X coordinate is never negative (FASER's coordinate
+  // convention puts the LOS/detector envelope entirely at X >= 0), so
+  // every axis carrying X [mm] -- whether that's a histogram's own axis
+  // (h_x_all) or one axis of a 2D histogram (h_xy_all's X-axis, h_xz_all's
+  // Y-axis, since it's filled as Fill(z, x)) -- runs 0..2000 instead of the
+  // symmetric -1000..1000 used for Y (which genuinely can be negative).
+  TH1D *h_z_all = new TH1D("h_z_all", (title_prefix + ";Z [mm];Events").c_str(), 400, 0, 8000);
+  TH1D *h_x_all = new TH1D("h_x_all", (title_prefix + ";X [mm];Events").c_str(), 200, 0, 2000);
+  TH1D *h_y_all = new TH1D("h_y_all", (title_prefix + ";Y [mm];Events").c_str(), 200, -1000, 1000);
+  TH2D *h_xy_all = new TH2D("h_xy_all", (title_prefix + ";X [mm];Y [mm]").c_str(), 100, 0, 2000, 100, -1000, 1000);
+  TH2D *h_xz_all = new TH2D("h_xz_all", (title_prefix + ";Z [mm];X [mm]").c_str(), 200, 0, 8000, 100, 0, 2000);
+  TH2D *h_yz_all = new TH2D("h_yz_all", (title_prefix + ";Z [mm];Y [mm]").c_str(), 200, 0, 8000, 100, -1000, 1000);
   
   m_rootFile->cd();
 
@@ -301,13 +330,33 @@ void convert_FASERMC(int run_number, TTree *tree, int min_event, int max_event,
   h_xz_all->Write();
   h_yz_all->Write();
 
-  // save all histograms as C macro
-  h_z_all->SaveAs("z_distribution.C");
-  h_x_all->SaveAs("x_distribution.C");
-  h_y_all->SaveAs("y_distribution.C");
-  h_xy_all->SaveAs("xy_distribution.C");
-  h_xz_all->SaveAs("xz_distribution.C");
-  h_yz_all->SaveAs("yz_distribution.C");
+  // Reference plots: real PNG images, one set per detector selection,
+  // suffixed with the detector name so each of run_convertgenie.py's three
+  // per-detector invocations keeps its own set instead of each one
+  // overwriting the previous detector's plots in the same output dir.
+  //
+  // NOTE: TH1::SaveAs()/TH2::SaveAs() do NOT rasterize an image regardless
+  // of the extension given to them -- they always write a ROOT C++ macro
+  // (a previous version of this code called h->SaveAs("....png") directly
+  // and the resulting ".png" files were themselves C++ macro text, just
+  // misnamed). Actually producing an image requires drawing the histogram
+  // onto a real TCanvas and saving *that* -- TCanvas::SaveAs() is what
+  // dispatches to ROOT's image backend (TImage) based on the extension.
+  {
+    TCanvas c_refplot("c_refplot_convertgenie", "ConvertGENIE reference plots", 800, 600);
+    h_z_all->Draw();
+    c_refplot.SaveAs(("z_distribution" + plot_suffix + ".png").c_str());
+    h_x_all->Draw();
+    c_refplot.SaveAs(("x_distribution" + plot_suffix + ".png").c_str());
+    h_y_all->Draw();
+    c_refplot.SaveAs(("y_distribution" + plot_suffix + ".png").c_str());
+    h_xy_all->Draw("COLZ");
+    c_refplot.SaveAs(("xy_distribution" + plot_suffix + ".png").c_str());
+    h_xz_all->Draw("COLZ");
+    c_refplot.SaveAs(("xz_distribution" + plot_suffix + ".png").c_str());
+    h_yz_all->Draw("COLZ");
+    c_refplot.SaveAs(("yz_distribution" + plot_suffix + ".png").c_str());
+  }
   outfile->Close();
 }
 
@@ -323,6 +372,9 @@ int main(int argc, char **argv)
     std::cout << "Options:" << std::endl;
     std::cout << "  -r <run>                   The output run number (required)" << std::endl;
     std::cout << "  -g <gdmlfile>              GDML geometry file (extracts detector boundaries and tilt)" << std::endl;
+    std::cout << "  -l <luminosity_fb>         Integrated luminosity (fb^-1) the input sample(s) were" << std::endl;
+    std::cout << "                             generated at -- recorded in the output histogram titles" << std::endl;
+    std::cout << "                             (default: unknown)" << std::endl;
     std::cout << "  -charmonly                 Process only charm events " << std::endl;
     std::cout << "  -tauCConly                 Process only tau CC events " << std::endl;
     std::cout << std::endl;
@@ -340,6 +392,7 @@ int main(int argc, char **argv)
   std::string gdmlFile = "";
   std::string runString = "";
   bool have_run = false;
+  double luminosity_fb = -1.0; // -1 means "unknown" -- see -l below
   charm_only = false;
   tauCC_only = false;
 
@@ -359,6 +412,19 @@ int main(int argc, char **argv)
       }
       runString = argv[iarg++];
       have_run = true;
+    } else if (strcmp(argv[iarg], "-l") == 0) {
+      iarg++;
+      if (iarg >= argc) {
+        std::cerr << "Error: -l requires a luminosity value (fb^-1)" << std::endl;
+        return 1;
+      }
+      try {
+        luminosity_fb = std::stod(argv[iarg]);
+      } catch (const std::exception &e) {
+        std::cerr << "Invalid argument for -l: " << e.what() << std::endl;
+        return 1;
+      }
+      iarg++;
     } else if (strcmp(argv[iarg], "-charmonly") == 0) {
       charm_only = true;
       iarg++;
@@ -474,7 +540,7 @@ int main(int argc, char **argv)
   std::cout << "The output file is " << ROOTOutputFile.str() << std::endl;
 
   convert_FASERMC(run_number, tree, min_event, max_event,
-                  ROOTOutputFile.str(), event_mask, detector);
+                  ROOTOutputFile.str(), event_mask, detector, luminosity_fb);
 
   std::cout
       << "I'm done." << std::endl;
