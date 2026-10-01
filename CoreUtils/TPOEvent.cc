@@ -163,6 +163,10 @@ void TPOEvent::perform_taulepton_decay(struct PO tauPO) {
       decayProdPO.m_py = fPythia8->Pythia8()->event[ip].py();
       decayProdPO.m_pz = fPythia8->Pythia8()->event[ip].pz();
       decayProdPO.m_energy = fPythia8->Pythia8()->event[ip].e();
+      decayProdPO.nparent = 1;
+      decayProdPO.m_trackid_in_particle[0] = tauPO.m_track_id;
+      decayProdPO.geanttrackID = -1;
+      decayProdPO.m_status = 1;
       taudecay.push_back(decayProdPO);
    }
 
