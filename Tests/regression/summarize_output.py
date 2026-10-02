@@ -206,7 +206,10 @@ def _new_reco_bucket():
 
 
 def _reco_bucket_update(bucket, reco):
-    porecs = reco.fPORecs
+    # fPORecs is private in TPORecoEvent (CoreUtils/TPORecoEvent.hh) --
+    # unlike fTKTracks/fTKVertices/fMuTracks below, which are public and so
+    # readable directly through PyROOT -- so it needs its getter instead.
+    porecs = reco.GetPORecs()
     bucket["n_porecs"].append(len(porecs))
     bucket["n_tktracks"].append(len(reco.fTKTracks))
     bucket["n_tkvertices"].append(len(reco.fTKVertices))
