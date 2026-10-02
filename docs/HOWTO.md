@@ -239,7 +239,7 @@ against a committed golden JSON baseline. Full design in
 | `--record` | off | Write the golden file(s) for the selected case(s) instead of comparing |
 | `--rel-tol` | `1e-9` | Relative tolerance for floating-point aggregate comparisons |
 | `--build-dir` | `build/` | CMake build directory |
-| `--python` | the interpreter running this script | Python interpreter used for the `run_faserps.py`/`run_batchreco.py`/`summarize_output.py` subprocesses — point this at a PyROOT-enabled interpreter if it differs from the default one |
+| `--python` | `$FASER_PYTHON` if set (see `setup.sh`), else the interpreter running this script | Python interpreter used for the `run_faserps.py`/`run_batchreco.py`/`summarize_output.py` subprocesses — needs to be PyROOT-enabled, matching the Python your ROOT build was linked against (a conda/venv-shadowed `python3` is a common way to get this wrong) |
 | `--list` | — | List available case names and exit |
 
 ```bash

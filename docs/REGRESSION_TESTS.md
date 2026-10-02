@@ -217,6 +217,20 @@ as a way to silence a failing comparison.
 
 ## Running it
 
+The orchestrator script itself (`run_regression_tests.py`) doesn't need
+PyROOT -- only the `summarize_output.py` subprocess it spawns does, and
+that has to be run with a Python whose major.minor version matches the
+one your ROOT build was linked against (`thisroot.sh` doesn't repoint
+`python3` itself, so an active conda/venv on top easily shadows it with a
+mismatched version -- PyROOT's `import ROOT` fails loudly, naming both
+versions, if so). `setup.sh` exports `$FASER_PYTHON` for the sites where
+this matters (currently André's Mac, pointing at the Homebrew Python 3.14
+ROOT was built against there), and `--python` defaults to it when set, so
+sourcing `setup.sh` is normally enough -- no need to pass `--python` by
+hand. Adding a new site whose ROOT needs a non-default interpreter: export
+`FASER_PYTHON` in that site's `setup.sh` branch, the same way
+`GEANT4_INSTALL`/`PYTHIA8` are already done there.
+
 ```bash
 # Build first, as always:
 fb   # or: cmake --build build -j
@@ -230,6 +244,10 @@ python3 run_regression_tests.py
 # Just one case, e.g. while iterating on MuonDIS:
 python3 run_regression_tests.py --case muondis
 python3 run_regression_tests.py --case muondis --record
+
+# $FASER_PYTHON not set (not sourcing setup.sh) or you need a different
+# interpreter one-off: point --python at it explicitly --
+python3 run_regression_tests.py --python /opt/homebrew/bin/python3.14
 ```
 
 ## Open items (need your input, not something to silently decide)

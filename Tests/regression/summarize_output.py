@@ -40,6 +40,14 @@ Two output modes:
     (typically "nueCC", "numuCC", "nutauCC", "nuNC", but also
     "antinueCC"/"antinumuCC"/"antinutauCC"/"ES" if the sample has any).
 
+This script needs to run under a PyROOT-enabled Python matching the major.
+minor version your ROOT build was linked against — `import ROOT` fails
+loudly, naming both versions, if invoked under the wrong one (a conda/venv
+`python3` easily shadows the right one without you noticing). Run it with
+run_regression_tests.py (which resolves this via `$FASER_PYTHON`/`--python`
+— see docs/REGRESSION_TESTS.md's "Running it"), or invoke the matching
+interpreter directly if calling this script standalone.
+
 Usage:
     # Truth only (summarize FASERG4's own output for a run):
     python3 summarize_output.py --truth-dir /path/to/FASERDATA/faserG4 \\

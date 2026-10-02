@@ -324,10 +324,14 @@ def parse_args():
                          help=f"Relative tolerance for floating-point aggregates (default: {DEFAULT_REL_TOL}).")
     parser.add_argument("--build-dir", type=Path, default=DEFAULT_BUILD_DIR,
                          help=f"CMake build directory (default: {DEFAULT_BUILD_DIR}).")
-    parser.add_argument("--python", default=sys.executable,
+    parser.add_argument("--python", default=os.environ.get("FASER_PYTHON", sys.executable),
                          help="Python interpreter to use for run_faserps.py/run_batchreco.py/"
-                              "summarize_output.py subprocesses (default: this interpreter). "
-                              "Use a PyROOT-enabled interpreter if it differs from the default one.")
+                              "summarize_output.py subprocesses (default: $FASER_PYTHON if set "
+                              "-- see setup.sh -- otherwise this interpreter). Needs a "
+                              "PyROOT-enabled interpreter matching the Python your ROOT build was "
+                              "linked against (a conda/venv-shadowed \"python3\" is a common way "
+                              "to get this wrong -- PyROOT's import fails loudly with a "
+                              "major.minor mismatch if so, see docs/REGRESSION_TESTS.md).")
     parser.add_argument("--list", action="store_true", help="List available case names and exit.")
     args = parser.parse_args()
     if args.list:

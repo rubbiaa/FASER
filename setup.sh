@@ -116,6 +116,15 @@ if [ -d /Users/rubbiaa/Documents/GitHub/GEANT4/geant4-v11.4.3-install ]; then
   export PYTHIA8=/Users/rubbiaa/Documents/GitHub/ROOT/pythia8312
   echo "Pythia8 installed in $PYTHIA8"
 
+  # The ROOT build sourced above (root_install) is linked against Homebrew's
+  # Python 3.14, not whatever "python3" happens to resolve to interactively
+  # (e.g. an active conda "(base)" env shadows it with a different Python
+  # minor version -- PyROOT refuses to import across a minor-version
+  # mismatch). run_regression_tests.py's --python defaults to this when set,
+  # so PyROOT scripts (summarize_output.py and friends) pick up the right
+  # interpreter without having to pass --python by hand every time.
+  export FASER_PYTHON=/opt/homebrew/bin/python3.14
+
 elif [ -d /home/rubbiaa/geant4-install ]; then
   # Ubuntu box (rubbiaa, Ryzen)
   echo "FASER setup: detected site = Ubuntu (Ryzen)"
