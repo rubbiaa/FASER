@@ -81,35 +81,59 @@ been verified for this codebase and shouldn't be assumed.
   `docs/HOWTO.md`). `run_number: 10000`/`cvgenie_detector: "3DCAL"` are
   the `SIMULATION_GROUPS` entry's own fields, matching the run number
   `run_batchreco.py`'s own docstring already uses as its basic example
-  (`--run 10000`). **Not independently verified against the file's actual
-  contents** (I can't open a ROOT file from here) — the first `--record`
-  run will either confirm this or fail loudly with "0 events matched",
-  which is the signal to fix this constant.
-
-  (Historical note: before commit `32d4358`, `BatchReco.cc`'s per-event retry
-  loop couldn't tell "this event isn't of the requested mask" apart from
-  "truth file not written yet", and aborted the whole run the first time a
-  masked truth file was missing -- typically at event 0, with `Total elapsed
-  time: 0 ms`. That's now fixed: a missing masked truth file is treated as
-  "not this event's type, move on", so a masked reco run correctly scans every
-  event and only reports a real "0 events matched" when the sample genuinely
-  has none of that type.)
+  (`--run 10000`).
 - `--muons` and `--muondis`: both take the `wantMuonBackground` branch in
   `PrimaryGeneratorAction.cc`, which hardcodes `run_number = 999` — **the
   same number for both.** They must not share `$FASERDATA`, or one
   overwrites the other's per-event files. The orchestrator below gives
   every case its own `$FASERDATA` under `Tests/regression/work/<case>/`
   for exactly this reason, not just for tidiness.
-- `nueCC`/`numuCC`/`nutauCC`/`nuNC` are not separate simulation runs at
-  all — `TPOEvent::EncodeEventMask`/`BatchReco.cc` apply the mask at
-  *reconstruction* time, filtering which of the same simulated run's
-  events get reconstructed and written out. So the suite runs `faserps`
-  **once** (the default neutrino case, run 10000) and reconstructs it
-  **four times**, once per mask. A real risk worth flagging: with only a
-  handful of simulated events, a given mask could easily match zero of
-  them, depending on the input sample's actual composition (which I
-  can't inspect). If a `--record` run comes back with 0 reconstructed
-  events for some mask, that's the sample being too small/homogeneous,
+- `nueCC`/`numuCC`/`nutauCC`/`nuNC` are not separate simulation **or**
+  **reconstruction** runs: the suite runs `faserps` **once** (the default
+  neutrino case, run 10000) and `batchreco.exe` **once**, fully unmasked,
+  over the whole unbiased sample. The four golden cases are a *post-hoc
+  split in Python*, not four separate `--mask` invocations.
+
+  This replaces an earlier, incorrect design that reconstructed the same
+  run four times with `--mask nueCC`/`numuCC`/`nutauCC`/`nuNC` and relied
+  on `Batch/BatchReco.cc`'s per-event retry loop to skip indices that
+  didn't match. That design assumed truth files get tagged with a mask at
+  *simulation* time (`TcalEvent`'s constructor appends `_<mask>` to the
+  filename `if(event_mask>0)`), but in this workflow `event_mask` is never
+  anything but 0: `TPOEvent::SetEventMask()` is only ever called from
+  `ConvertFASERMC.cc`'s conversion path, not from
+  `FASERG4`/`FASERCalProtoG4`'s `ParticleManager.cc`, which is what
+  actually constructs the `TcalEvent` that writes
+  `FASERG4-Tcalevent_*.root` for this (CVGENIE-based) neutrino case. So
+  every truth file in this sample is unmasked, every masked
+  `Load_event()` lookup misses for *every* event index, not just "most"
+  of them, and a `--mask`-filtered `batchreco.exe` run here always
+  produces an empty reco file — regardless of how the input sample is
+  actually composed. (The historical note this replaced, about commit
+  `32d4358` fixing `BatchReco.cc`'s retry loop to tell "wrong mask" apart
+  from "not written yet", is still accurate as far as it goes — it's a
+  real fix, just for a scenario this suite's own neutrino case never
+  actually exercises.)
+
+  Instead, `run_regression_tests.py`'s `SIMULATION_GROUPS` entry for
+  "neutrino" has a `split_by_reaction` dict (golden name — reaction
+  string) instead of a `reco_cases` list, and `run_group()` calls
+  `summarize_output.py --split-by-reaction` once on the single unmasked
+  truth+reco output. That script buckets every truth event (by its own
+  `TPOEvent::reaction_desc()`) and every reconstructed event (by its own
+  truth `TPOEvent`, read back via `TPORecoEvent::GetPOEvent()` —
+  `Batch/BatchReco.cc` constructs every `TPORecoEvent` with the exact
+  `TPOEvent*` for that event, and that pointer is a persisted member of
+  `TPORecoEvent`, so a reco entry carries its own classification with it,
+  no separate truth-file lookup needed to classify it) into
+  `{reaction: {"truth": {...}, "reco": {...}}}`, and `run_group()`
+  maps each of the four golden names to its reaction's bucket (an empty
+  `{"n_events": 0}`/`{"n_events_reconstructed": 0}` if the sample
+  happens to have none of that flavor — see the risk noted below). A
+  real risk worth flagging: with only a handful of simulated events, a
+  given reaction could easily account for zero of them, depending on the
+  input sample's actual composition. If a `--record` run comes back with
+  0 events for some case, that's the sample being too small/homogeneous,
   not a bug — bump `--n-events` for the neutrino case, or point at an
   input sample you know mixes interaction types.
 
@@ -141,13 +165,13 @@ dumps, so a diff is readable in a PR.
 {
   "meta": {
     "case": "neutrino_numuCC",
+    "reaction": "numuCC",
     "faserps_args": ["--n-events", "100"],
-    "batchreco_args": ["--mask", "numuCC"],
     "run_number": 10000,
     "n_events_simulated": 100
   },
   "truth": {
-    "n_events": 100,
+    "n_events": 41,
     "mean_Evis": 12.34,
     "mean_n_particles": 7.2,
     "mean_nuE": 45.6,
@@ -165,6 +189,13 @@ dumps, so a diff is readable in a PR.
   }
 }
 ```
+
+For `neutrino_*`, `truth.n_events`/`reco.n_events_reconstructed` are how
+many of the sample's 100 events actually turned out to be that reaction
+— not 100, since the sample is unbiased and mixes flavors (see
+`split_by_reaction` above). For `muons`/`muondis` (which don't split by
+reaction, every event already being the same type) those counts do equal
+`n_events_simulated` once batchreco successfully reconstructs every one.
 
 `muons`/`muondis` omit the truth DIS-kinematics fields where they're not
 meaningful (`nuE`/`Q2`/`xBj` are zero/unset for a muon primary that never
@@ -234,8 +265,9 @@ python3 run_regression_tests.py --case muondis --record
    `.github/workflows/build.yml` only configures and builds. Wiring in
    even the cheap gtests is a separate, smaller first step worth doing
    before adding a much heavier simulate+reconstruct job.
-3. **Event count vs. mask coverage** (see above) -- may need tuning once
-   you see real numbers from a `--record` run.
+3. **Event count vs. reaction-type coverage** (see "run_number per case"
+   above) -- may need tuning once you see real numbers from a `--record`
+   run.
 
 ## Status of this file's own recommendations
 

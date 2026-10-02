@@ -48,15 +48,30 @@ DEFAULT_BUILD_DIR = REPO_ROOT / "build"
 # this suite expects exact reproducibility, not statistical agreement.
 DEFAULT_REL_TOL = 1e-9
 
-# One entry per faserps simulation run. nueCC/numuCC/nutauCC/nuNC share a
-# single "neutrino" simulation and differ only in which --mask batchreco.py
-# reconstructs with -- see docs/REGRESSION_TESTS.md's "run_number per case"
-# section for why (mask filtering happens at reconstruction time, not
-# simulation time). --muons and --muondis both hardcode run_number=999 on
-# the C++ side (also documented there), which is exactly why each group
-# below gets its own isolated $FASERDATA under work/<key>/data -- without
-# that, muons and muondis would silently overwrite each other's per-event
+# One entry per faserps simulation run. --muons and --muondis both
+# hardcode run_number=999 on the C++ side (documented in
+# docs/REGRESSION_TESTS.md), which is exactly why each group below gets
+# its own isolated $FASERDATA under work/<key>/data -- without that,
+# muons and muondis would silently overwrite each other's per-event
 # output files.
+#
+# The "neutrino" group's nueCC/numuCC/nutauCC/nuNC golden cases are NOT
+# separate batchreco.exe invocations filtered by --mask: faserps/TcalEvent
+# never tag their own truth output with a mask in this (CVGENIE-based,
+# unbiased-sample) workflow -- TPOEvent::SetEventMask() is only ever
+# called from ConvertFASERMC.cc's conversion path, not from
+# FASERG4/FASERCalProtoG4's ParticleManager.cc, which is what actually
+# writes FASERG4-Tcalevent_*.root here. So every truth file's event_mask
+# is 0, every masked Load_event() lookup in Batch/BatchReco.cc would miss
+# for every single event (not just "most", as an earlier version of this
+# comment assumed), and reconstructing with --mask nueCC/numuCC/nutauCC/
+# nuNC would each produce an empty reco file, not "this flavor's events".
+# Instead, "split_by_reaction" below means: run faserps once and
+# batchreco.exe once, UNMASKED, over the whole unbiased sample, then split
+# the single truth+reco summary into these four buckets in Python by each
+# event's own actual interaction type (TPOEvent::reaction_desc()) -- see
+# Tests/regression/summarize_output.py's --split-by-reaction and
+# docs/REGRESSION_TESTS.md.
 SIMULATION_GROUPS = [
     {
         "key": "neutrino",
@@ -65,12 +80,12 @@ SIMULATION_GROUPS = [
         "cvgenie_detector": "3DCAL",  # which $FASERDATA/CVGENIE/Run10000/ variant to use
         "run_number": 10000,  # from the input file's own stored TPOEvent.run_number -- see docs/REGRESSION_TESTS.md
         "n_events": 100,
-        "reco_cases": [
-            {"golden_name": "neutrino_nueCC", "batchreco_args": ["--mask", "nueCC"]},
-            {"golden_name": "neutrino_numuCC", "batchreco_args": ["--mask", "numuCC"]},
-            {"golden_name": "neutrino_nutauCC", "batchreco_args": ["--mask", "nutauCC"]},
-            {"golden_name": "neutrino_nuNC", "batchreco_args": ["--mask", "nuNC"]},
-        ],
+        "split_by_reaction": {
+            "neutrino_nueCC": "nueCC",
+            "neutrino_numuCC": "numuCC",
+            "neutrino_nutauCC": "nutauCC",
+            "neutrino_nuNC": "nuNC",
+        },
     },
     {
         "key": "muons",
@@ -90,7 +105,13 @@ SIMULATION_GROUPS = [
 
 
 def all_golden_names():
-    return [rc["golden_name"] for group in SIMULATION_GROUPS for rc in group["reco_cases"]]
+    names = []
+    for group in SIMULATION_GROUPS:
+        if "split_by_reaction" in group:
+            names.extend(group["split_by_reaction"].keys())
+        else:
+            names.extend(rc["golden_name"] for rc in group["reco_cases"])
+    return names
 
 
 def run(cmd, *, env, label, capture=True):
@@ -168,10 +189,59 @@ def run_group(group, *, build_dir, python_exe):
         "--build-dir", str(build_dir),
     ], env=env, label=f"{key}: faserps", capture=False)
 
+    run_number = group["run_number"]
+    n_events = group["n_events"]
+
+    if "split_by_reaction" in group:
+        # Single unbiased, unmasked reconstruction pass -- faserps/TcalEvent
+        # never tag their own truth output with a mask in this workflow (see
+        # SIMULATION_GROUPS' comment above), so there is exactly one
+        # batchreco.exe run here, and the nueCC/numuCC/nutauCC/nuNC split
+        # happens afterward in Python, from each event's own actual
+        # interaction type (TPOEvent::reaction_desc()), not from a
+        # mask-tagged filename.
+        run([
+            python_exe, "run_batchreco.py",
+            "--run", str(run_number),
+            "--max-event", str(n_events),
+            "--build-dir", str(build_dir),
+        ], env=env, label=f"{key}: batchreco", capture=False)
+
+        reco_file = faserdata / "batch" / f"Batch-TPORecevent_{run_number}_0_{n_events}.root"
+        summarize_cmd = [
+            python_exe, str(REGRESSION_DIR / "summarize_output.py"),
+            "--truth-dir", str(faserdata / "faserG4"),
+            "--run", str(run_number),
+            "--n-events", str(n_events),
+            "--reco-file", str(reco_file),
+            "--split-by-reaction",
+        ]
+        result = run(summarize_cmd, env=env, label=f"{key}: summarize")
+        try:
+            by_reaction = json.loads(result.stdout)
+        except json.JSONDecodeError as e:
+            sys.exit(f"error: summarize_output.py for {key} did not print valid JSON: {e}\n"
+                      f"stdout was:\n{result.stdout}")
+
+        results = {}
+        for golden_name, reaction in group["split_by_reaction"].items():
+            summary = by_reaction.get(reaction, {})
+            summary.setdefault("truth", {"n_events": 0})
+            summary.setdefault("reco", {"n_events_reconstructed": 0})
+            summary["meta"] = {
+                "case": golden_name,
+                "reaction": reaction,
+                "faserps_args": group["faserps_args"],
+                "run_number": run_number,
+                "n_events_simulated": n_events,
+            }
+            results[golden_name] = summary
+        return results
+
+    # Legacy path (--muons/--muondis): a single, already-homogeneous sample
+    # -- nothing to split by reaction, one reco_case per golden name.
     results = {}
     for reco_case in group["reco_cases"]:
-        run_number = group["run_number"]
-        n_events = group["n_events"]
         run([
             python_exe, "run_batchreco.py",
             "--run", str(run_number),
