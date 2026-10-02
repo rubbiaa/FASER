@@ -39,6 +39,12 @@ __pycache__/
 *.toc
 *.vrb
 
+# batchreco.exe's/batchreco_detresp.exe's liveness probe (Batch/BatchReco.cc,
+# BatchReco_DetResp.cc): overwritten after every event with elapsed time and
+# memory usage, defaults to the current directory unless $HEARTBEAT_FILE
+# points elsewhere -- a runtime artifact, not something to commit.
+/heartbeat.txt
+
 # Build directories
 */build/
 
