@@ -1956,7 +1956,7 @@ void TPORecoEvent::Reconstruct3DPS(int maxIter) {
 #endif
 
      // decide which layers should be used for reconstructing 3D voxels
-    int nvox_per_layer[nztot];
+    std::vector<int> nvox_per_layer(nztot);
     for (int z = 0; z < nztot; ++z)
     {
         int nvox_layer = 0;
@@ -2790,12 +2790,8 @@ void TPORecoEvent::Reconstruct3DPS_2(int maxIter) {
     TH1D h_XY_fake = TH1D("h_XY_fake", "XY hit fakes", 100, 0., 30.);
     TH1D h_XY_real = TH1D("h_XY_real", "XY hit real", 100, 0., 30.);
 
-    int ntotl[nrep];
-    int nfake[nrep];
-    for(int imodule = 0; imodule < nrep; imodule++){
-        ntotl[imodule] = 0;
-        nfake[imodule] = 0;
-    }
+    std::vector<int> ntotl(nrep, 0);
+    std::vector<int> nfake(nrep, 0);
     for (const auto& v : PSvoxelmap) {
         ntot++;
         long ID = v.first;
