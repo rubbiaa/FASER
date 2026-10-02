@@ -1,0 +1,20 @@
+# Who must review a PR before it can merge -- see docs/REGRESSION_TESTS.md's
+# "golden/*.json is committed directly in git" note for why this path in
+# particular needs a deliberate human look, not CI (which can't re-run the
+# real ROOT/Geant4 pipeline to verify a baseline change -- see
+# docs/REGRESSION_TESTS.md's "Open items").
+#
+# This file only takes effect once "Require review from Code Owners" is
+# enabled under Settings -> Branches -> branch protection rule for `main`
+# (and "Require a pull request before merging") -- GitHub doesn't enforce
+# CODEOWNERS on its own.
+
+# Committed regression baselines: any change here should be a deliberate,
+# reviewed --record, not an accidental overwrite.
+/Tests/regression/golden/ @rubbiaa
+
+# The code that produces those baselines -- a behavior change here is
+# exactly what should prompt a reviewed golden/ update, so the same
+# reviewer sees both together.
+/run_regression_tests.py @rubbiaa
+/Tests/regression/summarize_output.py @rubbiaa

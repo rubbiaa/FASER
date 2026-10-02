@@ -481,7 +481,12 @@ python3 run_regression_tests.py            # every other time: compare
     \midrule
     \texttt{-{}-case} & all cases & Restrict to a golden case name
       (repeatable); see \texttt{-{}-list} \\
-    \texttt{-{}-record} & off & Write the golden file(s) instead of comparing \\
+    \texttt{-{}-record} & off & Write the golden file(s) instead of
+      comparing --- refuses to overwrite an existing one, see
+      \texttt{-{}-force} \\
+    \texttt{-{}-force} & off & Required with \texttt{-{}-record} to
+      overwrite a golden file that already exists (local backstop ---
+      \texttt{.github/CODEOWNERS} is the real review gate) \\
     \texttt{-{}-rel-tol} & $10^{-9}$ & Relative tolerance for floating-point
       comparisons --- near machine precision, not a statistical tolerance \\
     \texttt{-{}-build-dir} & \texttt{build/} & CMake build directory \\

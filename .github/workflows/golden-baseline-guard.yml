@@ -1,0 +1,36 @@
+# Flags (does not block) any PR that touches the committed regression
+# baselines (Tests/regression/golden/*.json) -- see docs/REGRESSION_TESTS.md's
+# "golden/*.json is committed directly in git" note. This can't actually
+# verify a baseline change is correct (that needs the real ROOT/Geant4
+# pipeline -- see docs/REGRESSION_TESTS.md's "Open items", CI doesn't run
+# that yet), it only makes the diff impossible to miss in the PR's checks
+# list. The real gate is CODEOWNERS (.github/CODEOWNERS) + branch
+# protection's "Require review from Code Owners" -- this is a visibility
+# aid alongside that, not a replacement for it.
+name: Golden baseline guard
+
+on:
+  pull_request:
+    paths:
+      - 'Tests/regression/golden/**'
+
+jobs:
+  flag-baseline-change:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: List changed golden files
+        run: |
+          changed=$(git diff --name-only "origin/${{ github.base_ref }}"...HEAD -- Tests/regression/golden/)
+          if [ -z "$changed" ]; then
+            echo "No golden/*.json changes in this PR (unexpected given the path filter above)."
+            exit 0
+          fi
+          echo "This PR changes committed regression baseline(s):"
+          echo "$changed"
+          while IFS= read -r f; do
+            echo "::warning file=$f::Committed regression baseline changed -- make sure this is a deliberate, reviewed --record (see docs/REGRESSION_TESTS.md), not an accidental overwrite."
+          done <<< "$changed"

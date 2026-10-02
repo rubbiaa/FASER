@@ -162,7 +162,53 @@ Tests/regression/
     muons.json
     muondis.json
   work/                          # gitignored scratch: isolated $FASERDATA per case, logs
+  results/                       # gitignored scratch: last run's numbers + comparison.csv
 ```
+
+**`golden/*.json` is committed directly in git, not on CERNBox via
+`fetch_data.py`.** This has come up more than once, so it's worth settling
+here: `fetch_data.py` exists for *inputs* too big/binary to commit (and
+`.gitignore`d for exactly that reason) -- the golden files are the
+opposite on both counts, six files at ~4KB each, plain diffable text,
+and `.gitignore` deliberately carves `golden/` out as *not* ignored.
+More importantly, a golden file isn't an input, it's a baseline *output*
+of a specific commit of the reconstruction code -- keeping it in git
+means a PR that changes `BatchReco.cc`/`TPORecoEvent.cc` shows the
+resulting baseline diff right alongside the code change, for a reviewer
+to question. Hosting it externally and fetching it would break that
+link: code could drift out of sync with the baseline with nothing in
+the repo's history to show it. (The one real CERNBox-fetch candidate
+left is the neutrino case's raw CVGENIE input sample -- see "Open
+items" below -- which is genuinely large, binary, and has no
+code-review value in its bytes; that's a different problem.)
+
+Keeping it in git only helps if a PR touching `golden/` actually gets a
+human look before merging -- CI can't verify a baseline change is correct
+(that needs the real ROOT/Geant4 pipeline, see "Open items" below), so
+there are two GitHub-native guards instead of one:
+
+- **`.github/CODEOWNERS`** names a required reviewer for
+  `Tests/regression/golden/` (and the code that produces it,
+  `run_regression_tests.py`/`summarize_output.py`) -- but it only takes
+  effect once **"Require review from Code Owners"** (and "Require a pull
+  request before merging") is turned on under this repo's Settings ->
+  Branches -> branch protection rule for `main`. That toggle has to be
+  set in GitHub's own settings; nothing in the repo can turn it on for
+  you.
+- **`.github/workflows/golden-baseline-guard.yml`** runs on every PR that
+  touches `golden/**` and posts a `::warning::` annotation per changed
+  file -- purely a visibility aid (it never fails the build; CI has no
+  way to tell a deliberate `--record` from an accidental one), so a
+  baseline change can't quietly slip past in a large diff unnoticed.
+
+Both of those only cover GitHub -- `run_regression_tests.py --record`
+itself also refuses to overwrite a golden file that already exists unless
+you pass `--force` too (a brand-new case's first `--record` needs no
+`--force`, since there's nothing to overwrite yet). So even running
+`--record` locally without thinking can't silently clobber a committed
+baseline; `--force` is there for exactly the deliberate, reviewed update
+this whole section is about -- never to make a failing comparison go
+away.
 
 ## Golden JSON schema
 
@@ -241,10 +287,12 @@ above), the default tolerance is deliberately tight — a relative
 difference of `1e-9` for floating-point aggregates (room for harmless
 compiler/platform floating-point differences, nothing else), and an exact
 match for counts. Any larger difference is reported as a regression, with
-old vs. new values printed side by side. `--record` overwrites the golden
+old vs. new values printed side by side. `--record` writes the golden
 file for the case(s) given instead of comparing — use it deliberately, the
 same way you'd review any other change to committed test expectations, not
-as a way to silence a failing comparison.
+as a way to silence a failing comparison. It refuses to overwrite a golden
+file that already exists unless `--force` is also given; see the
+baseline-protection note above.
 
 ## Running it
 
@@ -266,15 +314,20 @@ hand. Adding a new site whose ROOT needs a non-default interpreter: export
 # Build first, as always:
 fb   # or: cmake --build build -j
 
-# First time (or after a deliberate behavior change): record the baseline
+# First time for a case with no golden/<case>.json yet: record the baseline
 python3 run_regression_tests.py --record
 
 # Every other time: compare against the committed baseline
 python3 run_regression_tests.py
 
+# After a deliberate, reviewed behavior change: re-record (needs --force,
+# since a golden file already exists -- see the baseline-protection note
+# above; --record without --force refuses rather than silently overwriting)
+python3 run_regression_tests.py --record --force
+
 # Just one case, e.g. while iterating on MuonDIS:
 python3 run_regression_tests.py --case muondis
-python3 run_regression_tests.py --case muondis --record
+python3 run_regression_tests.py --case muondis --record --force
 
 # $FASER_PYTHON not set (not sourcing setup.sh) or you need a different
 # interpreter one-off: point --python at it explicitly --

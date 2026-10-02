@@ -31,7 +31,9 @@ real validation of this script, not this docstring.
 
 Usage:
     fb                                    # build first, always
-    python3 run_regression_tests.py --record          # record all cases' baselines
+    python3 run_regression_tests.py --record          # record NEW cases' baselines (refuses to
+                                                        #   overwrite ones that already exist)
+    python3 run_regression_tests.py --record --force   # deliberately overwrite existing baseline(s)
     python3 run_regression_tests.py                    # compare all cases against golden/
     python3 run_regression_tests.py --case muondis            # just one case
     python3 run_regression_tests.py --case muondis --record   # (re-)record just one case
@@ -43,8 +45,8 @@ Usage:
 Every run also writes each case's freshly-computed summary under
 Tests/regression/results/<case>.json -- the actual numbers (mean_*/rms_*
 etc.), regardless of PASS/FAIL/--record, for inspection without needing
---record (which would overwrite golden/'s baseline). Not a committed
-baseline itself -- see .gitignore.
+--record --force (which would overwrite golden/'s baseline -- see
+--force above). Not a committed baseline itself -- see .gitignore.
 
 A plain comparison run (no --record) also writes
 Tests/regression/results/comparison.csv: one row per field per case --
@@ -505,7 +507,17 @@ def parse_args():
                          help="Restrict to this golden case name (repeatable). Default: all cases. "
                               "Use --list to see the names.")
     parser.add_argument("--record", action="store_true",
-                         help="Write the golden file(s) for the selected case(s) instead of comparing.")
+                         help="Write the golden file(s) for the selected case(s) instead of comparing. "
+                              "Refuses to overwrite a golden file that already exists unless --force is "
+                              "also given -- see --force.")
+    parser.add_argument("--force", action="store_true",
+                         help="Required alongside --record to overwrite a golden file that already "
+                              "exists (a brand-new case's first --record needs no --force, since "
+                              "there's nothing to overwrite). This is a local backstop, not a "
+                              "substitute for review -- see .github/CODEOWNERS and "
+                              "docs/REGRESSION_TESTS.md's baseline-protection note; use it only for "
+                              "a deliberate, reviewed baseline update, never to silence a failing "
+                              "comparison.")
     parser.add_argument("--rel-tol", type=float, default=DEFAULT_REL_TOL,
                          help=f"Relative tolerance for floating-point aggregates (default: {DEFAULT_REL_TOL}).")
     parser.add_argument("--build-dir", type=Path, default=DEFAULT_BUILD_DIR,
@@ -580,6 +592,13 @@ def main():
 
             golden_path = GOLDEN_DIR / f"{golden_name}.json"
             if args.record:
+                if golden_path.is_file() and not args.force:
+                    print(f"[run_regression_tests] {golden_name}: REFUSED -- {golden_path} already "
+                          f"exists; --record would overwrite a committed baseline. Pass --force if "
+                          f"this is a deliberate, reviewed baseline update (see "
+                          f"docs/REGRESSION_TESTS.md) -- not to silence a failing comparison.")
+                    any_failure = True
+                    continue
                 with open(golden_path, "w") as f:
                     json.dump(summary, f, indent=2, sort_keys=True)
                     f.write("\n")
@@ -617,8 +636,6 @@ def main():
         print(f"[run_regression_tests] field-by-field comparison against golden/ for every "
               f"case ({len(all_diff_rows)} fields, {n_fail} FAIL) written to {comparison_path}")
 
-    if args.record:
-        return 0
     return 1 if any_failure else 0
 
 
