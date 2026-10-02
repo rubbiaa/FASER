@@ -8,9 +8,22 @@ open items (a missing CI input sample, in particular).
 
 Deterministic by construction: faserps.cc hardcodes its random seed, so a
 run should be exactly reproducible given the same code, same input, same
---n-events, and single-threaded mode (this script's default). A mismatch
-here means something actually changed, not statistical noise -- see
-docs/REGRESSION_TESTS.md's "Determinism this relies on".
+--n-events, and single-threaded Geant4 simulation (run_faserps.py's own
+default -- this script never overrides its --n-threads). A mismatch here
+means something actually changed, not statistical noise -- see
+docs/REGRESSION_TESTS.md's "Determinism this relies on" for why Geant4 MT
+(a different, unrelated knob) is deliberately out of scope.
+
+batchreco.exe's own -mt flag (TPORecoEvent::multiThread, parallelizing
+Reconstruct3DPS_2's per-module voxel reconstruction across one
+std::thread per detector module) is a separate axis, on by default here
+-- see --multi-thread/--no-multi-thread. The existing golden/*.json were
+recorded single-threaded, and the one comparison run with -mt on so far
+passed against them, which is evidence (not proof) that the per-module
+work is independent and race-free. If a future run ever FAILs under the
+default but passes again with --no-multi-thread, that's a real lead (a
+race in Reconstruct3DPS_2/reconstruct3DPS_module) worth reporting, not
+noise to retry away.
 
 STATUS: written but not yet run anywhere with ROOT/Geant4 available (see
 docs/REGRESSION_TESTS.md). The first `--record` run on your Mac is the
@@ -23,7 +36,15 @@ Usage:
     python3 run_regression_tests.py --case muondis            # just one case
     python3 run_regression_tests.py --case muondis --record   # (re-)record just one case
     python3 run_regression_tests.py --case muondis --skip-faserps  # reco-only, reuse truth sample
+    python3 run_regression_tests.py --case muondis --skip-reco     # summarize-only, reuse reco file
+    python3 run_regression_tests.py --no-multi-thread  # old sequential batchreco.exe (-mt is on by default)
     python3 run_regression_tests.py --list             # list available case names and exit
+
+Every run also writes each case's freshly-computed summary under
+Tests/regression/results/<case>.json -- the actual numbers (mean_*/rms_*
+etc.), regardless of PASS/FAIL/--record, for inspection without needing
+--record (which would overwrite golden/'s baseline). Not a committed
+baseline itself -- see .gitignore.
 """
 import argparse
 import json
@@ -42,6 +63,12 @@ import run_faserps  # noqa: E402
 REGRESSION_DIR = REPO_ROOT / "Tests" / "regression"
 GOLDEN_DIR = REGRESSION_DIR / "golden"
 WORK_DIR = REGRESSION_DIR / "work"
+# Every case's freshly-computed summary, written on every run (--record or
+# plain compare) -- unlike golden/, this isn't a committed baseline, it's
+# just "what did the last run actually compute", so you can look at the
+# real numbers (mean_*/rms_* etc.) without needing --record to see them,
+# and without that --record clobbering golden/'s baseline. See .gitignore.
+RESULTS_DIR = REGRESSION_DIR / "results"
 DEFAULT_BUILD_DIR = REPO_ROOT / "build"
 
 # Default relative tolerance for floating-point aggregates. Tight on
@@ -169,7 +196,7 @@ def resolve_neutrino_input_file(group):
     return po_file
 
 
-def run_group(group, *, build_dir, python_exe, skip_faserps=False):
+def run_group(group, *, build_dir, python_exe, skip_faserps=False, skip_reco=False, multi_thread=False):
     """Runs one faserps simulation and every batchreco/summarize pass that
     reads it, isolated in its own $FASERDATA. Returns {golden_name: summary_dict}.
 
@@ -180,7 +207,27 @@ def run_group(group, *, build_dir, python_exe, skip_faserps=False):
     every time is pure overhead and the truth sample hasn't changed. It's
     on the caller to know that's actually true: this doesn't hash/compare
     faserps_args or detect a stale sample, it just checks the truth files
-    are there at all (see the error below if they aren't)."""
+    are there at all (see the error below if they aren't).
+
+    skip_reco=True is the same idea one step further down the pipeline:
+    reuses whatever reco file is already sitting in this group's
+    work/<key>/data/batch from an earlier (non-skipped) run instead of
+    re-running batchreco.exe -- useful while iterating on summarize_output.py
+    or the golden-comparison logic itself, where the reco file hasn't
+    changed. Independent of skip_faserps: combine both to jump straight to
+    the summarize step, reusing both the truth sample and the reco file.
+
+    multi_thread=True passes batchreco.exe's own -mt flag through
+    run_batchreco.py's --multi-thread (see Batch/BatchReco.cc,
+    TPORecoEvent::multiThread -- it only affects Reconstruct3DPS_2's
+    per-module voxel reconstruction, parallelized with one std::thread per
+    detector module instead of a sequential loop). Ignored when
+    skip_reco=True, since then batchreco.exe isn't run at all. Has no
+    effect on faserps/the truth sample. Useful for checking -mt doesn't
+    change results (it shouldn't, if Reconstruct3DPS_2's per-module work
+    is actually independent) against the existing (single-threaded)
+    golden files -- no reason to --record a second set of goldens just to
+    check that."""
     key = group["key"]
     faserps_args = list(group["faserps_args"])
     if "cvgenie_detector" in group:
@@ -223,14 +270,26 @@ def run_group(group, *, build_dir, python_exe, skip_faserps=False):
         # happens afterward in Python, from each event's own actual
         # interaction type (TPOEvent::reaction_desc()), not from a
         # mask-tagged filename.
-        run([
-            python_exe, "run_batchreco.py",
-            "--run", str(run_number),
-            "--max-event", str(n_events),
-            "--build-dir", str(build_dir),
-        ], env=env, label=f"{key}: batchreco", capture=False)
-
         reco_file = faserdata / "batch" / f"Batch-TPORecevent_{run_number}_0_{n_events}.root"
+        if skip_reco:
+            if not reco_file.is_file():
+                sys.exit(
+                    f"error: --skip-reco given for '{key}', but no reco file found at "
+                    f"{reco_file}. Run once without --skip-reco first to produce it."
+                )
+            print(f"[run_regression_tests] {key}: batchreco SKIPPED (--skip-reco) -- "
+                  f"reusing reco file already at {reco_file}")
+        else:
+            batchreco_cmd = [
+                python_exe, "run_batchreco.py",
+                "--run", str(run_number),
+                "--max-event", str(n_events),
+                "--build-dir", str(build_dir),
+            ]
+            if multi_thread:
+                batchreco_cmd.append("--multi-thread")
+            run(batchreco_cmd, env=env, label=f"{key}: batchreco", capture=False)
+
         summarize_cmd = [
             python_exe, str(REGRESSION_DIR / "summarize_output.py"),
             "--truth-dir", str(faserdata / "faserG4"),
@@ -265,14 +324,6 @@ def run_group(group, *, build_dir, python_exe, skip_faserps=False):
     # -- nothing to split by reaction, one reco_case per golden name.
     results = {}
     for reco_case in group["reco_cases"]:
-        run([
-            python_exe, "run_batchreco.py",
-            "--run", str(run_number),
-            "--max-event", str(n_events),
-            *reco_case["batchreco_args"],
-            "--build-dir", str(build_dir),
-        ], env=env, label=f"{reco_case['golden_name']}: batchreco", capture=False)
-
         mask = None
         if "--mask" in reco_case["batchreco_args"]:
             mask = reco_case["batchreco_args"][reco_case["batchreco_args"].index("--mask") + 1]
@@ -281,6 +332,26 @@ def run_group(group, *, build_dir, python_exe, skip_faserps=False):
             reco_filename += f"_{mask}"
         reco_filename += ".root"
         reco_file = faserdata / "batch" / reco_filename
+
+        if skip_reco:
+            if not reco_file.is_file():
+                sys.exit(
+                    f"error: --skip-reco given for '{reco_case['golden_name']}', but no reco "
+                    f"file found at {reco_file}. Run once without --skip-reco first to produce it."
+                )
+            print(f"[run_regression_tests] {reco_case['golden_name']}: batchreco SKIPPED "
+                  f"(--skip-reco) -- reusing reco file already at {reco_file}")
+        else:
+            batchreco_cmd = [
+                python_exe, "run_batchreco.py",
+                "--run", str(run_number),
+                "--max-event", str(n_events),
+                *reco_case["batchreco_args"],
+                "--build-dir", str(build_dir),
+            ]
+            if multi_thread:
+                batchreco_cmd.append("--multi-thread")
+            run(batchreco_cmd, env=env, label=f"{reco_case['golden_name']}: batchreco", capture=False)
 
         summarize_cmd = [
             python_exe, str(REGRESSION_DIR / "summarize_output.py"),
@@ -359,6 +430,23 @@ def parse_args():
                               "of the same case(s). Fails with a clear error if that sample isn't "
                               "there yet. Useful while iterating on reconstruction-only code -- "
                               "no reason to re-run Geant4 if the truth sample hasn't changed.")
+    parser.add_argument("--skip-reco", action="store_true",
+                         help="Skip the batchreco.exe step and reuse whatever reco file is "
+                              "already sitting in work/<key>/data/batch from an earlier run of "
+                              "the same case(s). Fails with a clear error if that file isn't "
+                              "there yet. Useful while iterating on summarize_output.py or the "
+                              "golden-comparison logic -- no reason to re-run reconstruction if "
+                              "the reco file hasn't changed. Independent of --skip-faserps; pass "
+                              "both to jump straight to the summarize step.")
+    parser.add_argument("--multi-thread", action="store_true", dest="multi_thread", default=True,
+                         help="Pass batchreco.exe's -mt flag (via run_batchreco.py's "
+                              "--multi-thread) -- parallelizes Reconstruct3DPS_2's per-module "
+                              "voxel reconstruction across one std::thread per detector module "
+                              "instead of a sequential loop. Ignored together with --skip-reco. "
+                              "On by default; pass --no-multi-thread for the old sequential "
+                              "behavior (e.g. to isolate whether a mismatch is -mt-related).")
+    parser.add_argument("--no-multi-thread", action="store_false", dest="multi_thread",
+                         help="Opposite of --multi-thread -- run batchreco.exe single-threaded.")
     parser.add_argument("--list", action="store_true", help="List available case names and exit.")
     args = parser.parse_args()
     if args.list:
@@ -376,6 +464,7 @@ def main():
     args = parse_args()
     GOLDEN_DIR.mkdir(parents=True, exist_ok=True)
     WORK_DIR.mkdir(parents=True, exist_ok=True)
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
     selected_names = set(args.cases) if args.cases else set(all_golden_names())
     groups_to_run = [g for g in SIMULATION_GROUPS if selected_names & set(group_golden_names(g))]
@@ -383,10 +472,17 @@ def main():
     any_failure = False
     for group in groups_to_run:
         results = run_group(group, build_dir=args.build_dir, python_exe=args.python,
-                            skip_faserps=args.skip_faserps)
+                            skip_faserps=args.skip_faserps, skip_reco=args.skip_reco,
+                            multi_thread=args.multi_thread)
         for golden_name, summary in results.items():
             if golden_name not in selected_names:
                 continue
+
+            results_path = RESULTS_DIR / f"{golden_name}.json"
+            with open(results_path, "w") as f:
+                json.dump(summary, f, indent=2, sort_keys=True)
+                f.write("\n")
+
             golden_path = GOLDEN_DIR / f"{golden_name}.json"
             if args.record:
                 with open(golden_path, "w") as f:
@@ -410,6 +506,9 @@ def main():
                 any_failure = True
             else:
                 print(f"[run_regression_tests] {golden_name}: PASS")
+
+    print(f"[run_regression_tests] full per-case results (the actual computed numbers, "
+          f"not just PASS/FAIL) written under {RESULTS_DIR}/")
 
     if args.record:
         return 0

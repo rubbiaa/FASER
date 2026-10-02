@@ -1,0 +1,33 @@
+{
+  "meta": {
+    "batchreco_args": [],
+    "case": "muons",
+    "faserps_args": [
+      "--muons"
+    ],
+    "n_events_simulated": 20,
+    "run_number": 999
+  },
+  "reco": {
+    "mean_n_MuTracks": 0.4,
+    "mean_n_PORecs": 1.0,
+    "mean_n_TKTracks": 0.0,
+    "mean_n_TKVertices": 0.0,
+    "mean_total_Ecompensated": 2.0735714555808853,
+    "mean_total_Evis_reco": 2.0735714555808853,
+    "n_events_reconstructed": 20,
+    "rms_n_MuTracks": 0.48989794855663565,
+    "rms_n_PORecs": 0.0,
+    "rms_n_TKTracks": 0.0,
+    "rms_n_TKVertices": 0.0,
+    "rms_total_Ecompensated": 1.1877983400750352,
+    "rms_total_Evis_reco": 1.1877983400750352
+  },
+  "truth": {
+    "mean_Evis": 0.0,
+    "mean_n_particles": 1.0,
+    "n_events": 20,
+    "rms_Evis": 0.0,
+    "rms_n_particles": 0.0
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "meta": {
+    "case": "neutrino_numuCC",
+    "faserps_args": [],
+    "n_events_simulated": 100,
+    "reaction": "numuCC",
+    "run_number": 10000
+  },
+  "reco": {
+    "mean_n_MuTracks": 0.72,
+    "mean_n_PORecs": 14.76,
+    "mean_n_TKTracks": 0.0,
+    "mean_n_TKVertices": 0.0,
+    "mean_total_Ecompensated": 72.62853511678694,
+    "mean_total_Evis_reco": 72.62853511678694,
+    "n_events_reconstructed": 25,
+    "rms_n_MuTracks": 0.6013318551349164,
+    "rms_n_PORecs": 4.9094195176212025,
+    "rms_n_TKTracks": 0.0,
+    "rms_n_TKVertices": 0.0,
+    "rms_total_Ecompensated": 66.27062278442045,
+    "rms_total_Evis_reco": 66.27062278442045
+  },
+  "truth": {
+    "mean_Evis": 595.731565396213,
+    "mean_Q2": 77.26041397106434,
+    "mean_n_particles": 17.88,
+    "mean_nuE": 257.89267689473013,
+    "mean_xBj": 0.2018162065692521,
+    "mean_yInel": 0.5048221131155411,
+    "n_events": 25,
+    "rms_Evis": 401.1094242759732,
+    "rms_Q2": 58.725522257556854,
+    "rms_n_particles": 6.519631891449087,
+    "rms_nuE": 206.50216825257777,
+    "rms_xBj": 0.14032735412008787,
+    "rms_yInel": 0.2758859573043792
+  }
+}

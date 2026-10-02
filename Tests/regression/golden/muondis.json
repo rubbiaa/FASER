@@ -1,0 +1,41 @@
+{
+  "meta": {
+    "batchreco_args": [],
+    "case": "muondis",
+    "faserps_args": [
+      "--muondis"
+    ],
+    "n_events_simulated": 20,
+    "run_number": 999
+  },
+  "reco": {
+    "mean_n_MuTracks": 0.35,
+    "mean_n_PORecs": 1.0,
+    "mean_n_TKTracks": 0.0,
+    "mean_n_TKVertices": 0.0,
+    "mean_total_Ecompensated": 46.52888077839226,
+    "mean_total_Evis_reco": 46.52888077839226,
+    "n_events_reconstructed": 20,
+    "rms_n_MuTracks": 0.47696960070847283,
+    "rms_n_PORecs": 0.0,
+    "rms_n_TKTracks": 0.0,
+    "rms_n_TKVertices": 0.0,
+    "rms_total_Ecompensated": 153.55849336513893,
+    "rms_total_Evis_reco": 153.55849336513893
+  },
+  "truth": {
+    "mean_Evis": 540.231094535469,
+    "mean_Q2": 3.2092995422865105,
+    "mean_n_particles": 5.0,
+    "mean_nuE": 175.51942545491974,
+    "mean_xBj": 0.07221976504324382,
+    "mean_yInel": 0.16477200956829427,
+    "n_events": 20,
+    "rms_Evis": 601.0602382579357,
+    "rms_Q2": 1.1183860626323756,
+    "rms_n_particles": 5.770615218501403,
+    "rms_nuE": 267.99996433700096,
+    "rms_xBj": 0.12038218849593622,
+    "rms_yInel": 0.09033038292826419
+  }
+}

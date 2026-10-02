@@ -69,7 +69,9 @@ Usage:
         --reco-file /path/to/FASERDATA/batch/Batch-TPORecevent_999_0_20.root
 """
 import argparse
+import contextlib
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -103,8 +105,47 @@ def load_dictionary(dict_path: Path):
     return ROOT
 
 
+@contextlib.contextmanager
+def _silence_native_stdout():
+    """Temporarily redirects OS-level fd 1 (stdout) to /dev/null.
+
+    Needed because this script's contract is "stdout is exactly one JSON
+    document" (run_regression_tests.py parses the whole of it as one) --
+    but PyROOT/GenFit's own C++-side std::cout calls write straight to
+    the real file descriptor, bypassing Python's sys.stdout entirely, so
+    patching sys.stdout (e.g. contextlib.redirect_stdout) can't catch
+    them. In particular, TPORecoEvent's constructor (CoreUtils/
+    TPORecoEvent.cc) unconditionally prints "Initializing Genfit" /
+    "[GenFit] Material effects..." / "[GenFit] FieldManager initialized..."
+    the first time one is built -- here, the first TPORecoEvent() in
+    _iter_reco_entries() -- landing ahead of the JSON and breaking it as a
+    single parseable document. Warnings this script prints to stderr
+    elsewhere are unaffected (stderr is a different fd)."""
+    sys.stdout.flush()
+    saved_fd = os.dup(1)
+    devnull_fd = os.open(os.devnull, os.O_WRONLY)
+    try:
+        os.dup2(devnull_fd, 1)
+        yield
+    finally:
+        sys.stdout.flush()
+        os.dup2(saved_fd, 1)
+        os.close(devnull_fd)
+        os.close(saved_fd)
+
+
 def mean(values):
     return sum(values) / len(values) if values else None
+
+
+def rms(values):
+    """Spread around the mean -- population standard deviation, ROOT's
+    TH1::GetRMS() convention (sqrt(mean((x - mean(x))**2)), not
+    sqrt(mean(x**2))). None when mean() would also be None."""
+    if not values:
+        return None
+    m = mean(values)
+    return (sum((v - m) ** 2 for v in values) / len(values)) ** 0.5
 
 
 def _bind_po_event(ROOT, tree):
@@ -158,13 +199,19 @@ def _truth_bucket_to_summary(bucket, n_found):
     summary = {
         "n_events": n_found,
         "mean_Evis": mean(bucket["evis"]),
+        "rms_Evis": rms(bucket["evis"]),
         "mean_n_particles": mean(bucket["n_particles"]),
+        "rms_n_particles": rms(bucket["n_particles"]),
     }
     if bucket["q2"]:
         summary["mean_nuE"] = mean(bucket["nuE"])
+        summary["rms_nuE"] = rms(bucket["nuE"])
         summary["mean_Q2"] = mean(bucket["q2"])
+        summary["rms_Q2"] = rms(bucket["q2"])
         summary["mean_xBj"] = mean(bucket["xbj"])
+        summary["rms_xBj"] = rms(bucket["xbj"])
         summary["mean_yInel"] = mean(bucket["yinel"])
+        summary["rms_yInel"] = rms(bucket["yinel"])
     return summary
 
 
@@ -227,11 +274,17 @@ def _reco_bucket_to_summary(bucket, n_entries):
     return {
         "n_events_reconstructed": n_entries,
         "mean_n_PORecs": mean(bucket["n_porecs"]),
+        "rms_n_PORecs": rms(bucket["n_porecs"]),
         "mean_n_TKTracks": mean(bucket["n_tktracks"]),
+        "rms_n_TKTracks": rms(bucket["n_tktracks"]),
         "mean_n_TKVertices": mean(bucket["n_tkvertices"]),
+        "rms_n_TKVertices": rms(bucket["n_tkvertices"]),
         "mean_n_MuTracks": mean(bucket["n_mutracks"]),
+        "rms_n_MuTracks": rms(bucket["n_mutracks"]),
         "mean_total_Evis_reco": mean(bucket["total_evis"]),
+        "rms_total_Evis_reco": rms(bucket["total_evis"]),
         "mean_total_Ecompensated": mean(bucket["total_ecompensated"]),
+        "rms_total_Ecompensated": rms(bucket["total_ecompensated"]),
     }
 
 
@@ -320,28 +373,30 @@ def parse_args():
 
 def main():
     args = parse_args()
-    ROOT = load_dictionary(args.dict_path)
-    ROOT.gROOT.SetBatch(True)
 
-    if args.split_by_reaction:
-        truth_by_reaction = (classify_truth(ROOT, args.truth_dir, args.run, args.n_events)
-                              if args.truth_dir else {})
-        reco_by_reaction = classify_reco(ROOT, args.reco_file) if args.reco_file else {}
-        reactions = set(truth_by_reaction) | set(reco_by_reaction)
-        result = {}
-        for reaction in reactions:
-            entry = {}
-            if reaction in truth_by_reaction:
-                entry["truth"] = truth_by_reaction[reaction]
-            if reaction in reco_by_reaction:
-                entry["reco"] = reco_by_reaction[reaction]
-            result[reaction] = entry
-    else:
-        result = {}
-        if args.truth_dir:
-            result["truth"] = summarize_truth(ROOT, args.truth_dir, args.run, args.n_events)
-        if args.reco_file:
-            result["reco"] = summarize_reco(ROOT, args.reco_file)
+    with _silence_native_stdout():
+        ROOT = load_dictionary(args.dict_path)
+        ROOT.gROOT.SetBatch(True)
+
+        if args.split_by_reaction:
+            truth_by_reaction = (classify_truth(ROOT, args.truth_dir, args.run, args.n_events)
+                                  if args.truth_dir else {})
+            reco_by_reaction = classify_reco(ROOT, args.reco_file) if args.reco_file else {}
+            reactions = set(truth_by_reaction) | set(reco_by_reaction)
+            result = {}
+            for reaction in reactions:
+                entry = {}
+                if reaction in truth_by_reaction:
+                    entry["truth"] = truth_by_reaction[reaction]
+                if reaction in reco_by_reaction:
+                    entry["reco"] = reco_by_reaction[reaction]
+                result[reaction] = entry
+        else:
+            result = {}
+            if args.truth_dir:
+                result["truth"] = summarize_truth(ROOT, args.truth_dir, args.run, args.n_events)
+            if args.reco_file:
+                result["reco"] = summarize_reco(ROOT, args.reco_file)
 
     print(json.dumps(result, indent=2))
     return 0

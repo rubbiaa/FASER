@@ -43,6 +43,17 @@ Multi-threaded mode (`--n-threads > 1`) is deliberately not covered here —
 Geant4 MT's per-event RNG-stream determinism under multiple threads hasn't
 been verified for this codebase and shouldn't be assumed.
 
+This is a different knob from `batchreco.exe`'s own `-mt` flag
+(`TPORecoEvent::multiThread`, parallelizing `Reconstruct3DPS_2`'s
+per-module voxel reconstruction across one `std::thread` per detector
+module) — `run_regression_tests.py` runs with `-mt` **on by default**
+(`--multi-thread`/`--no-multi-thread`). The existing `golden/*.json` were
+recorded single-threaded, and the one comparison run with `-mt` on so far
+passed against them — evidence, not proof, that the per-module work is
+independent and race-free. A future run that fails with the default but
+passes again under `--no-multi-thread` would point at a real race in
+`Reconstruct3DPS_2`/`reconstruct3DPS_module`, not noise.
+
 ## The pipeline, and what it actually writes
 
 - `run_faserps.py` → `faserps`: one input mode (the default, reading
@@ -254,6 +265,13 @@ python3 run_regression_tests.py --python /opt/homebrew/bin/python3.14
 # run once normally, then skip straight to batchreco.exe on later runs:
 python3 run_regression_tests.py --case muondis           # first run: simulates + reconstructs
 python3 run_regression_tests.py --case muondis --skip-faserps   # later runs: reconstructs only
+
+# Iterating on summarize_output.py or the golden-comparison logic itself?
+# Re-running batchreco.exe every time is pure overhead once the reco file
+# exists -- run once normally, then skip straight to summarize on later runs
+# (combine with --skip-faserps to skip both and go straight to summarize):
+python3 run_regression_tests.py --case muondis --skip-reco      # later runs: summarizes only
+python3 run_regression_tests.py --case muondis --skip-faserps --skip-reco  # summarize-only, no sim or reco
 ```
 
 `--skip-faserps` reuses whatever truth sample is already sitting in that
@@ -264,6 +282,22 @@ files are there yet. Note this is a *group*-level reuse: the "neutrino"
 group's four golden cases (`neutrino_nueCC`/`numuCC`/`nutauCC`/`nuNC`)
 share one simulated sample, so `--case neutrino_nueCC --skip-faserps`
 reuses the same sample `--case neutrino_numuCC` would have produced.
+
+`--skip-reco` is the same idea, one step further down the pipeline: it
+reuses whatever reco file is already sitting in that case's
+`work/<key>/data/batch` -- same caveat (it's on you to know it's still
+valid), same fail-fast behavior if the file isn't there yet, and same
+group-level reuse for the "neutrino" case's four golden names. It's
+independent of `--skip-faserps`; pass both together to jump straight to
+the summarize step.
+
+Every run -- `--record` or a plain comparison -- also writes each case's
+freshly-computed summary under `Tests/regression/results/<case>.json`:
+the actual numbers (`mean_*`/`rms_*`/etc.), not just the PASS/FAIL line
+printed to stdout. Unlike `golden/`, `results/` isn't a committed
+baseline (it's gitignored) -- it's just "what did the last run actually
+compute", there so you don't have to re-run with `--record` (clobbering
+the real baseline) just to look at the numbers.
 
 ## Open items (need your input, not something to silently decide)
 
