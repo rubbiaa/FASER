@@ -22,6 +22,7 @@ Usage:
     python3 run_regression_tests.py                    # compare all cases against golden/
     python3 run_regression_tests.py --case muondis            # just one case
     python3 run_regression_tests.py --case muondis --record   # (re-)record just one case
+    python3 run_regression_tests.py --case muondis --skip-faserps  # reco-only, reuse truth sample
     python3 run_regression_tests.py --list             # list available case names and exit
 """
 import argparse
@@ -168,9 +169,18 @@ def resolve_neutrino_input_file(group):
     return po_file
 
 
-def run_group(group, *, build_dir, python_exe):
+def run_group(group, *, build_dir, python_exe, skip_faserps=False):
     """Runs one faserps simulation and every batchreco/summarize pass that
-    reads it, isolated in its own $FASERDATA. Returns {golden_name: summary_dict}."""
+    reads it, isolated in its own $FASERDATA. Returns {golden_name: summary_dict}.
+
+    skip_faserps=True reuses whatever truth sample is already sitting in
+    this group's work/<key>/data/faserG4 from an earlier (non-skipped) run
+    instead of re-simulating -- useful while iterating on reconstruction-
+    only code (BatchReco.cc, TPORecoEvent, ...), where re-running Geant4
+    every time is pure overhead and the truth sample hasn't changed. It's
+    on the caller to know that's actually true: this doesn't hash/compare
+    faserps_args or detect a stale sample, it just checks the truth files
+    are there at all (see the error below if they aren't)."""
     key = group["key"]
     faserps_args = list(group["faserps_args"])
     if "cvgenie_detector" in group:
@@ -184,12 +194,23 @@ def run_group(group, *, build_dir, python_exe):
     env = dict(os.environ)
     env["FASERDATA"] = str(faserdata)
 
-    run([
-        python_exe, "run_faserps.py",
-        *faserps_args,
-        "--n-events", str(group["n_events"]),
-        "--build-dir", str(build_dir),
-    ], env=env, label=f"{key}: faserps", capture=False)
+    if skip_faserps:
+        truth_dir = faserdata / "faserG4"
+        if not truth_dir.is_dir() or not any(truth_dir.glob(f"FASERG4-Tcalevent_{group['run_number']}_*.root")):
+            sys.exit(
+                f"error: --skip-faserps given for '{key}', but no truth files found at "
+                f"{truth_dir} (FASERG4-Tcalevent_{group['run_number']}_*.root). Run once "
+                f"without --skip-faserps first to produce them."
+            )
+        print(f"[run_regression_tests] {key}: faserps SKIPPED (--skip-faserps) -- "
+              f"reusing truth sample already in {truth_dir}")
+    else:
+        run([
+            python_exe, "run_faserps.py",
+            *faserps_args,
+            "--n-events", str(group["n_events"]),
+            "--build-dir", str(build_dir),
+        ], env=env, label=f"{key}: faserps", capture=False)
 
     run_number = group["run_number"]
     n_events = group["n_events"]
@@ -332,6 +353,12 @@ def parse_args():
                               "linked against (a conda/venv-shadowed \"python3\" is a common way "
                               "to get this wrong -- PyROOT's import fails loudly with a "
                               "major.minor mismatch if so, see docs/REGRESSION_TESTS.md).")
+    parser.add_argument("--skip-faserps", action="store_true",
+                         help="Skip the faserps simulation step and reuse whatever truth sample "
+                              "is already sitting in work/<key>/data/faserG4 from an earlier run "
+                              "of the same case(s). Fails with a clear error if that sample isn't "
+                              "there yet. Useful while iterating on reconstruction-only code -- "
+                              "no reason to re-run Geant4 if the truth sample hasn't changed.")
     parser.add_argument("--list", action="store_true", help="List available case names and exit.")
     args = parser.parse_args()
     if args.list:
@@ -355,7 +382,8 @@ def main():
 
     any_failure = False
     for group in groups_to_run:
-        results = run_group(group, build_dir=args.build_dir, python_exe=args.python)
+        results = run_group(group, build_dir=args.build_dir, python_exe=args.python,
+                            skip_faserps=args.skip_faserps)
         for golden_name, summary in results.items():
             if golden_name not in selected_names:
                 continue

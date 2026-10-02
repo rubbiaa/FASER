@@ -248,7 +248,22 @@ python3 run_regression_tests.py --case muondis --record
 # $FASER_PYTHON not set (not sourcing setup.sh) or you need a different
 # interpreter one-off: point --python at it explicitly --
 python3 run_regression_tests.py --python /opt/homebrew/bin/python3.14
+
+# Iterating on reconstruction-only code (BatchReco.cc, TPORecoEvent, ...)?
+# Re-simulating every time is pure overhead once the truth sample exists --
+# run once normally, then skip straight to batchreco.exe on later runs:
+python3 run_regression_tests.py --case muondis           # first run: simulates + reconstructs
+python3 run_regression_tests.py --case muondis --skip-faserps   # later runs: reconstructs only
 ```
+
+`--skip-faserps` reuses whatever truth sample is already sitting in that
+case's `work/<key>/data/faserG4` -- it's on you to know the sample is
+still valid for what you're testing (it doesn't hash `faserps_args` or
+otherwise detect staleness); it fails fast with a clear error if no truth
+files are there yet. Note this is a *group*-level reuse: the "neutrino"
+group's four golden cases (`neutrino_nueCC`/`numuCC`/`nutauCC`/`nuNC`)
+share one simulated sample, so `--case neutrino_nueCC --skip-faserps`
+reuses the same sample `--case neutrino_numuCC` would have produced.
 
 ## Open items (need your input, not something to silently decide)
 
