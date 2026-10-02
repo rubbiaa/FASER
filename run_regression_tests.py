@@ -104,14 +104,16 @@ SIMULATION_GROUPS = [
 ]
 
 
+def group_golden_names(group):
+    """Every golden case name a single SIMULATION_GROUPS entry produces,
+    regardless of which shape it uses (split_by_reaction vs. reco_cases)."""
+    if "split_by_reaction" in group:
+        return list(group["split_by_reaction"].keys())
+    return [rc["golden_name"] for rc in group["reco_cases"]]
+
+
 def all_golden_names():
-    names = []
-    for group in SIMULATION_GROUPS:
-        if "split_by_reaction" in group:
-            names.extend(group["split_by_reaction"].keys())
-        else:
-            names.extend(rc["golden_name"] for rc in group["reco_cases"])
-    return names
+    return [name for group in SIMULATION_GROUPS for name in group_golden_names(group)]
 
 
 def run(cmd, *, env, label, capture=True):
@@ -345,7 +347,7 @@ def main():
     WORK_DIR.mkdir(parents=True, exist_ok=True)
 
     selected_names = set(args.cases) if args.cases else set(all_golden_names())
-    groups_to_run = [g for g in SIMULATION_GROUPS if any(rc["golden_name"] in selected_names for rc in g["reco_cases"])]
+    groups_to_run = [g for g in SIMULATION_GROUPS if selected_names & set(group_golden_names(g))]
 
     any_failure = False
     for group in groups_to_run:
