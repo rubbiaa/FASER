@@ -124,6 +124,7 @@ if [ -d /Users/rubbiaa/Documents/GitHub/GEANT4/geant4-v11.4.3-install ]; then
   # so PyROOT scripts (summarize_output.py and friends) pick up the right
   # interpreter without having to pass --python by hand every time.
   export FASER_PYTHON=/opt/homebrew/bin/python3.14
+  echo "PyROOT scripts will default to FASER_PYTHON=$FASER_PYTHON"
 
 elif [ -d /home/rubbiaa/geant4-install ]; then
   # Ubuntu box (rubbiaa, Ryzen)
