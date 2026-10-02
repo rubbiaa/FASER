@@ -45,8 +45,26 @@ Tests/regression/results/<case>.json -- the actual numbers (mean_*/rms_*
 etc.), regardless of PASS/FAIL/--record, for inspection without needing
 --record (which would overwrite golden/'s baseline). Not a committed
 baseline itself -- see .gitignore.
+
+A plain comparison run (no --record) also writes
+Tests/regression/results/comparison.csv: one row per field per case --
+golden, current, abs_diff, rel_diff, status -- for every field, not just
+the FAILs the terminal prints. rel_tol defaults to 1e-9 (near machine
+precision, not a statistical tolerance): this suite expects *exact*
+reproducibility (faserps' seed is pinned, see "Deterministic by
+construction" below), so PASS means "the same to ~15 significant
+figures", not "close enough given expected run-to-run noise" -- there
+isn't supposed to be any.
+
+faserps/batchreco.exe's own (often long) stdout/stderr no longer streams
+to the terminal either -- it's written to
+Tests/regression/work/<key>/logs/{faserps,batchreco*}.log instead, with
+only a one-line "output -> <path>" pointer printed; a failure still
+prints the last few dozen lines immediately so you're not stuck opening
+the file to see what broke.
 """
 import argparse
+import csv
 import json
 import os
 import subprocess
@@ -144,30 +162,55 @@ def all_golden_names():
     return [name for group in SIMULATION_GROUPS for name in group_golden_names(group)]
 
 
-def run(cmd, *, env, label, capture=True):
+_LOG_TAIL_LINES = 40
+
+
+def run(cmd, *, env, label, capture=True, log_path=None):
     """capture=True (the default) buffers stdout/stderr so the caller can
     read result.stdout -- needed for the summarize_output.py step, whose
-    JSON output we parse. capture=False lets the child inherit this
+    JSON output we parse.
+
+    log_path, when given, redirects the child's stdout+stderr (merged)
+    straight to that file instead -- used for faserps/batchreco, whose
+    own Geant4/BatchReco diagnostic output is voluminous (MDT geometry
+    scans, per-event progress, ...) and was otherwise flooding the
+    terminal on every run with nothing kept afterward. On failure, the
+    last _LOG_TAIL_LINES lines are printed immediately (so you don't have
+    to go open the file just to see what broke), with the full path
+    alongside for the rest.
+
+    capture=False (and log_path=None) lets the child inherit this
     process's own stdout/stderr instead, so its output streams live as it
-    happens -- use this for faserps/batchreco, which can each run for a
-    while (Geant4 init, up to --n-events events, and now also a first-time
-    CERNBox fetch of the GENIE sample -- see fetch_data.py) and would
-    otherwise look hung: capture_output=True doesn't just delay *our*
-    printing, the child's own Python stdout also silently switches from
-    line-buffered to block-buffered the moment it isn't a real terminal,
-    so nothing appears until the whole subprocess exits or its buffer
-    fills. Inheriting a real terminal fd (capture=False) avoids both at
-    once."""
+    happens: capture_output=True doesn't just delay *our* printing, the
+    child's own Python stdout also silently switches from line-buffered
+    to block-buffered the moment it isn't a real terminal, so nothing
+    appears until the whole subprocess exits or its buffer fills.
+    Inheriting a real terminal fd avoids both at once -- no caller
+    actually uses this mode any more (log_path replaced it for
+    faserps/batchreco), but it's kept as the capture=False fallback."""
     print(f"[run_regression_tests] {label}: {' '.join(str(c) for c in cmd)}")
-    if capture:
+    if log_path is not None:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        print(f"[run_regression_tests] {label}: output -> {log_path}")
+        with open(log_path, "w") as f:
+            result = subprocess.run(cmd, cwd=REPO_ROOT, env=env, stdout=f,
+                                     stderr=subprocess.STDOUT, text=True)
+    elif capture:
         result = subprocess.run(cmd, cwd=REPO_ROOT, env=env, capture_output=True, text=True)
     else:
         result = subprocess.run(cmd, cwd=REPO_ROOT, env=env, text=True)
     if result.returncode != 0:
-        if capture:
+        if log_path is not None:
+            tail = log_path.read_text().splitlines()[-_LOG_TAIL_LINES:]
+            print(f"error: {label} failed (exit {result.returncode}) -- "
+                  f"last {len(tail)} line(s) of {log_path}:", file=sys.stderr)
+            for line in tail:
+                print(f"    {line}", file=sys.stderr)
+        elif capture:
             print(result.stdout)
             print(result.stderr, file=sys.stderr)
-        sys.exit(f"error: {label} failed (exit {result.returncode})")
+        suffix = f" -- see {log_path}" if log_path is not None else ""
+        sys.exit(f"error: {label} failed (exit {result.returncode}){suffix}")
     return result
 
 
@@ -238,6 +281,12 @@ def run_group(group, *, build_dir, python_exe, skip_faserps=False, skip_reco=Fal
 
     faserdata = WORK_DIR / key / "data"
     faserdata.mkdir(parents=True, exist_ok=True)
+    # Raw stdout+stderr of each faserps/batchreco.exe subprocess call below,
+    # one file per step -- see run()'s log_path. Kept (not printed to the
+    # terminal) so a normal run's output stays to the PASS/FAIL lines,
+    # while the full Geant4/BatchReco diagnostic firehose is still there
+    # to open if something needs triaging.
+    logs_dir = WORK_DIR / key / "logs"
     env = dict(os.environ)
     env["FASERDATA"] = str(faserdata)
 
@@ -257,7 +306,7 @@ def run_group(group, *, build_dir, python_exe, skip_faserps=False, skip_reco=Fal
             *faserps_args,
             "--n-events", str(group["n_events"]),
             "--build-dir", str(build_dir),
-        ], env=env, label=f"{key}: faserps", capture=False)
+        ], env=env, label=f"{key}: faserps", log_path=logs_dir / "faserps.log")
 
     run_number = group["run_number"]
     n_events = group["n_events"]
@@ -288,7 +337,7 @@ def run_group(group, *, build_dir, python_exe, skip_faserps=False, skip_reco=Fal
             ]
             if multi_thread:
                 batchreco_cmd.append("--multi-thread")
-            run(batchreco_cmd, env=env, label=f"{key}: batchreco", capture=False)
+            run(batchreco_cmd, env=env, label=f"{key}: batchreco", log_path=logs_dir / "batchreco.log")
 
         summarize_cmd = [
             python_exe, str(REGRESSION_DIR / "summarize_output.py"),
@@ -351,7 +400,8 @@ def run_group(group, *, build_dir, python_exe, skip_faserps=False, skip_reco=Fal
             ]
             if multi_thread:
                 batchreco_cmd.append("--multi-thread")
-            run(batchreco_cmd, env=env, label=f"{reco_case['golden_name']}: batchreco", capture=False)
+            run(batchreco_cmd, env=env, label=f"{reco_case['golden_name']}: batchreco",
+                log_path=logs_dir / f"batchreco_{reco_case['golden_name']}.log")
 
         summarize_cmd = [
             python_exe, str(REGRESSION_DIR / "summarize_output.py"),
@@ -378,31 +428,75 @@ def run_group(group, *, build_dir, python_exe, skip_faserps=False, skip_reco=Fal
     return results
 
 
+def _compare_value(cur_val, gold_val, rel_tol):
+    """Single-field tolerance check, shared by compare() (reports only the
+    FAILs, as short strings) and diff_rows() (reports every field, FAIL or
+    not) -- one place for the actual numeric comparison so the two can't
+    quietly drift apart and disagree about what counts as a match.
+
+    Returns (abs_diff, rel_diff, ok). abs_diff/rel_diff are None when the
+    two aren't both present numeric values (missing/appeared-disappeared,
+    or a non-numeric field) -- "difference" isn't meaningful there, only
+    equality is. rel_diff is also None when gold_val == 0 (relative
+    difference is undefined; ok instead falls back to an absolute check
+    against rel_tol, same as compare() always did)."""
+    if cur_val is None or gold_val is None:
+        return None, None, cur_val == gold_val
+    if isinstance(cur_val, (int, float)) and isinstance(gold_val, (int, float)):
+        abs_diff = cur_val - gold_val
+        if gold_val == 0:
+            return abs_diff, None, abs(cur_val) < rel_tol
+        rel_diff = abs_diff / abs(gold_val)
+        return abs_diff, rel_diff, abs(rel_diff) <= rel_tol
+    return None, None, cur_val == gold_val
+
+
+def _diff_fields(current, golden):
+    """Every (section, key, cur_val, gold_val) triple across both dicts'
+    truth/reco sub-dicts -- the field union compare() and diff_rows() both
+    walk, pulled out once so they can't disagree about which fields to
+    look at either."""
+    for section in ("truth", "reco"):
+        cur_section = current.get(section, {})
+        gold_section = golden.get(section, {})
+        for key in sorted(set(cur_section) | set(gold_section)):
+            yield section, key, cur_section.get(key), gold_section.get(key)
+
+
 def compare(golden_name, current, golden, rel_tol):
     """Compares the "truth"/"reco" sub-dicts field by field. Returns a list
     of human-readable mismatch strings; empty means a pass."""
     mismatches = []
-    for section in ("truth", "reco"):
-        cur_section = current.get(section, {})
-        gold_section = golden.get(section, {})
-        keys = set(cur_section) | set(gold_section)
-        for key in sorted(keys):
-            cur_val = cur_section.get(key)
-            gold_val = gold_section.get(key)
-            if cur_val is None or gold_val is None:
-                if cur_val != gold_val:
-                    mismatches.append(f"{section}.{key}: golden={gold_val!r} current={cur_val!r} (field appeared/disappeared)")
-                continue
-            if isinstance(cur_val, (int, float)) and isinstance(gold_val, (int, float)):
-                if gold_val == 0:
-                    ok = abs(cur_val) < rel_tol
-                else:
-                    ok = abs(cur_val - gold_val) / abs(gold_val) <= rel_tol
-                if not ok:
-                    mismatches.append(f"{section}.{key}: golden={gold_val} current={cur_val}")
-            elif cur_val != gold_val:
-                mismatches.append(f"{section}.{key}: golden={gold_val!r} current={cur_val!r}")
+    for section, key, cur_val, gold_val in _diff_fields(current, golden):
+        _, _, ok = _compare_value(cur_val, gold_val, rel_tol)
+        if ok:
+            continue
+        if cur_val is None or gold_val is None:
+            mismatches.append(f"{section}.{key}: golden={gold_val!r} current={cur_val!r} (field appeared/disappeared)")
+        else:
+            mismatches.append(f"{section}.{key}: golden={gold_val} current={cur_val}")
     return mismatches
+
+
+def diff_rows(golden_name, current, golden, rel_tol):
+    """Like compare(), but yields one dict per field -- PASS and FAIL alike
+    -- instead of only the mismatch strings: {case, section, field,
+    golden, current, abs_diff, rel_diff, status}. Meant to be collected
+    across every case into one table (see main()'s comparison.csv) so you
+    can see each value against its golden and by how much, not just
+    whether the case as a whole passed."""
+    for section, key, cur_val, gold_val in _diff_fields(current, golden):
+        abs_diff, rel_diff, ok = _compare_value(cur_val, gold_val, rel_tol)
+        yield {
+            "case": golden_name,
+            "section": section,
+            "field": key,
+            "golden": gold_val,
+            "current": cur_val,
+            "abs_diff": abs_diff,
+            "rel_diff": rel_diff,
+            "status": "PASS" if ok else "FAIL",
+        }
 
 
 def parse_args():
@@ -470,6 +564,7 @@ def main():
     groups_to_run = [g for g in SIMULATION_GROUPS if selected_names & set(group_golden_names(g))]
 
     any_failure = False
+    all_diff_rows = []
     for group in groups_to_run:
         results = run_group(group, build_dir=args.build_dir, python_exe=args.python,
                             skip_faserps=args.skip_faserps, skip_reco=args.skip_reco,
@@ -498,6 +593,7 @@ def main():
                 continue
             with open(golden_path) as f:
                 golden = json.load(f)
+            all_diff_rows.extend(diff_rows(golden_name, summary, golden, args.rel_tol))
             mismatches = compare(golden_name, summary, golden, args.rel_tol)
             if mismatches:
                 print(f"[run_regression_tests] {golden_name}: FAIL")
@@ -509,6 +605,17 @@ def main():
 
     print(f"[run_regression_tests] full per-case results (the actual computed numbers, "
           f"not just PASS/FAIL) written under {RESULTS_DIR}/")
+
+    if all_diff_rows:
+        comparison_path = RESULTS_DIR / "comparison.csv"
+        with open(comparison_path, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=["case", "section", "field", "golden",
+                                                     "current", "abs_diff", "rel_diff", "status"])
+            writer.writeheader()
+            writer.writerows(all_diff_rows)
+        n_fail = sum(1 for row in all_diff_rows if row["status"] == "FAIL")
+        print(f"[run_regression_tests] field-by-field comparison against golden/ for every "
+              f"case ({len(all_diff_rows)} fields, {n_fail} FAIL) written to {comparison_path}")
 
     if args.record:
         return 0

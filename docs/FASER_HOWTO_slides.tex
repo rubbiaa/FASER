@@ -453,11 +453,18 @@ cmake --build build -j
 \begin{frame}[fragile]{\texttt{run\_regression\_tests.py} --- simulate
     $\to$ reconstruct $\to$ compare}
   \begin{itemize}
-    \item runs the real pipeline end to end for several cases
+    \item runs the real pipeline end to end for six golden cases
       (\texttt{nueCC}/\texttt{numuCC}/\texttt{nutauCC}/\texttt{nuNC}, plus
       \texttt{-{}-muons} and \texttt{-{}-muondis})
-    \item compares aggregate output statistics against a committed golden
-      JSON baseline
+    \item compares every field (\texttt{mean\_*}/\texttt{rms\_*}, truth
+      \emph{and} reco) against a committed golden JSON baseline ---
+      \texttt{-{}-rel-tol} $10^{-9}$ by default: near machine precision,
+      \emph{not} a statistical tolerance (this suite expects exact
+      reproducibility, see \texttt{docs/REGRESSION\_TESTS.md})
+    \item \texttt{batchreco.exe}'s \texttt{-mt} is \textbf{on by default}
+      here (verified against the single-threaded goldens first); raw
+      \texttt{faserps}/\texttt{batchreco.exe} output no longer floods the
+      terminal --- it's redirected to \texttt{work/<case>/logs/*.log}
   \end{itemize}
 \begin{lstlisting}[language=bash]
 python3 run_regression_tests.py --record   # first time / deliberate change
@@ -465,7 +472,7 @@ python3 run_regression_tests.py            # every other time: compare
 \end{lstlisting}
 \end{frame}
 
-\begin{frame}{\texttt{run\_regression\_tests.py} flags}
+\begin{frame}{\texttt{run\_regression\_tests.py} flags (1/2)}
   \centering
   \scriptsize
   \begin{tabular}{@{}p{2.6cm}p{1.6cm}p{6.6cm}@{}}
@@ -476,21 +483,106 @@ python3 run_regression_tests.py            # every other time: compare
       (repeatable); see \texttt{-{}-list} \\
     \texttt{-{}-record} & off & Write the golden file(s) instead of comparing \\
     \texttt{-{}-rel-tol} & $10^{-9}$ & Relative tolerance for floating-point
-      comparisons \\
+      comparisons --- near machine precision, not a statistical tolerance \\
     \texttt{-{}-build-dir} & \texttt{build/} & CMake build directory \\
-    \texttt{-{}-python} & current interpreter & Interpreter used for the
-      subprocess calls (point at a PyROOT-enabled one if needed) \\
+    \texttt{-{}-python} & \texttt{\$FASER\_PYTHON} env, else current &
+      Interpreter for the subprocess calls --- needs a PyROOT-enabled one
+      matching your ROOT build \\
     \texttt{-{}-list} & --- & List available case names, exit \\
     \bottomrule
   \end{tabular}
+\end{frame}
+
+\begin{frame}{\texttt{run\_regression\_tests.py} flags (2/2)}
+  \centering
+  \scriptsize
+  \begin{tabular}{@{}p{3.0cm}p{1.6cm}p{6.2cm}@{}}
+    \toprule
+    \textbf{Flag} & \textbf{Default} & \textbf{Meaning} \\
+    \midrule
+    \texttt{-{}-skip-faserps} & off & Reuse the truth sample already in
+      \texttt{work/<case>/data/faserG4} instead of re-simulating \\
+    \texttt{-{}-skip-reco} & off & Reuse the reco file already in
+      \texttt{work/<case>/data/batch} instead of re-running
+      \texttt{batchreco.exe}; combine with \texttt{-{}-skip-faserps} to
+      jump straight to summarize \\
+    \texttt{-{}-multi-thread} / \texttt{-{}-no-multi-thread} &
+      \textbf{on} / off & Pass \texttt{batchreco.exe}'s \texttt{-mt}
+      (\textbf{on by default} here, unlike \texttt{run\_batchreco.py}
+      standalone) \\
+    \bottomrule
+  \end{tabular}
+  \vspace{0.3cm}
+  \footnotesize Every run also writes
+  \texttt{Tests/regression/results/<case>.json} (the real numbers) and,
+  for a plain comparison, \texttt{results/comparison.csv} --- one row per
+  field per case: golden, current, \texttt{abs\_diff}, \texttt{rel\_diff},
+  status. See \texttt{docs/REGRESSION\_TESTS.md}'s ``Example: what a
+  typical run looks like''.
+\end{frame}
+
+\begin{frame}[fragile]{Golden JSON schema}
+  \footnotesize
+  One file per case (\texttt{Tests/regression/golden/<case>.json}):
+  \texttt{meta} records how it was produced; \texttt{truth}/\texttt{reco}
+  are aggregate numbers only --- every \texttt{mean\_*} has an
+  \texttt{rms\_*} partner (ROOT's \texttt{TH1::GetRMS()} convention) ---
+  not full per-event dumps, so a diff stays readable in a PR. Real content
+  of \texttt{golden/neutrino\_numuCC.json} (rounded/trimmed for space):
+\begin{lstlisting}[basicstyle=\ttfamily\tiny]
+{
+  "meta": {"case": "neutrino_numuCC", "reaction": "numuCC",
+            "faserps_args": [], "run_number": 10000,
+            "n_events_simulated": 100},
+  "truth": {"n_events": 25,
+            "mean_Evis": 595.73, "rms_Evis": 401.11,
+            "mean_Q2": 77.26, "rms_Q2": 58.73,
+            "mean_xBj": 0.202, "rms_xBj": 0.140, ...},
+  "reco":  {"n_events_reconstructed": 25,
+            "mean_n_PORecs": 14.76, "rms_n_PORecs": 4.91,
+            "mean_total_Ecompensated": 72.63,
+            "rms_total_Ecompensated": 66.27, ...}
+}
+\end{lstlisting}
+  \texttt{n\_events}/\texttt{n\_events\_reconstructed} are how many of
+  the 100 simulated events were actually this reaction (unbiased sample,
+  see above) --- not 100. \texttt{muons}/\texttt{muondis} omit the DIS
+  fields entirely where meaningless, rather than padding with zeros.
+\end{frame}
+
+\begin{frame}[fragile]{Example: what a typical run looks like}
+  \scriptsize
+\begin{lstlisting}[basicstyle=\ttfamily\tiny]
+[run_regression_tests] neutrino: faserps: ... --input-file ... --n-events 100 ...
+[run_regression_tests] neutrino: faserps: output -> work/neutrino/logs/faserps.log
+[run_regression_tests] neutrino: batchreco: ... --multi-thread
+[run_regression_tests] neutrino: batchreco: output -> work/neutrino/logs/batchreco.log
+[run_regression_tests] neutrino_nueCC: PASS
+[run_regression_tests] neutrino_numuCC: PASS
+[run_regression_tests] neutrino_nutauCC: PASS
+[run_regression_tests] neutrino_nuNC: PASS
+[run_regression_tests] muons: PASS
+[run_regression_tests] muondis: PASS
+[run_regression_tests] full per-case results ... written under Tests/regression/results/
+[run_regression_tests] field-by-field comparison ... (148 fields, 0 FAIL) written to
+    Tests/regression/results/comparison.csv
+\end{lstlisting}
+  Exit code \texttt{0} (every case \texttt{PASS}). A real \texttt{FAIL}
+  example and real \texttt{comparison.csv} rows (golden, current,
+  \texttt{abs\_diff}, \texttt{rel\_diff}, status --- per field, not just
+  the FAILs): \texttt{docs/REGRESSION\_TESTS.md}, \S``Example: what a
+  typical run looks like''.
 \end{frame}
 
 \begin{frame}{\texttt{fetch\_data.py} \quad \& \quad
     \texttt{summarize\_output.py}}
   \scriptsize
   \textbf{\texttt{fetch\_data.py}} --- public-CERNBox-link downloads into
-  \texttt{\$FASERDATA}, sha256-verified, used automatically by
-  \texttt{run\_faserps.py}.
+  \texttt{\$FASERDATA}, sha256-verified. Manual step, not auto-triggered
+  (the old auto-fetch-on-missing-file path was removed when
+  \texttt{GENIE/} became \texttt{CVGENIE/}); covers only the \emph{raw}
+  GENIE output, not the converted PO sample --- see
+  \texttt{docs/REGRESSION\_TESTS.md}'s open items.
 
   \vspace{0.45cm}
   \centering
@@ -533,7 +625,7 @@ python3 run_regression_tests.py            # every other time: compare
 source setup.sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo && cmake --build build -j
 
-python3 run_faserps.py --n-events 500               # simulate (auto-fetch)
+python3 run_faserps.py --n-events 500               # simulate
 python3 run_batchreco.py --run 10000 --mask numuCC   # reconstruct numuCC
 build/bin/evDisplay.exe 10000 numuCC                 # look at the result
 \end{lstlisting}

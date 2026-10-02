@@ -169,34 +169,51 @@ Tests/regression/
 One file per case. `meta` records how it was produced (for humans reading
 a diff, and so `--record` can warn if you're recording against a different
 `--n-events` than the file expects); `truth`/`reco` are the actual
-comparison targets — small dicts of aggregate numbers, not full per-event
-dumps, so a diff is readable in a PR.
+comparison targets — small dicts of aggregate numbers (`mean_*` and,
+alongside every one of them, `rms_*` -- the spread around that mean, ROOT's
+`TH1::GetRMS()` convention), not full per-event dumps, so a diff is
+readable in a PR. This is the real, literal content of the committed
+`golden/neutrino_numuCC.json` (reordered meta/truth/reco for readability;
+the file itself is alphabetical within each section):
 
 ```json
 {
   "meta": {
     "case": "neutrino_numuCC",
     "reaction": "numuCC",
-    "faserps_args": ["--n-events", "100"],
+    "faserps_args": [],
     "run_number": 10000,
     "n_events_simulated": 100
   },
   "truth": {
-    "n_events": 41,
-    "mean_Evis": 12.34,
-    "mean_n_particles": 7.2,
-    "mean_nuE": 45.6,
-    "mean_Q2": 3.1,
-    "mean_xBj": 0.21
+    "n_events": 25,
+    "mean_Evis": 595.731565396213,
+    "rms_Evis": 401.1094242759732,
+    "mean_n_particles": 17.88,
+    "rms_n_particles": 6.519631891449087,
+    "mean_nuE": 257.89267689473013,
+    "rms_nuE": 206.50216825257777,
+    "mean_Q2": 77.26041397106434,
+    "rms_Q2": 58.725522257556854,
+    "mean_xBj": 0.2018162065692521,
+    "rms_xBj": 0.14032735412008787,
+    "mean_yInel": 0.5048221131155411,
+    "rms_yInel": 0.2758859573043792
   },
   "reco": {
-    "n_events_reconstructed": 41,
-    "mean_n_PORecs": 3.4,
-    "mean_n_TKTracks": 2.1,
-    "mean_n_TKVertices": 1.0,
-    "mean_n_MuTracks": 0.3,
-    "mean_total_Evis_reco": 11.8,
-    "mean_total_Ecompensated": 12.9
+    "n_events_reconstructed": 25,
+    "mean_n_PORecs": 14.76,
+    "rms_n_PORecs": 4.9094195176212025,
+    "mean_n_TKTracks": 0.0,
+    "rms_n_TKTracks": 0.0,
+    "mean_n_TKVertices": 0.0,
+    "rms_n_TKVertices": 0.0,
+    "mean_n_MuTracks": 0.72,
+    "rms_n_MuTracks": 0.6013318551349164,
+    "mean_total_Evis_reco": 72.62853511678694,
+    "rms_total_Evis_reco": 66.27062278442045,
+    "mean_total_Ecompensated": 72.62853511678694,
+    "rms_total_Ecompensated": 66.27062278442045
   }
 }
 ```
@@ -204,15 +221,18 @@ dumps, so a diff is readable in a PR.
 For `neutrino_*`, `truth.n_events`/`reco.n_events_reconstructed` are how
 many of the sample's 100 events actually turned out to be that reaction
 — not 100, since the sample is unbiased and mixes flavors (see
-`split_by_reaction` above). For `muons`/`muondis` (which don't split by
-reaction, every event already being the same type) those counts do equal
+`split_by_reaction` above; `25` here means 25 of the 100 simulated events
+were `numuCC`). For `muons`/`muondis` (which don't split by reaction,
+every event already being the same type) those counts do equal
 `n_events_simulated` once batchreco successfully reconstructs every one.
 
 `muons`/`muondis` omit the truth DIS-kinematics fields where they're not
-meaningful (`nuE`/`Q2`/`xBj` are zero/unset for a muon primary that never
-went through `TPOEvent::kinematics_event()`'s DIS branch) — the summarizer
-only includes a field if it's actually applicable to that case, rather than
-padding with meaningless zeros that would falsely "pass" a comparison.
+meaningful (`nuE`/`Q2`/`xBj`/`yInel` are zero/unset for a muon primary that
+never went through `TPOEvent::kinematics_event()`'s DIS branch) — the
+summarizer only includes a field (and its `rms_` partner) if it's actually
+applicable to that case, rather than padding with meaningless zeros that
+would falsely "pass" a comparison. See `golden/muondis.json` in this repo
+for a real example of that narrower shape.
 
 ## Comparison
 
@@ -299,6 +319,25 @@ baseline (it's gitignored) -- it's just "what did the last run actually
 compute", there so you don't have to re-run with `--record` (clobbering
 the real baseline) just to look at the numbers.
 
+A plain comparison run (not `--record`) additionally writes
+`Tests/regression/results/comparison.csv`, one row per field per case:
+`case,section,field,golden,current,abs_diff,rel_diff,status`, for every
+field -- not only the FAILs the terminal prints. `--rel-tol` (default
+`1e-9`) is what `status` is based on, and it's worth being explicit about
+what that number means: it's near machine precision, not a tolerance for
+expected statistical fluctuation. This suite's whole premise (see
+"Determinism this relies on" below) is that a run is **exactly**
+reproducible, so `PASS` means "matches to ~15 significant figures", and
+any real `FAIL` is a signal that something actually changed -- not noise
+to average away or a tolerance to loosen.
+
+`faserps`/`batchreco.exe`'s own stdout+stderr (Geant4 init, MDT geometry
+scans, per-event progress, ...) no longer streams to the terminal --
+it's redirected to `Tests/regression/work/<key>/logs/{faserps,batchreco*
+}.log`, with just a one-line pointer printed in its place. A failure
+still prints the last ~40 lines of the relevant log immediately, so
+there's no need to go open the file just to see what broke.
+
 ## Open items (need your input, not something to silently decide)
 
 1. **CI needs an input sample it doesn't have, and there's no auto-fetch
@@ -346,3 +385,93 @@ the real baseline) just to look at the numbers.
   to `git add`/commit.
 - **Branch:** directly on `main`, same as the docs-move commit -- no
   separate branch needed for this.
+
+
+## Example: what a typical run looks like
+
+A plain `python3 run_regression_tests.py` (no flags -- compares every case
+against the committed `golden/*.json`, `-mt` on by default) looks roughly
+like this. The paths below are illustrative (yours will show your own
+`$FASERDATA`/build dir and the real neutrino input file resolved by
+`resolve_neutrino_input_file()`); the terminal output *format* and the
+numbers in the file excerpts further down are real, from the baselines
+actually committed in this repo.
+
+```
+[run_regression_tests] neutrino: faserps: /opt/homebrew/bin/python3.14 run_faserps.py --input-file /Users/rubbiaa/data/CVGENIE/Run10000/FASERMC-PO-Run10000-..._3DCAL.root --n-events 100 --build-dir /Users/rubbiaa/MACDEV/FASERV9/FASER/build
+[run_regression_tests] neutrino: faserps: output -> Tests/regression/work/neutrino/logs/faserps.log
+[run_regression_tests] neutrino: batchreco: /opt/homebrew/bin/python3.14 run_batchreco.py --run 10000 --max-event 100 --build-dir /Users/rubbiaa/MACDEV/FASERV9/FASER/build --multi-thread
+[run_regression_tests] neutrino: batchreco: output -> Tests/regression/work/neutrino/logs/batchreco.log
+[run_regression_tests] neutrino: summarize: /opt/homebrew/bin/python3.14 Tests/regression/summarize_output.py --truth-dir .../work/neutrino/data/faserG4 --run 10000 --n-events 100 --reco-file .../work/neutrino/data/batch/Batch-TPORecevent_10000_0_100.root --split-by-reaction
+[run_regression_tests] neutrino_nueCC: PASS
+[run_regression_tests] neutrino_numuCC: PASS
+[run_regression_tests] neutrino_nutauCC: PASS
+[run_regression_tests] neutrino_nuNC: PASS
+[run_regression_tests] muons: faserps: /opt/homebrew/bin/python3.14 run_faserps.py --muons --n-events 20 --build-dir /Users/rubbiaa/MACDEV/FASERV9/FASER/build
+[run_regression_tests] muons: faserps: output -> Tests/regression/work/muons/logs/faserps.log
+[run_regression_tests] muons: batchreco: /opt/homebrew/bin/python3.14 run_batchreco.py --run 999 --max-event 20 --build-dir /Users/rubbiaa/MACDEV/FASERV9/FASER/build --multi-thread
+[run_regression_tests] muons: batchreco: output -> Tests/regression/work/muons/logs/batchreco_muons.log
+[run_regression_tests] muons: summarize: /opt/homebrew/bin/python3.14 Tests/regression/summarize_output.py --truth-dir .../work/muons/data/faserG4 --run 999 --n-events 20 --reco-file .../work/muons/data/batch/Batch-TPORecevent_999_0_20.root
+[run_regression_tests] muons: PASS
+[run_regression_tests] muondis: faserps: /opt/homebrew/bin/python3.14 run_faserps.py --muondis --n-events 20 --build-dir /Users/rubbiaa/MACDEV/FASERV9/FASER/build
+[run_regression_tests] muondis: faserps: output -> Tests/regression/work/muondis/logs/faserps.log
+[run_regression_tests] muondis: batchreco: /opt/homebrew/bin/python3.14 run_batchreco.py --run 999 --max-event 20 --build-dir /Users/rubbiaa/MACDEV/FASERV9/FASER/build --multi-thread
+[run_regression_tests] muondis: batchreco: output -> Tests/regression/work/muondis/logs/batchreco_muondis.log
+[run_regression_tests] muondis: summarize: /opt/homebrew/bin/python3.14 Tests/regression/summarize_output.py --truth-dir .../work/muondis/data/faserG4 --run 999 --n-events 20 --reco-file .../work/muondis/data/batch/Batch-TPORecevent_999_0_20.root
+[run_regression_tests] muondis: PASS
+[run_regression_tests] full per-case results (the actual computed numbers, not just PASS/FAIL) written under Tests/regression/results/
+[run_regression_tests] field-by-field comparison against golden/ for every case (148 fields, 0 FAIL) written to Tests/regression/results/comparison.csv
+```
+
+Exit code `0` (every case `PASS`). The `summarize` steps print no "output ->"
+line -- they're still `capture=True` (their stdout is the JSON `run_group()`
+parses), not redirected to a log file like `faserps`/`batchreco` are.
+
+### What a FAIL looks like
+
+If a code change actually shifted a value -- say `muondis`'s
+`mean_total_Ecompensated` came out `47.1` instead of the golden
+`46.52888077839226` -- the terminal would show:
+
+```
+[run_regression_tests] muondis: FAIL
+    reco.mean_total_Ecompensated: golden=46.52888077839226 current=47.1
+```
+
+and the exit code would be `1`. Only the FAILing field(s) print to the
+terminal; `Tests/regression/results/comparison.csv` would still have a row
+for every field, FAILs included:
+
+```
+muondis,reco,mean_total_Ecompensated,46.52888077839226,47.1,0.5711192216077379,0.012274510197824535,FAIL
+```
+
+(`rel_diff` here is ~1.2%, far above `--rel-tol`'s default `1e-9` -- see
+"Determinism this relies on" above for why that's treated as a real
+regression, not noise.)
+
+### `results/<case>.json` and `comparison.csv`, for real
+
+`Tests/regression/results/muondis.json` (written on every run, `--record`
+or not) would currently read exactly like `golden/muondis.json` does,
+since the last recorded run and the current golden agree on every field --
+see `golden/muondis.json` in this repo for the full file. Its
+`comparison.csv` rows (real output, from running `diff_rows()` against the
+actual committed `golden/muondis.json`) look like this (truncated to a
+few representative fields -- the real file has one row per field, 26 for
+`muondis` alone, 148 across all six cases):
+
+```
+case,section,field,golden,current,abs_diff,rel_diff,status
+muondis,truth,mean_Evis,540.231094535469,540.231094535469,0.0,0.0,PASS
+muondis,truth,n_events,20,20,0,0.0,PASS
+muondis,truth,rms_Evis,601.0602382579357,601.0602382579357,0.0,0.0,PASS
+muondis,reco,mean_n_PORecs,1.0,1.0,0.0,0.0,PASS
+muondis,reco,mean_n_TKTracks,0.0,0.0,0.0,,PASS
+muondis,reco,mean_total_Ecompensated,46.52888077839226,46.52888077839226,0.0,0.0,PASS
+muondis,reco,rms_total_Ecompensated,153.55849336513893,153.55849336513893,0.0,0.0,PASS
+```
+
+(`rel_diff` is blank when `golden` is `0` -- see `_compare_value()`'s
+docstring: the check falls back to an absolute one against `--rel-tol`
+instead, since a relative difference against zero is undefined.)
