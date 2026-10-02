@@ -3569,6 +3569,23 @@ void TPORecoEvent::ReconstructMuonSpectrometer() {
     }
 }
 ///////////////////////////////
+// Shared gate for the MDT reconstruction/geometry diagnostic printouts
+// below (magnet geometry dumps in GetMDTMagnetCentersZ/SetupMDTMagneticField/
+// TcalEvent::CacheMDTGlobalMatrix, and ReconstructMDT_fin's own per-event
+// status line and rescue-cascade prints): set MDT_VERBOSE=1 (or any nonzero
+// value) in the environment to enable. Off by default -- this logging runs
+// on every event (several of these functions are called once per event) and
+// adds real I/O overhead over a full production run.
+static bool MDTVerboseEnabled()
+{
+    static const bool enabled = []() {
+        const char* v = std::getenv("MDT_VERBOSE");
+        if (!v) return false;
+        try { return std::stoi(v) != 0; } catch (...) { return true; }
+    }();
+    return enabled;
+}
+///////////////////////////////
 // Configure MDT magnet z-ranges on fMagField by walking the ROOT geometry.
 // Must be called once per event (or at least once after geometry is loaded)
 // before running the analytic or GenFit MDT fits.
@@ -3607,9 +3624,11 @@ static void SetupMDTMagneticField(GenMagneticField* gfield, TcalEvent* tcal)
             if (half > 1.0) halfZ_cm = half;
         }
         ranges_cm.push_back({tr_cm[2] - halfZ_cm, tr_cm[2] + halfZ_cm});
-        std::cout << "[SetupMDTMagneticField] magnet=" << nodeName
-                  << " pos(x,y,z)=(" << tr_cm[0] << ", " << tr_cm[1] << ", " << tr_cm[2]
-                  << ") cm, z_range=(" << (tr_cm[2] - halfZ_cm) << ", " << (tr_cm[2] + halfZ_cm) << ")\n";
+        if (MDTVerboseEnabled()) {
+            std::cout << "[SetupMDTMagneticField] magnet=" << nodeName
+                      << " pos(x,y,z)=(" << tr_cm[0] << ", " << tr_cm[1] << ", " << tr_cm[2]
+                      << ") cm, z_range=(" << (tr_cm[2] - halfZ_cm) << ", " << (tr_cm[2] + halfZ_cm) << ")\n";
+        }
         // Derive the field's slit-position parameter from THIS magnet's
         // actual shape (the same shape GDML round-tripped from FASERG4's
         // real DetectorConstruction), instead of trusting a hand-typed
@@ -3620,11 +3639,13 @@ static void SetupMDTMagneticField(GenMagneticField* gfield, TcalEvent* tcal)
             FASER::MagnetSlitProbeResult probe = FASER::ProbeMagnetSlit(shape);
             if (probe.ok) {
                 slitProbes.push_back(probe);
-                std::cout << "[SetupMDTMagneticField] magnet=" << nodeName
-                          << " slit probe: slitPositionCm=" << probe.slitPositionCm
-                          << " blockHalfExtentYCm=" << probe.blockHalfExtentYCm
-                          << " slitHalfWidthCm=" << probe.slitHalfWidthCm
-                          << " asymmetryCm=" << probe.asymmetryCm << "\n";
+                if (MDTVerboseEnabled()) {
+                    std::cout << "[SetupMDTMagneticField] magnet=" << nodeName
+                              << " slit probe: slitPositionCm=" << probe.slitPositionCm
+                              << " blockHalfExtentYCm=" << probe.blockHalfExtentYCm
+                              << " slitHalfWidthCm=" << probe.slitHalfWidthCm
+                              << " asymmetryCm=" << probe.asymmetryCm << "\n";
+                }
             } else {
                 std::cerr << "[SetupMDTMagneticField] WARNING: slit probe found no "
                           << "solid-gap-solid pattern for magnet=" << nodeName
@@ -3674,9 +3695,11 @@ static void SetupMDTMagneticField(GenMagneticField* gfield, TcalEvent* tcal)
                       << "inconsistent geometry probe.\n";
         } else {
             slitPositionCm = avgSlitPositionCm;
-            std::cout << "[SetupMDTMagneticField] slit position derived from geometry: "
-                      << slitPositionCm << " cm (from " << slitProbes.size()
-                      << " magnet probe(s), spread=" << spreadCm << " cm)\n";
+            if (MDTVerboseEnabled()) {
+                std::cout << "[SetupMDTMagneticField] slit position derived from geometry: "
+                          << slitPositionCm << " cm (from " << slitProbes.size()
+                          << " magnet probe(s), spread=" << spreadCm << " cm)\n";
+            }
             // Full-paranoia check #2: the field model's own zero-cutoff
             // envelope (2*slitPositionCm) is SUPPOSED to coincide with
             // the block's real physical outer edge. If it doesn't, the
@@ -3714,13 +3737,15 @@ static void SetupMDTMagneticField(GenMagneticField* gfield, TcalEvent* tcal)
         //   z_local = -x*sin(tilt) + z*cos(tilt)
         // If Z is wrong by 850 mm, this introduces ~66 mm systematic error in coordinates!
         // Therefore, Z must be set to the actual magnet center position from ROOT geometry.
-        std::cout << "[SetupMDTMagneticField] Z-coordinate analysis:\n"
-                  << "  avgZ from ROOT geometry magnet centers: " << avgZ_cm << " cm\n"
-                  << "  rearMuSpectLocZ from calibration (front): " << calZ_cm << " cm\n"
-                  << "  Difference: " << (avgZ_cm - calZ_cm) << " cm = "
-                  << (avgZ_cm - calZ_cm) * 10.0 << " mm\n"
-                  << "  MDT total length: ~1700 mm (so middle = front + 850 mm)\n"
-                  << "  Using: " << avgZ_cm << " cm (actual magnet center from ROOT geometry)\n";
+        if (MDTVerboseEnabled()) {
+            std::cout << "[SetupMDTMagneticField] Z-coordinate analysis:\n"
+                      << "  avgZ from ROOT geometry magnet centers: " << avgZ_cm << " cm\n"
+                      << "  rearMuSpectLocZ from calibration (front): " << calZ_cm << " cm\n"
+                      << "  Difference: " << (avgZ_cm - calZ_cm) << " cm = "
+                      << (avgZ_cm - calZ_cm) * 10.0 << " mm\n"
+                      << "  MDT total length: ~1700 mm (so middle = front + 850 mm)\n"
+                      << "  Using: " << avgZ_cm << " cm (actual magnet center from ROOT geometry)\n";
+        }
 
         // BUG FIX (2026-08-14): Pass all 4 arguments including tilt!
         // Without tilt_deg argument, it silently defaults to 0.0, overwriting the
@@ -3729,17 +3754,19 @@ static void SetupMDTMagneticField(GenMagneticField* gfield, TcalEvent* tcal)
         // rotation is computed correctly. Setting Z=0 causes ~66mm systematic errors!
         const double tiltAngleDeg = -tcal->geom_detector.fTiltAngleY * 180.0 / M_PI;
         gfield->SetRearMuSpectShift(avgX_cm, avgY_cm, avgZ_cm, tiltAngleDeg);
-        std::cout << "[SetupMDTMagneticField] LOS shift set to X=" << avgX_cm << " cm"
-                  << " Y=" << avgY_cm << " cm"
-                  << " Z=" << avgZ_cm << " cm (magnet center)"
-                  << " tilt=" << tiltAngleDeg << " deg\n";
+        if (MDTVerboseEnabled()) {
+            std::cout << "[SetupMDTMagneticField] LOS shift set to X=" << avgX_cm << " cm"
+                      << " Y=" << avgY_cm << " cm"
+                      << " Z=" << avgZ_cm << " cm (magnet center)"
+                      << " tilt=" << tiltAngleDeg << " deg\n";
+        }
 
         // DIAGNOSTIC: sample B across the slit boundary at the magnet center,
         // in GLOBAL coordinates (as GenFit's stepper actually queries the
         // field), to directly verify SetSlitPosition/shift/tilt combine
         // correctly on the real (shifted+tilted) magnet geometry rather than
         // trusting the transform algebra alone.
-        {
+        if (MDTVerboseEnabled()) {
             genfit::AbsBField* fieldBase = gfield; // upcast: get() is private on GenMagneticField
             std::cout << "[SetupMDTMagneticField] Field scan across slit boundary"
                       << " (slitposition=" << gfield->slitposition << " cm) at"
@@ -3760,8 +3787,10 @@ static void SetupMDTMagneticField(GenMagneticField* gfield, TcalEvent* tcal)
             }
         }
     }
-    std::cout << "[SetupMDTMagneticField] configured " << unique_ranges.size()
-              << " MDT magnet z-ranges, slitPos=25 cm\n";
+    if (MDTVerboseEnabled()) {
+        std::cout << "[SetupMDTMagneticField] configured " << unique_ranges.size()
+                  << " MDT magnet z-ranges, slitPos=25 cm\n";
+    }
 }
 ///////////////////////////////
 void PrintMDTFieldMaterialScan(genfit::AbsBField* field,
@@ -3901,15 +3930,17 @@ std::vector<double> TPORecoEvent::GetMDTMagnetCentersZ() const
         ROOT::Math::XYZVector centerGlobal_mm(tr_cm[0] * 10.0, tr_cm[1] * 10.0, tr_cm[2] * 10.0);
         ROOT::Math::XYZVector centerLocal_mm = fTcalEvent->GlobalToMDTLocal(centerGlobal_mm);
         zCentersLocal.push_back(centerLocal_mm.Z());
-        std::cout << "[GetMDTMagnetCentersZ] node=" << nodeName
-                  << " global center mm=("
-                  << centerGlobal_mm.X() << ", "
-                  << centerGlobal_mm.Y() << ", "
-                  << centerGlobal_mm.Z() << ")"
-                  << " local center mm=("
-                  << centerLocal_mm.X() << ", "
-                  << centerLocal_mm.Y() << ", "
-                  << centerLocal_mm.Z() << ")\n";
+        if (MDTVerboseEnabled()) {
+            std::cout << "[GetMDTMagnetCentersZ] node=" << nodeName
+                      << " global center mm=("
+                      << centerGlobal_mm.X() << ", "
+                      << centerGlobal_mm.Y() << ", "
+                      << centerGlobal_mm.Z() << ")"
+                      << " local center mm=("
+                      << centerLocal_mm.X() << ", "
+                      << centerLocal_mm.Y() << ", "
+                      << centerLocal_mm.Z() << ")\n";
+        }
     }
     std::sort(zCentersLocal.begin(), zCentersLocal.end());
     // Remove duplicates if any duplicated placements appear.
@@ -5178,8 +5209,17 @@ void TPORecoEvent::ReconstructMDT_simplified()
 // /////////////////////////////////////////////////////////////////////////////
 void TPORecoEvent::ReconstructMDT_fin()
 {
-    std::cout << "[ReconstructMDT_fin] MDT tracks in TcalEvent = "
-              << fTcalEvent->fMDTTracks.size() << std::endl;
+    // See MDTVerboseEnabled() above: gates this function's own per-event
+    // status line and rescue-cascade prints (OutlierRescue/TwoTrack-A/-B/
+    // Hough-vote), as well as the geometry/field-setup diagnostics in
+    // GetMDTMagnetCentersZ/SetupMDTMagneticField/TcalEvent::CacheMDTGlobalMatrix
+    // called below. Off by default -- MDT_VERBOSE=1 to enable.
+    const bool verboseMDT = MDTVerboseEnabled();
+
+    if (verboseMDT) {
+        std::cout << "[ReconstructMDT_fin] MDT tracks in TcalEvent = "
+                  << fTcalEvent->fMDTTracks.size() << std::endl;
+    }
 
     if (!fTcalEvent->HasRearMuSpectGlobalMatrix()) {
         if (!fTcalEvent->CacheMDTGlobalMatrix()) {
@@ -5191,14 +5231,6 @@ void TPORecoEvent::ReconstructMDT_fin()
     const double smear_mm = 0.080;       // 80 um resolution smearing factor
     const double tubeInnerRadius = 14.6; // Boundary envelope constraint
     const double seedMomentumGeV = 10.0; // Seed momentum
-    // Verbosity for rescue-cascade prints (OutlierRescue/TwoTrack-A/-B/Hough-vote):
-    // set MDT_VERBOSE=1 (or any nonzero value) in the environment to enable.
-    // Off by default -- this logging is per-rescue-attempt and adds real I/O
-    // overhead over a full production run (see the earlier speed discussion).
-    bool verboseMDT = false;
-    if (const char* v = std::getenv("MDT_VERBOSE")) {
-        try { verboseMDT = (std::stoi(v) != 0); } catch (...) { verboseMDT = true; }
-    }
 
     struct Hit {
          double wx_g, wy_g, wz_g;   // global wire center

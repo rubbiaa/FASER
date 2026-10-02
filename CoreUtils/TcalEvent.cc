@@ -1,5 +1,6 @@
 #include <sstream>
 #include <cmath>
+#include <cstdlib>  // std::getenv (MDT_VERBOSE gate in CacheMDTGlobalMatrix)
 #include "TcalEvent.hh"
 #include "FaserDataDir.hh"
 
@@ -718,11 +719,21 @@ TcalEvent::CacheMDTGlobalMatrix()
 
         const double* tr = frearMuSpectLocalToGlobal_cm.GetTranslation();
 
-        std::cout << "[CacheMDTGlobalMatrix] cached MDT container\n"
-                  << "  node=" << nodeName
-                  << " volume=" << volName << "\n"
-                  << "  full global translation cm=("
-                  << tr[0] << ", " << tr[1] << ", " << tr[2] << ")\n";
+        // Same MDT_VERBOSE gate as CoreUtils/TPORecoEvent.cc's
+        // MDTVerboseEnabled() (a different translation unit, so duplicated
+        // here rather than shared) -- off by default, this geometry dump
+        // runs once per event via ReconstructMDT_fin.
+        bool mdtVerbose = false;
+        if (const char* v = std::getenv("MDT_VERBOSE")) {
+            try { mdtVerbose = (std::stoi(v) != 0); } catch (...) { mdtVerbose = true; }
+        }
+        if (mdtVerbose) {
+            std::cout << "[CacheMDTGlobalMatrix] cached MDT container\n"
+                      << "  node=" << nodeName
+                      << " volume=" << volName << "\n"
+                      << "  full global translation cm=("
+                      << tr[0] << ", " << tr[1] << ", " << tr[2] << ")\n";
+        }
 
         return true;
     }
