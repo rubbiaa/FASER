@@ -19,10 +19,6 @@ ConvertGENIE/etaCoverage_geometry
 # Personal environment
 setup_*.sh
 
-# Optional generic GDML outputs (if needed)
-GeomGDML/geometry*.gdml
-GeomGDML/new_geometry_tilted_5degree.gdml
-
 # OS/editor noise
 .DS_Store
 .vscode/

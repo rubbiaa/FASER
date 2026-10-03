@@ -86,7 +86,6 @@ FASER/                        (the git repo; FASERCAL is this project's own name
 |-- Analysis/                  physics analysis code (post-reconstruction)
 |-- TauSearch/                 tau-neutrino search analysis code
 |-- FileMask/                  interaction-type mask utilities (nueCC/numuCC/.../ES)
-|-- GeomGDML/                  GDML geometry export/import helpers
 |-- Tests/                     FASERCAL's own gtest suite (§7)
 |-- cmake/                     CMake helper modules for the superbuild
 |-- docs/                      this file and the rest of the documentation

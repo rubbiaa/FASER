@@ -15,6 +15,7 @@
 #include <TEveTrans.h> 
 #include <TGDMLParse.h>
 #include <TString.h>
+#include "FaserDataDir.hh"
 
 #include <TGComboBox.h>
 
@@ -65,17 +66,13 @@ namespace display
   void FaserCalDisplay::GetDetector()
   {
     std::cout << "Starting GetDetector()" << std::endl;
-    // Load the GDML file using TGeoManager::Import
-    // Use relative path to local geometry files
-    //TGeoManager::Import("../../GeomGDML/geometry_tilted_5degree.gdml");
-    // Alternative: use prototype geometry
-    //TGeoManager::Import("../../GeomGDML/geometry_prototype.gdml");
-    //TGeoManager::Import("../../GeomGDML/FASERCAL_V9.gdml");
-    // Old absolute path (kept as reference)
-    //TGeoManager::Import("/data/sw/FASERCAL/FASER/GeomGDML/geometry.gdml");
-    // use for Run120 and v5.0
-    //TGeoManager::Import("/home/hyperk/sw/FASERCAL/FASER_March2025/GeomGDML/geometry_v5.gdml");
-    TGeoManager::Import("../../FASERG4/build/FASERCAL_V9.gdml");
+    // Load the GDML file using TGeoManager::Import. GeomGDML/ (obsolete,
+    // hand-copied .gdml snapshots) is gone, and so is this file's own old
+    // ../../FASERG4/build/FASERCAL_V9.gdml build-directory artifact -- this
+    // now imports the single current geometry
+    // FASERG4/src/DetectorConstruction.cc itself writes out, under
+    // $FASERDATA/GDML/ (see CoreUtils/FaserDataDir.hh).
+    TGeoManager::Import((FASER::GetDataDir("GDML") + "/FASERCAL_V10.gdml").c_str());
     //
     if (!gGeoManager) {
       std::cerr << "Failed to import GDML file." << std::endl;

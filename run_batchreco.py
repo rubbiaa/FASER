@@ -16,17 +16,16 @@ and "2000 3999" chunks and was silently never processed, and likewise
 them as background jobs with their own log files; a single run (the
 default, no --split) runs synchronously so you see its output directly.
 
-It also does not reuse BatchReco.cc's own hardcoded default geometry file
-("../GeomGDML/geometry.gdml", relative to Batch/) - that file does not
-actually exist in this checkout (GeomGDML/ has geometry_v5.gdml,
-geometry_15_noshiftLOS.gdml, geometry_tilted_5degree.gdml and
-FaserNu3.gdml, but no plain geometry.gdml), so relying on it is itself a
-silent-wrong-geometry footgun (the same class of bug this whole
-run_faserps.py/run_batchreco.py effort is about). This script's own
-default instead points at $FASERDATA/GDML/FASERCAL_V10.gdml, the geometry
-FASERG4 currently actually exports (DetectorConstruction.cc writes it
-there via FASER::GetDataDir("GDML") every time faserps runs, so it's
-regenerated output, not a file worth tracking in git) - override with
+It also always passes an explicit -g instead of relying on BatchReco.cc's
+own hardcoded default (that default used to point at a GeomGDML/ file
+that didn't exist in this checkout - GeomGDML/ is gone now, and
+BatchReco.cc's default has since been fixed to match this script's own,
+below - but this script still passes -g explicitly rather than depending
+on that). This script's own default points at
+$FASERDATA/GDML/FASERCAL_V10.gdml, the geometry FASERG4 currently
+actually exports (DetectorConstruction.cc writes it there via
+FASER::GetDataDir("GDML") every time faserps runs, so it's regenerated
+output, not a file worth tracking in git) - override with
 --geometry-file if you need a different one.
 
 Usage:
@@ -48,9 +47,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent
 DEFAULT_BUILD_DIR = REPO_ROOT / "build"
 
-# BatchReco.cc's own hardcoded default ("../GeomGDML/geometry.gdml",
-# relative to Batch/) does not exist in this checkout -- see the module
-# docstring. Always pass an explicit -g instead of relying on it.
+# Always pass an explicit -g rather than relying on BatchReco.cc's own
+# hardcoded default (which now matches this anyway -- see the module
+# docstring).
 #
 # FASERCAL_V10.gdml itself is faserps' own exported-geometry output (see
 # DetectorConstruction.cc, FASER::GetDataDir("GDML")), not source -- it

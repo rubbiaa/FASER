@@ -16,6 +16,7 @@
 #include "TcalEvent.hh"
 #include "TPOEvent.hh"
 #include "TPORecoEvent.hh"
+#include "FaserDataDir.hh"
 
 void LoadAllRecoEvents(display::FaserCalDisplay* display, int runNumber, int maxEvents, std::string mask_str)
 {
@@ -87,7 +88,11 @@ void LoadAllRecoEvents(display::FaserCalDisplay* display, int runNumber, int max
   TDatabasePDG* pdgDB = TDatabasePDG::Instance();
   display->AddCustomNucleusParticles(); 
 
-  TGeoManager::Import("../../GeomGDML/geometry_tilted_5degree.gdml");
+    // GeomGDML/ (obsolete, hand-copied .gdml snapshots) is gone -- this
+  // now imports the single current geometry
+  // FASERG4/src/DetectorConstruction.cc itself writes out, under
+  // $FASERDATA/GDML/ (see CoreUtils/FaserDataDir.hh).
+  TGeoManager::Import((FASER::GetDataDir("GDML") + "/FASERCAL_V10.gdml").c_str());
 
   int total_muons = 0;
   int muons_in_3DCAL = 0;

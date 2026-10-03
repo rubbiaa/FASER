@@ -16,6 +16,7 @@
 #include "TPOEvent.hh"
 #include "TPORecoEvent.hh"
 #include "TMuTrack.hh"
+#include "FaserDataDir.hh"
 #include "GenMagneticField.hh"
 
 // GENFIT includes
@@ -503,7 +504,11 @@ void LoadAllEvents(display::FaserCalDisplay* display, int runNumber, int maxEven
   fTree->Branch("taubin_fit_success", &ftaubin_fit_success);
 
 
-  TGeoManager::Import("../../GeomGDML/geometry.gdml");
+    // GeomGDML/ (obsolete, hand-copied .gdml snapshots) is gone -- this
+  // now imports the single current geometry
+  // FASERG4/src/DetectorConstruction.cc itself writes out, under
+  // $FASERDATA/GDML/ (see CoreUtils/FaserDataDir.hh).
+  TGeoManager::Import((FASER::GetDataDir("GDML") + "/FASERCAL_V10.gdml").c_str());
 
   // Get all file paths in the input directory
   for (const auto& entry : std::filesystem::directory_iterator(input_folder_path))

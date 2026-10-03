@@ -74,7 +74,10 @@ int main(int argc, char** argv) {
     }
 
     // check for -g <geometryfile>  to load a specific geometry file
-    std::string geometryFile = "../GeomGDML/geometry.gdml";
+    // GeomGDML/ (obsolete, hand-copied .gdml snapshots) is gone -- this is
+    // now the single current geometry FASERG4/src/DetectorConstruction.cc
+    // itself writes out, under $FASERDATA/GDML/. Still overridable with -g.
+    std::string geometryFile = FASER::GetDataDir("GDML") + "/FASERCAL_V10.gdml";
     if(argc>argv_index) {
         if (std::string(argv[argv_index]) == "-g") {
             argv_index++;

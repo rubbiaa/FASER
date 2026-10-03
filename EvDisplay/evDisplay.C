@@ -16,6 +16,7 @@
 
 #include "TcalEvent.hh"
 #include "TPOEvent.hh"
+#include "FaserDataDir.hh"
 
 #include "MyMainFrame.h"
 
@@ -89,8 +90,11 @@ int main(int argc, char** argv) {
         idx++;
     }
 
-    // -g <geometryfile>  to load a specific geometry file
-    std::string geometryFile = "../GeomGDML/geometry.gdml";
+    // -g <geometryfile>  to load a specific geometry file. GeomGDML/
+    // (obsolete, hand-copied .gdml snapshots) is gone -- this is now the
+    // single current geometry FASERG4/src/DetectorConstruction.cc itself
+    // writes out, under $FASERDATA/GDML/.
+    std::string geometryFile = FASER::GetDataDir("GDML") + "/FASERCAL_V10.gdml";
     if (strcmp(argv[idx], "-g") == 0) {
         idx++;
         if (argc < idx + 1) {

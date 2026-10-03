@@ -17,8 +17,11 @@
 
 void load_geometry()
 {
-    // Load the GDML geometry
-    TGeoManager::Import("../GeomGDML/geometry.gdml");
+    // Load the GDML geometry. GeomGDML/ (obsolete, hand-copied .gdml
+    // snapshots) is gone -- this is now the single current geometry
+    // FASERG4/src/DetectorConstruction.cc itself writes out, under
+    // $FASERDATA/GDML/.
+    TGeoManager::Import((FASER::GetDataDir("GDML") + "/FASERCAL_V10.gdml").c_str());
 }
 
 int main(int argc, char **argv)
