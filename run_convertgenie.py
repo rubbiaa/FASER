@@ -131,13 +131,17 @@ def discover_geometry_file(gdml_dir: Path) -> Path:
     hardcoded name -- so it only succeeds when exactly one candidate
     exists; with zero or several it errors out and tells the caller to
     pass --geometry-file explicitly."""
+    _no_geometry_hint = (
+        "       GDML geometry isn't fetched or checked in -- FASERG4 exports it as a\n"
+        "       side effect of running faserps. Generate one cheaply, with no input\n"
+        "       sample needed, by running:\n"
+        "           python3 run_faserps.py --muons --n-events 1\n"
+        "       or pass --geometry-file to point at an existing GDML file explicitly.")
     if not gdml_dir.is_dir():
-        sys.exit(f"error: GDML directory not found: {gdml_dir}\n"
-                  f"       Pass --geometry-file to point at a GDML file explicitly.")
+        sys.exit(f"error: GDML directory not found: {gdml_dir}\n{_no_geometry_hint}")
     candidates = sorted(gdml_dir.glob("*.gdml"))
     if len(candidates) == 0:
-        sys.exit(f"error: no .gdml file found under {gdml_dir}\n"
-                  f"       Pass --geometry-file to point at one explicitly.")
+        sys.exit(f"error: no .gdml file found under {gdml_dir}\n{_no_geometry_hint}")
     if len(candidates) > 1:
         names = ", ".join(c.name for c in candidates)
         sys.exit(f"error: multiple .gdml files found under {gdml_dir} ({names})\n"
