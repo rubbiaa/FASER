@@ -95,3 +95,9 @@ CMakeUserPresets.json
 # computed numbers, written for inspection, not a baseline to commit).
 Tests/regression/work/
 Tests/regression/results/
+
+# Stale pre-$FASERDATA artifact: DetectorConstruction.cc used to write the
+# exported geometry here (cwd) before it was switched to
+# $FASERDATA/GDML/FASERCAL_V10.gdml (see CoreUtils/FaserDataDir.hh) --
+# that's the canonical copy now, under the already-ignored /data/ above.
+/FASERG4/FASERCAL_V10.gdml
