@@ -189,6 +189,27 @@ elif [ -d /cvmfs/geant4.cern.ch ]; then
   export CLHEP_ROOT=/cvmfs/sft.cern.ch/lcg/views/LCG_104b_geant4ext20231106/x86_64-el9-gcc11-opt
   echo "CLHEP: reusing the standalone CLHEP at $CLHEP_ROOT (the one this Geant4 release is itself linked against)"
 
+  # Work around a system-Python quirk observed on lxplus (AlmaLinux9):
+  # once thisroot.sh has added ROOT's own lib/ to $PYTHONPATH, the system
+  # /usr/bin/python3 (3.9, a non-default/secondary interpreter on EL9)
+  # starts resolving its own compiled stdlib extensions (lib-dynload) from
+  # /usr/lib/python3.9/lib-dynload/ - the 32-bit (i686) multilib copy -
+  # instead of /usr/lib64/python3.9/lib-dynload/, the real 64-bit one this
+  # binary needs. Pure-Python stdlib modules (e.g. csv.py) still resolve
+  # fine either way, but any module backed by a compiled extension (e.g.
+  # csv's own `_csv`) then fails with "ModuleNotFoundError: No module
+  # named '_csv'" - with no PYTHONHOME/PYTHONPLATLIBDIR override and no
+  # shadowing file anywhere involved; a bare `python3 -c "import csv"`
+  # reproduces it as soon as that one PYTHONPATH entry is present.
+  # Prepending the correct 64-bit lib-dynload directory to $PYTHONPATH
+  # fixes it (confirmed on lxplus969); compute it rather than hardcoding
+  # "3.9" so this keeps working if lxplus's system Python version changes.
+  _faser_py_ver=$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null)
+  if [ -n "$_faser_py_ver" ] && [ -d "/usr/lib64/python${_faser_py_ver}/lib-dynload" ]; then
+    export PYTHONPATH="/usr/lib64/python${_faser_py_ver}/lib-dynload:${PYTHONPATH}"
+  fi
+  unset _faser_py_ver
+
 else
   echo "FASER setup: could not auto-detect a known site."
   echo "  Checked for: André's Mac, the Ubuntu (Ryzen) box, and lxplus (/cvmfs/geant4.cern.ch)."
