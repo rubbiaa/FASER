@@ -133,6 +133,18 @@ if(FASER_BUILD_CLHEP)
   message(STATUS "CLHEP: building from source (gitlab.cern.ch/CLHEP/CLHEP) - pass -DCLHEP_ROOT=... or set $GEANT4_INSTALL to a Geant4 install with a bundled CLHEP to skip this")
   set(CLHEP_INSTALL_DIR "${FASER_EXTERNAL_INSTALL_DIR}/CLHEP")
 
+  # Force "lib" rather than let GNUInstallDirs pick "lib64" (its default
+  # on RHEL-family x86_64, e.g. lxplus - see googletest's own
+  # -DCMAKE_INSTALL_LIBDIR=lib further down for the first time this bit
+  # us). CLHEP's own CMakeLists.txt installs its libraries to a plain
+  # "lib" regardless of this setting - unlike googletest/Rave, it doesn't
+  # honor CMAKE_INSTALL_LIBDIR at all - so what actually matters here is
+  # _faser_clhep_libdir below, used for every *consumer* of this build
+  # (FASER::CLHEP's IMPORTED_LOCATION, GenFit's Rave_LDFLAGS); this flag
+  # is passed anyway, harmlessly, in case a future CLHEP release starts
+  # respecting it.
+  set(_faser_clhep_libdir lib)
+
   ExternalProject_Add(clhep_external
     GIT_REPOSITORY    https://gitlab.cern.ch/CLHEP/CLHEP.git
     GIT_TAG           develop  # CLHEP's default branch (verified via the GitLab UI)
@@ -142,11 +154,21 @@ if(FASER_BUILD_CLHEP)
       -DCMAKE_INSTALL_PREFIX=${CLHEP_INSTALL_DIR}
       -DCLHEP_SINGLE_THREAD=ON
       -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+      -DCMAKE_INSTALL_LIBDIR=lib
     BUILD_COMMAND     ${CMAKE_COMMAND} --build <BINARY_DIR> --parallel ${FASER_BUILD_PARALLEL_JOBS}
     INSTALL_COMMAND   ${CMAKE_COMMAND} --build <BINARY_DIR> --target install
-    BUILD_BYPRODUCTS  "${CLHEP_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libCLHEP${_faser_shlib_suffix}"
+    BUILD_BYPRODUCTS  "${CLHEP_INSTALL_DIR}/${_faser_clhep_libdir}/libCLHEP${_faser_shlib_suffix}"
   )
 else()
+  # The two reuse branches below build their symlink shim at
+  # ${CLHEP_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/ using the *outer*
+  # FASER project's own GNUInstallDirs-resolved value, consistently on
+  # both the write side (the file(CREATE_LINK ...) calls below) and the
+  # read side (FASER::CLHEP's IMPORTED_LOCATION, GenFit's Rave_LDFLAGS) -
+  # so whatever that value resolves to on a given platform, it's
+  # self-consistent and doesn't need forcing the way the from-source
+  # build above does.
+  set(_faser_clhep_libdir "${CMAKE_INSTALL_LIBDIR}")
   if(NOT CLHEP_ROOT)
     message(FATAL_ERROR "FASER_BUILD_CLHEP=OFF but CLHEP_ROOT was not set to a pre-installed CLHEP prefix")
   endif()
@@ -269,7 +291,7 @@ endif()
 file(MAKE_DIRECTORY "${CLHEP_INSTALL_DIR}/include")
 add_library(FASER::CLHEP SHARED IMPORTED GLOBAL)
 set_target_properties(FASER::CLHEP PROPERTIES
-  IMPORTED_LOCATION             "${CLHEP_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libCLHEP${_faser_shlib_suffix}"
+  IMPORTED_LOCATION             "${CLHEP_INSTALL_DIR}/${_faser_clhep_libdir}/libCLHEP${_faser_shlib_suffix}"
   INTERFACE_INCLUDE_DIRECTORIES "${CLHEP_INSTALL_DIR}/include"
 )
 if(TARGET clhep_external)
@@ -457,7 +479,7 @@ if(FASER_BUILD_GENFIT)
 
   if(APPLE)
     list(APPEND _genfit_cmake_args
-      "-DRave_LDFLAGS=-L${RAVE_INSTALL_DIR}/lib/ -lRaveBase -L${CLHEP_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/ -lCLHEP")
+      "-DRave_LDFLAGS=-L${RAVE_INSTALL_DIR}/lib/ -lRaveBase -L${CLHEP_INSTALL_DIR}/${_faser_clhep_libdir}/ -lCLHEP")
     # Plain parallel build; no gtest workaround needed on Darwin (matches
     # the old Makefile's Darwin branch).
     set(_genfit_build_cmd ${CMAKE_COMMAND} --build <BINARY_DIR> --parallel ${FASER_BUILD_PARALLEL_JOBS})
@@ -466,7 +488,7 @@ if(FASER_BUILD_GENFIT)
       -DGTEST_LIBRARY=${GOOGLETEST_INSTALL_DIR}/lib/libgtest.a
       -DGTEST_INCLUDE_DIR=${GOOGLETEST_INSTALL_DIR}/include
       -DGTEST_MAIN_LIBRARY=${GOOGLETEST_INSTALL_DIR}/lib/libgtest_main.a
-      "-DRave_LDFLAGS=-Wl,-rpath-link,${RAVE_INSTALL_DIR}/lib/ -L${RAVE_INSTALL_DIR}/lib/ -lRaveBase -L${CLHEP_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/ -lCLHEP")
+      "-DRave_LDFLAGS=-Wl,-rpath-link,${RAVE_INSTALL_DIR}/lib/ -L${RAVE_INSTALL_DIR}/lib/ -lRaveBase -L${CLHEP_INSTALL_DIR}/${_faser_clhep_libdir}/ -lCLHEP")
     list(APPEND _genfit_deps googletest_external)
 
     # GenFit's own CMakeLists.txt defaults BUILD_TESTING to ON on every
