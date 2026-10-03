@@ -466,6 +466,14 @@ if(FASER_BUILD_GENFIT)
   set(_genfit_cmake_args
     -DCMAKE_BUILD_TYPE=Debug
     -DCMAKE_INSTALL_PREFIX=${GENFIT_INSTALL_DIR}
+    # Force "lib" rather than let GNUInstallDirs pick "lib64" (its default
+    # on RHEL-family x86_64, e.g. lxplus) - genfit.patch adds GenFit's own
+    # include(GNUInstallDirs), but GenFit::genfit2's IMPORTED_LOCATION and
+    # BUILD_BYPRODUCTS below hardcode .../lib/libgenfit2.*, so without this
+    # GenFit happily installs to lib64 on lxplus and every consumer fails
+    # with "No rule to make target '.../GenFit/lib/libgenfit2.so'". Same
+    # fix as googletest's and CLHEP's own -DCMAKE_INSTALL_LIBDIR=lib above.
+    -DCMAKE_INSTALL_LIBDIR=lib
     "-DRave_CFLAGS=-DRaveDllExport= -DWITH_FLAVORTAGGING -DWITH_KINEMATICS"
     -DRave_INCLUDE_DIRS=${RAVE_INSTALL_DIR}/include/
   )
