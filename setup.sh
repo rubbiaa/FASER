@@ -210,6 +210,10 @@ elif [ -d /cvmfs/geant4.cern.ch ]; then
   fi
   unset _faser_py_ver
 
+  # Flag checked below, after common_setup.sh has had its turn at
+  # $LD_LIBRARY_PATH too - see the matching block at the end of this file.
+  _faser_site_is_lxplus=1
+
 else
   echo "FASER setup: could not auto-detect a known site."
   echo "  Checked for: André's Mac, the Ubuntu (Ryzen) box, and lxplus (/cvmfs/geant4.cern.ch)."
@@ -222,3 +226,25 @@ else
 fi
 
 source $HOMEFASER/common_setup.sh
+
+if [ -n "$_faser_site_is_lxplus" ]; then
+  # Second half of the lxplus Python fix above: common_setup.sh (just
+  # sourced) prepends GenFit/Rave/CLHEP onto $LD_LIBRARY_PATH, but by then
+  # it already contains the CLHEP_ROOT LCG view's own lib/ dir (added
+  # while resolving the reused CLHEP, earlier in this branch) - and that
+  # view bundles its own standalone libpython3.9.so.1.0 (a plain upstream
+  # build, CVMFS "Python" release 3.9.12-9a1bc). Found ahead of the
+  # system's own /usr/lib64/libpython3.9.so.1.0 (which carries a Red
+  # Hat-only backported symbol, _PyModule_AddObjectRef), that view's copy
+  # gets dlopen'd instead for any later python3 extension module needing
+  # libpython - e.g. hashlib's _hashlib.so - and fails with
+  # "undefined symbol: _PyModule_AddObjectRef" (confirmed on lxplus969).
+  # Pure stdlib Python doesn't care which libpython it runs under, so
+  # putting the system's own lib64 first is safe, and doesn't affect any
+  # FASER/CLHEP/Rave/GenFit/Geant4/ROOT library resolution - none of
+  # those names collide with anything under /usr/lib64.
+  if [ -d /usr/lib64 ]; then
+    export LD_LIBRARY_PATH="/usr/lib64:${LD_LIBRARY_PATH}"
+  fi
+  unset _faser_site_is_lxplus
+fi
