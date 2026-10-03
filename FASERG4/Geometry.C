@@ -16,6 +16,37 @@
 #include <iomanip>
 #include <string>
 
+// Moved here from GeomGDML/ (which held obsolete, hand-copied .gdml
+// snapshots, several functions below also had hardcoded absolute paths to
+// a specific developer's machine). Every function that just imports *one*
+// geometry file now goes through this helper to import the single current
+// geometry that FASERG4/src/DetectorConstruction.cc itself writes out,
+// under $FASERDATA/GDML/ (see CoreUtils/FaserDataDir.hh) - run these macros
+// after a faserps run has generated that file, from a shell with
+// setup.sh/common_setup.sh sourced (so $FASERDATA is set).
+//
+// Geometry_flux_fasernu_fasercal() and ExtractFaserCalDistancesFromLoS()
+// below additionally used to overlay a second, separately-sourced
+// "FASERCAL" sub-geometry on top of this import by hand (a hardcoded
+// z=600cm translation, reading a GDML file from a specific developer's
+// own build directory). Since $FASERDATA/GDML/FASERCAL_V10.gdml is now
+// DetectorConstruction.cc's full exported *world* volume - i.e. already
+// the combined detector - that manual overlay step is very likely
+// redundant (or worse, silently double-geometry) now. Rather than guess
+// at how to rebuld that logic against FASERCAL_V10.gdml's actual node
+// structure, both overlay blocks are left in place but commented out and
+// flagged FIXME below - needs a decision from someone who knows what
+// FASERCAL_V10.gdml's node tree actually looks like.
+TString FASER_GetCurrentGdmlPath()
+{
+  const char* faserdata = gSystem->Getenv("FASERDATA");
+  if (!faserdata || !*faserdata) {
+    Error("FASER_GetCurrentGdmlPath", "FASERDATA is not set - source "
+          "setup.sh (or common_setup.sh) before running this macro.");
+    return "";
+  }
+  return TString::Format("%s/GDML/FASERCAL_V10.gdml", faserdata);
+}
 
 void Geometry()
 {
@@ -24,7 +55,7 @@ void Geometry()
   gSystem->Load("libGui");
   gSystem->Load("libEve");
   // --- Load the geometry ---
-  TGeoManager::Import("geometry_tilted_5degree.gdml");
+  TGeoManager::Import(FASER_GetCurrentGdmlPath());
   
   // --- Create TEve Manager ---
   TEveManager::Create();
@@ -48,7 +79,7 @@ void Geometry_flux()
   gSystem->Load("libGui");
   gSystem->Load("libEve");
   // --- Load the geometry ---
-  TGeoManager::Import("geometry_tilted_5degree.gdml");
+  TGeoManager::Import(FASER_GetCurrentGdmlPath());
   
   // --- Create TEve Manager ---
   TEveManager::Create();
@@ -132,7 +163,7 @@ void Geometry_flux_fasernu()
   gSystem->Load("libGui");
   gSystem->Load("libEve");
   // --- Load the geometry ---
-  TGeoManager::Import("FaserNu3.gdml");
+  TGeoManager::Import(FASER_GetCurrentGdmlPath());
   
   // --- Create TEve Manager ---
   TEveManager::Create();
@@ -231,63 +262,42 @@ void Geometry_flux_fasernu_fasercal()
   gSystem->Load("libGdml");   // for TGDMLParse
 
   // ----------------------------------------------------
-  // 2. Import main geometry (FaserNu3) into ONE TGeoManager
+  // 2. Import the current, combined geometry into ONE TGeoManager
   // ----------------------------------------------------
-  TGeoManager::Import("FaserNu3.gdml");
+  TGeoManager::Import(FASER_GetCurrentGdmlPath());
   TGeoManager *geom = gGeoManager;
   if (!geom) {
-    Error("Geometry_flux_fasernu", "Cannot load FaserNu3.gdml");
+    Error("Geometry_flux_fasernu", "Cannot load the current geometry");
     return;
   }
 
   // ----------------------------------------------------
-  // 3. Import second geometry as a volume via TGDMLParse
-  //    and attach it under the existing top volume
-  // ----------------------------------------------------
+  // 3. FIXME: this used to import a second, separately-sourced FASERCAL
+  //    sub-geometry (from a hardcoded path on a specific developer's own
+  //    machine) and overlay it by hand at a hand-picked z=600cm, renaming
+  //    its top volume to "CalGeometry" - the rest of this function (and
+  //    ViewCombinedGeometry[Simple]() below, via the .root export this
+  //    function writes) then navigates to that "CalGeometry" node to find
+  //    the calorimeter modules. Since FASER_GetCurrentGdmlPath() above is
+  //    now DetectorConstruction.cc's full exported *world* volume - i.e.
+  //    already the combined detector - this overlay is very likely
+  //    redundant (or would silently double the geometry) and the
+  //    "CalGeometry" node lookup below almost certainly needs to be
+  //    rewritten against FASERCAL_V10.gdml's actual node names instead.
+  //    Left disabled rather than guessed at - needs a decision from
+  //    someone who knows that node structure.
+  /*
   TGDMLParse parser;
- //TGeoVolume *vol2 = parser.GDMLReadFile("/Users/ukose/sw/kits/NewFASER/FASER/GeomGDML/FASERCAL_V8_W1mm_7deg_LoSX_38cm_LoSY_17cm_3DCAL_0inXm5inY.gdml");
- TGeoVolume *vol2 = parser.GDMLReadFile("/Users/ukose/sw/kits/NewFASER/FASER/FASERG4/build/FASERCAL_V9.gdml");
+  TGeoVolume *vol2 = parser.GDMLReadFile("/Users/ukose/sw/kits/NewFASER/FASER/FASERG4/build/FASERCAL_V9.gdml");
   if (!vol2) {
     Error("Geometry_flux_fasernu", "Cannot load /Users/ukose/sw/kits/NewFASER/FASER/FASERG4/build/FASERCAL_V9.gdml as volume");
     return;
   }
-
-  // Optionally rename to avoid name clashes
   vol2->SetName("CalGeometry");
-
-  // Set position / rotation of the second geometry relative to FaserNu3
-  // (currently at origin; change x,y,z and rotations as needed)
-  // TGeoTranslation *tr = new TGeoTranslation("tr_cal", 11.0, 17.0, 820.0); // in cm
-  //TGeoTranslation *tr = new TGeoTranslation("tr_cal", 20.0, 17.0, 0.0); // in cm
   TGeoTranslation *tr = new TGeoTranslation("tr", 0.0, .0, 600.0); // in cm
-  tr->RegisterYourself();  // good practice if you later use in matrices
-
+  tr->RegisterYourself();
   geom->GetTopVolume()->AddNode(vol2, 1, tr);
-  //geom->CloseGeometry();
-
-
-  // ----------------------------------------------------
-  // 3. Import second geometry as a volume via TGDMLParse
-  //    and attach it under the existing top volume
-  // ----------------------------------------------------
-  //TGDMLParse parser2;
-  //TGeoVolume *vol3 = parser2.GDMLReadFile("/Users/ukose/sw/kits/NewFASER/FASER/GeomGDML/test.gdml");
-  //if (!vol3) {
-  //  Error("Geometry_flux_fasernu", "Cannot load test.gdml as volume");
-  //  return;
-// }
-
-  // Optionally rename to avoid name clashes
-  //vol3->SetName("CalGeometry2");
-
-  // Set position / rotation of the second geometry relative to FaserNu3
-  // (currently at origin; change x,y,z and rotations as needed)
-  // TGeoTranslation *tr = new TGeoTranslation("tr_cal", 11.0, 17.0, 820.0); // in cm
-  //TGeoTranslation *tr3 = new TGeoTranslation("tr_cal", 0,0, 600.0); // in cm
-  TGeoTranslation *tr3 = new TGeoTranslation("tr_cal", 0.0, 0.0, 600.0); // in cm
-  //tr3->RegisterYourself();  // good practice if you later use in matrices
-
-  //geom->GetTopVolume()->AddNode(vol3, 1, tr3);
+  */
   geom->CloseGeometry();
 
   // ----------------------------------------------------
@@ -1123,32 +1133,37 @@ void ExtractFaserCalDistancesFromLoS()
   gSystem->Load("libGdml");
 
   // ----------------------------------------------------
-  // 1. Import main geometry (FaserNu3)
+  // 1. Import the current, combined geometry
   // ----------------------------------------------------
-  TGeoManager::Import("FaserNu3.gdml");
+  TGeoManager::Import(FASER_GetCurrentGdmlPath());
   TGeoManager *geom = gGeoManager;
   if (!geom) {
-    Error("ExtractFaserCalDistancesFromLoS", "Cannot load FaserNu3.gdml");
+    Error("ExtractFaserCalDistancesFromLoS", "Cannot load the current geometry");
     return;
   }
 
   // ----------------------------------------------------
-  // 2. Import FASERCAL_V8 as a volume and add to geometry
-  // ----------------------------------------------------
+  // 2. FIXME: see the note on FASER_GetCurrentGdmlPath() above - this used
+  //    to import a second, separately-sourced FASERCAL sub-geometry (from
+  //    a hardcoded path on a specific developer's own machine) and overlay
+  //    it by hand at a hand-picked z=600cm, renaming its top volume to
+  //    "CalGeometry". The node lookup just below navigates to that same
+  //    "CalGeometry" name, so it almost certainly needs to be rewritten
+  //    against FASERCAL_V10.gdml's actual node names instead of this
+  //    overlay being reinstated as-is. Left disabled rather than guessed
+  //    at - needs a decision from someone who knows that node structure.
+  /*
   TGDMLParse parser;
   TGeoVolume *vol2 = parser.GDMLReadFile("/Users/ukose/sw/kits/NewFASER/FASER/FASERG4/build/FASERCAL_V9.gdml");
   if (!vol2) {
     Error("ExtractFaserCalDistancesFromLoS", "Cannot load /Users/ukose/sw/kits/NewFASER/FASER/FASERG4/build/FASERCAL_V9.gdml");
     return;
   }
-
   vol2->SetName("CalGeometry");
-
-  // Position FASERCAL at z = 600 cm (same as visualization function)
   TGeoTranslation *tr = new TGeoTranslation("tr", 0.0, 0.0, 600.0);
   tr->RegisterYourself();
-
   geom->GetTopVolume()->AddNode(vol2, 1, tr);
+  */
   geom->CloseGeometry();
 
   // ----------------------------------------------------
