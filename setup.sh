@@ -187,7 +187,7 @@ elif [ -d /cvmfs/geant4.cern.ch ]; then
   # CLHEP_SINGLE_THREAD-vs-not TLS/.bss mismatch on
   # CLHEP::RandGaussZiggurat's internal state).
   export CLHEP_ROOT=/cvmfs/sft.cern.ch/lcg/views/LCG_104b_geant4ext20231106/x86_64-el9-gcc11-opt
-  echo "CLHEP: reusing the standalone CLHEP at \$CLHEP_ROOT (the one this Geant4 release is itself linked against)"
+  echo "CLHEP: reusing the standalone CLHEP at $CLHEP_ROOT (the one this Geant4 release is itself linked against)"
 
 else
   echo "FASER setup: could not auto-detect a known site."

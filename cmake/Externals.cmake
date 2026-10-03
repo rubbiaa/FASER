@@ -202,6 +202,33 @@ else()
     message(FATAL_ERROR "FASER_BUILD_CLHEP=OFF but CLHEP_ROOT was not set to a pre-installed CLHEP prefix")
   endif()
 
+  # CLHEP_ROOT is a THIRD-PARTY install (a Geant4 install, an LCG view, a
+  # Homebrew/conda prefix, ...) - its own libdir naming has nothing to do
+  # with the outer FASER project's own GNUInstallDirs-resolved
+  # CMAKE_INSTALL_LIBDIR used just above for the shim's *write* side.
+  # E.g. on lxplus this outer project resolves CMAKE_INSTALL_LIBDIR to
+  # "lib64" (RHEL-family default), but the LCG view CLHEP_ROOT points at
+  # (see setup.sh's lxplus branch) keeps its own libraries under a plain
+  # "lib" - so blindly reading ${CLHEP_ROOT}/${CMAKE_INSTALL_LIBDIR}/...
+  # below would look in the wrong place and fail with a confusing "neither
+  # ... nor ..." error even though CLHEP_ROOT is perfectly valid. Detect
+  # which of the two CLHEP_ROOT itself actually uses, the same way the
+  # smart-default search above already does.
+  set(_faser_clhep_root_libdir "")
+  foreach(_faser_libdir lib lib64)
+    if(EXISTS "${CLHEP_ROOT}/${_faser_libdir}/libG4clhep${_faser_shlib_suffix}" OR
+       EXISTS "${CLHEP_ROOT}/${_faser_libdir}/libCLHEP${_faser_shlib_suffix}")
+      set(_faser_clhep_root_libdir "${_faser_libdir}")
+      break()
+    endif()
+  endforeach()
+  if(NOT _faser_clhep_root_libdir)
+    # Neither found - fall back to CMAKE_INSTALL_LIBDIR so the FATAL_ERROR
+    # below still prints a sensible (if platform-default) path rather than
+    # an empty one.
+    set(_faser_clhep_root_libdir "${CMAKE_INSTALL_LIBDIR}")
+  endif()
+
   # CLHEP_ROOT can point at two different kinds of pre-installed CLHEP:
   #
   #  - a normal, standalone CLHEP install (lib/libCLHEP.*,
@@ -235,7 +262,7 @@ else()
   #  present too, not just libG4clhep itself, so an incomplete bundled
   #  CLHEP is correctly rejected here rather than failing later with
   #  "'CLHEP/Matrix/Matrix.h' file not found" partway through Rave's build.
-  if(EXISTS "${CLHEP_ROOT}/${CMAKE_INSTALL_LIBDIR}/libG4clhep${_faser_shlib_suffix}" AND
+  if(EXISTS "${CLHEP_ROOT}/${_faser_clhep_root_libdir}/libG4clhep${_faser_shlib_suffix}" AND
      EXISTS "${CLHEP_ROOT}/include/Geant4/CLHEP/Matrix")
     set(CLHEP_INSTALL_DIR "${FASER_EXTERNAL_STAGE_DIR}/clhep-from-geant4")
     file(MAKE_DIRECTORY "${CLHEP_INSTALL_DIR}/include" "${CLHEP_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}")
@@ -243,10 +270,10 @@ else()
       file(CREATE_LINK "${CLHEP_ROOT}/include/Geant4/CLHEP" "${CLHEP_INSTALL_DIR}/include/CLHEP" SYMBOLIC)
     endif()
     if(NOT EXISTS "${CLHEP_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libCLHEP${_faser_shlib_suffix}")
-      file(CREATE_LINK "${CLHEP_ROOT}/${CMAKE_INSTALL_LIBDIR}/libG4clhep${_faser_shlib_suffix}" "${CLHEP_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libCLHEP${_faser_shlib_suffix}" SYMBOLIC)
+      file(CREATE_LINK "${CLHEP_ROOT}/${_faser_clhep_root_libdir}/libG4clhep${_faser_shlib_suffix}" "${CLHEP_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libCLHEP${_faser_shlib_suffix}" SYMBOLIC)
     endif()
     message(STATUS "CLHEP: reusing the CLHEP bundled inside the Geant4 install at ${CLHEP_ROOT} (via symlink shim ${CLHEP_INSTALL_DIR})")
-  elseif(EXISTS "${CLHEP_ROOT}/${CMAKE_INSTALL_LIBDIR}/libCLHEP${_faser_shlib_suffix}")
+  elseif(EXISTS "${CLHEP_ROOT}/${_faser_clhep_root_libdir}/libCLHEP${_faser_shlib_suffix}")
     # A standalone CLHEP install - but don't hand CLHEP_ROOT to Rave/GenFit
     # as-is even here: CLHEP_ROOT can be a *shared* environment prefix
     # rather than a CLHEP-only one - e.g. CI passes -DCLHEP_ROOT=$CONDA_PREFIX,
@@ -269,7 +296,7 @@ else()
       file(CREATE_LINK "${CLHEP_ROOT}/include/CLHEP" "${CLHEP_INSTALL_DIR}/include/CLHEP" SYMBOLIC)
     endif()
     if(NOT EXISTS "${CLHEP_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libCLHEP${_faser_shlib_suffix}")
-      file(CREATE_LINK "${CLHEP_ROOT}/${CMAKE_INSTALL_LIBDIR}/libCLHEP${_faser_shlib_suffix}" "${CLHEP_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libCLHEP${_faser_shlib_suffix}" SYMBOLIC)
+      file(CREATE_LINK "${CLHEP_ROOT}/${_faser_clhep_root_libdir}/libCLHEP${_faser_shlib_suffix}" "${CLHEP_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libCLHEP${_faser_shlib_suffix}" SYMBOLIC)
     endif()
     message(STATUS "CLHEP: using the pre-installed standalone CLHEP at ${CLHEP_ROOT} (via isolating symlink shim ${CLHEP_INSTALL_DIR}, so anything else sharing that prefix - e.g. a conda env's ROOT - can't leak into Rave/GenFit's own builds)")
   else()
@@ -287,10 +314,11 @@ else()
     message(FATAL_ERROR
       "CLHEP_ROOT (${CLHEP_ROOT}) is neither a Geant4 install with a "
       "Matrix-complete bundled CLHEP (missing "
-      "${CLHEP_ROOT}/${CMAKE_INSTALL_LIBDIR}/libG4clhep${_faser_shlib_suffix} "
+      "${CLHEP_ROOT}/${_faser_clhep_root_libdir}/libG4clhep${_faser_shlib_suffix} "
       "and/or ${CLHEP_ROOT}/include/Geant4/CLHEP/Matrix) nor a standalone "
       "CLHEP install (missing "
-      "${CLHEP_ROOT}/${CMAKE_INSTALL_LIBDIR}/libCLHEP${_faser_shlib_suffix}). "
+      "${CLHEP_ROOT}/${_faser_clhep_root_libdir}/libCLHEP${_faser_shlib_suffix}, "
+      "checked under both lib/ and lib64/). "
       "If you recently rebuilt/moved your Geant4 install, or changed "
       "GEANT4_INSTALL, this is very likely a STALE CACHED VALUE from an "
       "earlier configure of this same build directory: CLHEP_ROOT/"
