@@ -25,6 +25,31 @@ target_link_libraries(ConvertGENIEDictObj PUBLIC
   Pythia8::pythia8
 )
 
+# Some CVMFS/LCG-distributed ROOT releases (observed with ROOT 6.40.04's
+# x86_64-almalinux9.8-gcc115-opt build on lxplus) ship a libEGPythia8.so
+# that was itself linked against a *shared* Pythia8 build (e.g.
+# libpythia8-8.3.17.so) that doesn't exist on this machine - we vendor our
+# own, separately-versioned, *static* Pythia8 (Pythia8::pythia8, built from
+# source above) instead of that LCG release. The linker reports this as
+# "libpythia8-8.3.17.so, needed by .../libEGPythia8.so, not found" followed
+# by undefined references to Pythia8 symbols (Settings::mode, HadronLevel::
+# moreDecays, ...) *as seen from inside libEGPythia8.so* - i.e. ROOT's own
+# internal use of Pythia8, which ConvertGENIE.exe/countinteractions_tpoevent.exe
+# never call into. The actual Pythia8 API calls this code makes are
+# satisfied by our own Pythia8::pythia8 archive right above. PUBLIC (not
+# PRIVATE) because ConvertGENIEDictObj is an OBJECT library - it is never
+# itself linked, so a PRIVATE link option here would simply never take
+# effect; PUBLIC makes it a usage requirement of whatever executable links
+# this object library (ConvertGENIE.exe, countinteractions_tpoevent.exe),
+# same as the Pythia8::pythia8 link above. Same root cause and same fix as
+# faserps's ROOT/Geant4 clash in FASERG4/CMakeLists.txt - see the comment
+# there for the general pattern. Linux (GNU ld) only; ld64 on macOS doesn't
+# understand this flag and the Mac build doesn't hit this (single
+# self-built ROOT with no separate Pythia8 release underneath it).
+if(UNIX AND NOT APPLE)
+  target_link_options(ConvertGENIEDictObj PUBLIC -Wl,--allow-shlib-undefined)
+endif()
+
 add_executable(ConvertGENIE.exe ConvertGENIE.cc)
 target_link_libraries(ConvertGENIE.exe PRIVATE ConvertGENIEDictObj)
 faser_copy_dict_pcm(ConvertGENIE.exe ConvertGENIEDict)
