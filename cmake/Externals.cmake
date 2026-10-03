@@ -115,7 +115,36 @@ endif()
 # instead of silently producing an incomplete CLHEP.
 set(_faser_clhep_default_build ON)
 set(_faser_clhep_default_root  "")
-if(DEFINED ENV{GEANT4_INSTALL})
+
+# Stronger, more explicit signal than the Geant4-bundled check just below:
+# a site's setup.sh can export a real $CLHEP_ROOT environment variable
+# (distinct from the CLHEP_ROOT *CACHE* variable set() further down) to
+# point at a standalone CLHEP install it already knows its Geant4/ROOT
+# stack is linked against. This matters because not every site's Geant4
+# bundles its own CLHEP the way the check below assumes: lxplus's Geant4
+# CVMFS release (11.2.p01) is itself dynamically linked against a
+# standalone CLHEP from a specific LCG view (confirmed via
+# `ldd libG4global.so`), not a copy bundled inside GEANT4_INSTALL - so the
+# bundled-CLHEP check below never matches there, and FASER would otherwise
+# default to building its own CLHEP from source. That second, independent
+# CLHEP build is ABI-incompatible with the LCG view's one (observed: a
+# CLHEP_SINGLE_THREAD-vs-not TLS/.bss mismatch on
+# CLHEP::RandGaussZiggurat's internal state), and fails to link in any
+# test/executable that pulls in both GenFit (-> FASER's own CLHEP) and
+# Geant4/ROOT (-> the LCG view's CLHEP) at once. See setup.sh's lxplus
+# branch for where $CLHEP_ROOT is actually exported.
+if(DEFINED ENV{CLHEP_ROOT})
+  foreach(_faser_libdir lib lib64)
+    if(EXISTS "$ENV{CLHEP_ROOT}/${_faser_libdir}/libCLHEP${_faser_shlib_suffix}" AND
+       EXISTS "$ENV{CLHEP_ROOT}/include/CLHEP/Matrix")
+      set(_faser_clhep_default_build OFF)
+      set(_faser_clhep_default_root  "$ENV{CLHEP_ROOT}")
+      break()
+    endif()
+  endforeach()
+endif()
+
+if(NOT _faser_clhep_default_root AND DEFINED ENV{GEANT4_INSTALL})
   foreach(_faser_libdir lib lib64)
     if(EXISTS "$ENV{GEANT4_INSTALL}/${_faser_libdir}/libG4clhep${_faser_shlib_suffix}" AND
        EXISTS "$ENV{GEANT4_INSTALL}/include/Geant4/CLHEP/Matrix")

@@ -175,6 +175,20 @@ elif [ -d /cvmfs/geant4.cern.ch ]; then
   popd > /dev/null
   echo "GEANT4 installed in $GEANT4_INSTALL"
 
+  # This particular Geant4 CVMFS release is itself dynamically linked
+  # against a standalone CLHEP from this LCG view (confirmed via
+  # `ldd $GEANT4_INSTALL/lib64/libG4global.so`), not a copy bundled inside
+  # GEANT4_INSTALL - so cmake/Externals.cmake's bundled-CLHEP auto-detect
+  # doesn't find it on its own. Exporting $CLHEP_ROOT here makes
+  # Externals.cmake default to reusing this exact CLHEP instead of
+  # building FASER's own from source, which would otherwise be a second,
+  # ABI-incompatible CLHEP build that fails to link in any test/executable
+  # pulling in both GenFit and Geant4/ROOT at once (observed: a
+  # CLHEP_SINGLE_THREAD-vs-not TLS/.bss mismatch on
+  # CLHEP::RandGaussZiggurat's internal state).
+  export CLHEP_ROOT=/cvmfs/sft.cern.ch/lcg/views/LCG_104b_geant4ext20231106/x86_64-el9-gcc11-opt
+  echo "CLHEP: reusing the standalone CLHEP at \$CLHEP_ROOT (the one this Geant4 release is itself linked against)"
+
 else
   echo "FASER setup: could not auto-detect a known site."
   echo "  Checked for: André's Mac, the Ubuntu (Ryzen) box, and lxplus (/cvmfs/geant4.cern.ch)."

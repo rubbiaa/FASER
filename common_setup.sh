@@ -40,7 +40,27 @@ mkdir -p "$FASERDATA"
 # CLHEP/Rave/GenFit are built by FASER's own CMake superbuild
 # (cmake/Externals.cmake) into build/external-install/, not into
 # top-level *-install directories - point at the real thing.
+#
+# CLHEP specifically can land in one of three places depending on how
+# Externals.cmake's FASER_BUILD_CLHEP/CLHEP_ROOT logic resolved it on this
+# machine: built from source (build/external-install/CLHEP, the default),
+# or reused via a symlink shim - either from a Geant4-bundled copy
+# (build/external/clhep-from-geant4) or from a standalone external CLHEP
+# (build/external/clhep-shim, e.g. lxplus's $CLHEP_ROOT - see setup.sh).
+# This shell script can't read CMakeCache.txt to know which one CMake
+# actually picked, so just use whichever of the shim directories actually
+# exists on disk, falling back to the from-source default otherwise (a
+# fresh checkout before the first `cmake --build` has none of them yet).
 export CLHEPINSTALL=$HOMEFASER/build/external-install/CLHEP
+for _faser_clhep_candidate in \
+    "$HOMEFASER/build/external/clhep-shim" \
+    "$HOMEFASER/build/external/clhep-from-geant4"; do
+  if [ -d "$_faser_clhep_candidate" ]; then
+    CLHEPINSTALL="$_faser_clhep_candidate"
+    break
+  fi
+done
+unset _faser_clhep_candidate
 export RAVEINSTALL=$HOMEFASER/build/external-install/rave
 export GENFITINSTALL=$HOMEFASER/build/external-install/GenFit
 export LD_LIBRARY_PATH=$GENFITINSTALL/lib:$GENFITINSTALL/lib64:$RAVEINSTALL/lib:$CLHEPINSTALL/lib:$CLHEPINSTALL/lib64:$LD_LIBRARY_PATH
