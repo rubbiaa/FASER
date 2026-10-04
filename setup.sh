@@ -248,70 +248,59 @@ if [ -n "$_faser_site_is_lxplus" ]; then
   fi
 
   # Third lxplus fix: ROOT's own Pythia8 plugin (libEGPythia8.so, which
-  # ConvertGENIE.exe / ConvertFASERMC.exe / faserps all load) is linked
-  # against whatever Pythia8 the CVMFS ROOT release was built with, and
-  # records it by soname only (e.g. libpythia8-8.3.17.so) with an RPATH of
-  # just $ORIGIN - so the loader finds it only if its directory is on
-  # $LD_LIBRARY_PATH, which nothing above arranges. Without it, every
-  # binary that pulls in ROOT::EGPythia8 dies at startup with
-  # "error while loading shared libraries: libpythia8-8.3.17.so".
-  # (Our own build uses the static libpythia8.a from cmake/Externals.cmake;
-  # this is purely about ROOT's plugin.) Checked cheaply: one ldd, and a
-  # bounded glob search - never a crawl of the whole of CVMFS - only when
-  # the library is actually unresolved.
+  # ConvertGENIE.exe / ConvertFASERMC.exe / faserps all load) records the
+  # Pythia8 it was built with by soname only (e.g. libpythia8-8.3.17.so)
+  # and has an RPATH of just $ORIGIN, so it is found only if its directory
+  # is on $LD_LIBRARY_PATH - which nothing above arranges. Without it,
+  # those binaries die at startup with "error while loading shared
+  # libraries: libpythia8-8.3.17.so". (Our own build links the static
+  # libpythia8.a from cmake/Externals.cmake; this is about ROOT's plugin.)
+  #
+  # This must stay CHEAP: it runs on every `source setup.sh`, and CVMFS
+  # (first access to a directory) and ldd/find over it can take minutes.
+  # So: one readelf on one file, plus plain stat()s of a handful of
+  # directories - no ldd, no globbing across LCG views, no find.
+  # If the library lives somewhere unusual, point FASER_PYTHIA8_LIBDIR at
+  # the directory that contains it.
   _faser_resolve_root_pythia8() {
     _fp_lib="$(root-config --libdir 2>/dev/null)/libEGPythia8.so"
     [ -f "$_fp_lib" ] || return 0
     command -v readelf > /dev/null 2>&1 || return 0
-    command -v ldd > /dev/null 2>&1 || return 0
     _fp_need=$(readelf -d "$_fp_lib" 2>/dev/null \
       | sed -n 's/.*(NEEDED).*\[\(libpythia8[^]]*\)\].*/\1/p' | head -1)
     [ -n "$_fp_need" ] || return 0
-    ldd "$_fp_lib" 2>/dev/null | grep -q "$_fp_need => not found" || return 0
 
-    # 1) A directory that has the file under exactly the name ROOT wants.
-    for _fp_dir in \
-        /cvmfs/sft.cern.ch/lcg/releases/pythia8/*/x86_64-el9-*-opt/lib \
-        /cvmfs/sft.cern.ch/lcg/releases/LCG_*/MCGenerators/pythia8/*/x86_64-el9-*-opt/lib \
-        /cvmfs/sft.cern.ch/lcg/views/LCG_*/x86_64-el9-*-opt/lib; do
-      if [ -e "$_fp_dir/$_fp_need" ]; then
+    # Already resolvable through the current search path?
+    _fp_old_ifs=$IFS; IFS=:
+    for _fp_dir in $LD_LIBRARY_PATH; do
+      if [ -n "$_fp_dir" ] && [ -e "$_fp_dir/$_fp_need" ]; then
+        IFS=$_fp_old_ifs
+        return 0
+      fi
+    done
+    IFS=$_fp_old_ifs
+
+    # Explicit override first, then the one place a CVMFS ROOT release's
+    # externals are conventionally installed.
+    for _fp_dir in "$FASER_PYTHIA8_LIBDIR" \
+        "$(root-config --libdir 2>/dev/null)"; do
+      if [ -n "$_fp_dir" ] && [ -e "$_fp_dir/$_fp_need" ]; then
         export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:$_fp_dir"
-        echo "Pythia8: ROOT's libEGPythia8 needs $_fp_need - found it in $_fp_dir"
+        echo "Pythia8: ROOT's libEGPythia8 needs $_fp_need - using $_fp_dir"
         return 0
       fi
     done
 
-    # 2) Same library under a different file name, e.g. libpythia8.so whose
-    # SONAME is the versioned name ROOT asked for. The loader looks files up
-    # by NEEDED name, so expose it under that name in a small per-user dir.
-    # Only an exact SONAME match is used (it embeds the Pythia version, so
-    # this can't pick an ABI-incompatible Pythia).
-    for _fp_cand in \
-        /cvmfs/sft.cern.ch/lcg/releases/pythia8/*/x86_64-el9-*-opt/lib/libpythia8.so \
-        /cvmfs/sft.cern.ch/lcg/releases/LCG_*/MCGenerators/pythia8/*/x86_64-el9-*-opt/lib/libpythia8.so \
-        /cvmfs/sft.cern.ch/lcg/views/LCG_*/x86_64-el9-*-opt/lib/libpythia8.so; do
-      [ -e "$_fp_cand" ] || continue
-      if readelf -d "$_fp_cand" 2>/dev/null | grep -q "(SONAME).*\[$_fp_need\]"; then
-        _fp_shim="${XDG_CACHE_HOME:-$HOME/.cache}/faser/pythia8-shim"
-        mkdir -p "$_fp_shim" 2>/dev/null \
-          && ln -sf "$_fp_cand" "$_fp_shim/$_fp_need" 2>/dev/null \
-          && export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:$_fp_shim" \
-          && echo "Pythia8: $_fp_cand has SONAME $_fp_need - exposed via $_fp_shim" \
-          && return 0
-      fi
-    done
-
-    echo "FASER setup: WARNING - ROOT's libEGPythia8.so needs $_fp_need, which"
-    echo "  isn't on LD_LIBRARY_PATH or in any standard LCG location; binaries"
-    echo "  that load ROOT's Pythia8 plugin (ConvertGENIE.exe, ...) will fail at"
-    echo "  startup. ROOT in use: $(root-config --prefix 2>/dev/null)"
-    echo "  Put the directory holding $_fp_need on LD_LIBRARY_PATH by hand, or"
-    echo "  point setup.sh at a ROOT release whose Pythia8 is installed."
+    echo "FASER setup: WARNING - ROOT's libEGPythia8.so needs $_fp_need, which is"
+    echo "  not on LD_LIBRARY_PATH. Binaries that load ROOT's Pythia8 plugin"
+    echo "  (ConvertGENIE.exe, ...) will fail at startup. Locate the directory"
+    echo "  that holds it and either export FASER_PYTHIA8_LIBDIR=<dir> before"
+    echo "  sourcing setup.sh, or add <dir> to LD_LIBRARY_PATH."
     return 0
   }
   _faser_resolve_root_pythia8
   unset -f _faser_resolve_root_pythia8
-  unset _fp_lib _fp_need _fp_dir _fp_cand _fp_shim
+  unset _fp_lib _fp_need _fp_dir _fp_old_ifs
 
   unset _faser_site_is_lxplus
 fi
