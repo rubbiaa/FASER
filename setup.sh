@@ -263,6 +263,32 @@ if [ -n "$_faser_site_is_lxplus" ]; then
   # ldd, no globbing across LCG views, no find.
   # If the library lives somewhere unusual, point FASER_PYTHIA8_LIBDIR at
   # the directory that contains it.
+  # LCG's Pythia8 is built with gcc >= 13 and needs a newer libstdc++
+  # (GLIBCXX_3.4.32, CXXABI_1.3.15) than the el9 system's gcc 11.5 one.
+  # libstdc++ is backward compatible, so a newer copy ahead of the system
+  # one on $LD_LIBRARY_PATH is safe for the gcc 11 ROOT/Geant4 too. Does
+  # nothing if the system libstdc++ already suffices. Override the
+  # location with FASER_GCC_LIBDIR (a lib64 dir holding libstdc++.so.6).
+  _faser_ensure_new_libstdcxx() {
+    grep -q GLIBCXX_3.4.32 /usr/lib64/libstdc++.so.6 2>/dev/null && return 0
+    for _fg_dir in "$FASER_GCC_LIBDIR" \
+        /cvmfs/sft.cern.ch/lcg/contrib/gcc/15/x86_64-el9*/lib64 \
+        /cvmfs/sft.cern.ch/lcg/contrib/gcc/14/x86_64-el9*/lib64 \
+        /cvmfs/sft.cern.ch/lcg/contrib/gcc/13/x86_64-el9*/lib64 \
+        /cvmfs/sft.cern.ch/lcg/releases/gcc/14.*/x86_64-el9/lib64 \
+        /cvmfs/sft.cern.ch/lcg/releases/gcc/13.*/x86_64-el9/lib64; do
+      if [ -n "$_fg_dir" ] && grep -q GLIBCXX_3.4.32 "$_fg_dir/libstdc++.so.6" 2>/dev/null; then
+        export LD_LIBRARY_PATH="$_fg_dir:${LD_LIBRARY_PATH}"
+        echo "Pythia8: using the newer libstdc++ in $_fg_dir (the system one lacks GLIBCXX_3.4.32)"
+        return 0
+      fi
+    done
+    echo "FASER setup: WARNING - the system libstdc++ is too old for LCG's Pythia8 and no"
+    echo "  newer one was found. Set FASER_GCC_LIBDIR to a gcc >= 13 lib64 directory"
+    echo "  (one containing libstdc++.so.6) before sourcing setup.sh."
+    return 0
+  }
+
   _faser_resolve_root_pythia8() {
     _fp_lib="$(root-config --libdir 2>/dev/null)/libEGPythia8.so"
     [ -f "$_fp_lib" ] || return 0
@@ -281,10 +307,8 @@ if [ -n "$_faser_site_is_lxplus" ]; then
     done
     IFS=$_fp_old_ifs
 
-    # Explicit override first, then the one place a CVMFS ROOT release's
-    # externals are conventionally installed.
-    for _fp_dir in "$FASER_PYTHIA8_LIBDIR" \
-        "$(root-config --libdir 2>/dev/null)"; do
+    # Explicit override first.
+    for _fp_dir in "$FASER_PYTHIA8_LIBDIR" "$(root-config --libdir 2>/dev/null)"; do
       if [ -n "$_fp_dir" ] && [ -e "$_fp_dir/$_fp_need" ]; then
         export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:$_fp_dir"
         echo "Pythia8: ROOT's libEGPythia8 needs $_fp_need - using $_fp_dir"
@@ -297,26 +321,28 @@ if [ -n "$_faser_site_is_lxplus" ]; then
     # <ver> drops the dots: 8.3.17 -> 317. ROOT wants it under the versioned
     # file name, so expose it under that name in a small per-user directory
     # (made once; reused, with no CVMFS search, on every later source).
-    # The glob sorts gcc13 before gcc14/15/16, i.e. the oldest compiler
-    # first, closest to the el9 system toolchain ROOT was built with.
     _fp_shim="${XDG_CACHE_HOME:-$HOME/.cache}/faser/pythia8-shim"
     if [ -e "$_fp_shim/$_fp_need" ]; then
       export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:$_fp_shim"
+      _faser_ensure_new_libstdcxx
       return 0
     fi
     _fp_ver=${_fp_need#libpythia8-}; _fp_ver=${_fp_ver%.so}
     _fp_tag=$(echo "$_fp_ver" | awk -F. 'NF==3 {printf "%d%02d", $2, $3}')
     if [ -n "$_fp_tag" ]; then
-      for _fp_cand in /cvmfs/sft.cern.ch/lcg/releases/MCGenerators/pythia8/${_fp_tag}-*/x86_64-el9-gcc*-opt/lib/libpythia8.so; do
-        [ -e "$_fp_cand" ] || continue
-        if mkdir -p "$_fp_shim" 2>/dev/null \
-            && ln -sf "$_fp_cand" "$_fp_shim/$_fp_need" 2>/dev/null; then
-          export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:$_fp_shim"
-          echo "Pythia8: ROOT's libEGPythia8 needs $_fp_need - linked LCG's Pythia8 $_fp_tag,"
-          echo "  $_fp_cand, as $_fp_shim/$_fp_need"
-          return 0
-        fi
-        break
+      # Oldest compiler first: closest to the el9 system toolchain.
+      for _fp_gcc in gcc13 gcc14 gcc15 gcc16; do
+        for _fp_cand in /cvmfs/sft.cern.ch/lcg/releases/MCGenerators/pythia8/${_fp_tag}-*/x86_64-el9-${_fp_gcc}-opt/lib/libpythia8.so; do
+          [ -e "$_fp_cand" ] || continue
+          if mkdir -p "$_fp_shim" 2>/dev/null \
+              && ln -sf "$_fp_cand" "$_fp_shim/$_fp_need" 2>/dev/null; then
+            export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:$_fp_shim"
+            echo "Pythia8: ROOT's libEGPythia8 needs $_fp_need - linked LCG's Pythia8 $_fp_tag,"
+            echo "  $_fp_cand, as $_fp_shim/$_fp_need"
+            _faser_ensure_new_libstdcxx
+            return 0
+          fi
+        done
       done
     fi
 
@@ -328,8 +354,8 @@ if [ -n "$_faser_site_is_lxplus" ]; then
     return 0
   }
   _faser_resolve_root_pythia8
-  unset -f _faser_resolve_root_pythia8
-  unset _fp_lib _fp_need _fp_dir _fp_old_ifs _fp_shim _fp_ver _fp_tag _fp_cand
+  unset -f _faser_resolve_root_pythia8 _faser_ensure_new_libstdcxx
+  unset _fp_lib _fp_need _fp_dir _fp_old_ifs _fp_shim _fp_ver _fp_tag _fp_cand _fp_gcc _fg_dir
 
   unset _faser_site_is_lxplus
 fi
