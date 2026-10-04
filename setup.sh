@@ -258,8 +258,9 @@ if [ -n "$_faser_site_is_lxplus" ]; then
   #
   # This must stay CHEAP: it runs on every `source setup.sh`, and CVMFS
   # (first access to a directory) and ldd/find over it can take minutes.
-  # So: one readelf on one file, plus plain stat()s of a handful of
-  # directories - no ldd, no globbing across LCG views, no find.
+  # So: one readelf on one file, plain stat()s of a few directories and,
+  # only the first time, one glob of a single LCG release directory - no
+  # ldd, no globbing across LCG views, no find.
   # If the library lives somewhere unusual, point FASER_PYTHIA8_LIBDIR at
   # the directory that contains it.
   _faser_resolve_root_pythia8() {
@@ -291,6 +292,34 @@ if [ -n "$_faser_site_is_lxplus" ]; then
       fi
     done
 
+    # LCG ships the same Pythia8 as libpythia8.so (SONAME libpythia8.so)
+    # under releases/MCGenerators/pythia8/<ver>-<hash>/<platform>/lib, where
+    # <ver> drops the dots: 8.3.17 -> 317. ROOT wants it under the versioned
+    # file name, so expose it under that name in a small per-user directory
+    # (made once; reused, with no CVMFS search, on every later source).
+    # The glob sorts gcc13 before gcc14/15/16, i.e. the oldest compiler
+    # first, closest to the el9 system toolchain ROOT was built with.
+    _fp_shim="${XDG_CACHE_HOME:-$HOME/.cache}/faser/pythia8-shim"
+    if [ -e "$_fp_shim/$_fp_need" ]; then
+      export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:$_fp_shim"
+      return 0
+    fi
+    _fp_ver=${_fp_need#libpythia8-}; _fp_ver=${_fp_ver%.so}
+    _fp_tag=$(echo "$_fp_ver" | awk -F. 'NF==3 {printf "%d%02d", $2, $3}')
+    if [ -n "$_fp_tag" ]; then
+      for _fp_cand in /cvmfs/sft.cern.ch/lcg/releases/MCGenerators/pythia8/${_fp_tag}-*/x86_64-el9-gcc*-opt/lib/libpythia8.so; do
+        [ -e "$_fp_cand" ] || continue
+        if mkdir -p "$_fp_shim" 2>/dev/null \
+            && ln -sf "$_fp_cand" "$_fp_shim/$_fp_need" 2>/dev/null; then
+          export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:$_fp_shim"
+          echo "Pythia8: ROOT's libEGPythia8 needs $_fp_need - linked LCG's Pythia8 $_fp_tag,"
+          echo "  $_fp_cand, as $_fp_shim/$_fp_need"
+          return 0
+        fi
+        break
+      done
+    fi
+
     echo "FASER setup: WARNING - ROOT's libEGPythia8.so needs $_fp_need, which is"
     echo "  not on LD_LIBRARY_PATH. Binaries that load ROOT's Pythia8 plugin"
     echo "  (ConvertGENIE.exe, ...) will fail at startup. Locate the directory"
@@ -300,7 +329,7 @@ if [ -n "$_faser_site_is_lxplus" ]; then
   }
   _faser_resolve_root_pythia8
   unset -f _faser_resolve_root_pythia8
-  unset _fp_lib _fp_need _fp_dir _fp_old_ifs
+  unset _fp_lib _fp_need _fp_dir _fp_old_ifs _fp_shim _fp_ver _fp_tag _fp_cand
 
   unset _faser_site_is_lxplus
 fi
