@@ -14,7 +14,8 @@ jobslist  = jobs.list
 Executable = faserps_chunk.sh
 Arguments  = "$(homefaser) $(shared) $(inputroot) $(start) $(nevt) $(chunk) $(seed0) $(extra)"
 
-# Condor does not create the log directory; submit_jobs.sh does.
+# Condor does not create the log directory; submit_jobs.sh does (it runs
+# condor_submit from a per-submission spool directory on AFS).
 Log        = logs/faserps_$(ClusterId).$(chunk).log
 Output     = logs/faserps_$(ClusterId).$(chunk).out
 Error      = logs/faserps_$(ClusterId).$(chunk).err

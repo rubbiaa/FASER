@@ -25,7 +25,9 @@
 # --dry-run         create the job list and show the condor_submit command,
 #                   but don't submit.
 #
-# The job list lands in condor/jobs/, logs in condor/logs/.
+# Each submission gets a spool directory $FASER_CONDOR_SPOOL/<mode>_<timestamp>/
+# (default ~/faser_condor, must be on AFS - CERN's standard schedds reject /eos
+# paths in the submit file) holding the .sub copy, the job list and the logs.
 ###############################################################################
 set -euo pipefail
 
@@ -115,13 +117,26 @@ else
 fi
 [[ "$TOTAL" -ge 1 ]] || die "--total-events must be >= 1"
 
-mkdir -p "$HERE/logs" "$HERE/jobs"
-JOBS="$HERE/jobs/${MODE}_$(date +%Y%m%d_%H%M%S).list"
+# CERN's standard batch schedds refuse a submit file whose paths are on /eos
+# (the executable, logs and job list must be on AFS), and the checkout may well
+# live on EOS. So each submission gets its own small spool directory on AFS with
+# a copy of the .sub file and the wrapper, the job list and the logs. The jobs
+# themselves still read the checkout and the shared data on /eos from the worker.
+SPOOL_BASE="${FASER_CONDOR_SPOOL:-$HOME/faser_condor}"
+mkdir -p "$SPOOL_BASE" || die "cannot create spool directory $SPOOL_BASE (set FASER_CONDOR_SPOOL to a directory on AFS)"
+case "$(readlink -f "$SPOOL_BASE")" in
+  /eos/*) die "spool directory $SPOOL_BASE is on /eos; condor_submit needs it on AFS (set FASER_CONDOR_SPOOL to a directory on AFS, e.g. your ~/faser_condor)" ;;
+esac
+RUNDIR="$SPOOL_BASE/${MODE}_$(date +%Y%m%d_%H%M%S)"
+mkdir -p "$RUNDIR/logs"
+cp "$HERE/submit_${MODE}.sub" "$HERE/${MODE}_chunk.sh" "$RUNDIR/"
+chmod +x "$RUNDIR/${MODE}_chunk.sh"
+JOBS="$RUNDIR/jobs.list"
 python3 "$HERE/make_jobs_list.py" --total-events "$TOTAL" --chunk-size "$CHUNK_SIZE" --out "$JOBS"
 
 args=( -append "homefaser = $HOMEFASER"
        -append "shared = $SHARED"
-       -append "jobslist = $JOBS"
+       -append "jobslist = jobs.list"
        -append "extra = ${EXTRA[*]:-}" )
 if [[ "$MODE" == "faserps" ]]; then
   args+=( -append "inputroot = $INPUT" -append "seed0 = $SEED0" )
@@ -133,8 +148,9 @@ echo "mode:        $MODE"
 echo "checkout:    $HOMEFASER"
 echo "shared data: $SHARED"
 [[ "$MODE" == "faserps" ]] && echo "input:       $INPUT"
+echo "spool dir:   $RUNDIR"
 echo "job list:    $JOBS ($(wc -l < "$JOBS" | tr -d ' ') chunks)"
-echo "command:     condor_submit ${args[*]} submit_${MODE}.sub"
+echo "command:     (cd $RUNDIR && condor_submit ${args[*]} submit_${MODE}.sub)"
 
 if [[ "$DRY" -eq 1 ]]; then
   echo "--dry-run: not submitting."
@@ -142,6 +158,6 @@ if [[ "$DRY" -eq 1 ]]; then
 fi
 
 command -v condor_submit >/dev/null || die "condor_submit not found - run this on lxplus (or use submit_from_mac.sh)"
-cd "$HERE"
+cd "$RUNDIR"
 condor_submit "${args[@]}" "submit_${MODE}.sub"
-echo "Submitted. Monitor with: condor_q   (logs in $HERE/logs)"
+echo "Submitted. Monitor with: condor_q   (logs in $RUNDIR/logs)"

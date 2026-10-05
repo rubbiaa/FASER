@@ -70,8 +70,12 @@ cd ~/MACDEV/FASERV9/FASER/condor
 ```
 
 On lxplus itself, skip the Mac script: `cd FASER/condor && ./submit_jobs.sh ...`
-takes the same arguments. Job lists end up in `condor/jobs/`, logs in
-`condor/logs/` (on lxplus).
+takes the same arguments. Each submission gets its own spool directory
+`~/faser_condor/<mode>_<timestamp>/` on AFS (override with
+`FASER_CONDOR_SPOOL`) holding a copy of the `.sub` file, the job list and
+`logs/`. CERN's standard batch schedds reject `/eos` paths in the submit
+file, and a checkout under `/eos/home-...` would otherwise trigger that; the
+jobs themselves still read the checkout and the shared data on `/eos`.
 
 ## What the jobs do
 
@@ -110,7 +114,7 @@ takes the same arguments. Job lists end up in `condor/jobs/`, logs in
   against a stand-in checkout (fake `setup.sh`, `run_*.py`, `condor_submit`,
   `ssh`, `rsync`) covering the normal path and the failure paths, not against
   real CVMFS, your build, or `condor_submit`. Run one small chunk first
-  (`--total-events 10 --chunk-size 10`) and read `logs/*.out`.
+  (`--total-events 10 --chunk-size 10`) and read `~/faser_condor/<run>/logs/*.out`.
 * `setup.sh`'s lxplus branch has a Pythia8 shim in `~/.cache/faser/`. The
   wrappers reuse yours if the node can see your home, else build one in
   scratch (an extra CVMFS lookup per job).
