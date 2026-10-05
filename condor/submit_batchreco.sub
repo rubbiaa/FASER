@@ -1,0 +1,33 @@
+universe   = vanilla
+
+# See submit_faserps.sub: normally driven by submit_jobs.sh, which fills in
+# the per-run variables below with -append.
+homefaser = /afs/cern.ch/work/r/rubbiaa/FASER
+shared    = /eos/user/r/rubbiaa/FASERDATA
+run       = 0
+extra     =
+jobslist  = jobs.list
+
+Executable = batchreco_chunk.sh
+Arguments  = "$(homefaser) $(shared) $(run) $(start) $(nevt) $(chunk) $(extra)"
+
+Log        = logs/batchreco_$(ClusterId).$(chunk).log
+Output     = logs/batchreco_$(ClusterId).$(chunk).out
+Error      = logs/batchreco_$(ClusterId).$(chunk).err
+
+getenv = False
+
+# One single-threaded batchreco per job (the old script ran 5 sub-jobs
+# inside one 5-CPU job; more, smaller chunks schedule better instead).
+# A short local test (heartbeat.txt, ~20 events) used ~750 MB; 4 GB is a
+# guess with headroom - raise it if jobs get held for memory.
+request_cpus   = 1
+request_memory = 4 GB
+request_disk   = 6 GB
+
++JobFlavour = "tomorrow"
+
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+
+queue chunk, start, nevt from $(jobslist)
