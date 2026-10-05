@@ -210,6 +210,18 @@ elif [ -d /cvmfs/geant4.cern.ch ]; then
   fi
   unset _faser_py_ver
 
+  # PyROOT needs the Python major.minor ROOT was built for. The CVMFS ROOT
+  # release used above is built for Python 3.12, but `python3` is the el9
+  # system 3.9, so `import ROOT` fails there. el9 also ships /usr/bin/python3.12
+  # (confirmed on lxplus9108: `import ROOT` works with it), so point the
+  # PyROOT scripts at it: run_regression_tests.py's --python defaults to
+  # $FASER_PYTHON, and run_faserps.py / summarize_output.py are run with it.
+  # Override by exporting FASER_PYTHON before sourcing this file.
+  if [ -z "$FASER_PYTHON" ] && [ -x /usr/bin/python3.12 ]; then
+    export FASER_PYTHON=/usr/bin/python3.12
+    echo "PyROOT scripts will default to FASER_PYTHON=$FASER_PYTHON"
+  fi
+
   # Flag checked below, after common_setup.sh has had its turn at
   # $LD_LIBRARY_PATH too - see the matching block at the end of this file.
   _faser_site_is_lxplus=1
