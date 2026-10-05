@@ -91,14 +91,26 @@ export PATH=$HOMEFASER/build/bin:$PATH
 # spot in a long terminal scrollback) before running the actual build -
 # $HOMEFASER is captured now, so this works regardless of your current
 # directory at invocation time.
+#
+# On a fresh checkout, or after `rm -rf build`, there is nothing to build
+# yet: configure first (same command docs/INSTALL.md gives), which also
+# creates the build directory, then build. Once configured, it is just the
+# incremental build, as before.
 fb() {
   local build_dir="$HOMEFASER/build"
   echo ""
   echo "=================================================="
   echo "   FASER BUILD"
+  if [ ! -f "$build_dir/CMakeCache.txt" ]; then
+    echo "   (no configured build in $build_dir - configuring first)"
+    echo "   cmake -S \"$HOMEFASER\" -B \"$build_dir\" -DCMAKE_BUILD_TYPE=RelWithDebInfo"
+  fi
   echo "   cmake --build \"$build_dir\" -j"
   echo "=================================================="
   echo ""
+  if [ ! -f "$build_dir/CMakeCache.txt" ]; then
+    cmake -S "$HOMEFASER" -B "$build_dir" -DCMAKE_BUILD_TYPE=RelWithDebInfo || return $?
+  fi
   cmake --build "$build_dir" -j
 }
 
