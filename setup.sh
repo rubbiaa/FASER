@@ -314,6 +314,10 @@ if [ -n "$_faser_site_is_lxplus" ]; then
     for _fp_dir in $LD_LIBRARY_PATH; do
       if [ -n "$_fp_dir" ] && [ -e "$_fp_dir/$_fp_need" ]; then
         IFS=$_fp_old_ifs
+        # Still tell CMake which Pythia8 this is (re-sourcing in a shell that
+        # already has the shim on LD_LIBRARY_PATH used to skip this, so the
+        # next build silently fell back to the bundled 8.3.12 headers).
+        _faser_export_pythia8_root "$_fp_dir/$_fp_need"
         return 0
       fi
     done
@@ -324,6 +328,7 @@ if [ -n "$_faser_site_is_lxplus" ]; then
       if [ -n "$_fp_dir" ] && [ -e "$_fp_dir/$_fp_need" ]; then
         export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:$_fp_dir"
         echo "Pythia8: ROOT's libEGPythia8 needs $_fp_need - using $_fp_dir"
+        _faser_export_pythia8_root "$_fp_dir/$_fp_need"
         return 0
       fi
     done
