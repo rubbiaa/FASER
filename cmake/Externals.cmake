@@ -643,6 +643,26 @@ endif()
 # -----------------------------------------------------------------------------
 # Pythia8
 # -----------------------------------------------------------------------------
+# Reusing the Pythia8 that ROOT's own TPythia8 plugin (libEGPythia8) was built
+# against: set FASER_PYTHIA8_ROOT in the environment (setup.sh does this on
+# lxplus) to a Pythia8 tree with include/ and lib/libpythia8.{so,a}. FASER's
+# code (CoreUtils/TPOEvent.cc) reaches *into* TPythia8's Pythia8::Pythia
+# object (fPythia8->Pythia8()->event ...), so the Pythia8 headers FASER is
+# compiled with must be the very version libEGPythia8 was compiled with - a
+# separately-built Pythia8 of another version (e.g. our bundled 8.3.12 against
+# ROOT 6.40.04's 8.3.17) gives different class layouts and heap corruption
+# ("malloc.c: sysmalloc assertion failed") at the first Pythia8 decay.
+if(DEFINED ENV{FASER_PYTHIA8_ROOT} AND NOT "$ENV{FASER_PYTHIA8_ROOT}" STREQUAL "")
+  if(NOT EXISTS "$ENV{FASER_PYTHIA8_ROOT}/include/Pythia8/Pythia.h")
+    message(FATAL_ERROR "FASER_PYTHIA8_ROOT=$ENV{FASER_PYTHIA8_ROOT} has no include/Pythia8/Pythia.h")
+  endif()
+  message(STATUS "FASER: using Pythia8 from FASER_PYTHIA8_ROOT=$ENV{FASER_PYTHIA8_ROOT} "
+                 "(the one ROOT's libEGPythia8 uses) instead of building our own")
+  set(FASER_BUILD_PYTHIA8 OFF CACHE BOOL "Build Pythia8 from source" FORCE)
+  set(PYTHIA8_ROOT "$ENV{FASER_PYTHIA8_ROOT}" CACHE PATH
+      "Pre-installed/pre-built Pythia8 tree (used when FASER_BUILD_PYTHIA8=OFF)" FORCE)
+endif()
+
 option(FASER_BUILD_PYTHIA8 "Build Pythia8 from source" ON)
 set(PYTHIA8_ROOT "" CACHE PATH "Pre-installed/pre-built Pythia8 tree (used when FASER_BUILD_PYTHIA8=OFF)")
 
@@ -671,11 +691,21 @@ else()
 endif()
 
 file(MAKE_DIRECTORY "${PYTHIA8_INSTALL_DIR}/include")
-add_library(Pythia8::pythia8 STATIC IMPORTED GLOBAL)
-set_target_properties(Pythia8::pythia8 PROPERTIES
-  IMPORTED_LOCATION             "${PYTHIA8_INSTALL_DIR}/lib/libpythia8.a"
-  INTERFACE_INCLUDE_DIRECTORIES "${PYTHIA8_INSTALL_DIR}/include"
-)
+# A pre-installed tree (FASER_BUILD_PYTHIA8=OFF) may ship only a shared
+# libpythia8 (e.g. LCG); use it when present. The bundled build is static.
+if(NOT FASER_BUILD_PYTHIA8 AND EXISTS "${PYTHIA8_INSTALL_DIR}/lib/libpythia8${_faser_shlib_suffix}")
+  add_library(Pythia8::pythia8 SHARED IMPORTED GLOBAL)
+  set_target_properties(Pythia8::pythia8 PROPERTIES
+    IMPORTED_LOCATION             "${PYTHIA8_INSTALL_DIR}/lib/libpythia8${_faser_shlib_suffix}"
+    INTERFACE_INCLUDE_DIRECTORIES "${PYTHIA8_INSTALL_DIR}/include"
+  )
+else()
+  add_library(Pythia8::pythia8 STATIC IMPORTED GLOBAL)
+  set_target_properties(Pythia8::pythia8 PROPERTIES
+    IMPORTED_LOCATION             "${PYTHIA8_INSTALL_DIR}/lib/libpythia8.a"
+    INTERFACE_INCLUDE_DIRECTORIES "${PYTHIA8_INSTALL_DIR}/include"
+  )
+endif()
 if(TARGET pythia8_external)
   add_dependencies(Pythia8::pythia8 pythia8_external)
 endif()

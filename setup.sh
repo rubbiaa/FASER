@@ -289,6 +289,18 @@ if [ -n "$_faser_site_is_lxplus" ]; then
     return 0
   }
 
+  # Tell CMake (cmake/Externals.cmake) to build against this very Pythia8
+  # instead of the bundled 8.3.12: FASER's code reaches into ROOT's TPythia8
+  # object, so the headers must match the Pythia8 libEGPythia8 uses.
+  _faser_export_pythia8_root() {
+    _fe_t=$(readlink -f "$1" 2>/dev/null)
+    _fe_root=${_fe_t%/lib/libpythia8.so}
+    if [ "$_fe_root" != "$_fe_t" ] && [ -d "$_fe_root/include/Pythia8" ]; then
+      export FASER_PYTHIA8_ROOT="$_fe_root"
+    fi
+    unset _fe_t _fe_root
+  }
+
   _faser_resolve_root_pythia8() {
     _fp_lib="$(root-config --libdir 2>/dev/null)/libEGPythia8.so"
     [ -f "$_fp_lib" ] || return 0
@@ -324,6 +336,7 @@ if [ -n "$_faser_site_is_lxplus" ]; then
     _fp_shim="${XDG_CACHE_HOME:-$HOME/.cache}/faser/pythia8-shim"
     if [ -e "$_fp_shim/$_fp_need" ]; then
       export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:$_fp_shim"
+      _faser_export_pythia8_root "$_fp_shim/$_fp_need"
       _faser_ensure_new_libstdcxx
       return 0
     fi
@@ -339,6 +352,7 @@ if [ -n "$_faser_site_is_lxplus" ]; then
             export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:$_fp_shim"
             echo "Pythia8: ROOT's libEGPythia8 needs $_fp_need - linked LCG's Pythia8 $_fp_tag,"
             echo "  $_fp_cand, as $_fp_shim/$_fp_need"
+            _faser_export_pythia8_root "$_fp_cand"
             _faser_ensure_new_libstdcxx
             return 0
           fi
@@ -354,7 +368,7 @@ if [ -n "$_faser_site_is_lxplus" ]; then
     return 0
   }
   _faser_resolve_root_pythia8
-  unset -f _faser_resolve_root_pythia8 _faser_ensure_new_libstdcxx
+  unset -f _faser_resolve_root_pythia8 _faser_ensure_new_libstdcxx _faser_export_pythia8_root
   unset _fp_lib _fp_need _fp_dir _fp_old_ifs _fp_shim _fp_ver _fp_tag _fp_cand _fp_gcc _fg_dir
 
   unset _faser_site_is_lxplus
